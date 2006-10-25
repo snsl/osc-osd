@@ -14,6 +14,16 @@ dnl Checks for programs.
 AC_PROG_INSTALL
 AC_PROG_CC
 
+dnl Sets kernel headers variable
+AC_ARG_WITH(kernel-dir, [AC_HELP_STRING([--with-kernel=DIR],
+[Compile the kernel module against the kernel source in DIR])],
+[kdir="$withval"], [kdir="no"])
+KDIR="/lib/modules/`uname -r`/build"
+if test "x$kdir" != "xno"; then
+	KDIR="$kdir"
+fi
+AC_SUBST(KDIR)
+
 dnl Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS(unistd.h sys/param.h sys/time.h time.h sys/mkdev.h sys/sysmacros.h string.h memory.h fcntl.h dirent.h sys/ndir.h ndir.h alloca.h locale.h )
@@ -28,4 +38,5 @@ AC_CHECK_FUNC(mknod)
 
 AC_OUTPUT([
 	   Makefile
+	   kernel/Makefile
 	])

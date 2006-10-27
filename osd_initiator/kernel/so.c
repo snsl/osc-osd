@@ -45,19 +45,16 @@
 
 #include "scsi_logging.h"
 
-/*
- * More than enough for everybody ;)  The huge number of majors
- * is a leftover from 16bit dev_t days, we don't really need that
- * much numberspace.
- */
-#define SD_MAJORS	16
+/* FIXME: This is currently the experimental/local number now! */
+#define SO_MAJOR_NUMBER 	62
 
 MODULE_AUTHOR("Paul Betts");
-MODULE_DESCRIPTION("SCSI object storage device driver");
+MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS_CHARDEV_MAJOR(SO_MAJOR_NUMBER)
 
 /*
- * This is limited by the naming scheme enforced in sd_probe,
+ * This is limited by the naming scheme enforced in suo_probe,
  * add another character to it if you really need more disks.
  */
 #define SD_MAX_DISKS	(((26 * 26) + 26 + 1) * 26)
@@ -119,7 +116,7 @@ struct genosddisk {
 };
 
 struct scsi_osd_disk {
-	struct scsi_driver *driver;	/* always &sd_template */
+	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
 	struct class_device cdev;
 	struct genosddisk *disk;
@@ -145,7 +142,7 @@ static DEFINE_MUTEX(sd_ref_mutex);
 static int sd_revalidate_disk(struct genosddisk *disk);
 static void sd_rw_intr(struct scsi_cmnd * command);
 
-static int sd_probe(struct device *);
+static int suo_probe(struct device *);
 static int sd_remove(struct device *);
 static void sd_shutdown(struct device *dev);
 static void sd_rescan(struct device *);
@@ -227,25 +224,25 @@ static ssize_t sd_show_fua(struct class_device *cdev, char *buf)
 	return snprintf(buf, 20, "%u\n", sdkp->DPOFUA);
 }
 
-static struct class_device_attribute sd_disk_attrs[] = {
+static struct class_device_attribute suo_disk_attrs[] = {
 	__ATTR(cache_type, S_IRUGO|S_IWUSR, sd_show_cache_type,
 	       sd_store_cache_type),
 	__ATTR(FUA, S_IRUGO, sd_show_fua, NULL),
 	__ATTR_NULL,
 };
 
-static struct class sd_disk_class = {
+static struct class suo_disk_class = {
 	.name		= "scsi_osd",
 	.owner		= THIS_MODULE,
 	.release	= scsi_disk_release,
-	.class_dev_attrs = sd_disk_attrs,
+	.class_dev_attrs = suo_disk_attrs,
 };
 
-static struct scsi_driver sd_template = {
+static struct scsi_driver suo_template = {
 	.owner			= THIS_MODULE,
 	.gendrv = {
 		.name		= "so",
-		.probe		= sd_probe,
+		.probe		= suo_probe,
 		.remove		= sd_remove,
 		.shutdown	= sd_shutdown,
 	},
@@ -408,7 +405,7 @@ static int sd_release(struct inode *inode, struct file *filp)
 
 	/*
 	 * XXX and what if there are packets in flight and this close()
-	 * XXX is followed by a "rmmod sd_mod"?
+	 * XXX is followed by a "rmmod suo_mod"?
 	 */
 	scsi_disk_put(sdkp);
 	return 0;
@@ -574,7 +571,6 @@ static int sd_sync_cache(struct scsi_device *sdp)
 	if (!scsi_device_online(sdp))
 		return -ENODEV;
 
-
 	for (retries = 3; retries > 0; --retries) {
 		unsigned char cmd[10] = { 0 };
 
@@ -670,17 +666,25 @@ static long sd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long a
 }
 #endif
 
-static struct block_device_operations sd_fops = {
+static struct file_operations sd_fops = {
 	.owner			= THIS_MODULE,
 	.open			= sd_open,
 	.release		= sd_release,
 	.ioctl			= sd_ioctl,
+	/*  OSD Disks don't have geometry (or at least we don't care)
 	.getgeo			= sd_getgeo,
+	*/
 #ifdef CONFIG_COMPAT
 	.compat_ioctl		= sd_compat_ioctl,
 #endif
+
+	/* Char devices don't have an interface for these things
+	 * FIXME: We'll have to make these available via ioctls or something
+	
 	.media_changed		= sd_media_changed,
 	.revalidate_disk	= sd_revalidate_disk,
+
+	*/
 };
 
 /**
@@ -1163,7 +1167,7 @@ static int sd_revalidate_disk(struct genosddisk *disk)
 }
 
 /**
- *	sd_probe - called during driver initialization and whenever a
+ *	suo_probe - called during driver initialization and whenever a
  *	new scsi device is attached to the system. It is called once
  *	for each scsi device (not just disks) present.
  *	@dev: pointer to device object
@@ -1180,7 +1184,7 @@ static int sd_revalidate_disk(struct genosddisk *disk)
  *	Assume sd_attach is not re-entrant (for time being)
  *	Also think about sd_attach() and sd_remove() running coincidentally.
  **/
-static int sd_probe(struct device *dev)
+static int suo_probe(struct device *dev)
 {
 	struct scsi_device *sdp = to_scsi_device(dev);
 	struct scsi_osd_disk *sdkp;
@@ -1193,7 +1197,7 @@ static int sd_probe(struct device *dev)
 		goto out;
 
 	SCSI_LOG_HLQUEUE(3, sdev_printk(KERN_INFO, sdp,
-					"so_attach\n"));
+					"suo_attach\n"));
 
 	error = -ENOMEM;
 	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
@@ -1214,7 +1218,7 @@ static int sd_probe(struct device *dev)
 
 	class_device_initialize(&sdkp->cdev);
 	sdkp->cdev.dev = &sdp->sdev_gendev;
-	sdkp->cdev.class = &sd_disk_class;
+	sdkp->cdev.class = &suo_disk_class;
 	strncpy(sdkp->cdev.class_id, sdp->sdev_gendev.bus_id, BUS_ID_SIZE);
 
 	if (class_device_add(&sdkp->cdev))
@@ -1223,7 +1227,7 @@ static int sd_probe(struct device *dev)
 	get_device(&sdp->sdev_gendev);
 
 	sdkp->device = sdp;
-	sdkp->driver = &sd_template;
+	sdkp->driver = &suo_template;
 	sdkp->disk = gd;
 	sdkp->index = index;
 	sdkp->openers = 0;
@@ -1281,13 +1285,13 @@ static int sd_probe(struct device *dev)
 
 /**
  *	sd_remove - called whenever a scsi disk (previously recognized by
- *	sd_probe) is detached from the system. It is called (potentially
+ *	suo_probe) is detached from the system. It is called (potentially
  *	multiple times) during sd module unload.
  *	@sdp: pointer to mid level scsi device object
  *
  *	Note: this function is invoked from the scsi mid-level.
  *	This function potentially frees up a device name (e.g. /dev/sdc)
- *	that could be re-used by a subsequent sd_probe().
+ *	that could be re-used by a subsequent suo_probe().
  *	This function is not called when the built-in sd driver is "exit-ed".
  **/
 static int sd_remove(struct device *dev)
@@ -1353,18 +1357,18 @@ static void sd_shutdown(struct device *dev)
 }
 
 /**
- *	init_sd - entry point for this driver (both when built in or when
+ *	init_suo - entry point for this driver (both when built in or when
  *	a module).
  *
  *	Note: this function registers this driver with the scsi mid-level.
  **/
-static int __init init_sd(void)
+static int __init init_suo(void)
 {
 	/* FIXME: We need to instantiate a character device here and do up all 
 	 * that nonsense */
 	int majors = 0, i;
 
-	SCSI_LOG_HLQUEUE(3, printk("init_sd: sd driver entry point\n"));
+	SCSI_LOG_HLQUEUE(3, printk("init_suo: sd driver entry point\n"));
 
 	for (i = 0; i < SD_MAJORS; i++)
 		if (register_blkdev(sd_major(i), "sd") == 0)
@@ -1373,29 +1377,29 @@ static int __init init_sd(void)
 	if (!majors)
 		return -ENODEV;
 
-	class_register(&sd_disk_class);
+	class_register(&suo_disk_class);
 
-	return scsi_register_driver(&sd_template.gendrv);
+	return scsi_register_driver(&suo_template.gendrv);
 }
 
 /**
- *	exit_sd - exit point for this driver (when it is a module).
+ *	exit_suo - exit point for this driver (when it is a module).
  *
  *	Note: this function unregisters this driver from the scsi mid-level.
  **/
-static void __exit exit_sd(void)
+static void __exit exit_suo(void)
 {
 	int i;
 	/* FIXME: We need to trash the char device we made earlier */
 
-	SCSI_LOG_HLQUEUE(3, printk("exit_sd: exiting sd driver\n"));
+	SCSI_LOG_HLQUEUE(3, printk("exit_suo: exiting sd driver\n"));
 
-	scsi_unregister_driver(&sd_template.gendrv);
+	scsi_unregister_driver(&suo_template.gendrv);
 	for (i = 0; i < SD_MAJORS; i++)
 		unregister_blkdev(sd_major(i), "sd");
 
-	class_unregister(&sd_disk_class);
+	class_unregister(&suo_disk_class);
 }
 
-module_init(init_sd);
-module_exit(exit_sd);
+module_init(init_suo);
+module_exit(exit_suo);

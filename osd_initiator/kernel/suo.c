@@ -3,7 +3,7 @@
  *  Started: October 2006 by Paul Betts, to allow user process control 
  *  	     of Object Storage Devices.
  *
- * Original driver (so.c):
+ * Original driver (suo.c):
  *        Copyright (C) 2006 Paul Betts <bettsp@osc.edu>
  *        Based on sg and sd driver originally by Lawrence Foard and 
  *        	Drew Eckhardt respectively.
@@ -44,6 +44,9 @@
 #include <scsi/scsicam.h>
 
 #include "scsi_logging.h"
+
+/* OSD Includes */
+#include "osd_defs.h"
 
 /* FIXME: This is currently the experimental/local number now! */
 #define SO_MAJOR_NUMBER 	62
@@ -143,7 +146,7 @@ static int sd_revalidate_disk(struct genosddisk *disk);
 static void sd_rw_intr(struct scsi_cmnd * command);
 
 static int suo_probe(struct device *);
-static int sd_remove(struct device *);
+static int suo_remove(struct device *);
 static void sd_shutdown(struct device *dev);
 static void sd_rescan(struct device *);
 static int sd_init_command(struct scsi_cmnd *);
@@ -243,7 +246,7 @@ static struct scsi_driver suo_template = {
 	.gendrv = {
 		.name		= "so",
 		.probe		= suo_probe,
-		.remove		= sd_remove,
+		.remove		= suo_remove,
 		.shutdown	= sd_shutdown,
 	},
 	.rescan			= sd_rescan,
@@ -574,23 +577,29 @@ static int sd_sync_cache(struct scsi_device *sdp)
 	for (retries = 3; retries > 0; --retries) {
 		unsigned char cmd[10] = { 0 };
 
-		cmd[0] = SYNCHRONIZE_CACHE;
+		/* FIXME: Instead of using SYNCRONIZE_CACHE, we use FLUSH_OSD.
+		 * Is this right? Sure, we'll go with it. */
+		OSD_SET_COMMAND(OSD_FLUSH_OSD, cmd);
+		cmd[2] = FLUSH_OSD_EVERYTHING;
+
 		/*
 		 * Leave the rest of the command zero to indicate
 		 * flush everything.
 		 */
+		/* FIXME: This probably isn't right */
 		res = scsi_execute_req(sdp, cmd, DMA_NONE, NULL, 0, &sshdr,
 				       SD_TIMEOUT, SD_MAX_RETRIES);
 		if (res == 0)
 			break;
 	}
 
-	if (res) {		printk(KERN_WARNING "FAILED\n  status = %x, message = %02x, "
+	if (res) {
+		printk(KERN_WARNING "FAILED\n  status = %x, message = %02x, "
 				    "host = %d, driver = %02x\n  ",
 				    status_byte(res), msg_byte(res),
 				    host_byte(res), driver_byte(res));
-			if (driver_byte(res) & DRIVER_SENSE)
-				scsi_print_sense_hdr("sd", &sshdr);
+		if (driver_byte(res) & DRIVER_SENSE)
+			scsi_print_sense_hdr("suo", &sshdr);
 	}
 
 	return res;
@@ -666,7 +675,7 @@ static long sd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long a
 }
 #endif
 
-static struct file_operations sd_fops = {
+static struct file_operations suo_fops = {
 	.owner			= THIS_MODULE,
 	.open			= sd_open,
 	.release		= sd_release,
@@ -1182,7 +1191,7 @@ static int sd_revalidate_disk(struct genosddisk *disk)
  *	and minor number that is chosen here.
  *
  *	Assume sd_attach is not re-entrant (for time being)
- *	Also think about sd_attach() and sd_remove() running coincidentally.
+ *	Also think about sd_attach() and suo_remove() running coincidentally.
  **/
 static int suo_probe(struct device *dev)
 {
@@ -1284,7 +1293,7 @@ static int suo_probe(struct device *dev)
 }
 
 /**
- *	sd_remove - called whenever a scsi disk (previously recognized by
+ *	suo_remove - called whenever a scsi disk (previously recognized by
  *	suo_probe) is detached from the system. It is called (potentially
  *	multiple times) during sd module unload.
  *	@sdp: pointer to mid level scsi device object
@@ -1294,7 +1303,7 @@ static int suo_probe(struct device *dev)
  *	that could be re-used by a subsequent suo_probe().
  *	This function is not called when the built-in sd driver is "exit-ed".
  **/
-static int sd_remove(struct device *dev)
+static int suo_remove(struct device *dev)
 {
 	struct scsi_disk *sdkp = dev_get_drvdata(dev);
 
@@ -1336,7 +1345,7 @@ static void scsi_disk_release(struct class_device *cdev)
 }
 
 /*
- * Send a SYNCHRONIZE CACHE instruction down to the device through
+ * Send a FLUSH OSD instruction down to the device through
  * the normal SCSI command structure.  Wait for the command to
  * complete.
  */
@@ -1364,17 +1373,9 @@ static void sd_shutdown(struct device *dev)
  **/
 static int __init init_suo(void)
 {
-	/* FIXME: We need to instantiate a character device here and do up all 
-	 * that nonsense */
-	int majors = 0, i;
+	SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n"));
 
-	SCSI_LOG_HLQUEUE(3, printk("init_suo: sd driver entry point\n"));
-
-	for (i = 0; i < SD_MAJORS; i++)
-		if (register_blkdev(sd_major(i), "sd") == 0)
-			majors++;
-
-	if (!majors)
+	if (!register_chrdev(SO_MAJOR_NUMBER, "suo", suo_fops))
 		return -ENODEV;
 
 	class_register(&suo_disk_class);

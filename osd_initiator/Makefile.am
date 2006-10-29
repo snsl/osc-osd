@@ -1,3 +1,6 @@
+CFLAGS = "-I($PWD)/libosd"
 
-SUBDIRS = \
-	  kernel
+suo.ko:
+	$(MAKE) SUBDIRS=$(PWD)/kernel -C $(KDIR) modules 
+
+all:  suo.ko

@@ -120,7 +120,7 @@
  * MACROS
  */
 #define OSD_RC_IS_GOOD(rc) (OSD_RC_GOOD==rc)
-#define OSD_SET_COMMAND(cmd, cmdlo, cmdhi)	do { cmd[1]=((cmd & 0xF0)>>4); cmd[0]=(cmd & 0x0F); } while(0)
+#define OSD_SET_COMMAND(cmd, buf)	do { buf[1]=((cmd & 0xF0)>>4); buf[0]=(cmd & 0x0F); } while(0)
 
 
 /******************************************************************

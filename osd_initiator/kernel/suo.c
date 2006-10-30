@@ -60,6 +60,12 @@ MODULE_AUTHOR("Paul Betts");
 MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
 MODULE_LICENSE("GPL");
 
+
+static int major;
+module_param(major, int, 0);
+MODULE_PARM_DESC(major, "Major device number");
+
+
 /*
  * This is limited by the naming scheme enforced in suo_probe,
  * add another character to it if you really need more disks.
@@ -1552,16 +1558,21 @@ static void sd_shutdown(struct device *dev)
  **/
 static int __init init_suo(void)
 {
-	int ret = 0;
+	int ret;
 	int has_registered_chrdev = 0;
 	so_sysfs_class = NULL;
 
-	/* SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n")); */
+	SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n")); 
+	if(major > 0) {
+		dev_id = (major ? MKDEV(major, 0) : 0);
+		ret = register_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES, "suo");
+	}
+	else
+		ret = alloc_chrdev_region(&dev_id, 0, SUO_MAX_OSD_ENTRIES, "suo");
 
-	ret = alloc_chrdev_region(&dev_id, 0, SUO_MAX_OSD_ENTRIES, "suo");
-	if (ret != 0);
-	{
-		printk(KERN_DEBUG "Can't alloc the chardev region! Error code is 0x%x (%d)\n", ret);
+	if (ret != 0) {
+		printk(KERN_DEBUG "Can't %s the chardev region! Error code is 0x%x (%d)\n", 
+				  (major > 0 ? "register" : "dynamically allocate"), ret);
 		return -ENODEV;
 	}
 	has_registered_chrdev = -1;
@@ -1583,8 +1594,7 @@ bail:
 	 * driver registration */
 	if(so_sysfs_class)	class_destroy(so_sysfs_class);
 	if(has_registered_chrdev) {
-		unregister_chrdev_region(MKDEV(SO_MAJOR_NUMBER, 0),
-					 SUO_MAX_OSD_ENTRIES);
+		unregister_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES);
 	}
 	return ret;
 }

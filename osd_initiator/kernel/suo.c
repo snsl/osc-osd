@@ -54,14 +54,11 @@
  * Constants
  */
 
-/* FIXME: This is currently the experimental/local number now! */
-#define SO_MAJOR_NUMBER 	61
 #define SUO_MAX_OSD_ENTRIES 64
 
 MODULE_AUTHOR("Paul Betts");
 MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
 MODULE_LICENSE("GPL");
-MODULE_ALIAS_CHARDEV_MAJOR(SO_MAJOR_NUMBER);
 
 /*
  * This is limited by the naming scheme enforced in suo_probe,
@@ -91,6 +88,7 @@ MODULE_ALIAS_CHARDEV_MAJOR(SO_MAJOR_NUMBER);
  * Globals
  */
 static struct class *so_sysfs_class;
+static dev_t dev_id;
 
 /*
  * Structs
@@ -1554,16 +1552,16 @@ static void sd_shutdown(struct device *dev)
  **/
 static int __init init_suo(void)
 {
-	int ret;
+	int ret = 0;
 	int has_registered_chrdev = 0;
 	so_sysfs_class = NULL;
 
-	SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n"));
+	/* SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n")); */
 
-	if ( !(ret = register_chrdev_region(MKDEV(SO_MAJOR_NUMBER, 0),
-				    SUO_MAX_OSD_ENTRIES, "suo")));
+	ret = alloc_chrdev_region(&dev_id, 0, SUO_MAX_OSD_ENTRIES, "suo");
+	if (ret != 0);
 	{
-		printk(KERN_DEBUG "Can't register the chardev region! Error code is 0x%x\n", ret);
+		printk(KERN_DEBUG "Can't alloc the chardev region! Error code is 0x%x (%d)\n", ret);
 		return -ENODEV;
 	}
 	has_registered_chrdev = -1;
@@ -1604,8 +1602,7 @@ static void __exit exit_suo(void)
 
 	scsi_unregister_driver(&suo_template.gendrv);
 	if(so_sysfs_class)	class_destroy(so_sysfs_class);
-	unregister_chrdev_region(MKDEV(SO_MAJOR_NUMBER, 0),
-				 SUO_MAX_OSD_ENTRIES);
+	unregister_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES);
 }
 
 module_init(init_suo);

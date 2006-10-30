@@ -54,7 +54,8 @@
  * Constants
  */
 
-#define SUO_MAX_OSD_ENTRIES 64
+#define SUO_MAX_OSD_ENTRIES 	64
+#define SUO_DEVICE_PREFIX 	"su"
 
 MODULE_AUTHOR("Paul Betts");
 MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
@@ -106,11 +107,43 @@ struct ohd_struct {
 	int policy, partno;
 };
 
+struct genosddisk {
+	int major;			/* major number of driver */
+	int first_minor;
+	int minors;                     /* maximum number of minors, =1 for
+                                         * disks that can't be partitioned. */
+	char disk_name[32];		/* name of major driver */
+	struct hd_struct **part;	/* [indexed by minor] */
+	int part_uevent_suppress;
+	struct file_operations *fops;
+	struct request_queue *queue;
+	void *private_data;
+	sector_t capacity;
+
+	int flags;
+	struct device *driverfs_dev;
+	struct kobject kobj;
+	struct kobject *holder_dir;
+	struct kobject *slave_dir;
+
+	struct timer_rand_state *random;
+	int policy;
+
+	atomic_t sync_io;		/* RAID */
+	unsigned long stamp;
+	int in_flight;
+#ifdef	CONFIG_SMP
+	struct disk_stats *dkstats;
+#else
+	struct disk_stats dkstats;
+#endif
+};
+
 struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
 	struct class_device cdev;
-	struct gendisk *disk;
+	struct genosddisk *disk;
 	unsigned int	openers;	/* protected by BKL for now, yuck */
 	sector_t	capacity;	/* size in 512-byte sectors */
 	u32		index;
@@ -130,9 +163,8 @@ static DEFINE_SPINLOCK(sd_index_lock);
  * object after last put) */
 static DEFINE_MUTEX(sd_ref_mutex);
 
-static int sd_revalidate_disk(struct gendisk *disk);
+static int suo_revalidate_disk(struct genosddisk *disk);
 static void sd_rw_intr(struct scsi_cmnd * command);
-
 static int suo_probe(struct device *);
 static int suo_remove(struct device *);
 static void sd_shutdown(struct device *dev);
@@ -140,9 +172,11 @@ static void sd_rescan(struct device *);
 static int sd_init_command(struct scsi_cmnd *);
 static int sd_issue_flush(struct device *, sector_t *);
 static void sd_prepare_flush(request_queue_t *, struct request *);
-static void sd_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
+static void suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
 			     unsigned char *buffer);
-static void scsi_disk_release(struct class_device *cdev);
+static void scsi_osd_disk_release(struct class_device *cdev);
+static int sd_ioctl(struct inode * inode, struct file * filp, 
+		    unsigned int cmd, unsigned long arg);
 
 static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
@@ -196,7 +230,7 @@ static ssize_t sd_store_cache_type(struct class_device *cdev, const char *buf,
 			scsi_print_sense_hdr(sdkp->disk->disk_name, &sshdr);
 		return -EINVAL;
 	}
-	sd_revalidate_disk(sdkp->disk);
+	suo_revalidate_disk(sdkp->disk);
 	return count;
 }
 
@@ -225,7 +259,7 @@ static struct class_device_attribute suo_disk_attrs[] = {
 static struct class suo_disk_class = {
 	.name		= "scsi_osd",
 	.owner		= THIS_MODULE,
-	.release	= scsi_disk_release,
+	.release	= scsi_osd_disk_release,
 	.class_dev_attrs = suo_disk_attrs,
 };
 
@@ -293,30 +327,91 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
 	mutex_unlock(&sd_ref_mutex);
 }
 
-/**
- *	scsi_disk_release - Called to free the scsi_disk structure
- *	@cdev: pointer to embedded class device
- *
- *	sd_ref_mutex must be held entering this routine.  Because it is
- *	called on last put, you should always use the scsi_disk_get()
- *	scsi_disk_put() helpers which manipulate the semaphore directly
- *	and never do a direct class_device_put().
- **/
-static void scsi_disk_release(struct class_device *cdev)
+
+/*
+ * gendisk stuff modified for OSD
+ */
+
+/* Inlines to alloc and free disk stats in struct genosddisk */
+#ifdef  CONFIG_SMP
+static inline int init_osd_disk_stats(struct genosddisk *disk)
 {
-	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
-	struct gendisk *disk = sdkp->disk;
-	
-	spin_lock(&sd_index_lock);
-	idr_remove(&sd_index_idr, sdkp->index);
-	spin_unlock(&sd_index_lock);
-
-	disk->private_data = NULL;
-	put_disk(disk);
-	put_device(&sdkp->device->sdev_gendev);
-
-	kfree(sdkp);
+	disk->dkstats = alloc_percpu(struct disk_stats);
+	if (!disk->dkstats)
+		return 0;
+	return 1;
 }
+
+static inline void free_osd_disk_stats(struct genosddisk *disk)
+{
+	free_percpu(disk->dkstats);
+}
+#else	/* CONFIG_SMP */
+static inline int init_osd_disk_stats(struct genosddisk *disk)
+{
+	return 1;
+}
+
+static inline void free_osd_disk_stats(struct genosddisk *disk)
+{
+}
+#endif	/* CONFIG_SMP */
+
+struct genosddisk *alloc_osd_disk_node(int node_id)
+{
+	struct genosddisk *disk;
+
+	disk = kmalloc_node(sizeof(struct genosddisk), GFP_KERNEL, node_id);
+	if (disk) {
+		memset(disk, 0, sizeof(struct genosddisk));
+		if (!init_osd_disk_stats(disk)) {
+			kfree(disk);
+			return NULL;
+		}
+		disk->minors = 1;
+		/*kobj_set_kset_s(disk,block_subsys);*/
+		kobject_init(&disk->kobj);
+		/* rand_initialize_disk(disk); */ 
+	}
+	return disk;
+}
+
+struct genosddisk *alloc_osd_disk(void)
+{
+	return alloc_osd_disk_node(-1);
+}
+
+EXPORT_SYMBOL(alloc_osd_disk);
+EXPORT_SYMBOL(alloc_osd_disk_node);
+
+struct kobject *get_osd_disk(struct genosddisk *disk)
+{
+	struct module *owner;
+	struct kobject *kobj;
+
+	if (!disk->fops)
+		return NULL;
+	owner = disk->fops->owner;
+	if (owner && !try_module_get(owner))
+		return NULL;
+	kobj = kobject_get(&disk->kobj);
+	if (kobj == NULL) {
+		module_put(owner);
+		return NULL;
+	}
+	return kobj;
+
+}
+EXPORT_SYMBOL(get_osd_disk);
+
+void put_osd_disk(struct genosddisk *disk)
+{
+	if (disk)
+		kobject_put(&disk->kobj);
+}
+EXPORT_SYMBOL(put_osd_disk);
+
+
 
 /**
  *	sd_init_command - build a scsi (read or write) command from
@@ -717,8 +812,8 @@ static int sd_media_changed(struct gendisk *disk)
 	 * UNIT ATTENTION, or with same cartridge - GOOD STATUS.
 	 *
 	 * Drives that auto spin down. eg iomega jaz 1G, will be started
-	 * by sd_spinup_disk() from sd_revalidate_disk(), which happens whenever
-	 * sd_revalidate() is called.
+	 * by sd_spinup_disk() from suo_revalidate_disk(), which happens whenever
+	 * suo_revalidate_disk() is called.
 	 */
 	retval = -ENODEV;
 	if (scsi_block_when_processing_errors(sdp))
@@ -818,7 +913,7 @@ static void sd_rescan(struct device *dev)
 	struct scsi_osd_disk *sdkp = scsi_osd_disk_get_from_dev(dev);
 
 	if (sdkp) {
-		sd_revalidate_disk(sdkp->disk);
+		suo_revalidate_disk(sdkp->disk);
 		scsi_osd_disk_put(sdkp);
 	}
 }
@@ -875,7 +970,7 @@ static struct file_operations suo_fops = {
 	 * FIXME: We'll have to make these available via ioctls or something
 	
 	.media_changed		= sd_media_changed,
-	.revalidate_disk	= sd_revalidate_disk,
+	.revalidate_disk	= suo_revalidate_disk,
 
 	*/
 };
@@ -980,7 +1075,7 @@ static int media_not_present(struct scsi_osd_disk *sdkp,
 }
 
 /*
- * spinup disk - called only in sd_revalidate_disk()
+ * spinup disk - called only in suo_revalidate_disk()
  */
 static void
 sd_spinup_disk(struct scsi_osd_disk *sdkp, char *diskname)
@@ -1117,7 +1212,7 @@ sd_do_mode_sense(struct scsi_device *sdp, int dbd, int modepage,
 }
 
 /*
- * read write protect setting, if possible - called only in sd_revalidate_disk()
+ * read write protect setting, if possible - called only in suo_revalidate_disk()
  * called with buffer of length SD_BUF_SIZE
  */
 static void
@@ -1175,7 +1270,7 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp, char *diskname,
 }
 
 /*
- * sd_read_cache_type - called only from sd_revalidate_disk()
+ * sd_read_cache_type - called only from suo_revalidate_disk()
  * called with buffer of length SD_BUF_SIZE
  */
 static void
@@ -1290,20 +1385,40 @@ defaults:
 	sdkp->DPOFUA = 0;
 }
 
+static void
+suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
+		 unsigned char *buffer)
+{
+	unsigned char cmd[16];
+	int the_result, retries;
+	int sector_size = 0;
+	int longrc = 0;
+	struct scsi_sense_hdr sshdr;
+	int sense_valid = 0;
+	struct scsi_device *sdp = sdkp->device;
+
+	/* FIXME: We need to send a GET_ATTRIBUTES to the root osd object.
+	 * However, how the spec defines the formatting of the SCSI 
+	 * command is mostly unintelligible */
+	sdkp->capacity = 0;
+	sdkp->device->sector_size = 512;
+	return;
+}
+
 
 /**
- *	sd_revalidate_disk - called the first time a new disk is seen,
+ *	suo_revalidate_disk - called the first time a new disk is seen,
  *	performs disk spin up, read_capacity, etc.
  *	@disk: struct gendisk we care about
  **/
-static int sd_revalidate_disk(struct gendisk *disk)
+static int suo_revalidate_disk(struct genosddisk *disk)
 {
 	struct scsi_osd_disk *sdkp = scsi_osd_disk(disk);
 	struct scsi_device *sdp = sdkp->device;
 	unsigned char *buffer;
 	unsigned ordered;
 
-	SCSI_LOG_HLQUEUE(3, printk("sd_revalidate_disk: disk=%s\n", disk->disk_name));
+	SCSI_LOG_HLQUEUE(3, printk("suo_revalidate_disk: disk=%s\n", disk->disk_name));
 
 	/*
 	 * If the device is offline, don't try and read capacity or any
@@ -1314,7 +1429,7 @@ static int sd_revalidate_disk(struct gendisk *disk)
 
 	buffer = kmalloc(SD_BUF_SIZE, GFP_KERNEL | __GFP_DMA);
 	if (!buffer) {
-		printk(KERN_WARNING "(sd_revalidate_disk:) Memory allocation "
+		printk(KERN_WARNING "(suo_revalidate_disk:) Memory allocation "
 		       "failure.\n");
 		goto out;
 	}
@@ -1334,30 +1449,65 @@ static int sd_revalidate_disk(struct gendisk *disk)
 	 * react badly if we do.
 	 */
 	if (sdkp->media_present) {
-		/* sd_read_capacity(sdkp, disk->disk_name, buffer); */
+		suo_read_capacity(sdkp, disk->disk_name, buffer); 
 		sd_read_write_protect_flag(sdkp, disk->disk_name, buffer);
 		sd_read_cache_type(sdkp, disk->disk_name, buffer);
 	}
-
-	/*
-	 * We now have all cache related info, determine how we deal
-	 * with ordered requests.  Note that as the current SCSI
-	 * dispatch function can alter request order, we cannot use
-	 * QUEUE_ORDERED_TAG_* even when ordered tag is supported.
-	 */
-	if (sdkp->WCE)
-		ordered = sdkp->DPOFUA
-			? QUEUE_ORDERED_DRAIN_FUA : QUEUE_ORDERED_DRAIN_FLUSH;
-	else
-		ordered = QUEUE_ORDERED_DRAIN;
-
-	blk_queue_ordered(sdkp->disk->queue, ordered, sd_prepare_flush);
-
-	set_capacity(disk, sdkp->capacity);
 	kfree(buffer);
 
  out:
 	return 0;
+}
+
+/* Not exported, helper to add_osd_disk(). */
+void register_osd_disk(struct genosddisk *disk)
+{
+	struct block_device *bdev;
+	char *s;
+	int i;
+	struct hd_struct *p;
+	int err;
+
+	strlcpy(disk->kobj.name,disk->disk_name,KOBJ_NAME_LEN);
+	/* ewww... some of these buggers have / in name... */
+	s = strchr(disk->kobj.name, '/');
+	if (s)
+		*s = '!';
+	if ((err = kobject_add(&disk->kobj)))
+		return;
+	if (err) {
+		kobject_del(&disk->kobj);
+		return;
+	}
+
+exit:
+	/* announce disk after possible partitions are already created */
+	kobject_uevent(&disk->kobj, KOBJ_ADD);
+}
+
+int add_osd_disk(struct genosddisk *disk)
+{
+	int ret;
+	struct cdev *chrdev;
+
+	chrdev = cdev_alloc();
+	if(!chrdev) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	ret = cdev_add(chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
+	if(ret)
+		goto out_cdev;
+	register_osd_disk(disk);
+
+
+	return 0;
+
+out_cdev:
+	kobject_del(&chrdev->kobj);
+
+out:
+	return ret;
 }
 
 /**
@@ -1367,7 +1517,7 @@ static int sd_revalidate_disk(struct gendisk *disk)
  *	@dev: pointer to device object
  *
  *	Returns 0 if successful (or not interested in this scsi device 
- *	(e.g. scanner)); 1 when there is an error.
+ *	(e.g. scanner)); 1 when there is an ret.
  *
  *	Note: this function is invoked from the scsi mid-level.
  *	This function sets up the mapping between a given 
@@ -1375,14 +1525,15 @@ static int sd_revalidate_disk(struct gendisk *disk)
  *	(e.g. /dev/sda). More precisely it is the block device major 
  *	and minor number that is chosen here.
  *
- *	Assume sd_attach is not re-entrant (for time being)
- *	Also think about sd_attach() and suo_remove() running coincidentally.
+ *	Assume sd_probe is not re-entrant (for time being)
+ *	Also think about sd_probe() and suo_remove() running 
+ *	coincidentally.
  **/
 static int suo_probe(struct device *dev)
 {
 	struct scsi_device *sdp = to_scsi_device(dev);
 	struct scsi_osd_disk *sdkp;
-	struct gendisk *gd;
+	struct genosddisk *gd;
 	u32 index;
 	int error;
 
@@ -1391,25 +1542,30 @@ static int suo_probe(struct device *dev)
 		goto out;
 
 	SCSI_LOG_HLQUEUE(3, sdev_printk(KERN_INFO, sdp,
-					"suo_attach\n"));
+					"suo_probe\n"));
 
 	error = -ENOMEM;
 	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
 	if (!sdkp)
 		goto out;
 
+	gd = alloc_osd_disk();
+	if (!gd)
+		goto out_free;
+
+	/* Make sure we don't go over on devices */
 	if (!idr_pre_get(&sd_index_idr, GFP_KERNEL))
 		goto out_put;
 
 	spin_lock(&sd_index_lock);
 	error = idr_get_new(&sd_index_idr, NULL, &index);
 	spin_unlock(&sd_index_lock);
-
 	if (index >= SD_MAX_DISKS)
 		error = -EBUSY;
 	if (error)
 		goto out_put;
 
+	/* Set up sysfs and initialize our internal structure */
 	class_device_initialize(&sdkp->cdev);
 	sdkp->cdev.dev = &sdp->sdev_gendev;
 	sdkp->cdev.class = &suo_disk_class;
@@ -1433,28 +1589,27 @@ static int suo_probe(struct device *dev)
 			sdp->timeout = SD_MOD_TIMEOUT;
 	}
 
-	gd->major = SUO_MAX_OSD_ENTRIES;
-	gd->first_minor = ((index & 0xf) << 4) | (index & 0xfff00);
-	gd->minors = 16;
+	gd->major = MAJOR(dev_id);
+	gd->first_minor = index;
 	gd->fops = &suo_fops;
 
 	if (index < 26) {
-		sprintf(gd->disk_name, "sd%c", 'a' + index % 26);
+		sprintf(gd->disk_name, SUO_DEVICE_PREFIX"%c", 'a' + index % 26);
 	} else if (index < (26 + 1) * 26) {
-		sprintf(gd->disk_name, "sd%c%c",
+		sprintf(gd->disk_name, SUO_DEVICE_PREFIX"%c%c",
 			'a' + index / 26 - 1,'a' + index % 26);
 	} else {
 		const unsigned int m1 = (index / 26 - 1) / 26 - 1;
 		const unsigned int m2 = (index / 26 - 1) % 26;
 		const unsigned int m3 =  index % 26;
-		sprintf(gd->disk_name, "sd%c%c%c",
+		sprintf(gd->disk_name, SUO_DEVICE_PREFIX"%c%c%c",
 			'a' + m1, 'a' + m2, 'a' + m3);
 	}
 
 	gd->private_data = &sdkp->driver;
 	gd->queue = sdkp->device->request_queue;
 
-	/* sd_revalidate_disk(gd); */
+	suo_revalidate_disk(gd);
 
 	gd->driverfs_dev = &sdp->sdev_gendev;
 	gd->flags = GENHD_FL_DRIVERFS;
@@ -1462,7 +1617,7 @@ static int suo_probe(struct device *dev)
 		gd->flags |= GENHD_FL_REMOVABLE;
 
 	dev_set_drvdata(dev, sdkp);
-	add_disk(gd);
+	add_osd_disk(gd);
 
 	sdev_printk(KERN_NOTICE, sdp, "Attached scsi %sdisk %s\n",
 		    sdp->removable ? "removable " : "", gd->disk_name);
@@ -1470,7 +1625,7 @@ static int suo_probe(struct device *dev)
 	return 0;
 
  out_put:
-	put_disk(gd);
+	put_osd_disk(gd);
  out_free:
 	kfree(sdkp);
  out:
@@ -1504,6 +1659,7 @@ static int suo_remove(struct device *dev)
 	return 0;
 }
 
+
 /**
  *	scsi_osd_disk_release - Called to free the scsi_osd_disk structure
  *	@cdev: pointer to embedded class device
@@ -1516,14 +1672,14 @@ static int suo_remove(struct device *dev)
 static void scsi_osd_disk_release(struct class_device *cdev)
 {
 	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
-	struct gendisk *disk = sdkp->disk;
+	struct genosddisk *disk = sdkp->disk;
 	
 	spin_lock(&sd_index_lock);
 	idr_remove(&sd_index_idr, sdkp->index);
 	spin_unlock(&sd_index_lock);
 
 	disk->private_data = NULL;
-	put_disk(disk);
+	put_osd_disk(disk);
 	put_device(&sdkp->device->sdev_gendev);
 
 	kfree(sdkp);

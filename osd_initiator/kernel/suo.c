@@ -252,7 +252,6 @@ static ssize_t sd_show_fua(struct class_device *cdev, char *buf)
 static struct class_device_attribute suo_disk_attrs[] = {
 	__ATTR(cache_type, S_IRUGO|S_IWUSR, sd_show_cache_type,
 	       sd_store_cache_type),
-	__ATTR(FUA, S_IRUGO, sd_show_fua, NULL),
 	__ATTR_NULL,
 };
 
@@ -276,12 +275,12 @@ static struct scsi_driver suo_template = {
 	.issue_flush		= sd_issue_flush,
 };
 
-static inline struct scsi_osd_disk *scsi_osd_disk(struct gendisk *disk)
+static inline struct scsi_osd_disk *scsi_osd_disk(struct genosddisk *disk)
 {
 	return container_of(disk->private_data, struct scsi_osd_disk, driver);
 }
 
-static struct scsi_osd_disk *__scsi_osd_disk_get(struct gendisk *disk)
+static struct scsi_osd_disk *__scsi_osd_disk_get(struct genosddisk *disk)
 {
 	struct scsi_osd_disk *sdkp = NULL;
 
@@ -295,7 +294,7 @@ static struct scsi_osd_disk *__scsi_osd_disk_get(struct gendisk *disk)
 	return sdkp;
 }
 
-static struct scsi_osd_disk *scsi_osd_disk_get(struct gendisk *disk)
+static struct scsi_osd_disk *scsi_osd_disk_get(struct genosddisk *disk)
 {
 	struct scsi_osd_disk *sdkp;
 
@@ -329,7 +328,7 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
 
 
 /*
- * gendisk stuff modified for OSD
+ * genosddisk stuff modified for OSD
  */
 
 /* Inlines to alloc and free disk stats in struct genosddisk */
@@ -411,6 +410,36 @@ void put_osd_disk(struct genosddisk *disk)
 }
 EXPORT_SYMBOL(put_osd_disk);
 
+void del_genosddisk(struct genosddisk *disk)
+{
+	int p;
+
+	/* invalidate stuff */
+	disk->capacity = 0;
+	disk->flags &= ~GENHD_FL_UP;
+	/*unlink_genosddisk(disk);*/
+	disk_stat_set_all(disk, 0);
+	disk->stamp = 0;
+
+	kobject_uevent(&disk->kobj, KOBJ_REMOVE);
+	if (disk->holder_dir)
+		kobject_unregister(disk->holder_dir);
+	if (disk->slave_dir)
+		kobject_unregister(disk->slave_dir);
+	if (disk->driverfs_dev) {
+		char *disk_name = make_block_name(disk);
+		sysfs_remove_link(&disk->kobj, "device");
+		if (disk_name) {
+			sysfs_remove_link(&disk->driverfs_dev->kobj, disk_name);
+			kfree(disk_name);
+		}
+		put_device(disk->driverfs_dev);
+		disk->driverfs_dev = NULL;
+	}
+	sysfs_remove_link(&disk->kobj, "subsystem");
+	kobject_del(&disk->kobj);
+}
+EXPORT_SYMBOL(del_genosddisk);
 
 
 /**
@@ -425,7 +454,7 @@ static int sd_init_command(struct scsi_cmnd * SCpnt)
 {
 	struct scsi_device *sdp = SCpnt->device;
 	struct request *rq = SCpnt->request;
-	struct gendisk *disk = rq->rq_disk;
+	struct genosddisk *disk = rq->rq_disk;
 	sector_t block = rq->sector;
 	unsigned int this_count = SCpnt->request_bufflen >> 9;
 	unsigned int timeout = sdp->timeout;
@@ -599,14 +628,13 @@ static int sd_init_command(struct scsi_cmnd * SCpnt)
  **/
 static int sd_open(struct inode *inode, struct file *filp)
 {
-	struct gendisk *disk = inode->i_bdev->bd_disk;
+	struct genosddisk *disk = inode->i_bdev->bd_disk;
 	struct scsi_osd_disk *sdkp;
 	struct scsi_device *sdev;
 	int retval;
 
 	if (!(sdkp = scsi_osd_disk_get(disk)))
 		return -ENXIO;
-
 
 	SCSI_LOG_HLQUEUE(3, printk("sd_open: disk=%s\n", disk->disk_name));
 
@@ -674,7 +702,7 @@ error_out:
  **/
 static int sd_release(struct inode *inode, struct file *filp)
 {
-	struct gendisk *disk = inode->i_bdev->bd_disk;
+	struct genosddisk *disk = inode->i_bdev->bd_disk;
 	struct scsi_osd_disk *sdkp = scsi_osd_disk(disk);
 	struct scsi_device *sdev = sdkp->device;
 
@@ -735,7 +763,7 @@ static int sd_ioctl(struct inode * inode, struct file * filp,
 		    unsigned int cmd, unsigned long arg)
 {
 	struct block_device *bdev = inode->i_bdev;
-	struct gendisk *disk = bdev->bd_disk;
+	struct genosddisk *disk = bdev->bd_disk;
 	struct scsi_device *sdp = scsi_osd_disk(disk)->device;
 	void __user *p = (void __user *)arg;
 	int error;
@@ -785,7 +813,7 @@ static void set_media_not_present(struct scsi_osd_disk *sdkp)
  *
  *	Note: this function is invoked from the block subsystem.
  **/
-static int sd_media_changed(struct gendisk *disk)
+static int sd_media_changed(struct genosddisk *disk)
 {
 	struct scsi_osd_disk *sdkp = scsi_osd_disk(disk);
 	struct scsi_device *sdp = sdkp->device;
@@ -927,7 +955,7 @@ static void sd_rescan(struct device *dev)
 static long sd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	struct block_device *bdev = file->f_dentry->d_inode->i_bdev;
-	struct gendisk *disk = bdev->bd_disk;
+	struct genosddisk *disk = bdev->bd_disk;
 	struct scsi_device *sdev = scsi_osd_disk(disk)->device;
 
 	/*
@@ -1409,7 +1437,7 @@ suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
 /**
  *	suo_revalidate_disk - called the first time a new disk is seen,
  *	performs disk spin up, read_capacity, etc.
- *	@disk: struct gendisk we care about
+ *	@disk: struct genosddisk we care about
  **/
 static int suo_revalidate_disk(struct genosddisk *disk)
 {
@@ -1500,7 +1528,6 @@ int add_osd_disk(struct genosddisk *disk)
 		goto out_cdev;
 	register_osd_disk(disk);
 
-
 	return 0;
 
 out_cdev:
@@ -1538,8 +1565,10 @@ static int suo_probe(struct device *dev)
 	int error;
 
 	error = -ENODEV;
+	/* DEBUG OMG REMOVE ME
 	if (sdp->type != TYPE_OSD)
 		goto out;
+	*/
 
 	SCSI_LOG_HLQUEUE(3, sdev_printk(KERN_INFO, sdp,
 					"suo_probe\n"));
@@ -1632,6 +1661,7 @@ static int suo_probe(struct device *dev)
 	return error;
 }
 
+
 /**
  *	suo_remove - called whenever a scsi disk (previously recognized by
  *	suo_probe) is detached from the system. It is called (potentially
@@ -1648,7 +1678,8 @@ static int suo_remove(struct device *dev)
 	struct scsi_osd_disk *sdkp = dev_get_drvdata(dev);
 
 	class_device_del(&sdkp->cdev);
-	del_gendisk(sdkp->disk);
+	del_genosddisk(sdkp->disk);
+	cdev_del(
 	sd_shutdown(dev);
 
 	mutex_lock(&sd_ref_mutex);
@@ -1717,7 +1748,6 @@ static int __init init_suo(void)
 	int ret;
 	int has_registered_chrdev = 0;
 	so_sysfs_class = NULL;
-
 	SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n")); 
 	if(major > 0) {
 		dev_id = (major ? MKDEV(major, 0) : 0);
@@ -1728,16 +1758,22 @@ static int __init init_suo(void)
 
 	if (ret != 0) {
 		printk(KERN_DEBUG "Can't %s the chardev region! Error code is 0x%x (%d)\n", 
-				  (major > 0 ? "register" : "dynamically allocate"), ret);
+				  (major > 0 ? "register" : "dynamically allocate"), ret, ret);
 		return -ENODEV;
 	}
 	has_registered_chrdev = -1;
 
+	/*
 	so_sysfs_class = class_create(THIS_MODULE, "scsi_osd");
 	if (IS_ERR(so_sysfs_class)) {
 		ret = PTR_ERR(so_sysfs_class);
 		goto bail;
 	}
+	*/
+
+	ret = class_register(&suo_disk_class);
+	if (ret)
+		goto bail;
 
 	if(ret = scsi_register_driver(&suo_template.gendrv)) 
 		goto bail;

@@ -15,12 +15,12 @@ AC_PROG_INSTALL
 AC_PROG_CC
 
 dnl Sets kernel headers variable
-AC_ARG_WITH(kernel-dir, [AC_HELP_STRING([--with-kernel=DIR],
+AC_ARG_WITH(kernel-dir, [AC_HELP_STRING([--with-kernel-dir=DIR],
 [Compile the kernel module against the kernel source in DIR])],
-[kdir="$withval"], [kdir="no"])
+[with_kernel_dir="$withval"], [with_kernel_dir="no"])
 KDIR="/lib/modules/`uname -r`/build"
-if test "x$kdir" != "xno"; then
-	KDIR="$kdir"
+if test "x${with_kernel_dir}" != "xno" ; then
+	KDIR="${with_kernel_dir}"
 fi
 AC_SUBST(KDIR)
 

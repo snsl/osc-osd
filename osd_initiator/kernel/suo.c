@@ -14,7 +14,9 @@
  * any later version.
  */
 
-/*#include <linux/config.h>*/
+/* FIXME: Was this linux/config.h ? */
+#include <linux/autoconf.h>
+
 #include <linux/module.h>
 #include <linux/fs.h>
 #include <linux/kernel.h>
@@ -60,7 +62,6 @@
 MODULE_AUTHOR("Paul Betts");
 MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
 MODULE_LICENSE("GPL");
-
 
 static int major;
 module_param(major, int, 0);
@@ -113,8 +114,6 @@ struct genosddisk {
 	int minors;                     /* maximum number of minors, =1 for
                                          * disks that can't be partitioned. */
 	char disk_name[32];		/* name of major driver */
-	struct hd_struct **part;	/* [indexed by minor] */
-	int part_uevent_suppress;
 	struct file_operations *fops;
 	struct request_queue *queue;
 	void *private_data;
@@ -143,6 +142,7 @@ struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
 	struct class_device cdev;
+	struct cdev* chrdev;
 	struct genosddisk *disk;
 	unsigned int	openers;	/* protected by BKL for now, yuck */
 	sector_t	capacity;	/* size in 512-byte sectors */
@@ -410,6 +410,28 @@ void put_osd_disk(struct genosddisk *disk)
 }
 EXPORT_SYMBOL(put_osd_disk);
 
+static char *make_osd_block_name(struct genosddisk *disk)
+{
+	char *name;
+	static char *block_str = "block:";
+	int size;
+	char *s;
+
+	// TODO: This is totally incorrect
+	size = strlen(block_str) + strlen(disk->disk_name) + 1;
+	name = kmalloc(size, GFP_KERNEL);
+	if (!name)
+		return NULL;
+	strcpy(name, block_str);
+	strcat(name, disk->disk_name);
+	/* ewww... some of these buggers have / in name... */
+	s = strchr(name, '/');
+	if (s)
+		*s = '!';
+	return name;
+}
+
+
 void del_genosddisk(struct genosddisk *disk)
 {
 	int p;
@@ -422,12 +444,15 @@ void del_genosddisk(struct genosddisk *disk)
 	disk->stamp = 0;
 
 	kobject_uevent(&disk->kobj, KOBJ_REMOVE);
+
+	/* FIXME: I don't think we do any of this nonsense */
+	/*
 	if (disk->holder_dir)
 		kobject_unregister(disk->holder_dir);
 	if (disk->slave_dir)
 		kobject_unregister(disk->slave_dir);
 	if (disk->driverfs_dev) {
-		char *disk_name = make_block_name(disk);
+		char *disk_name = make_osd_block_name(disk);
 		sysfs_remove_link(&disk->kobj, "device");
 		if (disk_name) {
 			sysfs_remove_link(&disk->driverfs_dev->kobj, disk_name);
@@ -437,9 +462,12 @@ void del_genosddisk(struct genosddisk *disk)
 		disk->driverfs_dev = NULL;
 	}
 	sysfs_remove_link(&disk->kobj, "subsystem");
+	*/
+
 	kobject_del(&disk->kobj);
 }
 EXPORT_SYMBOL(del_genosddisk);
+
 
 
 /**
@@ -873,7 +901,7 @@ not_present:
 	return 1;
 }
 
-static int sd_sync_cache(struct scsi_device *sdp)
+static int suo_sync_cache(struct scsi_device *sdp)
 {
 	int retries, res;
 	struct scsi_sense_hdr sshdr;
@@ -909,6 +937,7 @@ static int sd_sync_cache(struct scsi_device *sdp)
 
 	return res;
 }
+EXPORT_SYMBOL(suo_sync_cache);
 
 static int sd_issue_flush(struct device *dev, sector_t *error_sector)
 {
@@ -920,7 +949,7 @@ static int sd_issue_flush(struct device *dev, sector_t *error_sector)
                return -ENODEV;
 
 	if (sdkp->WCE)
-		ret = sd_sync_cache(sdp);
+		ret = suo_sync_cache(sdp);
 	scsi_osd_disk_put(sdkp);
 	return ret;
 }
@@ -1516,14 +1545,16 @@ exit:
 int add_osd_disk(struct genosddisk *disk)
 {
 	int ret;
-	struct cdev *chrdev;
+	struct scsi_osd_disk* sdkp = disk->private_data;
 
-	chrdev = cdev_alloc();
-	if(!chrdev) {
+	sdkp->chrdev = cdev_alloc();
+	if(!sdkp->chrdev) {
 		ret = -ENOMEM;
 		goto out;
 	}
-	ret = cdev_add(chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
+	cdev_init(sdkp->chrdev, &suo_fops);
+
+	ret = cdev_add(sdkp->chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
 	if(ret)
 		goto out_cdev;
 	register_osd_disk(disk);
@@ -1531,11 +1562,12 @@ int add_osd_disk(struct genosddisk *disk)
 	return 0;
 
 out_cdev:
-	kobject_del(&chrdev->kobj);
+	kobject_del(&sdkp->chrdev->kobj);
 
 out:
 	return ret;
 }
+
 
 /**
  *	suo_probe - called during driver initialization and whenever a
@@ -1647,7 +1679,6 @@ static int suo_probe(struct device *dev)
 
 	dev_set_drvdata(dev, sdkp);
 	add_osd_disk(gd);
-
 	sdev_printk(KERN_NOTICE, sdp, "Attached scsi %sdisk %s\n",
 		    sdp->removable ? "removable " : "", gd->disk_name);
 
@@ -1677,9 +1708,9 @@ static int suo_remove(struct device *dev)
 {
 	struct scsi_osd_disk *sdkp = dev_get_drvdata(dev);
 
+	cdev_del(sdkp->chrdev);
 	class_device_del(&sdkp->cdev);
 	del_genosddisk(sdkp->disk);
-	cdev_del(
 	sd_shutdown(dev);
 
 	mutex_lock(&sd_ref_mutex);
@@ -1732,7 +1763,7 @@ static void sd_shutdown(struct device *dev)
 	if (sdkp->WCE) {
 		printk(KERN_NOTICE "Synchronizing SCSI cache for disk %s: \n",
 				sdkp->disk->disk_name);
-		sd_sync_cache(sdp);
+		suo_sync_cache(sdp);
 	}
 	scsi_osd_disk_put(sdkp);
 }

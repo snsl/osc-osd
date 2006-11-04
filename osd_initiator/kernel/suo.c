@@ -368,7 +368,6 @@ struct genosddisk *alloc_osd_disk_node(int node_id)
 			return NULL;
 		}
 		disk->minors = 1;
-		kobj_set_kset_s(disk,block_subsys);
 		kobject_init(&disk->kobj);
 		/* rand_initialize_disk(disk); */ 
 	}
@@ -1527,11 +1526,12 @@ int add_osd_disk(struct genosddisk *disk)
 		ret = -ENOMEM;
 		goto out;
 	}
-	cdev_init(sdkp->chrdev, &suo_fops);
+	cdev_init(chrdev, &suo_fops);
 	strlcpy(chrdev->kobj.name, disk->disk_name, KOBJ_NAME_LEN);
-	ret = cdev_add(sdkp->chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
+	ret = cdev_add(chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
 	if(ret)
 		goto out_cdev;
+	sdkp->chrdev = chrdev;
 
 	return 0;
 

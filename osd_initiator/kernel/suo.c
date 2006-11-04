@@ -368,7 +368,7 @@ struct genosddisk *alloc_osd_disk_node(int node_id)
 			return NULL;
 		}
 		disk->minors = 1;
-		/*kobj_set_kset_s(disk,block_subsys);*/
+		kobj_set_kset_s(disk,block_subsys);
 		kobject_init(&disk->kobj);
 		/* rand_initialize_disk(disk); */ 
 	}
@@ -1516,53 +1516,27 @@ static int suo_revalidate_disk(struct genosddisk *disk)
 	return 0;
 }
 
-/* Not exported, helper to add_osd_disk(). */
-void register_osd_disk(struct genosddisk *disk)
-{
-	struct block_device *bdev;
-	char *s;
-	int i;
-	struct hd_struct *p;
-	int err;
-
-	strlcpy(disk->kobj.name,disk->disk_name,KOBJ_NAME_LEN);
-	/* ewww... some of these buggers have / in name... */
-	s = strchr(disk->kobj.name, '/');
-	if (s)
-		*s = '!';
-	if ((err = kobject_add(&disk->kobj)))
-		return;
-	if (err) {
-		kobject_del(&disk->kobj);
-		return;
-	}
-
-exit:
-	/* announce disk after possible partitions are already created */
-	kobject_uevent(&disk->kobj, KOBJ_ADD);
-}
-
 int add_osd_disk(struct genosddisk *disk)
 {
 	int ret;
 	struct scsi_osd_disk* sdkp = disk->private_data;
+	struct cdev* chrdev;
 
-	sdkp->chrdev = cdev_alloc();
-	if(!sdkp->chrdev) {
+	chrdev = cdev_alloc();
+	if(!chrdev) {
 		ret = -ENOMEM;
 		goto out;
 	}
 	cdev_init(sdkp->chrdev, &suo_fops);
-
+	strlcpy(chrdev->kobj.name, disk->disk_name, KOBJ_NAME_LEN);
 	ret = cdev_add(sdkp->chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
 	if(ret)
 		goto out_cdev;
-	register_osd_disk(disk);
 
 	return 0;
 
 out_cdev:
-	kobject_del(&sdkp->chrdev->kobj);
+	kobject_del(&chrdev->kobj);
 
 out:
 	return ret;
@@ -1834,6 +1808,7 @@ static void __exit exit_suo(void)
 	SCSI_LOG_HLQUEUE(3, printk("exit_suo: exiting sd driver\n"));
 
 	scsi_unregister_driver(&suo_template.gendrv);
+	class_unregister(&suo_disk_class);
 	if(so_sysfs_class)	class_destroy(so_sysfs_class);
 	unregister_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES);
 }

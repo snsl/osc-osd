@@ -131,11 +131,6 @@ struct genosddisk {
 	atomic_t sync_io;		/* RAID */
 	unsigned long stamp;
 	int in_flight;
-#ifdef	CONFIG_SMP
-	struct disk_stats *dkstats;
-#else
-	struct disk_stats dkstats;
-#endif
 };
 
 struct scsi_osd_disk {
@@ -331,31 +326,6 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
  * genosddisk stuff modified for OSD
  */
 
-/* Inlines to alloc and free disk stats in struct genosddisk */
-#ifdef  CONFIG_SMP
-static inline int init_osd_disk_stats(struct genosddisk *disk)
-{
-	disk->dkstats = alloc_percpu(struct disk_stats);
-	if (!disk->dkstats)
-		return 0;
-	return 1;
-}
-
-static inline void free_osd_disk_stats(struct genosddisk *disk)
-{
-	free_percpu(disk->dkstats);
-}
-#else	/* CONFIG_SMP */
-static inline int init_osd_disk_stats(struct genosddisk *disk)
-{
-	return 1;
-}
-
-static inline void free_osd_disk_stats(struct genosddisk *disk)
-{
-}
-#endif	/* CONFIG_SMP */
-
 struct genosddisk *alloc_osd_disk_node(int node_id)
 {
 	struct genosddisk *disk;
@@ -363,10 +333,6 @@ struct genosddisk *alloc_osd_disk_node(int node_id)
 	disk = kmalloc_node(sizeof(struct genosddisk), GFP_KERNEL, node_id);
 	if (disk) {
 		memset(disk, 0, sizeof(struct genosddisk));
-		if (!init_osd_disk_stats(disk)) {
-			kfree(disk);
-			return NULL;
-		}
 		disk->minors = 1;
 		kobject_init(&disk->kobj);
 		/* rand_initialize_disk(disk); */ 
@@ -439,7 +405,6 @@ void del_genosddisk(struct genosddisk *disk)
 	disk->capacity = 0;
 	disk->flags &= ~GENHD_FL_UP;
 	/*unlink_genosddisk(disk);*/
-	disk_stat_set_all(disk, 0);
 	disk->stamp = 0;
 
 	kobject_uevent(&disk->kobj, KOBJ_REMOVE);

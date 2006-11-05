@@ -107,11 +107,11 @@ struct scsi_osd_disk {
 	struct scsi_device *device;
 	struct class_device cdev;
 	struct cdev* chrdev;
+	struct file_operations* fops;
 	
 	struct kobject kobj;
 	dev_t dev_id;
 	char disk_name[32];		
-	sector_t capacity;
 
 	unsigned int	openers;	/* protected by BKL for now, yuck */
 	sector_t	capacity;	/* size in 512-byte sectors */
@@ -121,6 +121,7 @@ struct scsi_osd_disk {
 	unsigned	WCE : 1;	/* state of disk WCE bit */
 	unsigned	RCD : 1;	/* state of disk RCD bit, unused */
 	unsigned	DPOFUA : 1;	/* state of disk DPOFUA bit */
+	unsigned 	removable : 1;  /* removable if 1, fixed if 0 */
 };
 #define to_osd_disk(obj) container_of(obj,struct scsi_osd_disk,cdev)
 
@@ -144,8 +145,30 @@ static void sd_prepare_flush(request_queue_t *, struct request *);
 static void suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
 			     unsigned char *buffer);
 static void scsi_osd_disk_release(struct class_device *cdev);
-static int sd_ioctl(struct inode * inode, struct file * filp, 
-		    unsigned int cmd, unsigned long arg);
+static int suo_open(struct inode *inode, struct file *filp);
+static int suo_release(struct inode *inode, struct file *filp);
+static int suo_ioctl(struct inode * inode, struct file * filp, 
+		   unsigned int cmd, unsigned long arg);
+
+static struct file_operations suo_fops = {
+	.owner			= THIS_MODULE,
+	.open			= suo_open,
+	.release		= suo_release,
+	.ioctl			= suo_ioctl,
+	/*  OSD Disks don't have geometry (or at least we don't care)
+	.getgeo			= sd_getgeo,
+	*/
+
+	/* Char devices don't have an interface for these things
+	 * FIXME: We'll have to make these available via ioctls or something
+	
+	.media_changed		= sd_media_changed,
+	.revalidate_disk	= suo_revalidate_disk,
+
+	*/
+};
+
+
 
 static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
@@ -196,10 +219,10 @@ static ssize_t sd_store_cache_type(struct class_device *cdev, const char *buf,
 	if (scsi_mode_select(sdp, 1, sp, 8, buffer_data, len, SD_TIMEOUT,
 			     SD_MAX_RETRIES, &data, &sshdr)) {
 		if (scsi_sense_valid(&sshdr))
-			scsi_print_sense_hdr(sdkp->disk->disk_name, &sshdr);
+			scsi_print_sense_hdr(sdkp->disk_name, &sshdr);
 		return -EINVAL;
 	}
-	suo_revalidate_disk(sdkp->disk);
+	suo_revalidate_disk(sdkp);
 	return count;
 }
 
@@ -246,24 +269,28 @@ static struct scsi_driver suo_template = {
 
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
 {
-	return container_of(chrdev, struct scsi_osd_disk, cdev)
+	return container_of(chrdev, struct scsi_osd_disk, cdev);
 }
 
 struct scsi_osd_disk* alloc_osd_disk(void)
 {
 	int ret = -ENOMEM;
 	struct cdev* chrdev;
-	scsi_osd_disk* sdkp;
+	struct scsi_osd_disk* sdkp;
 
 	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
 	if (!sdkp)
 		goto out;
 
-	// Allocate our char device
+	/* Allocate our char device */
+	/* FIXME: Refactor this so alloc_osd_disk doesn't always set it to
+	 * suo_fops */
 	chrdev = cdev_alloc();
 	if(!chrdev) 
 		goto out;
 	cdev_init(chrdev, &suo_fops);
+	sdkp->chrdev = chrdev;
+	sdkp->fops = &suo_fops;
 
 	return 0;
 
@@ -301,179 +328,6 @@ void put_osd_disk(struct scsi_osd_disk *disk)
 }
 EXPORT_SYMBOL(put_osd_disk);
 
-
-
-/**
- *	sd_init_command - build a scsi (read or write) command from
- *	information in the request structure.
- *	@SCpnt: pointer to mid-level's per scsi command structure that
- *	contains request and into which the scsi command is written
- *
- *	Returns 1 if successful and 0 if error (or cannot be done now).
- **/
-static int sd_init_command(struct scsi_cmnd * SCpnt)
-{
-	struct scsi_device *sdp = SCpnt->device;
-	struct request *rq = SCpnt->request;
-	struct genosddisk *disk = rq->rq_disk;
-	sector_t block = rq->sector;
-	unsigned int this_count = SCpnt->request_bufflen >> 9;
-	unsigned int timeout = sdp->timeout;
-
-	SCSI_LOG_HLQUEUE(1, printk("sd_init_command: disk=%s, block=%llu, "
-			    "count=%d\n", disk->disk_name,
-			 (unsigned long long)block, this_count));
-
-	if (!sdp || !scsi_device_online(sdp) ||
- 	    block + rq->nr_sectors > get_capacity(disk)) {
-		SCSI_LOG_HLQUEUE(2, printk("Finishing %ld sectors\n", 
-				 rq->nr_sectors));
-		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", SCpnt));
-		return 0;
-	}
-
-	if (sdp->changed) {
-		/*
-		 * quietly refuse to do anything to a changed disc until 
-		 * the changed bit has been reset
-		 */
-		/* printk("SCSI disk has been changed. Prohibiting further I/O.\n"); */
-		return 0;
-	}
-	SCSI_LOG_HLQUEUE(2, printk("%s : block=%llu\n",
-				   disk->disk_name, (unsigned long long)block));
-
-	/*
-	 * If we have a 1K hardware sectorsize, prevent access to single
-	 * 512 byte sectors.  In theory we could handle this - in fact
-	 * the scsi cdrom driver must be able to handle this because
-	 * we typically use 1K blocksizes, and cdroms typically have
-	 * 2K hardware sectorsizes.  Of course, things are simpler
-	 * with the cdrom, since it is read-only.  For performance
-	 * reasons, the filesystems should be able to handle this
-	 * and not force the scsi disk driver to use bounce buffers
-	 * for this.
-	 */
-	if (sdp->sector_size == 1024) {
-		if ((block & 1) || (rq->nr_sectors & 1)) {
-			printk(KERN_ERR "sd: Bad block number requested");
-			return 0;
-		} else {
-			block = block >> 1;
-			this_count = this_count >> 1;
-		}
-	}
-	if (sdp->sector_size == 2048) {
-		if ((block & 3) || (rq->nr_sectors & 3)) {
-			printk(KERN_ERR "sd: Bad block number requested");
-			return 0;
-		} else {
-			block = block >> 2;
-			this_count = this_count >> 2;
-		}
-	}
-	if (sdp->sector_size == 4096) {
-		if ((block & 7) || (rq->nr_sectors & 7)) {
-			printk(KERN_ERR "sd: Bad block number requested");
-			return 0;
-		} else {
-			block = block >> 3;
-			this_count = this_count >> 3;
-		}
-	}
-	if (rq_data_dir(rq) == WRITE) {
-		if (!sdp->writeable) {
-			return 0;
-		}
-		SCpnt->cmnd[0] = WRITE_6;
-		SCpnt->sc_data_direction = DMA_TO_DEVICE;
-	} else if (rq_data_dir(rq) == READ) {
-		SCpnt->cmnd[0] = READ_6;
-		SCpnt->sc_data_direction = DMA_FROM_DEVICE;
-	} else {
-		printk(KERN_ERR "sd: Unknown command %x\n", rq->cmd_flags);
-		return 0;
-	}
-
-	SCSI_LOG_HLQUEUE(2, printk("%s : %s %d/%ld 512 byte blocks.\n", 
-		disk->disk_name, (rq_data_dir(rq) == WRITE) ? 
-		"writing" : "reading", this_count, rq->nr_sectors));
-
-	SCpnt->cmnd[1] = 0;
-	
-	if (block > 0xffffffff) {
-		SCpnt->cmnd[0] += READ_16 - READ_6;
-		SCpnt->cmnd[1] |= blk_fua_rq(rq) ? 0x8 : 0;
-		SCpnt->cmnd[2] = sizeof(block) > 4 ? (unsigned char) (block >> 56) & 0xff : 0;
-		SCpnt->cmnd[3] = sizeof(block) > 4 ? (unsigned char) (block >> 48) & 0xff : 0;
-		SCpnt->cmnd[4] = sizeof(block) > 4 ? (unsigned char) (block >> 40) & 0xff : 0;
-		SCpnt->cmnd[5] = sizeof(block) > 4 ? (unsigned char) (block >> 32) & 0xff : 0;
-		SCpnt->cmnd[6] = (unsigned char) (block >> 24) & 0xff;
-		SCpnt->cmnd[7] = (unsigned char) (block >> 16) & 0xff;
-		SCpnt->cmnd[8] = (unsigned char) (block >> 8) & 0xff;
-		SCpnt->cmnd[9] = (unsigned char) block & 0xff;
-		SCpnt->cmnd[10] = (unsigned char) (this_count >> 24) & 0xff;
-		SCpnt->cmnd[11] = (unsigned char) (this_count >> 16) & 0xff;
-		SCpnt->cmnd[12] = (unsigned char) (this_count >> 8) & 0xff;
-		SCpnt->cmnd[13] = (unsigned char) this_count & 0xff;
-		SCpnt->cmnd[14] = SCpnt->cmnd[15] = 0;
-	} else if ((this_count > 0xff) || (block > 0x1fffff) ||
-		   SCpnt->device->use_10_for_rw) {
-		if (this_count > 0xffff)
-			this_count = 0xffff;
-
-		SCpnt->cmnd[0] += READ_10 - READ_6;
-		SCpnt->cmnd[1] |= blk_fua_rq(rq) ? 0x8 : 0;
-		SCpnt->cmnd[2] = (unsigned char) (block >> 24) & 0xff;
-		SCpnt->cmnd[3] = (unsigned char) (block >> 16) & 0xff;
-		SCpnt->cmnd[4] = (unsigned char) (block >> 8) & 0xff;
-		SCpnt->cmnd[5] = (unsigned char) block & 0xff;
-		SCpnt->cmnd[6] = SCpnt->cmnd[9] = 0;
-		SCpnt->cmnd[7] = (unsigned char) (this_count >> 8) & 0xff;
-		SCpnt->cmnd[8] = (unsigned char) this_count & 0xff;
-	} else {
-		if (unlikely(blk_fua_rq(rq))) {
-			/*
-			 * This happens only if this drive failed
-			 * 10byte rw command with ILLEGAL_REQUEST
-			 * during operation and thus turned off
-			 * use_10_for_rw.
-			 */
-			printk(KERN_ERR "sd: FUA write on READ/WRITE(6) drive\n");
-			return 0;
-		}
-
-		SCpnt->cmnd[1] |= (unsigned char) ((block >> 16) & 0x1f);
-		SCpnt->cmnd[2] = (unsigned char) ((block >> 8) & 0xff);
-		SCpnt->cmnd[3] = (unsigned char) block & 0xff;
-		SCpnt->cmnd[4] = (unsigned char) this_count;
-		SCpnt->cmnd[5] = 0;
-	}
-	SCpnt->request_bufflen = this_count * sdp->sector_size;
-
-	/*
-	 * We shouldn't disconnect in the middle of a sector, so with a dumb
-	 * host adapter, it's safe to assume that we can at least transfer
-	 * this many bytes between each connect / disconnect.
-	 */
-	SCpnt->transfersize = sdp->sector_size;
-	SCpnt->underflow = this_count << 9;
-	SCpnt->allowed = SD_MAX_RETRIES;
-	SCpnt->timeout_per_command = timeout;
-
-	/*
-	 * This is the completion routine we use.  This is matched in terms
-	 * of capability to this function.
-	 */
-	SCpnt->done = sd_rw_intr;
-
-	/*
-	 * This indicates that the command is ready from our end to be
-	 * queued.
-	 */
-	return 1;
-}
-
 /**
  *	sd_open - open a scsi disk device
  *	@inode: only i_rdev member may be used
@@ -487,17 +341,19 @@ static int sd_init_command(struct scsi_cmnd * SCpnt)
  *	In the latter case @inode and @filp carry an abridged amount
  *	of information as noted above.
  **/
-static int sd_open(struct inode *inode, struct file *filp)
+static int suo_open(struct inode *inode, struct file *filp)
 {
 	struct cdev* chrdev = inode->i_cdev;
 	struct scsi_osd_disk *sdkp = scsi_osd_disk(chrdev);
 	struct scsi_device *sdev;
 	int retval;
 
+	/* FIXME: Fix locking for scsi_osd_disk 
 	if (!(sdkp = scsi_osd_disk_get(disk)))
 		return -ENXIO;
+	*/
 
-	SCSI_LOG_HLQUEUE(3, printk("sd_open: disk=%s\n", disk->disk_name));
+	SCSI_LOG_HLQUEUE(3, printk("sd_open: disk=%s\n", sdkp->disk_name));
 
 	sdev = sdkp->device;
 
@@ -555,7 +411,7 @@ error_out:
 }
 
 /**
- *	sd_release - invoked when the (last) close(2) is called on this
+ *	suo_release - invoked when the (last) close(2) is called on this
  *	scsi disk.
  *	@inode: only i_rdev member may be used
  *	@filp: only f_mode and f_flags may be used
@@ -565,13 +421,13 @@ error_out:
  *	Note: may block (uninterruptible) if error recovery is underway
  *	on this disk.
  **/
-static int sd_release(struct inode *inode, struct file *filp)
+static int suo_release(struct inode *inode, struct file *filp)
 {
 	struct cdev* chrdev = inode->i_cdev;
-	struct scsi_osd_disk *sdkp = scsi_osd_disk(disk);
+	struct scsi_osd_disk *sdkp = scsi_osd_disk(chrdev);
 	struct scsi_device *sdev = sdkp->device;
 
-	SCSI_LOG_HLQUEUE(3, printk("sd_release: disk=%s\n", sdkp->disk_name));
+	SCSI_LOG_HLQUEUE(3, printk("suo_release: disk=%s\n", sdkp->disk_name));
 
 	if (!--sdkp->openers && sdev->removable) {
 		if (scsi_block_when_processing_errors(sdev))
@@ -636,7 +492,7 @@ static int suo_ioctl(struct inode * inode, struct file * filp,
 {
        struct cdev* chrdev = inode->i_cdev;
        struct scsi_osd_disk *sdkp = scsi_osd_disk(chrdev);
-       struct scsi_device *sdp = scsi_osd_disk(disk)->device;
+       struct scsi_device *sdp = sdkp->device;
        void __user *p = (void __user *)arg;
        int error;
    
@@ -671,14 +527,13 @@ static int suo_ioctl(struct inode * inode, struct file * filp,
  *
  *	Note: this function is invoked from the block subsystem.
  **/
-static int sd_media_changed(struct genosddisk *disk)
+static int sd_media_changed(struct scsi_osd_disk *sdkp)
 {
-	struct scsi_osd_disk *sdkp = scsi_osd_disk(disk);
 	struct scsi_device *sdp = sdkp->device;
 	int retval;
 
 	SCSI_LOG_HLQUEUE(3, printk("sd_media_changed: disk=%s\n",
-						disk->disk_name));
+						sdkp->disk_name));
 
 	if (!sdp->removable)
 		return 0;
@@ -814,67 +669,10 @@ static void sd_rescan(struct device *dev)
 	struct scsi_osd_disk *sdkp = scsi_osd_disk_get_from_dev(dev);
 
 	if (sdkp) {
-		suo_revalidate_disk(sdkp->disk);
+		suo_revalidate_disk(sdkp);
 		scsi_osd_disk_put(sdkp);
 	}
 }
-
-
-#ifdef CONFIG_COMPAT
-/* 
- * This gets directly called from VFS. When the ioctl 
- * is not recognized we go back to the other translation paths. 
- */
-static long sd_compat_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
-{
-	struct block_device *bdev = file->f_dentry->d_inode->i_bdev;
-	struct genosddisk *disk = bdev->bd_disk;
-	struct scsi_device *sdev = scsi_osd_disk(disk)->device;
-
-	/*
-	 * If we are in the middle of error recovery, don't let anyone
-	 * else try and use this device.  Also, if error recovery fails, it
-	 * may try and take the device offline, in which case all further
-	 * access to the device is prohibited.
-	 */
-	if (!scsi_block_when_processing_errors(sdev))
-		return -ENODEV;
-	       
-	if (sdev->host->hostt->compat_ioctl) {
-		int ret;
-
-		ret = sdev->host->hostt->compat_ioctl(sdev, cmd, (void __user *)arg);
-
-		return ret;
-	}
-
-	/* 
-	 * Let the static ioctl translation table take care of it.
-	 */
-	return -ENOIOCTLCMD; 
-}
-#endif
-
-static struct file_operations suo_fops = {
-	.owner			= THIS_MODULE,
-	.open			= sd_open,
-	.release		= sd_release,
-	.ioctl			= sd_ioctl,
-	/*  OSD Disks don't have geometry (or at least we don't care)
-	.getgeo			= sd_getgeo,
-	*/
-#ifdef CONFIG_COMPAT
-	.compat_ioctl		= sd_compat_ioctl,
-#endif
-
-	/* Char devices don't have an interface for these things
-	 * FIXME: We'll have to make these available via ioctls or something
-	
-	.media_changed		= sd_media_changed,
-	.revalidate_disk	= suo_revalidate_disk,
-
-	*/
-};
 
 /**
  *	sd_rw_intr - bottom half handler: called when the lower level
@@ -1124,7 +922,7 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp, char *diskname,
 	struct scsi_device *sdp = sdkp->device;
 	struct scsi_mode_data data;
 
-	set_disk_ro(sdkp->disk, 0);
+	set_disk_ro(sdkp, 0);
 	if (sdp->skip_ms_page_3f) {
 		printk(KERN_NOTICE "%s: assuming Write Enabled\n", diskname);
 		return;
@@ -1162,7 +960,7 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp, char *diskname,
 		       "%s: test WP failed, assume Write Enabled\n", diskname);
 	} else {
 		sdkp->write_prot = ((data.device_specific & 0x80) != 0);
-		set_disk_ro(sdkp->disk, sdkp->write_prot);
+		set_disk_ro(sdkp, sdkp->write_prot);
 		printk(KERN_NOTICE "%s: Write Protect is %s\n", diskname,
 		       sdkp->write_prot ? "on" : "off");
 		printk(KERN_DEBUG "%s: Mode Sense: %02x %02x %02x %02x\n",
@@ -1310,7 +1108,7 @@ suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
 /**
  *	suo_revalidate_disk - called the first time a new disk is seen,
  *	performs disk spin up, read_capacity, etc.
- *	@disk: struct genosddisk we care about
+ *	@sdkp: struct scsi_osd_disk we care about
  **/
 static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 {
@@ -1342,16 +1140,16 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 	sdkp->WCE = 0;
 	sdkp->RCD = 0;
 
-	sd_spinup_disk(sdkp, disk->disk_name);
+	sd_spinup_disk(sdkp, sdkp->disk_name);
 
 	/*
 	 * Without media there is no reason to ask; moreover, some devices
 	 * react badly if we do.
 	 */
 	if (sdkp->media_present) {
-		suo_read_capacity(sdkp, disk->disk_name, buffer); 
-		sd_read_write_protect_flag(sdkp, disk->disk_name, buffer);
-		sd_read_cache_type(sdkp, disk->disk_name, buffer);
+		suo_read_capacity(sdkp, sdkp->disk_name, buffer); 
+		sd_read_write_protect_flag(sdkp, sdkp->disk_name, buffer);
+		sd_read_cache_type(sdkp, sdkp->disk_name, buffer);
 	}
 	kfree(buffer);
 
@@ -1362,6 +1160,7 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 int add_osd_disk(struct scsi_osd_disk* sdkp)
 {
 	int ret;
+	struct cdev* chrdev = sdkp->chrdev;
 	strlcpy(chrdev->kobj.name, sdkp->disk_name, KOBJ_NAME_LEN);
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
 	if(ret)
@@ -1439,7 +1238,6 @@ static int suo_probe(struct device *dev)
 
 	sdkp->device = sdp;
 	sdkp->driver = &suo_template;
-	sdkp->disk = gd;
 	sdkp->index = index;
 	sdkp->openers = 0;
 
@@ -1450,42 +1248,35 @@ static int suo_probe(struct device *dev)
 			sdp->timeout = SD_MOD_TIMEOUT;
 	}
 
-	gd->major = MAJOR(dev_id);
-	gd->first_minor = index;
-	gd->fops = &suo_fops;
+	sdkp->dev_id = MKDEV( MAJOR(dev_id), index );
 
 	if (index < 26) {
-		sprintf(gd->disk_name, SUO_DEVICE_PREFIX"%c", 'a' + index % 26);
+		sprintf(sdkp->disk_name, SUO_DEVICE_PREFIX"%c", 'a' + index % 26);
 	} else if (index < (26 + 1) * 26) {
-		sprintf(gd->disk_name, SUO_DEVICE_PREFIX"%c%c",
+		sprintf(sdkp->disk_name, SUO_DEVICE_PREFIX"%c%c",
 			'a' + index / 26 - 1,'a' + index % 26);
 	} else {
 		const unsigned int m1 = (index / 26 - 1) / 26 - 1;
 		const unsigned int m2 = (index / 26 - 1) % 26;
 		const unsigned int m3 =  index % 26;
-		sprintf(gd->disk_name, SUO_DEVICE_PREFIX"%c%c%c",
+		sprintf(sdkp->disk_name, SUO_DEVICE_PREFIX"%c%c%c",
 			'a' + m1, 'a' + m2, 'a' + m3);
 	}
 
-	gd->private_data = &sdkp->driver;
-	gd->queue = sdkp->device->request_queue;
+	suo_revalidate_disk(sdkp);
 
-	suo_revalidate_disk(gd);
-
-	gd->driverfs_dev = &sdp->sdev_gendev;
-	gd->flags = GENHD_FL_DRIVERFS;
 	if (sdp->removable)
-		gd->flags |= GENHD_FL_REMOVABLE;
+		sdkp->removable = 1;
 
 	dev_set_drvdata(dev, sdkp);
-	add_osd_disk(gd);
+	add_osd_disk(sdkp);
 	sdev_printk(KERN_NOTICE, sdp, "Attached scsi %sdisk %s\n",
-		    sdp->removable ? "removable " : "", gd->disk_name);
+		    sdp->removable ? "removable " : "", sdkp->disk_name);
 
 	return 0;
 
  out_put:
-	put_osd_disk(gd);
+	put_osd_disk(sdkp);
  out_free:
 	kfree(sdkp);
  out:
@@ -1510,7 +1301,7 @@ static int suo_remove(struct device *dev)
 
 	cdev_del(sdkp->chrdev);
 	class_device_del(&sdkp->cdev);
-	kobject_del(&disk->kobj);
+	kobject_del(&sdkp->kobj);
 	sd_shutdown(dev);
 
 	mutex_lock(&sd_ref_mutex);
@@ -1542,8 +1333,7 @@ static void scsi_osd_disk_release(struct class_device *cdev)
 	idr_remove(&sd_index_idr, sdkp->index);
 	spin_unlock(&sd_index_lock);
 
-	disk->private_data = NULL;
-	put_osd_disk(disk);
+	put_osd_disk(sdkp);
 	put_device(&sdkp->device->sdev_gendev);
 
 	kfree(sdkp);
@@ -1564,7 +1354,7 @@ static void sd_shutdown(struct device *dev)
 
 	if (sdkp->WCE) {
 		printk(KERN_NOTICE "Synchronizing SCSI cache for disk %s: \n",
-				sdkp->disk->disk_name);
+				sdkp->disk_name);
 		suo_sync_cache(sdp);
 	}
 	scsi_osd_disk_put(sdkp);

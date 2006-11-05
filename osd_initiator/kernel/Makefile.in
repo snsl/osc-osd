@@ -1,0 +1,16 @@
+
+#ifneq ($(KERNRELEASE),)
+
+obj-m := suo.o
+
+#else
+
+KDIR := @KDIR@
+
+all:
+	$(MAKE) SUBDIRS=$(PWD) -C $(KDIR) modules 
+
+clean:
+	$(MAKE) SUBDIRS=$(PWD) -C $(KDIR) clean
+
+#endif

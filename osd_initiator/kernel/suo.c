@@ -63,6 +63,14 @@ MODULE_AUTHOR("Paul Betts");
 MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
 MODULE_LICENSE("GPL");
 
+#define DEBUG
+
+#ifdef DEBUG
+#define dprintk(fmt...) printk(KERN_INFO "suo: " fmt)
+#else
+#define dprintk(fmt...)
+#endif
+
 static int major;
 module_param(major, int, 0);
 MODULE_PARM_DESC(major, "Major device number");
@@ -1260,8 +1268,7 @@ static int suo_probe(struct device *dev)
 		goto out;
 	*/
 
-	SCSI_LOG_HLQUEUE(3, sdev_printk(KERN_INFO, sdp,
-					"suo_probe\n"));
+	dprintk("%s\n", __func__);
 	sdkp = alloc_osd_disk();
 	if (!sdkp)
 		goto out;

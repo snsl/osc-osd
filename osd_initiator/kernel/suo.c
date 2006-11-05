@@ -865,6 +865,25 @@ not_present:
 	return 1;
 }
 
+#define VARLEN_CDB_SIZE 200
+
+#ifndef VARLEN_CDB
+#define VARLEN_CDB 0x7f
+#endif
+
+/*
+ * Initializes a new varlen cdb.
+ */
+static void varlen_cdb_init(u8 *cdb, u16 action)
+{
+	memset(cdb, 0, VARLEN_CDB_SIZE);
+	cdb[0] = VARLEN_CDB;
+	cdb[7] = 192;
+	cdb[8] = action >> 16;
+	cdb[9] = action & 0xff;
+	cdb[11] = 2 << 4;  /* get/set attributes page format */
+}
+
 static int suo_sync_cache(struct scsi_device *sdp)
 {
 	int retries, res;
@@ -874,17 +893,12 @@ static int suo_sync_cache(struct scsi_device *sdp)
 		return -ENODEV;
 
 	for (retries = 3; retries > 0; --retries) {
-		unsigned char cmd[10] = { 0 };
+		u8 cdb[VARLEN_CDB_SIZE];
 
-		OSD_SET_COMMAND(OSD_FLUSH_OSD, cmd);
-		cmd[2] = FLUSH_OSD_EVERYTHING;
+		varlen_cdb_init(cdb, OSD_FLUSH_OSD);
+		cdb[10] = 2;  /* flush everything */
 
-		/*
-		 * Leave the rest of the command zero to indicate
-		 * flush everything.
-		 */
-		/* FIXME: This probably isn't right */
-		res = scsi_execute_req(sdp, cmd, DMA_NONE, NULL, 0, &sshdr,
+		res = scsi_execute_req(sdp, cdb, DMA_NONE, NULL, 0, &sshdr,
 				       SD_TIMEOUT, SD_MAX_RETRIES);
 		if (res == 0)
 			break;

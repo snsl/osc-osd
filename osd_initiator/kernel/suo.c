@@ -132,7 +132,7 @@ static DEFINE_SPINLOCK(sd_index_lock);
  * object after last put) */
 static DEFINE_MUTEX(sd_ref_mutex);
 
-static int suo_revalidate_disk(struct genosddisk *disk);
+static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
 static void sd_rw_intr(struct scsi_cmnd * command);
 static int suo_probe(struct device *);
 static int suo_remove(struct device *);
@@ -244,6 +244,11 @@ static struct scsi_driver suo_template = {
 	.issue_flush		= sd_issue_flush,
 };
 
+static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
+{
+	return container_of(chrdev, struct scsi_osd_disk, cdev)
+}
+
 struct scsi_osd_disk* alloc_osd_disk(void)
 {
 	int ret = -ENOMEM;
@@ -295,61 +300,6 @@ void put_osd_disk(struct scsi_osd_disk *disk)
 		kobject_put(&disk->kobj);
 }
 EXPORT_SYMBOL(put_osd_disk);
-
-static char *make_osd_block_name(struct genosddisk *disk)
-{
-	char *name;
-	static char *block_str = "block:";
-	int size;
-	char *s;
-
-	// TODO: This is totally incorrect
-	size = strlen(block_str) + strlen(disk->disk_name) + 1;
-	name = kmalloc(size, GFP_KERNEL);
-	if (!name)
-		return NULL;
-	strcpy(name, block_str);
-	strcat(name, disk->disk_name);
-	/* ewww... some of these buggers have / in name... */
-	s = strchr(name, '/');
-	if (s)
-		*s = '!';
-	return name;
-}
-
-
-void del_osd_disk(struct genosddisk *disk)
-{
-	int p;
-
-	/* invalidate stuff */
-	disk->capacity = 0;
-	disk->flags &= ~GENHD_FL_UP;
-	/*unlink_genosddisk(disk);*/
-	disk->stamp = 0;
-
-	/* FIXME: I don't think we do any of this nonsense */
-	/*
-	if (disk->holder_dir)
-		kobject_unregister(disk->holder_dir);
-	if (disk->slave_dir)
-		kobject_unregister(disk->slave_dir);
-	if (disk->driverfs_dev) {
-		char *disk_name = make_osd_block_name(disk);
-		sysfs_remove_link(&disk->kobj, "device");
-		if (disk_name) {
-			sysfs_remove_link(&disk->driverfs_dev->kobj, disk_name);
-			kfree(disk_name);
-		}
-		put_device(disk->driverfs_dev);
-		disk->driverfs_dev = NULL;
-	}
-	sysfs_remove_link(&disk->kobj, "subsystem");
-	*/
-
-	kobject_del(&disk->kobj);
-}
-EXPORT_SYMBOL(del_genosddisk);
 
 
 
@@ -539,8 +489,8 @@ static int sd_init_command(struct scsi_cmnd * SCpnt)
  **/
 static int sd_open(struct inode *inode, struct file *filp)
 {
-	struct genosddisk *disk = inode->i_bdev->bd_disk;
-	struct scsi_osd_disk *sdkp;
+	struct cdev* chrdev = inode->i_cdev;
+	struct scsi_osd_disk *sdkp = scsi_osd_disk(chrdev);
 	struct scsi_device *sdev;
 	int retval;
 
@@ -560,7 +510,11 @@ static int sd_open(struct inode *inode, struct file *filp)
 		goto error_out;
 
 	if (sdev->removable || sdkp->write_prot)
+	{
+		/* FIXME: Do the right thing here
 		check_disk_change(inode->i_bdev);
+		*/
+	}
 
 	/*
 	 * If the drive is empty, just let the open fail.
@@ -613,11 +567,11 @@ error_out:
  **/
 static int sd_release(struct inode *inode, struct file *filp)
 {
-	struct genosddisk *disk = inode->i_bdev->bd_disk;
+	struct cdev* chrdev = inode->i_cdev;
 	struct scsi_osd_disk *sdkp = scsi_osd_disk(disk);
 	struct scsi_device *sdev = sdkp->device;
 
-	SCSI_LOG_HLQUEUE(3, printk("sd_release: disk=%s\n", disk->disk_name));
+	SCSI_LOG_HLQUEUE(3, printk("sd_release: disk=%s\n", sdkp->disk_name));
 
 	if (!--sdkp->openers && sdev->removable) {
 		if (scsi_block_when_processing_errors(sdev))
@@ -656,65 +610,58 @@ static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 	return 0;
 }
 
-/**
- *	sd_ioctl - process an ioctl
- *	@inode: only i_rdev/i_bdev members may be used
- *	@filp: only f_mode and f_flags may be used
- *	@cmd: ioctl command number
- *	@arg: this is third argument given to ioctl(2) system call.
- *	Often contains a pointer.
- *
- *	Returns 0 if successful (some ioctls return postive numbers on
- *	success as well). Returns a negated errno value in case of error.
- *
- *	Note: most ioctls are forward onto the block subsystem or further
- *	down in the scsi subsytem.
- **/
-static int sd_ioctl(struct inode * inode, struct file * filp, 
-		    unsigned int cmd, unsigned long arg)
-{
-	struct block_device *bdev = inode->i_bdev;
-	struct genosddisk *disk = bdev->bd_disk;
-	struct scsi_device *sdp = scsi_osd_disk(disk)->device;
-	void __user *p = (void __user *)arg;
-	int error;
-    
-	SCSI_LOG_IOCTL(1, printk("sd_ioctl: disk=%s, cmd=0x%x\n",
-						disk->disk_name, cmd));
-
-	/*
-	 * If we are in the middle of error recovery, don't let anyone
-	 * else try and use this device.  Also, if error recovery fails, it
-	 * may try and take the device offline, in which case all further
-	 * access to the device is prohibited.
-	 */
-	error = scsi_nonblockable_ioctl(sdp, cmd, p, filp);
-	if (!scsi_block_when_processing_errors(sdp) || !error)
-		return error;
-
-	/*
-	 * Send SCSI addressing ioctls directly to mid level, send other
-	 * ioctls to block level and then onto mid level if they can't be
-	 * resolved.
-	 */
-	switch (cmd) {
-		case SCSI_IOCTL_GET_IDLUN:
-		case SCSI_IOCTL_GET_BUS_NUMBER:
-			return scsi_ioctl(sdp, cmd, p);
-		default:
-			error = scsi_cmd_ioctl(filp, disk, cmd, p);
-			if (error != -ENOTTY)
-				return error;
-	}
-	return scsi_ioctl(sdp, cmd, p);
-}
-
 static void set_media_not_present(struct scsi_osd_disk *sdkp)
 {
 	sdkp->media_present = 0;
 	sdkp->capacity = 0;
 	sdkp->device->changed = 1;
 }
+
+/**
+*	suo_ioctl - process an ioctl
+*	@inode: only i_rdev/i_bdev members may be used
+*	@filp: only f_mode and f_flags may be used
+*	@cmd: ioctl command number
+*	@arg: this is third argument given to ioctl(2) system call.
+*	Often contains a pointer.
+*
+*	Returns 0 if successful (some ioctls return postive numbers on
+*	success as well). Returns a negated errno value in case of error.
+*
+*	Note: most ioctls are forward onto the block subsystem or further
+*	down in the scsi subsytem.
+**/
+static int suo_ioctl(struct inode * inode, struct file * filp, 
+		   unsigned int cmd, unsigned long arg)
+{
+       struct cdev* chrdev = inode->i_cdev;
+       struct scsi_osd_disk *sdkp = scsi_osd_disk(chrdev);
+       struct scsi_device *sdp = scsi_osd_disk(disk)->device;
+       void __user *p = (void __user *)arg;
+       int error;
+   
+       SCSI_LOG_IOCTL(1, printk("suo_ioctl: disk=%s, cmd=0x%x\n",
+					       sdkp->disk_name, cmd));
+
+       /*
+	* If we are in the middle of error recovery, don't let anyone
+	* else try and use this device.  Also, if error recovery fails, it
+	* may try and take the device offline, in which case all further
+	* access to the device is prohibited.
+	*/
+       error = scsi_nonblockable_ioctl(sdp, cmd, p, filp);
+       if (!scsi_block_when_processing_errors(sdp) || !error)
+	       return error;
+
+       /*
+	* Send SCSI addressing ioctls directly to mid level, send other
+	* ioctls to block level and then onto mid level if they can't be
+	* resolved.
+	*/
+       return scsi_ioctl(sdp, cmd, p);
+}
+
+
 
 /**
  *	sd_media_changed - check if our medium changed
@@ -1365,14 +1312,13 @@ suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
  *	performs disk spin up, read_capacity, etc.
  *	@disk: struct genosddisk we care about
  **/
-static int suo_revalidate_disk(struct genosddisk *disk)
+static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 {
-	struct scsi_osd_disk *sdkp = scsi_osd_disk(disk);
 	struct scsi_device *sdp = sdkp->device;
 	unsigned char *buffer;
 	unsigned ordered;
 
-	SCSI_LOG_HLQUEUE(3, printk("suo_revalidate_disk: disk=%s\n", disk->disk_name));
+	SCSI_LOG_HLQUEUE(3, printk("suo_revalidate_disk: disk=%s\n", sdkp->disk_name));
 
 	/*
 	 * If the device is offline, don't try and read capacity or any
@@ -1413,21 +1359,18 @@ static int suo_revalidate_disk(struct genosddisk *disk)
 	return 0;
 }
 
-int add_osd_disk(struct genosddisk *disk)
+int add_osd_disk(struct scsi_osd_disk* sdkp)
 {
 	int ret;
-	struct scsi_osd_disk* sdkp = disk->private_data;
-	strlcpy(chrdev->kobj.name, disk->disk_name, KOBJ_NAME_LEN);
-	ret = cdev_add(chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
+	strlcpy(chrdev->kobj.name, sdkp->disk_name, KOBJ_NAME_LEN);
+	ret = cdev_add(chrdev, sdkp->dev_id, 1);
 	if(ret)
 		goto out_cdev;
-	sdkp->chrdev = chrdev;
 
 	return 0;
 
 out_cdev:
 	kobject_del(&chrdev->kobj);
-
 out:
 	return ret;
 }
@@ -1567,7 +1510,7 @@ static int suo_remove(struct device *dev)
 
 	cdev_del(sdkp->chrdev);
 	class_device_del(&sdkp->cdev);
-	del_genosddisk(sdkp->disk);
+	kobject_del(&disk->kobj);
 	sd_shutdown(dev);
 
 	mutex_lock(&sd_ref_mutex);

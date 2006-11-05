@@ -156,11 +156,13 @@ static int suo_ioctl(struct inode * inode, struct file * filp,
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev);
 static void varlen_cdb_init(u8 *cdb, u16 action);
 static struct scsi_osd_disk* alloc_osd_disk(void);
-struct kobject *get_osd_disk(struct scsi_osd_disk *disk);
-void put_osd_disk(struct scsi_osd_disk *disk);
+static struct scsi_osd_disk *scsi_osd_disk_get(struct cdev *chrdev);
+static struct scsi_osd_disk *scsi_osd_disk_get_from_dev(struct device *dev);
+static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp);
 EXPORT_SYMBOL(alloc_osd_disk);
-EXPORT_SYMBOL(get_osd_disk);
-EXPORT_SYMBOL(put_osd_disk);
+EXPORT_SYMBOL(scsi_osd_disk_get);
+EXPORT_SYMBOL(scsi_osd_disk_get_from_dev);
+EXPORT_SYMBOL(scsi_osd_disk_put);
 
 /* Disk management */
 static int sd_media_changed(struct scsi_osd_disk *sdkp);
@@ -338,30 +340,52 @@ out:
 	return ret;
 }
 
-struct kobject *get_osd_disk(struct scsi_osd_disk *disk)
+static struct scsi_osd_disk *__scsi_osd_disk_get(struct cdev* chrdev)
 {
-	struct module *owner;
-	struct kobject *kobj;
+	struct scsi_osd_disk* sdkp = scsi_osd_disk(chrdev);
+	if(sdkp)
+		return NULL;
 
-	if (!disk->fops)
-		return NULL;
-	owner = disk->fops->owner;
-	if (owner && !try_module_get(owner))
-		return NULL;
-	kobj = kobject_get(&disk->kobj);
-	if (kobj == NULL) {
-		module_put(owner);
-		return NULL;
-	}
-	return kobj;
-
+	if (scsi_device_get(sdkp->device) == 0)
+		class_device_get(&sdkp->cdev);
+	else
+		sdkp = NULL;
+	
+	return sdkp;
 }
 
-void put_osd_disk(struct scsi_osd_disk *disk)
+static struct scsi_osd_disk *scsi_osd_disk_get(struct cdev *chrdev)
 {
-	if (disk)
-		kobject_put(&disk->kobj);
+	struct scsi_osd_disk *sdkp;
+
+	mutex_lock(&sd_ref_mutex);
+	sdkp = __scsi_osd_disk_get(chrdev);
+	mutex_unlock(&sd_ref_mutex);
+	return sdkp;
 }
+
+static struct scsi_osd_disk *scsi_osd_disk_get_from_dev(struct device *dev)
+{
+	struct scsi_osd_disk *sdkp;
+
+	mutex_lock(&sd_ref_mutex);
+	sdkp = dev_get_drvdata(dev);
+	if (sdkp)
+		sdkp = __scsi_osd_disk_get(sdkp->chrdev);
+	mutex_unlock(&sd_ref_mutex);
+	return sdkp;
+}
+
+static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
+{
+	struct scsi_device *sdev = sdkp->device;
+
+	mutex_lock(&sd_ref_mutex);
+	class_device_put(&sdkp->cdev);
+	scsi_device_put(sdev);
+	mutex_unlock(&sd_ref_mutex);
+}
+
 
 /**
  *	sd_open - open a scsi disk device

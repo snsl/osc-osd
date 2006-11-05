@@ -101,44 +101,18 @@ static dev_t dev_id;
 /*
  * Structs
  */
-struct ohd_struct {
-	struct kobject kobj;
-	struct kobject *holder_dir;
-	unsigned ios[2], sectors[2];	/* READs and WRITEs */
-	int policy, partno;
-};
-
-struct genosddisk {
-	int major;			/* major number of driver */
-	int first_minor;
-	int minors;                     /* maximum number of minors, =1 for
-                                         * disks that can't be partitioned. */
-	char disk_name[32];		/* name of major driver */
-	struct file_operations *fops;
-	struct request_queue *queue;
-	void *private_data;
-	sector_t capacity;
-
-	int flags;
-	struct device *driverfs_dev;
-	struct kobject kobj;
-	struct kobject *holder_dir;
-	struct kobject *slave_dir;
-
-	struct timer_rand_state *random;
-	int policy;
-
-	atomic_t sync_io;		/* RAID */
-	unsigned long stamp;
-	int in_flight;
-};
 
 struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
 	struct class_device cdev;
 	struct cdev* chrdev;
-	struct genosddisk *disk;
+	
+	struct kobject kobj;
+	dev_t dev_id;
+	char disk_name[32];		
+	sector_t capacity;
+
 	unsigned int	openers;	/* protected by BKL for now, yuck */
 	sector_t	capacity;	/* size in 512-byte sectors */
 	u32		index;
@@ -270,85 +244,32 @@ static struct scsi_driver suo_template = {
 	.issue_flush		= sd_issue_flush,
 };
 
-static inline struct scsi_osd_disk *scsi_osd_disk(struct genosddisk *disk)
+struct scsi_osd_disk* alloc_osd_disk(void)
 {
-	return container_of(disk->private_data, struct scsi_osd_disk, driver);
+	int ret = -ENOMEM;
+	struct cdev* chrdev;
+	scsi_osd_disk* sdkp;
+
+	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
+	if (!sdkp)
+		goto out;
+
+	// Allocate our char device
+	chrdev = cdev_alloc();
+	if(!chrdev) 
+		goto out;
+	cdev_init(chrdev, &suo_fops);
+
+	return 0;
+
+out_sdkp:
+	kfree(sdkp);
+out:
+	return ret;
 }
-
-static struct scsi_osd_disk *__scsi_osd_disk_get(struct genosddisk *disk)
-{
-	struct scsi_osd_disk *sdkp = NULL;
-
-	if (disk->private_data) {
-		sdkp = scsi_osd_disk(disk);
-		if (scsi_device_get(sdkp->device) == 0)
-			class_device_get(&sdkp->cdev);
-		else
-			sdkp = NULL;
-	}
-	return sdkp;
-}
-
-static struct scsi_osd_disk *scsi_osd_disk_get(struct genosddisk *disk)
-{
-	struct scsi_osd_disk *sdkp;
-
-	mutex_lock(&sd_ref_mutex);
-	sdkp = __scsi_osd_disk_get(disk);
-	mutex_unlock(&sd_ref_mutex);
-	return sdkp;
-}
-
-static struct scsi_osd_disk *scsi_osd_disk_get_from_dev(struct device *dev)
-{
-	struct scsi_osd_disk *sdkp;
-
-	mutex_lock(&sd_ref_mutex);
-	sdkp = dev_get_drvdata(dev);
-	if (sdkp)
-		sdkp = __scsi_osd_disk_get(sdkp->disk);
-	mutex_unlock(&sd_ref_mutex);
-	return sdkp;
-}
-
-static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
-{
-	struct scsi_device *sdev = sdkp->device;
-
-	mutex_lock(&sd_ref_mutex);
-	class_device_put(&sdkp->cdev);
-	scsi_device_put(sdev);
-	mutex_unlock(&sd_ref_mutex);
-}
-
-
-/*
- * genosddisk stuff modified for OSD
- */
-
-struct genosddisk *alloc_osd_disk_node(int node_id)
-{
-	struct genosddisk *disk;
-
-	disk = kmalloc_node(sizeof(struct genosddisk), GFP_KERNEL, node_id);
-	if (disk) {
-		memset(disk, 0, sizeof(struct genosddisk));
-		disk->minors = 1;
-		kobject_init(&disk->kobj);
-		/* rand_initialize_disk(disk); */ 
-	}
-	return disk;
-}
-
-struct genosddisk *alloc_osd_disk(void)
-{
-	return alloc_osd_disk_node(-1);
-}
-
 EXPORT_SYMBOL(alloc_osd_disk);
-EXPORT_SYMBOL(alloc_osd_disk_node);
 
-struct kobject *get_osd_disk(struct genosddisk *disk)
+struct kobject *get_osd_disk(struct scsi_osd_disk *disk)
 {
 	struct module *owner;
 	struct kobject *kobj;
@@ -368,7 +289,7 @@ struct kobject *get_osd_disk(struct genosddisk *disk)
 }
 EXPORT_SYMBOL(get_osd_disk);
 
-void put_osd_disk(struct genosddisk *disk)
+void put_osd_disk(struct scsi_osd_disk *disk)
 {
 	if (disk)
 		kobject_put(&disk->kobj);
@@ -397,7 +318,7 @@ static char *make_osd_block_name(struct genosddisk *disk)
 }
 
 
-void del_genosddisk(struct genosddisk *disk)
+void del_osd_disk(struct genosddisk *disk)
 {
 	int p;
 
@@ -406,8 +327,6 @@ void del_genosddisk(struct genosddisk *disk)
 	disk->flags &= ~GENHD_FL_UP;
 	/*unlink_genosddisk(disk);*/
 	disk->stamp = 0;
-
-	kobject_uevent(&disk->kobj, KOBJ_REMOVE);
 
 	/* FIXME: I don't think we do any of this nonsense */
 	/*
@@ -1498,14 +1417,6 @@ int add_osd_disk(struct genosddisk *disk)
 {
 	int ret;
 	struct scsi_osd_disk* sdkp = disk->private_data;
-	struct cdev* chrdev;
-
-	chrdev = cdev_alloc();
-	if(!chrdev) {
-		ret = -ENOMEM;
-		goto out;
-	}
-	cdev_init(chrdev, &suo_fops);
 	strlcpy(chrdev->kobj.name, disk->disk_name, KOBJ_NAME_LEN);
 	ret = cdev_add(chrdev, MKDEV(MAJOR(dev_id), disk->first_minor), 1);
 	if(ret)
@@ -1545,7 +1456,6 @@ static int suo_probe(struct device *dev)
 {
 	struct scsi_device *sdp = to_scsi_device(dev);
 	struct scsi_osd_disk *sdkp;
-	struct genosddisk *gd;
 	u32 index;
 	int error;
 
@@ -1557,15 +1467,9 @@ static int suo_probe(struct device *dev)
 
 	SCSI_LOG_HLQUEUE(3, sdev_printk(KERN_INFO, sdp,
 					"suo_probe\n"));
-
-	error = -ENOMEM;
-	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
+	sdkp = alloc_osd_disk();
 	if (!sdkp)
 		goto out;
-
-	gd = alloc_osd_disk();
-	if (!gd)
-		goto out_free;
 
 	/* Make sure we don't go over on devices */
 	if (!idr_pre_get(&sd_index_idr, GFP_KERNEL))
@@ -1687,7 +1591,9 @@ static int suo_remove(struct device *dev)
 static void scsi_osd_disk_release(struct class_device *cdev)
 {
 	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
-	struct genosddisk *disk = sdkp->disk;
+	struct cdev* chrdev = sdkp->chrdev;
+
+	kobject_uevent(&cdev->kobj, KOBJ_REMOVE);
 	
 	spin_lock(&sd_index_lock);
 	idr_remove(&sd_index_idr, sdkp->index);

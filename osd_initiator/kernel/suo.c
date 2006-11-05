@@ -314,7 +314,6 @@ static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
 
 struct scsi_osd_disk* alloc_osd_disk(void)
 {
-	int ret = -ENOMEM;
 	struct cdev* chrdev;
 	struct scsi_osd_disk* sdkp;
 
@@ -327,7 +326,7 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	 * suo_fops */
 	chrdev = cdev_alloc();
 	if(!chrdev) 
-		goto out;
+		goto out_sdkp;
 	cdev_init(chrdev, &suo_fops);
 	sdkp->chrdev = chrdev;
 	sdkp->fops = &suo_fops;
@@ -337,7 +336,7 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 out_sdkp:
 	kfree(sdkp);
 out:
-	return ret;
+	return NULL;
 }
 
 static struct scsi_osd_disk *__scsi_osd_disk_get(struct cdev* chrdev)
@@ -407,10 +406,8 @@ static int suo_open(struct inode *inode, struct file *filp)
 	struct scsi_device *sdev;
 	int retval;
 
-	/* FIXME: Fix locking for scsi_osd_disk 
-	if (!(sdkp = scsi_osd_disk_get(disk)))
+	if (!(sdkp = scsi_osd_disk_get(chrdev)))
 		return -ENXIO;
-	*/
 
 	SCSI_LOG_HLQUEUE(3, printk("sd_open: disk=%s\n", sdkp->disk_name));
 
@@ -1221,13 +1218,12 @@ int add_osd_disk(struct scsi_osd_disk* sdkp)
 	strlcpy(chrdev->kobj.name, sdkp->disk_name, KOBJ_NAME_LEN);
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
 	if(ret)
-		goto out_cdev;
+		goto out;
 
 	return 0;
 
-out_cdev:
-	kobject_del(&chrdev->kobj);
 out:
+	kobject_del(&chrdev->kobj);
 	return ret;
 }
 
@@ -1333,8 +1329,7 @@ static int suo_probe(struct device *dev)
 	return 0;
 
  out_put:
-	put_osd_disk(sdkp);
- out_free:
+	scsi_osd_disk_put(sdkp);
 	kfree(sdkp);
  out:
 	return error;
@@ -1382,7 +1377,6 @@ static int suo_remove(struct device *dev)
 static void scsi_osd_disk_release(struct class_device *cdev)
 {
 	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
-	struct cdev* chrdev = sdkp->chrdev;
 
 	kobject_uevent(&cdev->kobj, KOBJ_REMOVE);
 	
@@ -1390,7 +1384,7 @@ static void scsi_osd_disk_release(struct class_device *cdev)
 	idr_remove(&sd_index_idr, sdkp->index);
 	spin_unlock(&sd_index_lock);
 
-	put_osd_disk(sdkp);
+	scsi_osd_disk_put(sdkp);
 	put_device(&sdkp->device->sdev_gendev);
 
 	kfree(sdkp);
@@ -1455,7 +1449,8 @@ static int __init init_suo(void)
 	if (ret)
 		goto bail;
 
-	if(ret = scsi_register_driver(&suo_template.gendrv)) 
+	ret = scsi_register_driver(&suo_template.gendrv);
+	if(ret) 
 		goto bail;
 	
 	return 0;
@@ -1478,8 +1473,6 @@ bail:
  **/
 static void __exit exit_suo(void)
 {
-	int i;
-
 	SCSI_LOG_HLQUEUE(3, printk("exit_suo: exiting sd driver\n"));
 
 	scsi_unregister_driver(&suo_template.gendrv);

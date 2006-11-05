@@ -119,7 +119,7 @@ struct scsi_osd_disk {
 	
 	struct kobject kobj;
 	dev_t dev_id;
-	char disk_name[32];		
+	char disk_name[32];
 
 	unsigned int	openers;	/* protected by BKL for now, yuck */
 	sector_t	capacity;	/* size in 512-byte sectors */
@@ -339,7 +339,7 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	sdkp->chrdev = chrdev;
 	sdkp->fops = &suo_fops;
 
-	return 0;
+	return sdkp;
 
 out_sdkp:
 	kfree(sdkp);
@@ -1223,6 +1223,15 @@ int add_osd_disk(struct scsi_osd_disk* sdkp)
 {
 	int ret;
 	struct cdev* chrdev = sdkp->chrdev;
+
+	if(!chrdev)
+	{
+		dprintk("chrdev!\n");
+	}
+	if(!sdkp)
+	{
+		dprintk("sdkp!\n");
+	}
 	strlcpy(chrdev->kobj.name, sdkp->disk_name, KOBJ_NAME_LEN);
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
 	if(ret)
@@ -1268,14 +1277,20 @@ static int suo_probe(struct device *dev)
 		goto out;
 	*/
 
-	dprintk("%s\n", __func__);
+	dprintk("Entering suo_probe!\n");
 	sdkp = alloc_osd_disk();
-	if (!sdkp)
+	if (!sdkp || !sdkp->chrdev)
+	{
+		dprintk("sdkp is hosed!\n");
 		goto out;
+	}
 
 	/* Make sure we don't go over on devices */
 	if (!idr_pre_get(&sd_index_idr, GFP_KERNEL))
+	{
+		dprintk("not enough devs!\n");
 		goto out_put;
+	}
 
 	spin_lock(&sd_index_lock);
 	error = idr_get_new(&sd_index_idr, NULL, &index);
@@ -1283,7 +1298,10 @@ static int suo_probe(struct device *dev)
 	if (index >= SD_MAX_DISKS)
 		error = -EBUSY;
 	if (error)
+	{
+		dprintk("can't get idr list!\n");
 		goto out_put;
+	}
 
 	/* Set up sysfs and initialize our internal structure */
 	class_device_initialize(&sdkp->cdev);
@@ -1292,7 +1310,10 @@ static int suo_probe(struct device *dev)
 	strncpy(sdkp->cdev.class_id, sdp->sdev_gendev.bus_id, BUS_ID_SIZE);
 
 	if (class_device_add(&sdkp->cdev))
+	{
+		dprintk("can't add class device!\n");
 		goto out_put;
+	}
 
 	get_device(&sdp->sdev_gendev);
 

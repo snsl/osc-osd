@@ -133,22 +133,59 @@ static DEFINE_SPINLOCK(sd_index_lock);
  * object after last put) */
 static DEFINE_MUTEX(sd_ref_mutex);
 
-static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
-static void sd_rw_intr(struct scsi_cmnd * command);
-static int suo_probe(struct device *);
-static int suo_remove(struct device *);
-static void sd_shutdown(struct device *dev);
-static void sd_rescan(struct device *);
-static int sd_init_command(struct scsi_cmnd *);
-static int sd_issue_flush(struct device *, sector_t *);
-static void sd_prepare_flush(request_queue_t *, struct request *);
-static void suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
-			     unsigned char *buffer);
-static void scsi_osd_disk_release(struct class_device *cdev);
+
+/*
+ * Forward Declarations
+ */
+
+/* Cache stuff */
+static ssize_t sd_store_cache_type(struct class_device *cdev, 
+		const char *buf, size_t count);
+static ssize_t sd_show_cache_type(struct class_device *cdev, char *buf);
+static ssize_t sd_show_fua(struct class_device *cdev, char *buf);
+
+/* File ops */
 static int suo_open(struct inode *inode, struct file *filp);
 static int suo_release(struct inode *inode, struct file *filp);
+static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo);
+static void set_media_not_present(struct scsi_osd_disk *sdkp);
 static int suo_ioctl(struct inode * inode, struct file * filp, 
-		   unsigned int cmd, unsigned long arg);
+		unsigned int cmd, unsigned long arg);
+
+/* Alloc / free / locks */
+static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev);
+static void varlen_cdb_init(u8 *cdb, u16 action);
+static struct scsi_osd_disk* alloc_osd_disk(void);
+struct kobject *get_osd_disk(struct scsi_osd_disk *disk);
+void put_osd_disk(struct scsi_osd_disk *disk);
+EXPORT_SYMBOL(alloc_osd_disk);
+EXPORT_SYMBOL(get_osd_disk);
+EXPORT_SYMBOL(put_osd_disk);
+
+/* Disk management */
+static int sd_media_changed(struct scsi_osd_disk *sdkp);
+static int sd_issue_flush(struct device *dev, sector_t *error_sector);
+static void sd_prepare_flush(request_queue_t *q, struct request *rq);
+static void sd_rescan(struct device *dev);
+static int media_not_present(struct scsi_osd_disk *sdkp,
+		struct scsi_sense_hdr *sshdr);
+static void sd_spinup_disk(struct scsi_osd_disk *sdkp, char *diskname);
+static void sd_read_write_protect_flag(struct scsi_osd_disk *sdkp, char *diskname,
+		unsigned char *buffer);
+static void sd_read_cache_type(struct scsi_osd_disk *sdkp, char *diskname,
+		unsigned char *buffer);
+static void suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
+		unsigned char *buffer);
+static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
+static int suo_sync_cache(struct scsi_device *sdp);
+EXPORT_SYMBOL(suo_sync_cache);
+
+/* Init / Release / Probe */
+int add_osd_disk(struct scsi_osd_disk* sdkp);
+static int suo_probe(struct device *dev);
+static int suo_remove(struct device *dev);
+static void scsi_osd_disk_release(struct class_device *cdev);
+static void sd_shutdown(struct device *dev);
 
 static struct file_operations suo_fops = {
 	.owner			= THIS_MODULE,
@@ -168,15 +205,12 @@ static struct file_operations suo_fops = {
 	*/
 };
 
-
-
 static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
 	"write back, no read (daft)"
 };
 
-static ssize_t sd_store_cache_type(struct class_device *cdev, const char *buf,
-				   size_t count)
+static ssize_t sd_store_cache_type(struct class_device *cdev, const char *buf, size_t count)
 {
 	int i, ct = -1, rcd, wce, sp;
 	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
@@ -263,8 +297,12 @@ static struct scsi_driver suo_template = {
 		.shutdown	= sd_shutdown,
 	},
 	.rescan			= sd_rescan,
-	.init_command		= sd_init_command,
 	.issue_flush		= sd_issue_flush,
+
+	/* FIXME: We need to implement this, but I'm not sure exactly what
+	 * it needs to do 
+	.init_command		= sd_init_command,
+	*/
 };
 
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
@@ -299,7 +337,6 @@ out_sdkp:
 out:
 	return ret;
 }
-EXPORT_SYMBOL(alloc_osd_disk);
 
 struct kobject *get_osd_disk(struct scsi_osd_disk *disk)
 {
@@ -319,14 +356,12 @@ struct kobject *get_osd_disk(struct scsi_osd_disk *disk)
 	return kobj;
 
 }
-EXPORT_SYMBOL(get_osd_disk);
 
 void put_osd_disk(struct scsi_osd_disk *disk)
 {
 	if (disk)
 		kobject_put(&disk->kobj);
 }
-EXPORT_SYMBOL(put_osd_disk);
 
 /**
  *	sd_open - open a scsi disk device
@@ -636,7 +671,6 @@ static int suo_sync_cache(struct scsi_device *sdp)
 
 	return res;
 }
-EXPORT_SYMBOL(suo_sync_cache);
 
 static int sd_issue_flush(struct device *dev, sector_t *error_sector)
 {
@@ -688,7 +722,6 @@ static void sd_rw_intr(struct scsi_cmnd * command)
 	int good_bytes = (result == 0 ? this_count : 0);
 	sector_t block_sectors = 1;
 	u64 first_err_block;
-	sector_t error_sector;
 	struct scsi_sense_hdr sshdr;
 	int sense_valid = 0;
 	int sense_deferred = 0;

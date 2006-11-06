@@ -118,7 +118,7 @@ static int drv_major = 0;
 struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
-	struct cdev* chrdev;
+	struct cdev chrdev;
 	struct file_operations* fops;
 	struct class_device cdev;
 	unsigned long __never_unset_me;
@@ -343,23 +343,13 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	if (!sdkp)
 		goto out;
 	sdkp->__never_unset_me = 0xDEADBEEF;
+	chrdev = &sdkp->chrdev;
 
-	/* Allocate our char device */
-	/* FIXME: Refactor this so alloc_osd_disk doesn't always set it to
-	 * suo_fops */
-	chrdev = cdev_alloc();
-	if(!chrdev) 
-		goto out_sdkp;
 	cdev_init(chrdev, &suo_fops);
-	chrdev->owner = THIS_MODULE;
-	chrdev->ops = &suo_fops;
-	sdkp->chrdev = chrdev;
 	sdkp->fops = &suo_fops;
 
 	return sdkp;
 
-out_sdkp:
-	kfree(sdkp);
 out:
 	return NULL;
 }
@@ -367,7 +357,7 @@ out:
 static struct scsi_osd_disk *__scsi_osd_disk_get(struct cdev* chrdev)
 {
 	struct scsi_osd_disk* sdkp = scsi_osd_disk(chrdev);
-	if(sdkp)
+	if(!sdkp)
 		return NULL;
 
 	if (scsi_device_get(sdkp->device) == 0)
@@ -395,7 +385,7 @@ static struct scsi_osd_disk *scsi_osd_disk_get_from_dev(struct device *dev)
 	mutex_lock(&sd_ref_mutex);
 	sdkp = dev_get_drvdata(dev);
 	if (sdkp)
-		sdkp = __scsi_osd_disk_get(sdkp->chrdev);
+		sdkp = __scsi_osd_disk_get(&sdkp->chrdev);
 	mutex_unlock(&sd_ref_mutex);
 	return sdkp;
 }
@@ -427,7 +417,7 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
 static int suo_open(struct inode *inode, struct file *filp)
 {
 	struct cdev* chrdev = inode->i_cdev;
-	struct scsi_osd_disk *sdkp = scsi_osd_disk(chrdev);
+	struct scsi_osd_disk *sdkp;
 	struct scsi_device *sdev;
 	int retval;
 
@@ -1107,7 +1097,6 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp,
 	struct scsi_mode_data data;
 	char* diskname = sdkp->disk_name;
 
-	/* set_disk_ro(sdkp, 0); */
 	if (sdp->skip_ms_page_3f) {
 		printk(KERN_NOTICE "%s: assuming Write Enabled\n", diskname);
 		return;
@@ -1145,7 +1134,6 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp,
 		       "%s: test WP failed, assume Write Enabled\n", diskname);
 	} else {
 		sdkp->write_prot = ((data.device_specific & 0x80) != 0);
-		/* set_disk_ro(sdkp, sdkp->write_prot); */
 		printk(KERN_NOTICE "%s: Write Protect is %s\n", diskname,
 		       sdkp->write_prot ? "on" : "off");
 		printk(KERN_DEBUG "%s: Mode Sense: %02x %02x %02x %02x\n",
@@ -1346,20 +1334,15 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 int add_osd_disk(struct scsi_osd_disk* sdkp)
 {
 	int ret;
-	struct cdev* chrdev = sdkp->chrdev;
+	struct cdev* chrdev = &sdkp->chrdev;
 
-	if(!chrdev)
-	{
-		dprintk("chrdev!\n");
-	}
-	if(!sdkp)
-	{
-		dprintk("sdkp!\n");
-	}
 	strlcpy(chrdev->kobj.name, sdkp->disk_name, KOBJ_NAME_LEN);
 	dprintk("Adding device, major = %i, minor = %i\n", MAJOR(sdkp->dev_id), MINOR(sdkp->dev_id));
+
+	chrdev->owner = THIS_MODULE;
+	chrdev->ops = &suo_fops;
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
-	kobject_uevent(&sdkp->chrdev->kobj, KOBJ_ADD);
+	kobject_uevent(&sdkp->chrdev.kobj, KOBJ_ADD);
 	if(ret)
 	{
 		dprintk("*** Couldn't add chardev! ret = %i\n", ret);
@@ -1408,11 +1391,8 @@ static int suo_probe(struct device *dev)
 
 	dprintk("Entering suo_probe!\n");
 	sdkp = alloc_osd_disk();
-	if (!sdkp || !sdkp->chrdev)
-	{
-		dprintk("sdkp is hosed!\n");
+	if (!sdkp)
 		goto out;
-	}
 
 	/* Make sure we don't go over on devices */
 	if (!idr_pre_get(&sd_index_idr, GFP_KERNEL))
@@ -1431,12 +1411,6 @@ static int suo_probe(struct device *dev)
 		dprintk("can't get idr list!\n");
 		goto out_put;
 	}
-	/* DEBUG!!! */
-	if (!sdkp->chrdev)
-	{
-		dprintk("chrdev is hosed a!\n");
-		goto out_put;
-	}
 
 	/* Set up sysfs and initialize our internal structure */
 	class_device_initialize(&sdkp->cdev);
@@ -1447,12 +1421,6 @@ static int suo_probe(struct device *dev)
 	if (class_device_add(&sdkp->cdev))
 	{
 		dprintk("can't add class device!\n");
-		goto out_put;
-	}
-	/* DEBUG!!! */
-	if (!sdkp->chrdev)
-	{
-		dprintk("chrdev is hosed b!\n");
 		goto out_put;
 	}
 
@@ -1485,37 +1453,14 @@ static int suo_probe(struct device *dev)
 			'a' + m1, 'a' + m2, 'a' + m3);
 	}
 
-	/* DEBUG!!! */
-	if (!sdkp->chrdev)
-	{
-		dprintk("chrdev is hosed c!\n");
-		goto out_put;
-	}
-
 	suo_revalidate_disk(sdkp);
 
 	if (sdp->removable)
 		sdkp->removable = 1;
-
-	/* DEBUG!!! */
-	if (!sdkp->chrdev)
-	{
-		dprintk("chrdev is hosed d!\n");
-		dump_stack();
-
-		goto out_put;
-	}
 	if(sdkp->__never_unset_me != 0xDEADBEEF)
 		dprintk("the canary is dead! leave the mine!!\n");
 
 	dev_set_drvdata(dev, sdkp);
-
-	/* DEBUG!!! */
-	if (!sdkp->chrdev)
-	{
-		dprintk("chrdev is hosed e!\n");
-		goto out_put;
-	}
 
 	add_osd_disk(sdkp);
 	sdev_printk(KERN_NOTICE, sdp, "Attached scsi %sdisk %s\n",
@@ -1546,8 +1491,8 @@ static int suo_remove(struct device *dev)
 {
 	struct scsi_osd_disk *sdkp = dev_get_drvdata(dev);
 
-	kobject_uevent(&sdkp->chrdev->kobj, KOBJ_REMOVE);
-	cdev_del(sdkp->chrdev);
+	kobject_uevent(&sdkp->chrdev.kobj, KOBJ_REMOVE);
+	cdev_del(&sdkp->chrdev);
 	class_device_del(&sdkp->cdev);
 	kobject_del(&sdkp->kobj);
 	sd_shutdown(dev);
@@ -1574,7 +1519,7 @@ static void scsi_osd_disk_release(struct class_device *cdev)
 {
 	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
 
-	kobject_uevent(&sdkp->chrdev->kobj, KOBJ_REMOVE);
+	kobject_uevent(&sdkp->chrdev.kobj, KOBJ_REMOVE);
 	kobject_uevent(&cdev->kobj, KOBJ_REMOVE);
 	
 	spin_lock(&sd_index_lock);

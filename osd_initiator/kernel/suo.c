@@ -48,6 +48,7 @@
 #include <scsi/scsicam.h>
 
 #include "scsi_logging.h"
+#include "suo_ioctl.h"
 
 /* OSD Includes */
 #include "../libosd/osd_defs.h"
@@ -604,9 +605,102 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 }
 
 static ssize_t
-suo_write(struct file *filp, const char __user *buf, size_t count, loff_t * ppos)
+suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 {
-	return -EINVAL;
+	int ret;
+	struct suo_req ureq;
+	struct request *req;
+	int is_write;
+	struct scsi_sense_hdr sshdr;
+	struct scsi_osd_disk *od;
+	struct scsi_device *sdev;
+	u8 *sense;
+
+	od = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
+	if (!od)
+		return -ENXIO;
+	sdev = od->device;
+	if (count != sizeof(ureq))
+		return -EINVAL;
+	ret = copy_from_user(&ureq, buf, count);
+	if (ret)
+		return -EFAULT;
+
+	is_write = 0;
+	switch (ureq.data_direction) {
+	case DMA_TO_DEVICE:
+		is_write = 1;
+	case DMA_FROM_DEVICE:
+	case DMA_NONE:
+		break;
+	case DMA_BIDIRECTIONAL:  /* not supported yet */
+	default:
+		return -EINVAL;
+	}
+
+	if (DMA_TO_DEVICE && (!ureq.out_data_len || ureq.in_data_len))
+		return -EINVAL;
+	if (DMA_FROM_DEVICE && (!ureq.in_data_len || ureq.out_data_len))
+		return -EINVAL;
+
+	req = blk_get_request(sdev->request_queue, is_write, __GFP_WAIT);
+
+	if (ureq.out_data_len) {
+		void __user *ubuf = (void __user *) ureq.out_data_buf;
+		ret = blk_rq_map_user(sdev->request_queue, req,
+		                      ubuf, ureq.out_data_len);
+		if (ret)
+			goto out;
+	}
+	if (ureq.in_data_len) {
+		void __user *ubuf = (void __user *) ureq.in_data_buf;
+		ret = blk_rq_map_user(sdev->request_queue, req,
+		                      ubuf, ureq.in_data_len);
+		if (ret)
+			goto out;
+	}
+
+	ret = copy_from_user(req->cmd, (void __user *) ureq.cdb_buf,
+	                     ureq.cdb_len);
+	if (ret) {
+		ret = -EFAULT;
+		goto out;
+	}
+
+	sense = kzalloc(SCSI_SENSE_BUFFERSIZE, GFP_NOIO);
+	if (!sense) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	req->cmd_len = ureq.cdb_len;
+	req->sense = sense;
+	req->sense_len = 0;
+	req->retries = SD_MAX_RETRIES;
+	req->timeout = SD_TIMEOUT;
+	req->cmd_type = REQ_TYPE_SPECIAL;
+	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
+
+	/*
+	 * head injection *required* here otherwise quiesce won't work
+	 */
+	blk_execute_rq(req->q, NULL, req, 1);
+
+	ret = req->errors;
+
+	scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
+	if (scsi_sense_valid(&sshdr))
+		scsi_print_sense_hdr(od->disk_name, &sshdr);
+	kfree(sense);
+
+	if (ureq.out_data_len)
+		blk_rq_unmap_user(req->bio, 0);
+	if (ureq.in_data_len)
+		blk_rq_unmap_user(req->bio, 0);
+
+ out:
+	blk_put_request(req);
+	return ret;
 }
 
 

@@ -200,6 +200,8 @@ static void suo_read_capacity(struct scsi_osd_disk *sdkp,
 static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
 static int suo_sync_cache(struct scsi_device *sdp);
 EXPORT_SYMBOL(suo_sync_cache);
+static int suo_init_command(struct scsi_cmnd* SCpnt);
+static void suo_rw_intr(struct scsi_cmnd * command);
 
 /* Init / Release / Probe */
 int add_osd_disk(struct scsi_osd_disk* sdkp);
@@ -323,10 +325,7 @@ static struct scsi_driver suo_template = {
 	.rescan			= sd_rescan,
 	.issue_flush		= sd_issue_flush,
 
-	/* FIXME: We need to implement this, but I'm not sure exactly what
-	 * it needs to do 
-	.init_command		= sd_init_command,
-	*/
+	.init_command		= suo_init_command,
 };
 
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
@@ -848,14 +847,68 @@ static void sd_rescan(struct device *dev)
 	}
 }
 
+
 /**
- *	sd_rw_intr - bottom half handler: called when the lower level
+ *	suo_init_command - build a scsi (read or write) command from
+ *	information in the request structure.
+ *	@SCpnt: pointer to mid-level's per scsi command structure that
+ *	contains request and into which the scsi command is written
+ *
+ *	Returns 1 if successful and 0 if error (or cannot be done now).
+ **/
+static int suo_init_command(struct scsi_cmnd* SCpnt)
+{
+	struct scsi_device *sdp = SCpnt->device;
+	struct request *rq = SCpnt->request;
+	unsigned int this_count = SCpnt->request_bufflen >> 9;
+	unsigned int timeout = sdp->timeout;
+
+	if (!sdp || !scsi_device_online(sdp)) {
+		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", SCpnt));
+		return 0;
+	}
+
+	if (sdp->changed) {
+		/*
+		 * quietly refuse to do anything to a changed disc until 
+		 * the changed bit has been reset
+		 */
+		/* printk("SCSI disk has been changed. Prohibiting further I/O.\n"); */
+		return 0;
+	}
+
+	/*
+	 * We shouldn't disconnect in the middle of a sector, so with a dumb
+	 * host adapter, it's safe to assume that we can at least transfer
+	 * this many bytes between each connect / disconnect.
+	 */
+	SCpnt->transfersize = sdp->sector_size;
+	SCpnt->underflow = this_count << 9;
+	SCpnt->allowed = SD_MAX_RETRIES;
+	SCpnt->timeout_per_command = timeout;
+
+	/*
+	 * This is the completion routine we use.  This is matched in terms
+	 * of capability to this function.
+	 */
+	SCpnt->done = suo_rw_intr;
+
+	/*
+	 * This indicates that the command is ready from our end to be
+	 * queued.
+	 */
+	return 1;
+}
+
+
+/**
+ *	suo_rw_intr - bottom half handler: called when the lower level
  *	driver has completed (successfully or otherwise) a scsi command.
  *	@command: mid-level's per command structure.
  *
  *	Note: potentially run from within an ISR. Must not block.
  **/
-static void sd_rw_intr(struct scsi_cmnd * command)
+static void suo_rw_intr(struct scsi_cmnd * command)
 {
 	int result = command->result;
 	int this_count = command->request_bufflen;
@@ -873,15 +926,6 @@ static void sd_rw_intr(struct scsi_cmnd * command)
 			sense_deferred = scsi_sense_is_deferred(&sshdr);
 	}
 
-#ifdef CONFIG_SCSI_LOGGING
-	SCSI_LOG_HLCOMPLETE(1, printk("sd_rw_intr: %s: res=0x%x\n", 
-				command->request->rq_disk->disk_name, result));
-	if (sense_valid) {
-		SCSI_LOG_HLCOMPLETE(1, printk("sd_rw_intr: sb[respc,sk,asc,"
-				"ascq]=%x,%x,%x,%x\n", sshdr.response_code,
-				sshdr.sense_key, sshdr.asc, sshdr.ascq));
-	}
-#endif
 	/*
 	   Handle MEDIUM ERRORs that indicate partial success.  Since this is a
 	   relatively rare error condition, no care is taken to avoid

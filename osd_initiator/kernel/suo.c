@@ -63,6 +63,7 @@ MODULE_AUTHOR("Paul Betts");
 MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
 MODULE_LICENSE("GPL");
 
+/*
 #define DEBUG
 
 #ifdef DEBUG
@@ -70,6 +71,9 @@ MODULE_LICENSE("GPL");
 #else
 #define dprintk(fmt...)
 #endif
+*/
+
+#define dprintk(fmt...) printk(KERN_INFO "suo: " fmt)
 
 static int major;
 module_param(major, int, 0);
@@ -113,9 +117,10 @@ static dev_t dev_id;
 struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
-	struct class_device cdev;
 	struct cdev* chrdev;
 	struct file_operations* fops;
+	struct class_device cdev;
+	unsigned long __never_unset_me;
 	
 	struct kobject kobj;
 	dev_t dev_id;
@@ -179,12 +184,12 @@ static void sd_prepare_flush(request_queue_t *q, struct request *rq);
 static void sd_rescan(struct device *dev);
 static int media_not_present(struct scsi_osd_disk *sdkp,
 		struct scsi_sense_hdr *sshdr);
-static void sd_spinup_disk(struct scsi_osd_disk *sdkp, char *diskname);
-static void sd_read_write_protect_flag(struct scsi_osd_disk *sdkp, char *diskname,
+static void sd_spinup_disk(struct scsi_osd_disk *sdkp);
+static void sd_read_write_protect_flag(struct scsi_osd_disk *sdkp,
 		unsigned char *buffer);
-static void sd_read_cache_type(struct scsi_osd_disk *sdkp, char *diskname,
+static void sd_read_cache_type(struct scsi_osd_disk *sdkp,
 		unsigned char *buffer);
-static void suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
+static void suo_read_capacity(struct scsi_osd_disk *sdkp,
 		unsigned char *buffer);
 static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
 static int suo_sync_cache(struct scsi_device *sdp);
@@ -328,6 +333,7 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
 	if (!sdkp)
 		goto out;
+	sdkp->__never_unset_me = 0xDEADBEEF;
 
 	/* Allocate our char device */
 	/* FIXME: Refactor this so alloc_osd_disk doesn't always set it to
@@ -839,7 +845,7 @@ static int media_not_present(struct scsi_osd_disk *sdkp,
  * spinup disk - called only in suo_revalidate_disk()
  */
 static void
-sd_spinup_disk(struct scsi_osd_disk *sdkp, char *diskname)
+sd_spinup_disk(struct scsi_osd_disk *sdkp)
 {
 	unsigned char cmd[10];
 	unsigned long spintime_expire = 0;
@@ -847,6 +853,7 @@ sd_spinup_disk(struct scsi_osd_disk *sdkp, char *diskname)
 	unsigned int the_result;
 	struct scsi_sense_hdr sshdr;
 	int sense_valid = 0;
+	char* diskname = sdkp->disk_name;
 
 	spintime = 0;
 
@@ -977,12 +984,13 @@ sd_do_mode_sense(struct scsi_device *sdp, int dbd, int modepage,
  * called with buffer of length SD_BUF_SIZE
  */
 static void
-sd_read_write_protect_flag(struct scsi_osd_disk *sdkp, char *diskname,
+sd_read_write_protect_flag(struct scsi_osd_disk *sdkp,
 			   unsigned char *buffer)
 {
 	int res;
 	struct scsi_device *sdp = sdkp->device;
 	struct scsi_mode_data data;
+	char* diskname = sdkp->disk_name;
 
 	set_disk_ro(sdkp, 0);
 	if (sdp->skip_ms_page_3f) {
@@ -1035,11 +1043,12 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp, char *diskname,
  * called with buffer of length SD_BUF_SIZE
  */
 static void
-sd_read_cache_type(struct scsi_osd_disk *sdkp, char *diskname,
+sd_read_cache_type(struct scsi_osd_disk *sdkp,
 		   unsigned char *buffer)
 {
 	int len = 0, res;
 	struct scsi_device *sdp = sdkp->device;
+	char* diskname = sdkp->disk_name;
 
 	int dbd;
 	int modepage;
@@ -1147,7 +1156,7 @@ defaults:
 }
 
 static void
-suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
+suo_read_capacity(struct scsi_osd_disk *sdkp,
 		 unsigned char *buffer)
 {
 	unsigned char cmd[16];
@@ -1157,6 +1166,7 @@ suo_read_capacity(struct scsi_osd_disk *sdkp, char *diskname,
 	struct scsi_sense_hdr sshdr;
 	int sense_valid = 0;
 	struct scsi_device *sdp = sdkp->device;
+	char* diskname = sdkp->disk_name;
 
 	/* FIXME: We need to send a GET_ATTRIBUTES to the root osd object.
 	 * However, how the spec defines the formatting of the SCSI 
@@ -1202,16 +1212,16 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 	sdkp->WCE = 0;
 	sdkp->RCD = 0;
 
-	sd_spinup_disk(sdkp, sdkp->disk_name);
+	sd_spinup_disk(sdkp);
 
 	/*
 	 * Without media there is no reason to ask; moreover, some devices
 	 * react badly if we do.
 	 */
 	if (sdkp->media_present) {
-		suo_read_capacity(sdkp, sdkp->disk_name, buffer); 
-		sd_read_write_protect_flag(sdkp, sdkp->disk_name, buffer);
-		sd_read_cache_type(sdkp, sdkp->disk_name, buffer);
+		suo_read_capacity(sdkp, buffer); 
+		sd_read_write_protect_flag(sdkp, buffer);
+		sd_read_cache_type(sdkp, buffer);
 	}
 	kfree(buffer);
 
@@ -1302,6 +1312,12 @@ static int suo_probe(struct device *dev)
 		dprintk("can't get idr list!\n");
 		goto out_put;
 	}
+	/* DEBUG!!! */
+	if (!sdkp->chrdev)
+	{
+		dprintk("chrdev is hosed a!\n");
+		goto out_put;
+	}
 
 	/* Set up sysfs and initialize our internal structure */
 	class_device_initialize(&sdkp->cdev);
@@ -1312,6 +1328,12 @@ static int suo_probe(struct device *dev)
 	if (class_device_add(&sdkp->cdev))
 	{
 		dprintk("can't add class device!\n");
+		goto out_put;
+	}
+	/* DEBUG!!! */
+	if (!sdkp->chrdev)
+	{
+		dprintk("chrdev is hosed b!\n");
 		goto out_put;
 	}
 
@@ -1344,12 +1366,38 @@ static int suo_probe(struct device *dev)
 			'a' + m1, 'a' + m2, 'a' + m3);
 	}
 
+	/* DEBUG!!! */
+	if (!sdkp->chrdev)
+	{
+		dprintk("chrdev is hosed c!\n");
+		goto out_put;
+	}
+
 	suo_revalidate_disk(sdkp);
 
 	if (sdp->removable)
 		sdkp->removable = 1;
 
+	/* DEBUG!!! */
+	if (!sdkp->chrdev)
+	{
+		dprintk("chrdev is hosed d!\n");
+		dump_stack();
+
+		goto out_put;
+	}
+	if(sdkp->__never_unset_me != 0xDEADBEEF)
+		dprintk("the canary is dead! leave the mine!!\n");
+
 	dev_set_drvdata(dev, sdkp);
+
+	/* DEBUG!!! */
+	if (!sdkp->chrdev)
+	{
+		dprintk("chrdev is hosed e!\n");
+		goto out_put;
+	}
+
 	add_osd_disk(sdkp);
 	sdev_printk(KERN_NOTICE, sdp, "Attached scsi %sdisk %s\n",
 		    sdp->removable ? "removable " : "", sdkp->disk_name);

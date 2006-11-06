@@ -108,7 +108,7 @@ MODULE_PARM_DESC(major, "Major device number");
  * Globals
  */
 static struct class *so_sysfs_class;
-static dev_t dev_id;
+static int drv_major = 0;
 
 /*
  * Structs
@@ -164,6 +164,11 @@ static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo);
 static void set_media_not_present(struct scsi_osd_disk *sdkp);
 static int suo_ioctl(struct inode * inode, struct file * filp, 
 		unsigned int cmd, unsigned long arg);
+static ssize_t suo_read(struct file *filp, char __user *buf, 
+		size_t count, loff_t * ppos);
+static ssize_t suo_write(struct file *filp, const char __user *buf, 
+		size_t count, loff_t * ppos);
+
 
 /* Alloc / free / locks */
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev);
@@ -207,6 +212,9 @@ static struct file_operations suo_fops = {
 	.open			= suo_open,
 	.release		= suo_release,
 	.ioctl			= suo_ioctl,
+	.read 			= suo_read,
+	.write 			= suo_write,
+
 	/*  OSD Disks don't have geometry (or at least we don't care)
 	.getgeo			= sd_getgeo,
 	*/
@@ -589,6 +597,17 @@ static int suo_ioctl(struct inode * inode, struct file * filp,
        return scsi_ioctl(sdp, cmd, p);
 }
 
+static ssize_t
+suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
+{
+	return -EINVAL;
+}
+
+static ssize_t
+suo_write(struct file *filp, const char __user *buf, size_t count, loff_t * ppos)
+{
+	return -EINVAL;
+}
 
 
 /**
@@ -1248,7 +1267,10 @@ int add_osd_disk(struct scsi_osd_disk* sdkp)
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
 	kobject_uevent(&sdkp->chrdev->kobj, KOBJ_ADD);
 	if(ret)
+	{
+		dprintk("*** Couldn't add chardev! ret = %i\n", ret);
 		goto out;
+	}
 
 	return 0;
 
@@ -1354,7 +1376,7 @@ static int suo_probe(struct device *dev)
 			sdp->timeout = SD_MOD_TIMEOUT;
 	}
 
-	sdkp->dev_id = MKDEV( MAJOR(dev_id), index );
+	sdkp->dev_id = MKDEV( MAJOR(drv_major), index );
 
 	if (index < 26) {
 		sprintf(sdkp->disk_name, SUO_DEVICE_PREFIX"%c", 'a' + index % 26);
@@ -1503,9 +1525,11 @@ static int __init init_suo(void)
 	int ret;
 	int has_registered_chrdev = 0;
 	so_sysfs_class = NULL;
+	dev_t dev_id;
+
 	SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n")); 
 	if(major > 0) {
-		dev_id = (major ? MKDEV(major, 0) : 0);
+		drv_major = (major ? MKDEV(major, 0) : 0);
 		ret = register_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES, "suo");
 	}
 	else
@@ -1516,7 +1540,9 @@ static int __init init_suo(void)
 				  (major > 0 ? "register" : "dynamically allocate"), ret, ret);
 		return -ENODEV;
 	}
+	drv_major = MAJOR(dev_id);
 	has_registered_chrdev = -1;
+	dprintk("Registered major %i, minors 0 to %i\n", MAJOR(dev_id), SUO_MAX_OSD_ENTRIES);
 
 	/*
 	so_sysfs_class = class_create(THIS_MODULE, "scsi_osd");
@@ -1559,7 +1585,7 @@ static void __exit exit_suo(void)
 	scsi_unregister_driver(&suo_template.gendrv);
 	class_unregister(&suo_disk_class);
 	if(so_sysfs_class)	class_destroy(so_sysfs_class);
-	unregister_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES);
+	unregister_chrdev_region(MKDEV(drv_major, 0), SUO_MAX_OSD_ENTRIES);
 }
 
 module_init(init_suo);

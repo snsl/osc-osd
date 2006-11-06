@@ -342,6 +342,8 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	if(!chrdev) 
 		goto out_sdkp;
 	cdev_init(chrdev, &suo_fops);
+	chrdev->owner = THIS_MODULE;
+	chrdev->ops = &suo_fops;
 	sdkp->chrdev = chrdev;
 	sdkp->fops = &suo_fops;
 
@@ -1186,7 +1188,6 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 {
 	struct scsi_device *sdp = sdkp->device;
 	unsigned char *buffer;
-	unsigned ordered;
 
 	dprintk("%s: disk=%s\n", __func__, sdkp->disk_name);
 
@@ -1243,7 +1244,9 @@ int add_osd_disk(struct scsi_osd_disk* sdkp)
 		dprintk("sdkp!\n");
 	}
 	strlcpy(chrdev->kobj.name, sdkp->disk_name, KOBJ_NAME_LEN);
+	dprintk("Adding device, major = %i, minor = %i\n", MAJOR(sdkp->dev_id), MINOR(sdkp->dev_id));
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
+	kobject_uevent(&sdkp->chrdev->kobj, KOBJ_ADD);
 	if(ret)
 		goto out;
 
@@ -1427,6 +1430,7 @@ static int suo_remove(struct device *dev)
 {
 	struct scsi_osd_disk *sdkp = dev_get_drvdata(dev);
 
+	kobject_uevent(&sdkp->chrdev->kobj, KOBJ_REMOVE);
 	cdev_del(sdkp->chrdev);
 	class_device_del(&sdkp->cdev);
 	kobject_del(&sdkp->kobj);
@@ -1454,6 +1458,7 @@ static void scsi_osd_disk_release(struct class_device *cdev)
 {
 	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
 
+	kobject_uevent(&sdkp->chrdev->kobj, KOBJ_REMOVE);
 	kobject_uevent(&cdev->kobj, KOBJ_REMOVE);
 	
 	spin_lock(&sd_index_lock);

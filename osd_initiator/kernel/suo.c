@@ -992,7 +992,7 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp,
 	struct scsi_mode_data data;
 	char* diskname = sdkp->disk_name;
 
-	set_disk_ro(sdkp, 0);
+	/* set_disk_ro(sdkp, 0); */
 	if (sdp->skip_ms_page_3f) {
 		printk(KERN_NOTICE "%s: assuming Write Enabled\n", diskname);
 		return;
@@ -1030,7 +1030,7 @@ sd_read_write_protect_flag(struct scsi_osd_disk *sdkp,
 		       "%s: test WP failed, assume Write Enabled\n", diskname);
 	} else {
 		sdkp->write_prot = ((data.device_specific & 0x80) != 0);
-		set_disk_ro(sdkp, sdkp->write_prot);
+		/* set_disk_ro(sdkp, sdkp->write_prot); */
 		printk(KERN_NOTICE "%s: Write Protect is %s\n", diskname,
 		       sdkp->write_prot ? "on" : "off");
 		printk(KERN_DEBUG "%s: Mode Sense: %02x %02x %02x %02x\n",
@@ -1188,7 +1188,7 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 	unsigned char *buffer;
 	unsigned ordered;
 
-	SCSI_LOG_HLQUEUE(3, printk("suo_revalidate_disk: disk=%s\n", sdkp->disk_name));
+	dprintk("%s: disk=%s\n", __func__, sdkp->disk_name);
 
 	/*
 	 * If the device is offline, don't try and read capacity or any
@@ -1460,7 +1460,7 @@ static void scsi_osd_disk_release(struct class_device *cdev)
 	idr_remove(&sd_index_idr, sdkp->index);
 	spin_unlock(&sd_index_lock);
 
-	scsi_osd_disk_put(sdkp);
+	/* put_disk(sdkp->gendisk); */
 	put_device(&sdkp->device->sdev_gendev);
 
 	kfree(sdkp);

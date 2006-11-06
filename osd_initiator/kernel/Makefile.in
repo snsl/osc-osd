@@ -7,12 +7,18 @@ obj-m := suo.o
 
 KDIR := @KDIR@
 
-CFLAGS+="-g"
+EXTRA_CFLAGS += -g
 
 all:
 	$(MAKE) SUBDIRS=$(PWD) -C $(KDIR) modules 
 
 clean:
 	$(MAKE) SUBDIRS=$(PWD) -C $(KDIR) clean
+
+#else
+
+tags: FORCE
+	ctags suo.c suo_ioctl.h
+FORCE:;
 
 #endif

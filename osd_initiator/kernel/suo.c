@@ -330,7 +330,7 @@ static struct scsi_driver suo_template = {
 
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
 {
-	return container_of(chrdev, struct scsi_osd_disk, cdev);
+	return container_of(chrdev, struct scsi_osd_disk, chrdev);
 }
 
 struct scsi_osd_disk* alloc_osd_disk(void)
@@ -1376,7 +1376,7 @@ static int suo_probe(struct device *dev)
 			sdp->timeout = SD_MOD_TIMEOUT;
 	}
 
-	sdkp->dev_id = MKDEV( MAJOR(drv_major), index );
+	sdkp->dev_id = MKDEV( drv_major, index );
 
 	if (index < 26) {
 		sprintf(sdkp->disk_name, SUO_DEVICE_PREFIX"%c", 'a' + index % 26);
@@ -1542,7 +1542,7 @@ static int __init init_suo(void)
 	}
 	drv_major = MAJOR(dev_id);
 	has_registered_chrdev = -1;
-	dprintk("Registered major %i, minors 0 to %i\n", MAJOR(dev_id), SUO_MAX_OSD_ENTRIES);
+	dprintk("Registered major %i, minors 0 to %i\n", drv_major, SUO_MAX_OSD_ENTRIES);
 
 	/*
 	so_sysfs_class = class_create(THIS_MODULE, "scsi_osd");

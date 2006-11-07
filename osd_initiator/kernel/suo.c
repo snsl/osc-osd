@@ -603,63 +603,104 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	struct scsi_sense_hdr sshdr;
 	struct scsi_osd_disk *od;
 	struct scsi_device *sdev;
+	struct bio *bio;
 	u8 *sense;
 
+	dprintk("%s\n", __func__);
 	od = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
 	if (!od)
 		return -ENXIO;
 	sdev = od->device;
-	if (count != sizeof(ureq))
-		return -EINVAL;
+	if (count != sizeof(ureq)) {
+		dprintk("%s: count %lu not sizeof req %lu\n", __func__,
+		        count, sizeof(ureq));
+		ret = -EINVAL;
+		goto out_putdev;
+	}
 	ret = copy_from_user(&ureq, buf, count);
-	if (ret)
-		return -EFAULT;
-
-	is_write = 0;
-	switch (ureq.data_direction) {
-	case DMA_TO_DEVICE:
-		is_write = 1;
-	case DMA_FROM_DEVICE:
-	case DMA_NONE:
-		break;
-	case DMA_BIDIRECTIONAL:  /* not supported yet */
-	default:
-		return -EINVAL;
+	if (ret) {
+		ret = -EFAULT;
+		goto out_putdev;
 	}
 
-	if (DMA_TO_DEVICE && (!ureq.out_data_len || ureq.in_data_len))
-		return -EINVAL;
-	if (DMA_FROM_DEVICE && (!ureq.in_data_len || ureq.out_data_len))
-		return -EINVAL;
+	is_write = 0;
+	ret = -EINVAL;
+	switch (ureq.data_direction) {
+	case DMA_TO_DEVICE:
+		if (ureq.in_data_len || !ureq.out_data_len) {
+			dprintk("%s: to_device but (in len or no out len)\n",
+			        __func__);
+			goto out_putdev;
+		}
+		is_write = 1;
+		break;
+	case DMA_FROM_DEVICE:
+		if (!ureq.in_data_len || ureq.out_data_len) {
+			dprintk("%s: from_device but (no in len or out len)\n",
+				__func__);
+			goto out_putdev;
+		}
+		break;
+	case DMA_NONE:
+		if (ureq.in_data_len || ureq.out_data_len) {
+			dprintk("%s: none but (out len or in len)\n", __func__);
+			goto out_putdev;
+		}
+		break;
+	case DMA_BIDIRECTIONAL:  /* not supported yet */
+		if (!ureq.in_data_len || !ureq.out_data_len) {
+			dprintk("%s: bidir but (no in len or no out len)\n",
+				__func__);
+			goto out_putdev;
+		}
+		dprintk("%s: bidirectional unsupported\n", __func__);
+		goto out_putdev;
+	default:
+		dprintk("%s: invalid direction %d\n", __func__,
+		        ureq.data_direction);
+		goto out_putdev;
+	}
 
 	req = blk_get_request(sdev->request_queue, is_write, __GFP_WAIT);
 
 	if (ureq.out_data_len) {
 		void __user *ubuf = (void __user *) ureq.out_data_buf;
+		dprintk("%s: mapping user outbuf %p len %lu\n", __func__,
+		        ubuf, (size_t) ureq.out_data_len);
 		ret = blk_rq_map_user(sdev->request_queue, req,
 		                      ubuf, ureq.out_data_len);
 		if (ret)
-			goto out;
+			goto out_putreq;
+		bio = req->bio;
 	}
 	if (ureq.in_data_len) {
 		void __user *ubuf = (void __user *) ureq.in_data_buf;
+		dprintk("%s: mapping user inbuf %p len %lu\n", __func__,
+		        ubuf, (size_t) ureq.in_data_len);
 		ret = blk_rq_map_user(sdev->request_queue, req,
 		                      ubuf, ureq.in_data_len);
 		if (ret)
-			goto out;
+			goto out_putreq;
+		bio = req->bio;
 	}
 
+	if (sizeof(req->cmd) < ureq.cdb_len) {
+		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
+		        __func__, (size_t) ureq.cdb_len, sizeof(req->cmd));
+		ret = -EINVAL;
+		goto out_putreq;
+	}
 	ret = copy_from_user(req->cmd, (void __user *) ureq.cdb_buf,
 	                     ureq.cdb_len);
 	if (ret) {
 		ret = -EFAULT;
-		goto out;
+		goto out_putreq;
 	}
 
 	sense = kzalloc(SCSI_SENSE_BUFFERSIZE, GFP_NOIO);
 	if (!sense) {
 		ret = -ENOMEM;
-		goto out;
+		goto out_putreq;
 	}
 
 	req->cmd_len = ureq.cdb_len;
@@ -667,12 +708,9 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->sense_len = 0;
 	req->retries = SD_MAX_RETRIES;
 	req->timeout = SD_TIMEOUT;
-	req->cmd_type = REQ_TYPE_SPECIAL;
+	req->cmd_type = REQ_TYPE_BLOCK_PC;
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
 
-	/*
-	 * head injection *required* here otherwise quiesce won't work
-	 */
 	blk_execute_rq(req->q, NULL, req, 1);
 
 	ret = req->errors;
@@ -682,13 +720,16 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		scsi_print_sense_hdr(od->disk_name, &sshdr);
 	kfree(sense);
 
+	/* for bounce buffers, this actually does the copy */
 	if (ureq.out_data_len)
-		blk_rq_unmap_user(req->bio, 0);
+		blk_rq_unmap_user(bio, 0);
 	if (ureq.in_data_len)
-		blk_rq_unmap_user(req->bio, 0);
+		blk_rq_unmap_user(bio, 0);
 
- out:
+out_putreq:
 	blk_put_request(req);
+out_putdev:
+	scsi_osd_disk_put(od);
 	return ret;
 }
 
@@ -774,7 +815,7 @@ static void varlen_cdb_init(u8 *cdb, u16 action)
 	memset(cdb, 0, VARLEN_CDB_SIZE);
 	cdb[0] = VARLEN_CDB;
 	cdb[7] = 192;
-	cdb[8] = action >> 16;
+	cdb[8] = action >> 8;
 	cdb[9] = action & 0xff;
 	cdb[11] = 2 << 4;  /* get/set attributes page format */
 }

@@ -120,7 +120,7 @@ struct scsi_osd_disk {
 	struct scsi_device *device;
 	struct cdev chrdev;
 	struct file_operations* fops;
-	struct class_device cdev;
+	struct class_device classdev;
 	unsigned long __never_unset_me;
 	
 	struct kobject kobj;
@@ -137,7 +137,7 @@ struct scsi_osd_disk {
 	unsigned	DPOFUA : 1;	/* state of disk DPOFUA bit */
 	unsigned 	removable : 1;  /* removable if 1, fixed if 0 */
 };
-#define to_osd_disk(obj) container_of(obj,struct scsi_osd_disk,cdev)
+#define to_osd_disk(obj) container_of(obj,struct scsi_osd_disk,classdev)
 
 static DEFINE_IDR(sd_index_idr);
 static DEFINE_SPINLOCK(sd_index_lock);
@@ -153,10 +153,10 @@ static DEFINE_MUTEX(sd_ref_mutex);
  */
 
 /* Cache stuff */
-static ssize_t sd_store_cache_type(struct class_device *cdev, 
+static ssize_t sd_store_cache_type(struct class_device *classdev, 
 		const char *buf, size_t count);
-static ssize_t sd_show_cache_type(struct class_device *cdev, char *buf);
-static ssize_t sd_show_fua(struct class_device *cdev, char *buf);
+static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf);
+static ssize_t sd_show_fua(struct class_device *classdev, char *buf);
 
 /* File ops */
 static int suo_open(struct inode *inode, struct file *filp);
@@ -204,10 +204,10 @@ static int suo_init_command(struct scsi_cmnd* SCpnt);
 static void suo_rw_intr(struct scsi_cmnd * command);
 
 /* Init / Release / Probe */
-int add_osd_disk(struct scsi_osd_disk* sdkp);
+static int add_osd_disk(struct scsi_osd_disk* sdkp);
 static int suo_probe(struct device *dev);
 static int suo_remove(struct device *dev);
-static void scsi_osd_disk_release(struct class_device *cdev);
+static void scsi_osd_disk_release(struct class_device *classdev);
 static void sd_shutdown(struct device *dev);
 
 static struct file_operations suo_fops = {
@@ -236,10 +236,10 @@ static const char *sd_cache_types[] = {
 	"write back, no read (daft)"
 };
 
-static ssize_t sd_store_cache_type(struct class_device *cdev, const char *buf, size_t count)
+static ssize_t sd_store_cache_type(struct class_device *classdev, const char *buf, size_t count)
 {
 	int i, ct = -1, rcd, wce, sp;
-	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
+	struct scsi_osd_disk *sdkp = to_osd_disk(classdev);
 	struct scsi_device *sdp = sdkp->device;
 	char buffer[64];
 	char *buffer_data;
@@ -286,17 +286,17 @@ static ssize_t sd_store_cache_type(struct class_device *cdev, const char *buf, s
 	return count;
 }
 
-static ssize_t sd_show_cache_type(struct class_device *cdev, char *buf)
+static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf)
 {
-	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
+	struct scsi_osd_disk *sdkp = to_osd_disk(classdev);
 	int ct = sdkp->RCD + 2*sdkp->WCE;
 
 	return snprintf(buf, 40, "%s\n", sd_cache_types[ct]);
 }
 
-static ssize_t sd_show_fua(struct class_device *cdev, char *buf)
+static ssize_t sd_show_fua(struct class_device *classdev, char *buf)
 {
-	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
+	struct scsi_osd_disk *sdkp = to_osd_disk(classdev);
 
 	return snprintf(buf, 20, "%u\n", sdkp->DPOFUA);
 }
@@ -360,7 +360,7 @@ static struct scsi_osd_disk *__scsi_osd_disk_get(struct cdev* chrdev)
 		return NULL;
 
 	if (scsi_device_get(sdkp->device) == 0)
-		class_device_get(&sdkp->cdev);
+		class_device_get(&sdkp->classdev);
 	else
 		sdkp = NULL;
 	
@@ -394,7 +394,7 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
 	struct scsi_device *sdev = sdkp->device;
 
 	mutex_lock(&sd_ref_mutex);
-	class_device_put(&sdkp->cdev);
+	class_device_put(&sdkp->classdev);
 	scsi_device_put(sdev);
 	mutex_unlock(&sd_ref_mutex);
 }
@@ -1375,7 +1375,7 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 	return 0;
 }
 
-int add_osd_disk(struct scsi_osd_disk* sdkp)
+static int add_osd_disk(struct scsi_osd_disk* sdkp)
 {
 	int ret;
 	struct cdev* chrdev = &sdkp->chrdev;
@@ -1386,12 +1386,14 @@ int add_osd_disk(struct scsi_osd_disk* sdkp)
 	chrdev->owner = THIS_MODULE;
 	chrdev->ops = &suo_fops;
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
-	kobject_uevent(&sdkp->chrdev.kobj, KOBJ_ADD);
 	if(ret)
 	{
 		dprintk("*** Couldn't add chardev! ret = %i\n", ret);
 		goto out;
 	}
+	class_device_create(&suo_disk_class, &sdkp->classdev, sdkp->dev_id,
+	                    &sdkp->device->sdev_gendev,
+	                    "%s", sdkp->disk_name);
 
 	return 0;
 
@@ -1457,12 +1459,12 @@ static int suo_probe(struct device *dev)
 	}
 
 	/* Set up sysfs and initialize our internal structure */
-	class_device_initialize(&sdkp->cdev);
-	sdkp->cdev.dev = &sdp->sdev_gendev;
-	sdkp->cdev.class = &suo_disk_class;
-	strncpy(sdkp->cdev.class_id, sdp->sdev_gendev.bus_id, BUS_ID_SIZE);
+	class_device_initialize(&sdkp->classdev);
+	sdkp->classdev.dev = &sdp->sdev_gendev;
+	sdkp->classdev.class = &suo_disk_class;
+	strncpy(sdkp->classdev.class_id, sdp->sdev_gendev.bus_id, BUS_ID_SIZE);
 
-	if (class_device_add(&sdkp->cdev))
+	if (class_device_add(&sdkp->classdev))
 	{
 		dprintk("can't add class device!\n");
 		goto out_put;
@@ -1535,15 +1537,17 @@ static int suo_remove(struct device *dev)
 {
 	struct scsi_osd_disk *sdkp = dev_get_drvdata(dev);
 
-	kobject_uevent(&sdkp->chrdev.kobj, KOBJ_REMOVE);
+	class_device_destroy(&suo_disk_class, sdkp->dev_id);
+
 	cdev_del(&sdkp->chrdev);
-	class_device_del(&sdkp->cdev);
+	class_device_del(&sdkp->classdev);
+
 	kobject_del(&sdkp->kobj);
 	sd_shutdown(dev);
 
 	mutex_lock(&sd_ref_mutex);
 	dev_set_drvdata(dev, NULL);
-	class_device_put(&sdkp->cdev);
+	class_device_put(&sdkp->classdev);
 	mutex_unlock(&sd_ref_mutex);
 
 	return 0;
@@ -1552,20 +1556,17 @@ static int suo_remove(struct device *dev)
 
 /**
  *	scsi_osd_disk_release - Called to free the scsi_osd_disk structure
- *	@cdev: pointer to embedded class device
+ *	@classdev: pointer to embedded class device
  *
  *	sd_ref_mutex must be held entering this routine.  Because it is
  *	called on last put, you should always use the scsi_osd_disk_get()
  *	scsi_osd_disk_put() helpers which manipulate the semaphore directly
  *	and never do a direct class_device_put().
  **/
-static void scsi_osd_disk_release(struct class_device *cdev)
+static void scsi_osd_disk_release(struct class_device *classdev)
 {
-	struct scsi_osd_disk *sdkp = to_osd_disk(cdev);
+	struct scsi_osd_disk *sdkp = to_osd_disk(classdev);
 
-	kobject_uevent(&sdkp->chrdev.kobj, KOBJ_REMOVE);
-	kobject_uevent(&cdev->kobj, KOBJ_REMOVE);
-	
 	spin_lock(&sd_index_lock);
 	idr_remove(&sd_index_idr, sdkp->index);
 	spin_unlock(&sd_index_lock);
@@ -1607,10 +1608,10 @@ static int __init init_suo(void)
 {
 	int ret;
 	int has_registered_chrdev = 0;
-	so_sysfs_class = NULL;
 	dev_t dev_id;
 
 	SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n")); 
+	so_sysfs_class = NULL;
 	if(major > 0) {
 		drv_major = (major ? MKDEV(major, 0) : 0);
 		ret = register_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES, "suo");

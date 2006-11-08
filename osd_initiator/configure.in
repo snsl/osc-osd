@@ -39,4 +39,5 @@ AC_CHECK_FUNC(mknod)
 AC_OUTPUT([
 	   Makefile
 	   kernel/Makefile
+	   libosd/Makefile
 	])

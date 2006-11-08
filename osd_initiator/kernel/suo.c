@@ -75,6 +75,7 @@ MODULE_LICENSE("GPL");
 */
 
 #define dprintk(fmt...) printk(KERN_INFO "suo: " fmt)
+#define ENTERING 	dprintk("suo: Entering %s\n", __func__)
 
 static int major;
 module_param(major, int, 0);
@@ -593,6 +594,64 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 	return -EINVAL;
 }
 
+static int 
+check_suo_request(struct request* req, struct suo_req* ureq)
+{
+	int ret;
+	ENTERING;
+
+	/* Check the request semantics */
+	ret = -EINVAL;
+	switch (ureq->data_direction) {
+	case DMA_TO_DEVICE:
+		if (ureq->in_data_len || !ureq->out_data_len) {
+			dprintk("%s: to_device but (in len or no out len)\n",
+			        __func__);
+			goto out;
+		}
+		break;
+	case DMA_FROM_DEVICE:
+		if (!ureq->in_data_len || ureq->out_data_len) {
+			dprintk("%s: from_device but (no in len or out len)\n",
+				__func__);
+			goto out;
+		}
+		break;
+	case DMA_NONE:
+		if (ureq->in_data_len || ureq->out_data_len) {
+			dprintk("%s: none but (out len or in len)\n", __func__);
+			goto out;
+		}
+		break;
+	case DMA_BIDIRECTIONAL:  /* not supported yet */
+		if (!ureq->in_data_len || !ureq->out_data_len) {
+			dprintk("%s: bidir but (no in len or no out len)\n",
+				__func__);
+			goto out;
+		}
+		dprintk("%s: bidirectional unsupported\n", __func__);
+		goto out;
+	default:
+		dprintk("%s: invalid direction %d\n", __func__,
+		        ureq->data_direction);
+		goto out;
+	}
+
+	/* Check our command is sane */
+	if (sizeof(req->cmd) < ureq->cdb_len) {
+		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
+		        __func__, (size_t) ureq->cdb_len, sizeof(req->cmd));
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* Winnar */
+	ret = 0;
+
+out:
+	return ret;
+}
+
 static ssize_t
 suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 {
@@ -601,16 +660,19 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	struct request *req;
 	int is_write;
 	struct scsi_sense_hdr sshdr;
-	struct scsi_osd_disk *od;
+	struct scsi_osd_disk *sdkp;
 	struct scsi_device *sdev;
 	struct bio *bio;
 	u8 *sense;
 
-	dprintk("%s\n", __func__);
-	od = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
-	if (!od)
+	ENTERING; 
+
+	sdkp = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
+	if (!sdkp)
 		return -ENXIO;
-	sdev = od->device;
+
+	/* Get the request from userland */
+	sdev = sdkp->device;
 	if (count != sizeof(ureq)) {
 		dprintk("%s: count %lu not sizeof req %lu\n", __func__,
 		        count, sizeof(ureq));
@@ -623,46 +685,17 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		goto out_putdev;
 	}
 
-	is_write = 0;
-	ret = -EINVAL;
-	switch (ureq.data_direction) {
-	case DMA_TO_DEVICE:
-		if (ureq.in_data_len || !ureq.out_data_len) {
-			dprintk("%s: to_device but (in len or no out len)\n",
-			        __func__);
-			goto out_putdev;
-		}
-		is_write = 1;
-		break;
-	case DMA_FROM_DEVICE:
-		if (!ureq.in_data_len || ureq.out_data_len) {
-			dprintk("%s: from_device but (no in len or out len)\n",
-				__func__);
-			goto out_putdev;
-		}
-		break;
-	case DMA_NONE:
-		if (ureq.in_data_len || ureq.out_data_len) {
-			dprintk("%s: none but (out len or in len)\n", __func__);
-			goto out_putdev;
-		}
-		break;
-	case DMA_BIDIRECTIONAL:  /* not supported yet */
-		if (!ureq.in_data_len || !ureq.out_data_len) {
-			dprintk("%s: bidir but (no in len or no out len)\n",
-				__func__);
-			goto out_putdev;
-		}
-		dprintk("%s: bidirectional unsupported\n", __func__);
+	/* Check our request */
+	ret = check_suo_request(req, &ureq);
+	if(ret < 0)
 		goto out_putdev;
-	default:
-		dprintk("%s: invalid direction %d\n", __func__,
-		        ureq.data_direction);
-		goto out_putdev;
-	}
+	is_write = (ureq.data_direction == DMA_TO_DEVICE || 
+		    ureq.data_direction == DMA_BIDIRECTIONAL ? 1 : 0);
 
 	req = blk_get_request(sdev->request_queue, is_write, __GFP_WAIT);
 
+	/* Map user buffers into kernel space */
+	bio = req->bio;
 	if (ureq.out_data_len) {
 		void __user *ubuf = (void __user *) ureq.out_data_buf;
 		dprintk("%s: mapping user outbuf %p len %lu\n", __func__,
@@ -671,7 +704,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		                      ubuf, ureq.out_data_len);
 		if (ret)
 			goto out_putreq;
-		bio = req->bio;
 	}
 	if (ureq.in_data_len) {
 		void __user *ubuf = (void __user *) ureq.in_data_buf;
@@ -681,14 +713,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		                      ubuf, ureq.in_data_len);
 		if (ret)
 			goto out_putreq;
-		bio = req->bio;
-	}
-
-	if (sizeof(req->cmd) < ureq.cdb_len) {
-		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
-		        __func__, (size_t) ureq.cdb_len, sizeof(req->cmd));
-		ret = -EINVAL;
-		goto out_putreq;
 	}
 	ret = copy_from_user(req->cmd, (void __user *) ureq.cdb_buf,
 	                     ureq.cdb_len);
@@ -710,14 +734,13 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->timeout = SD_TIMEOUT;
 	req->cmd_type = REQ_TYPE_BLOCK_PC;
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
-
 	blk_execute_rq(req->q, NULL, req, 1);
 
 	ret = req->errors;
 
 	scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
 	if (scsi_sense_valid(&sshdr))
-		scsi_print_sense_hdr(od->disk_name, &sshdr);
+		scsi_print_sense_hdr(sdkp->disk_name, &sshdr);
 	kfree(sense);
 
 	/* for bounce buffers, this actually does the copy */
@@ -729,7 +752,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 out_putreq:
 	blk_put_request(req);
 out_putdev:
-	scsi_osd_disk_put(od);
+	scsi_osd_disk_put(sdkp);
 	return ret;
 }
 
@@ -1375,7 +1398,7 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 	struct scsi_device *sdp = sdkp->device;
 	unsigned char *buffer;
 
-	dprintk("%s: disk=%s\n", __func__, sdkp->disk_name);
+	ENTERING;
 
 	/*
 	 * If the device is offline, don't try and read capacity or any

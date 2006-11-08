@@ -1,0 +1,37 @@
+
+CC := gcc
+CFLAGS := -g
+CFLAGS += -pipe -Wall -Wstrict-prototypes
+CFLAGS += -Wcast-align -Wbad-function-cast
+CFLAGS += -Wmissing-prototypes -Wmissing-declarations
+CFLAGS += -Wundef -Wpointer-arith
+CFLAGS += -Wnested-externs
+CFLAGS += -Wredundant-decls
+CFLAGS += -W -Wno-unused -Wno-sign-compare
+CFLAGS += -Wcast-qual
+CFLAGS += -Wshadow
+CFLAGS += -Wwrite-strings
+
+libsrc := interface.c util.c
+libobj := $(libsrc:.c=.o)
+
+headers := interface.h util.h osd_hdr.h ../kernel/suo_ioctl.h
+
+src := write.c
+
+exec := write
+
+all: $(exec)
+
+write: write.o $(libobj)
+	$(CC) -o $@ $^
+
+$(libobj): $(headers)
+
+clean:
+	rm -f $(libobj) write write.o
+
+tags: FORCE
+	ctags suo.c suo_ioctl.h
+FORCE:;
+

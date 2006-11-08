@@ -695,7 +695,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req = blk_get_request(sdev->request_queue, is_write, __GFP_WAIT);
 
 	/* Map user buffers into kernel space */
-	bio = req->bio;
 	if (ureq.out_data_len) {
 		void __user *ubuf = (void __user *) ureq.out_data_buf;
 		dprintk("%s: mapping user outbuf %p len %lu\n", __func__,
@@ -734,6 +733,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->timeout = SD_TIMEOUT;
 	req->cmd_type = REQ_TYPE_BLOCK_PC;
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
+	bio = req->bio;
 	blk_execute_rq(req->q, NULL, req, 1);
 
 	ret = req->errors;

@@ -181,8 +181,10 @@ static DEFINE_MUTEX(sd_ref_mutex);
  * optionally signals a spinlock for synchronous reads and writes. 
  */
 
+/*
 static DECLARE_WORK(response_wq, suo_queue_responses, NULL);
 static atomic_t inflight_response_count = ATOMIC_INIT(0);
+*/
 
 
 /*

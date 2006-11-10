@@ -1,6 +1,11 @@
 #ifndef _SUO_IOCTL_H
 #define _SUO_IOCTL_H 
 
+#include <linux/autoconf.h>
+
+/* FIXME: I can't think of a more clever way to fix this problem */
+typedef uint64_t ptr_t ;
+
 /*
  * Passed from userspace to kernel to initiate a SCSI request.  Arranged
  * so it packs nicely on 8-byte boundaries.

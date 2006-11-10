@@ -115,12 +115,49 @@
 
 #define OSD_EUI64_COMPANY_ID 0x123456 //tbd!!! this is not a qualified company id
 
+/* Valid OSD command list supported by Object Storage Devices; these
+ * are encoded in the service action field of the command */
+unsigned long VALID_OSD_CMD_LIST[] = { 
+
+	/* Supported by simulation targets */
+	OSD_CREATE, 
+	OSD_CREATE_PARTITION,
+	OSD_FORMAT,
+	OSD_GET_ATTR,
+	OSD_INQUIRY,
+	OSD_LIST,
+	OSD_READ,
+	OSD_REMOVE, 
+	OSD_REMOVE_PARTITION, 
+	OSD_SET_ATTR, 
+	OSD_SET_KEY,
+	OSD_WRITE,
+
+	/* Unsupported by simulation targets */
+	OSD_APPEND,
+	OSD_CREATE_AND_WRITE,
+	OSD_CREATE_COLLECTION,
+	OSD_FLUSH,
+	OSD_FLUSH_COLLECTION,
+	OSD_FLUSH_OSD,
+	OSD_FLUSH_PARTITION,
+	OSD_LIST_COLLECTION,
+	OSD_PERFORM_SCSI_CMD,
+	OSD_PERFORM_TSK_MNGN,
+	OSD_REMOVE_COLLECTION,
+	OSD_SET_MASTER_KEY,
+	NULL
+};
+
 
 /******************************************************************
  * MACROS
  */
 #define OSD_RC_IS_GOOD(rc) (OSD_RC_GOOD==rc)
-#define OSD_SET_COMMAND(cmd, buf)	do { buf[1]=((cmd & 0xF0)>>4); buf[0]=(cmd & 0x0F); } while(0)
+
+/* FIXME: Does this hose little-endian? */
+#define OSD_SET_ACTION(cmd, buf)	do { (buf)[8]=(((cmd) & 0xFF00)>>8); buf[9]=(cmd & 0x00FF); } while(0)
+#define OSD_GET_ACTION(buf)	((buf)[8] << 8 | (buf)[9])
 
 
 /******************************************************************

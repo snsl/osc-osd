@@ -106,6 +106,29 @@ MODULE_PARM_DESC(major, "Major device number");
 #define SD_BUF_SIZE		512
 
 
+/* Valid SCSI commands for OSDs; this does _not_ include EXTENDED_CDB
+ * because additional checking is done in that special case 
+ * TODO: We may want to move this out of here and into the libosd
+ * headers, but we also need the SCSI commands too  */
+unsigned char VALID_SCSI_CMD_LIST[] = {
+	INQUIRY,
+	LOG_SELECT,
+	LOG_SENSE,
+	MODE_SELECT,
+	MODE_SENSE,
+	PERSISTENT_RESERVE_IN,
+	PERSISTENT_RESERVE_OUT,
+	READ_BUFFER,
+	RECEIVE_DIAGNOSTIC,
+	REPORT_LUNS,
+	REQUEST_SENSE,
+	SEND_DIAGNOSTIC,
+	TEST_UNIT_READY,
+	WRITE_BUFFER,
+	NULL
+};
+
+
 /*
  * Globals
  */
@@ -147,6 +170,19 @@ static DEFINE_SPINLOCK(sd_index_lock);
  * face of object destruction (i.e. we can't allow a get on an
  * object after last put) */
 static DEFINE_MUTEX(sd_ref_mutex);
+
+
+/* Async response stuff
+ *
+ * Basically, here's the idea; every time a SCSI request is dispatched, the
+ * driver keeps a running atomic_t count of the number of responses that need 
+ * to be picked up, as well as invoking a call to suo_get_responses via a
+ * work queue. suo_queue_responses reads in the response to kernel caches and
+ * optionally signals a spinlock for synchronous reads and writes. 
+ */
+
+static DECLARE_WORK(response_wq, suo_queue_responses, NULL);
+static atomic_t inflight_response_count = ATOMIC_INIT(0);
 
 
 /*
@@ -594,12 +630,16 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 	return -EINVAL;
 }
 
-static int 
+static inline int 
 check_suo_request(struct request* req, struct suo_req* ureq)
 {
 	int ret;
-	ENTERING;
 
+#ifdef CONFIG_SKIP_VERIFICATION
+	return 0;
+#endif
+	ENTERING;
+	
 	/* Check the request semantics */
 	ret = -EINVAL;
 	switch (ureq->data_direction) {
@@ -644,6 +684,29 @@ check_suo_request(struct request* req, struct suo_req* ureq)
 		ret = -EINVAL;
 		goto out;
 	}
+
+	/* Check the command value */
+	ret = -EINVAL;
+	int i;
+	unsigned char scsi_cmd = req->cmd[0];
+	for(i = 0; VALID_SCSI_CMD_LIST[i] != NULL; i++)
+	{
+		if(scsi_cmd == VALID_SCSI_CMD_LIST[i])
+			goto valid_command;
+	}
+	if(scsi_cmd != EXTENDED_CDB)
+		goto out;
+
+	/* Check the service action to make sure it's OSD supported */
+	unsigned long osd_cmd = OSD_GET_ACTION(req->cmd);
+	for(i = 0; VALID_OSD_CMD_LIST[i] != NULL; i++)
+	{
+		if(osd_cmd == VALID_OSD_CMD_LIST[i])
+			goto valid_command;
+	}
+	goto out;	/* We didn't find it in the list */
+
+valid_command:
 
 	/* Winnar */
 	ret = 0;

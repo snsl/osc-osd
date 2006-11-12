@@ -163,6 +163,9 @@ struct scsi_osd_disk {
 	unsigned	RCD : 1;	/* state of disk RCD bit, unused */
 	unsigned	DPOFUA : 1;	/* state of disk DPOFUA bit */
 	unsigned 	removable : 1;  /* removable if 1, fixed if 0 */
+
+	atomic_t 	inflight;
+	spinlock_t 	inflight_lock;
 };
 #define to_osd_disk(obj) container_of(obj,struct scsi_osd_disk,classdev)
 
@@ -173,21 +176,6 @@ static DEFINE_SPINLOCK(sd_index_lock);
  * face of object destruction (i.e. we can't allow a get on an
  * object after last put) */
 static DEFINE_MUTEX(sd_ref_mutex);
-
-
-/* Async response stuff
- *
- * Basically, here's the idea; every time a SCSI request is dispatched, the
- * driver keeps a running atomic_t count of the number of responses that need 
- * to be picked up, as well as invoking a call to suo_get_responses via a
- * work queue. suo_queue_responses reads in the response to kernel caches and
- * optionally signals a spinlock for synchronous reads and writes. 
- */
-
-/*
-static DECLARE_WORK(response_wq, suo_queue_responses, NULL);
-static atomic_t inflight_response_count = ATOMIC_INIT(0);
-*/
 
 
 /*
@@ -384,6 +372,8 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	if (!sdkp)
 		goto out;
 	sdkp->__never_unset_me = 0xDEADBEEF;
+	atomic_set(&sdkp->inflight, 0);
+	sdkp->inflight_lock = SPIN_LOCK_UNLOCKED;
 	chrdev = &sdkp->chrdev;
 
 	cdev_init(chrdev, &suo_fops);
@@ -996,6 +986,8 @@ static int suo_init_command(struct scsi_cmnd* SCpnt)
 	unsigned int timeout = sdp->timeout;
 
 	static unsigned char key = 1;
+	
+	ENTERING;
 
 	if (!sdp || !scsi_device_online(sdp)) {
 		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", SCpnt));
@@ -1030,6 +1022,11 @@ static int suo_init_command(struct scsi_cmnd* SCpnt)
 	key++;
 	dprintk("init_request: tag = %d\n", key);
 
+	struct scsi_osd_disk* sdkp = dev_get_drvdata(&sdp->sdev_gendev);
+	spin_lock(&sdkp->inflight_lock);
+	atomic_inc(&sdkp->inflight);
+	spin_unlock(&sdkp->inflight_lock);
+
 	/*
 	 * This indicates that the command is ready from our end to be
 	 * queued.
@@ -1056,6 +1053,9 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 	int sense_valid = 0;
 	int sense_deferred = 0;
 	int info_valid;
+	struct scsi_device *sdp = command->device;
+
+	ENTERING;
 
 	if (result) {
 		sense_valid = scsi_command_normalize_sense(command, &sshdr);
@@ -1104,6 +1104,20 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 			break;
 		}
 	}
+
+	unsigned long flags;
+	struct scsi_osd_disk* sdkp = dev_get_drvdata(&sdp->sdev_gendev);
+	spin_lock_irqsave(&sdkp->inflight_lock, flags);
+	if( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
+		printk(KERN_ERR "suo: received more responses than requests on %s. Huh?\n",
+		       sdkp->disk_name);
+	}
+	else {
+		atomic_dec(&sdkp->inflight);
+	}
+	spin_unlock_irqrestore(&sdkp->inflight_lock, flags);
+
+
 	/*
 	 * This calls the generic completion function, now that we know
 	 * how many actual sectors finished, and how many sectors we need

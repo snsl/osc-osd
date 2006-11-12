@@ -105,6 +105,9 @@ MODULE_PARM_DESC(major, "Major device number");
  */
 #define SD_BUF_SIZE		512
 
+#ifndef EXTENDED_CDB
+#define EXTENDED_CDB VARLEN_CDB
+#endif
 
 /* Valid SCSI commands for OSDs; this does _not_ include EXTENDED_CDB
  * because additional checking is done in that special case 

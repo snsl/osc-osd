@@ -992,6 +992,8 @@ static int suo_init_command(struct scsi_cmnd* SCpnt)
 	unsigned int this_count = SCpnt->request_bufflen >> 9;
 	unsigned int timeout = sdp->timeout;
 
+	static unsigned char key = 1;
+
 	if (!sdp || !scsi_device_online(sdp)) {
 		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", SCpnt));
 		return 0;
@@ -1021,6 +1023,9 @@ static int suo_init_command(struct scsi_cmnd* SCpnt)
 	 * of capability to this function.
 	 */
 	SCpnt->done = suo_rw_intr;
+	SCpnt->tag = key;
+	key++;
+	dprintk("init_request: tag = %d\n", key);
 
 	/*
 	 * This indicates that the command is ready from our end to be
@@ -1054,6 +1059,8 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 		if (sense_valid)
 			sense_deferred = scsi_sense_is_deferred(&sshdr);
 	}
+
+	dprintk("suo_rw_intr - key %d\n", command->tag);
 
 	/*
 	   Handle MEDIUM ERRORs that indicate partial success.  Since this is a

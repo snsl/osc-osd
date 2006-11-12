@@ -18,6 +18,12 @@ struct suo_req {
 	uint32_t out_data_len;
 	uint64_t in_data_buf;
 	uint64_t out_data_buf;
+	uint64_t key;
+};
+
+struct suo_response {
+	uint64_t key;
+
 };
 
 #endif /* _SUO_IOCTL_H */

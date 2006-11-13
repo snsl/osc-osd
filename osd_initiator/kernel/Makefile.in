@@ -16,9 +16,4 @@ clean:
 	$(MAKE) SUBDIRS=$(PWD) -C $(KDIR) clean
 
 #else
-
-tags: FORCE
-	ctags suo.c suo_ioctl.h
-FORCE:;
-
 #endif

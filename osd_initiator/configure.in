@@ -86,4 +86,6 @@ AC_OUTPUT([
 	   Makefile
 	   kernel/Makefile
 	   libosd/Makefile
+	   tests/Makefile
+	   libosd.pc
 	])

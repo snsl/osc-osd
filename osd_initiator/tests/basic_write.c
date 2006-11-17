@@ -23,9 +23,9 @@ typedef unsigned long long u64;
 #include <string.h>
 #include <linux/types.h>
 #include <scsi/scsi.h>
-#include "interface.h"
-#include "util.h"
-#include "osd_hdr.h"
+#include <libosd/interface.h>
+#include <libosd/util.h>
+#include <libosd/osd_hdr.h>
 
 #define VARLEN_CDB_SIZE 200
 #define VARLEN_CDB 0x7f

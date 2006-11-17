@@ -1,7 +1,15 @@
-bin_PROGRAMS = write_test
+noinst_PROGRAMS = basic_write 
 
-write_test_SOURCES = \
-	write.c
+common_ldflags = \
+	$(top_builddir)/libosd/libosd.la
 
 INCLUDES = \
+	-I$(top_srcdir) 	\
 	-Wall
+
+basic_write_SOURCES = \
+	basic_write.c
+
+basic_write_LDADD = $(common_ldflags)
+
+

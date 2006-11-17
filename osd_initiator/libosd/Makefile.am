@@ -1,11 +1,13 @@
 lib_LTLIBRARIES = libosd.la
-osdincdir = $(includedir)/libosd
+osdincdir = $(includedir)/libosd 
 
 osdinc_HEADERS = \
-	interface.h
+	interface.h \
+	util.h
 
 libosd_la_SOURCES = \
-	interface.c 
+	interface.c \
+	util.c
 
 libosd_la_LDFLAGS = \
 	-version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE)

@@ -15,5 +15,13 @@ all:
 clean:
 	$(MAKE) SUBDIRS=$(PWD) -C $(KDIR) clean
 
+distclean: clean
+
+install: 
+	echo "Not implemented yet!"
+
+uninstall:
+	echo "Not implemented yet!"
+
 #else
 #endif

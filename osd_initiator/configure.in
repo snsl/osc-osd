@@ -10,6 +10,30 @@ AC_SUBST(ISODATE)
 
 AC_CANONICAL_HOST
 
+dnl ################################################################
+dnl # Version information
+dnl ################################################################
+LIBOSD_MAJOR_VERSION=0
+LIBOSD_MINOR_VERSION=1
+LIBOSD_MICRO_VERSION=0
+LIBOSD_DEVEL_VERSION=0
+
+LIBOSD_VERSION=$LIBOSD_MAJOR_VERSION.$LIBOSD_MINOR_VERSION.$LIBOSD_MICRO_VERSION
+
+if test "x$LIBOSD_DEVEL_VERSION" != "x0"; then
+	LIBOSD_VERSION=$LIBOSD_VERSION.$LIBOSD_DEVEL_VERSION
+fi
+
+AC_DEFINE_UNQUOTED(LIBOSD_MAJOR_VERSION, $LIBOSD_MAJOR_VERSION,
+	[libosd major version.])
+AC_DEFINE_UNQUOTED(LIBOSD_MINOR_VERSION, $LIBOSD_MINOR_VERSION,
+	[libosd minor version.])
+AC_DEFINE_UNQUOTED(LIBOSD_MICRO_VERSION, $LIBOSD_MICRO_VERSION,
+	[libosd micro version.])
+AC_DEFINE_UNQUOTED(LIBOSD_VERSION, "$LIBOSD_VERSION",
+	[libosd version.])
+
+
 dnl Checks for programs.
 AC_PROG_INSTALL
 AC_PROG_CC
@@ -28,6 +52,27 @@ dnl Checks for header files.
 AC_HEADER_STDC
 AC_CHECK_HEADERS(unistd.h sys/param.h sys/time.h time.h sys/mkdev.h sys/sysmacros.h string.h memory.h fcntl.h dirent.h sys/ndir.h ndir.h alloca.h locale.h )
 
+dnl ################################################################
+dnl # libtool versioning
+dnl ################################################################
+dnl #
+dnl # +1 :  0 : +1   == new interface that does not break old one.
+dnl # +1 :  0 :  0   == removed an interface. Breaks old apps.
+dnl #  ? : +1 :  ?   == internal changes that doesn't break anything.
+dnl #
+dnl # CURRENT : REVISION : AGE
+dnl #
+LT_CURRENT=1
+LT_REVISION=0
+LT_AGE=1
+
+LT_RELEASE=$LIBOSD_MAJOR_VERSION.$LIBOSD_MINOR_VERSION.$LIBOSD_MICRO_VERSION
+
+AC_SUBST(LT_RELEASE)
+AC_SUBST(LT_CURRENT)
+AC_SUBST(LT_REVISION)
+AC_SUBST(LT_AGE)
+
 AC_HEADER_MAJOR
 AC_FUNC_ALLOCA
 AC_STRUCT_TM
@@ -35,6 +80,7 @@ AC_STRUCT_ST_BLOCKS
 AC_FUNC_CLOSEDIR_VOID
 AC_CHECK_FUNCS(mkfifo)
 AC_CHECK_FUNC(mknod)
+AM_PROG_LIBTOOL
 
 AC_OUTPUT([
 	   Makefile

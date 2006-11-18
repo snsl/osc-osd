@@ -14,4 +14,3 @@ extern void error_errno(const char *fmt, ...)
 extern void *Malloc(size_t n) __attribute__((malloc));
 extern ssize_t saferead(int fd, void *buf, size_t num);
 extern ssize_t safewrite(int fd, const void *buf, size_t num);
-

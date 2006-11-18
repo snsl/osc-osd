@@ -2,8 +2,7 @@ lib_LTLIBRARIES = libosd.la
 osdincdir = $(includedir)/libosd 
 
 osdinc_HEADERS = \
-	interface.h \
-	util.h
+	interface.h 
 
 libosd_la_SOURCES = \
 	interface.c \

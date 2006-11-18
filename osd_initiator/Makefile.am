@@ -1,4 +1,8 @@
-SUBDIRS = kernel libosd tests
+if ENABLE_PYTHON
+python_dir = python
+endif
+
+SUBDIRS = kernel libosd $(python_dir) tests 
 
 pcdata_DATA = libosd.pc
 pcdatadir = $(libdir)/pkgconfig

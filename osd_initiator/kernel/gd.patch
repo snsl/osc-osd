@@ -1,0 +1,133 @@
+Index: suo.c
+===================================================================
+--- suo.c	(revision 669)
++++ suo.c	(working copy)
+@@ -146,6 +146,7 @@
+ 	struct scsi_driver *driver;	/* always &suo_template */
+ 	struct scsi_device *device;
+ 	struct cdev chrdev;
++	struct gendisk gd;		/* not used much but needed for private_data */
+ 	struct file_operations* fops;
+ 	struct class_device classdev;
+ 	unsigned long __never_unset_me;
+@@ -367,6 +368,7 @@
+ {
+ 	struct cdev* chrdev;
+ 	struct scsi_osd_disk* sdkp;
++	struct gendisk* gd;
+ 
+ 	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
+ 	if (!sdkp)
+@@ -375,7 +377,16 @@
+ 	atomic_set(&sdkp->inflight, 0);
+ 	sdkp->inflight_lock = SPIN_LOCK_UNLOCKED;
+ 	chrdev = &sdkp->chrdev;
++	gd = &sdkp->gd;
+ 
++	/* Even though we don't really use this structure,
++	 * scsi_prep_fn and several other functions expect
++	 * a somewhat kosher version of it */
++	gd->major = MAJOR(sdkp->dev_id);
++	gd->first_minor = MINOR(sdkp->dev_id);
++	gd->minors = 1;	
++	gd->private_data = sdkp->driver;
++
+ 	cdev_init(chrdev, &suo_fops);
+ 	sdkp->fops = &suo_fops;
+ 
+@@ -630,9 +641,9 @@
+ {
+ 	int ret;
+ 
+-#ifdef CONFIG_SKIP_VERIFICATION
++//#ifdef CONFIG_SKIP_VERIFICATION
+ 	return 0;
+-#endif
++//#endif
+ 	ENTERING;
+ 	
+ 	/* Check the request semantics */
+@@ -789,8 +800,10 @@
+ 	req->sense_len = 0;
+ 	req->retries = SD_MAX_RETRIES;
+ 	req->timeout = SD_TIMEOUT;
+-	req->cmd_type = REQ_TYPE_BLOCK_PC;
++	req->cmd_type = REQ_TYPE_FS;
+ 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
++	req->rq_disk = &sdkp->gd;
++
+ 	bio = req->bio;
+ 	blk_execute_rq(req->q, NULL, req, 1);
+ 
+@@ -973,16 +986,16 @@
+ /**
+  *	suo_init_command - build a scsi (read or write) command from
+  *	information in the request structure.
+- *	@SCpnt: pointer to mid-level's per scsi command structure that
++ *	@cmd: pointer to mid-level's per scsi command structure that
+  *	contains request and into which the scsi command is written
+  *
+  *	Returns 1 if successful and 0 if error (or cannot be done now).
+  **/
+-static int suo_init_command(struct scsi_cmnd* SCpnt)
++static int suo_init_command(struct scsi_cmnd* cmd)
+ {
+-	struct scsi_device *sdp = SCpnt->device;
+-	struct request *rq = SCpnt->request;
+-	unsigned int this_count = SCpnt->request_bufflen >> 9;
++	struct scsi_device *sdp = cmd->device;
++	struct request *req = cmd->request;
++	unsigned int this_count = cmd->request_bufflen >> 9;
+ 	unsigned int timeout = sdp->timeout;
+ 
+ 	static unsigned char key = 1;
+@@ -990,7 +1003,7 @@
+ 	ENTERING;
+ 
+ 	if (!sdp || !scsi_device_online(sdp)) {
+-		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", SCpnt));
++		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", cmd));
+ 		return 0;
+ 	}
+ 
+@@ -1003,22 +1016,29 @@
+ 		return 0;
+ 	}
+ 
+-	/*
+-	 * We shouldn't disconnect in the middle of a sector, so with a dumb
+-	 * host adapter, it's safe to assume that we can at least transfer
+-	 * this many bytes between each connect / disconnect.
+-	 */
+-	SCpnt->transfersize = sdp->sector_size;
+-	SCpnt->underflow = this_count << 9;
+-	SCpnt->allowed = SD_MAX_RETRIES;
+-	SCpnt->timeout_per_command = timeout;
++	BUG_ON(sizeof(req->cmd) > sizeof(cmd->cmnd));
++	memcpy(cmd->cmnd, req->cmd, sizeof(cmd->cmnd));
++	cmd->cmd_len = req->cmd_len;
++	if (!req->data_len)
++		cmd->sc_data_direction = DMA_NONE;
++	else if (rq_data_dir(req) == WRITE)
++		cmd->sc_data_direction = DMA_TO_DEVICE;
++	else
++		cmd->sc_data_direction = DMA_FROM_DEVICE;
++	
++	cmd->transfersize = req->data_len;
++	cmd->allowed = req->retries;
++	cmd->timeout_per_command = req->timeout;
++	cmd->device = sdp;
+ 
+ 	/*
+ 	 * This is the completion routine we use.  This is matched in terms
+ 	 * of capability to this function.
+ 	 */
+-	SCpnt->done = suo_rw_intr;
+-	SCpnt->tag = key;
++	cmd->done = suo_rw_intr;
++
++	/* Set some params before we jump out */
++	cmd->tag = key;
+ 	key++;
+ 	dprintk("init_request: tag = %d\n", key);
+ 

@@ -1,6 +1,6 @@
 Index: suo.c
 ===================================================================
---- suo.c	(revision 669)
+--- suo.c	(revision 673)
 +++ suo.c	(working copy)
 @@ -146,6 +146,7 @@
  	struct scsi_driver *driver;	/* always &suo_template */
@@ -10,7 +10,37 @@ Index: suo.c
  	struct file_operations* fops;
  	struct class_device classdev;
  	unsigned long __never_unset_me;
-@@ -367,6 +368,7 @@
+@@ -178,6 +179,10 @@
+ static DEFINE_MUTEX(sd_ref_mutex);
+ 
+ 
++static DEFINE_SPINLOCK(cmd_key_lock);
++static atomic_t cmd_key;
++
++
+ /*
+  * Forward Declarations
+  */
+@@ -230,7 +235,7 @@
+ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
+ static int suo_sync_cache(struct scsi_device *sdp);
+ EXPORT_SYMBOL(suo_sync_cache);
+-static int suo_init_command(struct scsi_cmnd* SCpnt);
++static int suo_dispatch_command(struct scsi_device* sdp, struct request* req);
+ static void suo_rw_intr(struct scsi_cmnd * command);
+ 
+ /* Init / Release / Probe */
+@@ -354,8 +359,7 @@
+ 	},
+ 	.rescan			= sd_rescan,
+ 	.issue_flush		= sd_issue_flush,
+-
+-	.init_command		= suo_init_command,
++	.init_command 		= NULL,
+ };
+ 
+ static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
+@@ -367,6 +371,7 @@
  {
  	struct cdev* chrdev;
  	struct scsi_osd_disk* sdkp;
@@ -18,7 +48,7 @@ Index: suo.c
  
  	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
  	if (!sdkp)
-@@ -375,7 +377,16 @@
+@@ -375,7 +380,16 @@
  	atomic_set(&sdkp->inflight, 0);
  	sdkp->inflight_lock = SPIN_LOCK_UNLOCKED;
  	chrdev = &sdkp->chrdev;
@@ -35,7 +65,49 @@ Index: suo.c
  	cdev_init(chrdev, &suo_fops);
  	sdkp->fops = &suo_fops;
  
-@@ -630,9 +641,9 @@
+@@ -431,7 +445,41 @@
+ 	mutex_unlock(&sd_ref_mutex);
+ }
+ 
++static inline int suo_get_cmdkey(void)
++{
++	int ret;
++	spin_lock(&cmd_key_lock);
++	ret = atomic_read(&cmd_key);
++	spin_unlock(&cmd_key_lock);
++	return ret;
++}
+ 
++static inline int suo_get_cmdkey_irqsave(void)
++{
++	int ret;
++	unsigned long flags;
++	spin_lock_irqsave(&cmd_key_lock, flags);
++	ret = atomic_read(&cmd_key);
++	spin_unlock_irqrestore(&cmd_key_lock, flags);
++	return ret;
++}
++
++static inline void suo_inc_cmdkey(void)
++{
++	spin_lock(&cmd_key_lock);
++	atomic_inc(&cmd_key);
++	spin_unlock(&cmd_key_lock);
++}
++
++static inline void suo_inc_cmdkey_irqsave(void)
++{
++	unsigned long flags;
++	spin_lock_irqsave(&cmd_key_lock, flags);
++	atomic_inc(&cmd_key);
++	spin_unlock_irqrestore(&cmd_key_lock, flags);
++}
++
++
+ /**
+  *	sd_open - open a scsi disk device
+  *	@inode: only i_rdev member may be used
+@@ -630,9 +678,9 @@
  {
  	int ret;
  
@@ -47,41 +119,49 @@ Index: suo.c
  	ENTERING;
  	
  	/* Check the request semantics */
-@@ -789,8 +800,10 @@
+@@ -787,15 +835,12 @@
+ 	req->cmd_len = ureq.cdb_len;
+ 	req->sense = sense;
  	req->sense_len = 0;
- 	req->retries = SD_MAX_RETRIES;
- 	req->timeout = SD_TIMEOUT;
+-	req->retries = SD_MAX_RETRIES;
+-	req->timeout = SD_TIMEOUT;
 -	req->cmd_type = REQ_TYPE_BLOCK_PC;
-+	req->cmd_type = REQ_TYPE_FS;
- 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
+-	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
 +	req->rq_disk = &sdkp->gd;
-+
  	bio = req->bio;
- 	blk_execute_rq(req->q, NULL, req, 1);
+-	blk_execute_rq(req->q, NULL, req, 1);
  
-@@ -973,16 +986,16 @@
++	suo_dispatch_command(sdev, req);
++
+ 	ret = req->errors;
+-
+ 	scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
+ 	if (scsi_sense_valid(&sshdr))
+ 		scsi_print_sense_hdr(sdkp->disk_name, &sshdr);
+@@ -971,26 +1016,18 @@
+ 
+ 
  /**
-  *	suo_init_command - build a scsi (read or write) command from
-  *	information in the request structure.
+- *	suo_init_command - build a scsi (read or write) command from
+- *	information in the request structure.
 - *	@SCpnt: pointer to mid-level's per scsi command structure that
-+ *	@cmd: pointer to mid-level's per scsi command structure that
-  *	contains request and into which the scsi command is written
+- *	contains request and into which the scsi command is written
++ *	suo_dispatch_command - build a scsi (read or write) command from
++ *	information in the request structure and send it off
   *
   *	Returns 1 if successful and 0 if error (or cannot be done now).
   **/
 -static int suo_init_command(struct scsi_cmnd* SCpnt)
-+static int suo_init_command(struct scsi_cmnd* cmd)
++static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
  {
 -	struct scsi_device *sdp = SCpnt->device;
 -	struct request *rq = SCpnt->request;
 -	unsigned int this_count = SCpnt->request_bufflen >> 9;
-+	struct scsi_device *sdp = cmd->device;
-+	struct request *req = cmd->request;
-+	unsigned int this_count = cmd->request_bufflen >> 9;
- 	unsigned int timeout = sdp->timeout;
- 
- 	static unsigned char key = 1;
-@@ -990,7 +1003,7 @@
+-	unsigned int timeout = sdp->timeout;
+-
+-	static unsigned char key = 1;
+-	
++	struct scsi_cmnd* cmd;
  	ENTERING;
  
  	if (!sdp || !scsi_device_online(sdp)) {
@@ -90,7 +170,7 @@ Index: suo.c
  		return 0;
  	}
  
-@@ -1003,22 +1016,29 @@
+@@ -1003,30 +1040,47 @@
  		return 0;
  	}
  
@@ -103,7 +183,10 @@ Index: suo.c
 -	SCpnt->underflow = this_count << 9;
 -	SCpnt->allowed = SD_MAX_RETRIES;
 -	SCpnt->timeout_per_command = timeout;
-+	BUG_ON(sizeof(req->cmd) > sizeof(cmd->cmnd));
++	cmd = scsi_get_command(sdp, GFP_ATOMIC);
++	if (unlikely(!cmd))
++		return 0;
+ 
 +	memcpy(cmd->cmnd, req->cmd, sizeof(cmd->cmnd));
 +	cmd->cmd_len = req->cmd_len;
 +	if (!req->data_len)
@@ -117,17 +200,34 @@ Index: suo.c
 +	cmd->allowed = req->retries;
 +	cmd->timeout_per_command = req->timeout;
 +	cmd->device = sdp;
- 
++
  	/*
  	 * This is the completion routine we use.  This is matched in terms
  	 * of capability to this function.
  	 */
 -	SCpnt->done = suo_rw_intr;
 -	SCpnt->tag = key;
+-	key++;
+-	dprintk("init_request: tag = %d\n", key);
 +	cmd->done = suo_rw_intr;
-+
-+	/* Set some params before we jump out */
-+	cmd->tag = key;
- 	key++;
- 	dprintk("init_request: tag = %d\n", key);
  
++	/* Set some params before we jump out */
++	cmd->tag = suo_get_cmdkey();
++	suo_inc_cmdkey();
++	dprintk("init_request: tag = %d\n", cmd->tag);
++
+ 	struct scsi_osd_disk* sdkp = dev_get_drvdata(&sdp->sdev_gendev);
+ 	spin_lock(&sdkp->inflight_lock);
+ 	atomic_inc(&sdkp->inflight);
+ 	spin_unlock(&sdkp->inflight_lock);
++	req->special = cmd;
++	req->retries = SD_MAX_RETRIES;
++	req->timeout = SD_TIMEOUT;
++	req->cmd_type = REQ_TYPE_SPECIAL;
++	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
+ 
++	blk_execute_rq(req->q, NULL, req, 1);
++
+ 	/*
+ 	 * This indicates that the command is ready from our end to be
+ 	 * queued.

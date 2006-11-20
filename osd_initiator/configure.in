@@ -59,7 +59,7 @@ PYTHON_REQUIRED=2.3
 AC_ARG_ENABLE(python,
 	AC_HELP_STRING([--disable-python], [Disable python support (default auto)]),
 	enable_python=$enableval,
-	enable_python=auto)
+	enable_python=no)
 
 have_python=no
 if test "x$enable_python" != "xno"; then

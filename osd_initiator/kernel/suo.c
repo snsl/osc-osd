@@ -113,7 +113,7 @@ MODULE_PARM_DESC(major, "Major device number");
  * because additional checking is done in that special case 
  * TODO: We may want to move this out of here and into the libosd
  * headers, but we also need the SCSI commands too  */
-unsigned char VALID_SCSI_CMD_LIST[] = {
+const unsigned char valid_scsi_cmd_list[] = {
 	INQUIRY,
 	LOG_SELECT,
 	LOG_SENSE,
@@ -128,7 +128,6 @@ unsigned char VALID_SCSI_CMD_LIST[] = {
 	SEND_DIAGNOSTIC,
 	TEST_UNIT_READY,
 	WRITE_BUFFER,
-	NULL
 };
 
 
@@ -191,12 +190,12 @@ static atomic_t cmd_key;
 static ssize_t sd_store_cache_type(struct class_device *classdev, 
 		const char *buf, size_t count);
 static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf);
-static ssize_t sd_show_fua(struct class_device *classdev, char *buf);
+/* static ssize_t sd_show_fua(struct class_device *classdev, char *buf); */
 
 /* File ops */
 static int suo_open(struct inode *inode, struct file *filp);
 static int suo_release(struct inode *inode, struct file *filp);
-static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo);
+/* static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo); */
 static void set_media_not_present(struct scsi_osd_disk *sdkp);
 static int suo_ioctl(struct inode * inode, struct file * filp, 
 		unsigned int cmd, unsigned long arg);
@@ -219,9 +218,9 @@ EXPORT_SYMBOL(scsi_osd_disk_get_from_dev);
 EXPORT_SYMBOL(scsi_osd_disk_put);
 
 /* Disk management */
-static int sd_media_changed(struct scsi_osd_disk *sdkp);
+/* static int sd_media_changed(struct scsi_osd_disk *sdkp); */
 static int sd_issue_flush(struct device *dev, sector_t *error_sector);
-static void sd_prepare_flush(request_queue_t *q, struct request *rq);
+/* static void sd_prepare_flush(request_queue_t *q, struct request *rq); */
 static void sd_rescan(struct device *dev);
 static int media_not_present(struct scsi_osd_disk *sdkp,
 		struct scsi_sense_hdr *sshdr);
@@ -329,12 +328,14 @@ static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf)
 	return snprintf(buf, 40, "%s\n", sd_cache_types[ct]);
 }
 
+#if 0
 static ssize_t sd_show_fua(struct class_device *classdev, char *buf)
 {
 	struct scsi_osd_disk *sdkp = to_osd_disk(classdev);
 
 	return snprintf(buf, 20, "%u\n", sdkp->DPOFUA);
 }
+#endif
 
 static struct class_device_attribute suo_disk_attrs[] = {
 	__ATTR(cache_type, S_IRUGO|S_IWUSR, sd_show_cache_type,
@@ -592,9 +593,11 @@ static int suo_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+#if 0
 static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 {
-	struct scsi_osd_disk *sdkp = scsi_osd_disk(bdev->bd_disk);
+	struct scsi_osd_disk *sdkp = container_of(bdev->bd_disk,
+	                                          struct scsi_osd_disk, gd);
 	struct scsi_device *sdp = sdkp->device;
 	struct Scsi_Host *host = sdp->host;
 	int diskinfo[4];
@@ -615,6 +618,7 @@ static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo)
 	geo->cylinders = diskinfo[2];
 	return 0;
 }
+#endif
 
 static void set_media_not_present(struct scsi_osd_disk *sdkp)
 {
@@ -674,7 +678,7 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 }
 
 static inline int 
-check_suo_request(struct request* req, struct suo_req* ureq)
+check_suo_request(struct suo_req* ureq)
 {
 	int ret;
 
@@ -720,40 +724,8 @@ check_suo_request(struct request* req, struct suo_req* ureq)
 		goto out;
 	}
 
-	/* Check our command is sane */
-	if (sizeof(req->cmd) < ureq->cdb_len) {
-		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
-		        __func__, (size_t) ureq->cdb_len, sizeof(req->cmd));
-		ret = -EINVAL;
-		goto out;
-	}
-
-	/* Check the command value */
-	ret = -EINVAL;
-	int i;
-	unsigned char scsi_cmd = req->cmd[0];
-	for(i = 0; VALID_SCSI_CMD_LIST[i] != NULL; i++)
-	{
-		if(scsi_cmd == VALID_SCSI_CMD_LIST[i])
-			goto valid_command;
-	}
-	if(scsi_cmd != EXTENDED_CDB)
-		goto out;
-
-	/* Check the service action to make sure it's OSD supported */
-	unsigned long osd_cmd = OSD_GET_ACTION(req->cmd);
-	for(i = 0; VALID_OSD_CMD_LIST[i] != NULL; i++)
-	{
-		if(osd_cmd == VALID_OSD_CMD_LIST[i])
-			goto valid_command;
-	}
-	goto out;	/* We didn't find it in the list */
-
-valid_command:
-
 	/* Winnar */
 	ret = 0;
-
 out:
 	return ret;
 }
@@ -761,7 +733,7 @@ out:
 static ssize_t
 suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 {
-	int ret;
+	int ret, i;
 	struct suo_req ureq;
 	struct request *req;
 	int is_write;
@@ -792,7 +764,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	}
 
 	/* Check our request */
-	ret = check_suo_request(req, &ureq);
+	ret = check_suo_request(&ureq);
 	if(ret < 0)
 		goto out_putdev;
 	is_write = (ureq.data_direction == DMA_TO_DEVICE || 
@@ -819,12 +791,37 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		if (ret)
 			goto out_putreq;
 	}
+
+	/* Check our command is sane */
+	if (sizeof(req->cmd) < ureq.cdb_len) {
+		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
+		        __func__, (size_t) ureq.cdb_len, sizeof(req->cmd));
+		ret = -EINVAL;
+		goto out_putreq;
+	}
 	ret = copy_from_user(req->cmd, (void __user *) ureq.cdb_buf,
 	                     ureq.cdb_len);
 	if (ret) {
 		ret = -EFAULT;
 		goto out_putreq;
 	}
+
+	/* Check the command value, after copying the cdb from userspace */
+	ret = -EINVAL;
+	for (i = 0; i < ARRAY_SIZE(valid_scsi_cmd_list); i++)
+		if (req->cmd[0] == valid_scsi_cmd_list[i])
+			goto valid_command;
+
+	/* must be an extended command, else invalid */
+	if (req->cmd[0] != EXTENDED_CDB)
+		goto out_putreq;
+	/* Check the service action to make sure it's OSD supported */
+	for (i = 0; i < ARRAY_SIZE(valid_osd_cmd_list); i++)
+		if (OSD_GET_ACTION(req->cmd) == valid_osd_cmd_list[i])
+			goto valid_command;
+	goto out_putreq;	/* We didn't find it in the list */
+
+valid_command:;
 
 	sense = kzalloc(SCSI_SENSE_BUFFERSIZE, GFP_NOIO);
 	if (!sense) {
@@ -860,6 +857,7 @@ out_putdev:
 }
 
 
+#if 0
 /**
  *	sd_media_changed - check if our medium changed
  *	@disk: kernel device descriptor 
@@ -926,6 +924,7 @@ not_present:
 	set_media_not_present(sdkp);
 	return 1;
 }
+#endif
 
 #define VARLEN_CDB_SIZE 200
 
@@ -993,16 +992,16 @@ static int sd_issue_flush(struct device *dev, sector_t *error_sector)
 	return ret;
 }
 
+#if 0
 static void sd_prepare_flush(request_queue_t *q, struct request *rq)
 {
-	/*
 	memset(rq->cmd, 0, sizeof(rq->cmd));
 	rq->flags |= REQ_BLOCK_PC;
 	rq->timeout = SD_TIMEOUT;
 	rq->cmd[0] = SYNCHRONIZE_CACHE;
 	rq->cmd_len = 10;
-	*/
 }
+#endif
 
 static void sd_rescan(struct device *dev)
 {
@@ -1024,10 +1023,11 @@ static void sd_rescan(struct device *dev)
 static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 {
 	struct scsi_cmnd* cmd;
+	struct scsi_osd_disk* sdkp;
 	ENTERING;
 
 	if (!sdp || !scsi_device_online(sdp)) {
-		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", cmd));
+		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", req));
 		return 0;
 	}
 
@@ -1069,7 +1069,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 	suo_inc_cmdkey();
 	dprintk("init_request: tag = %d\n", cmd->tag);
 
-	struct scsi_osd_disk* sdkp = dev_get_drvdata(&sdp->sdev_gendev);
+	sdkp = dev_get_drvdata(&sdp->sdev_gendev);
 	spin_lock(&sdkp->inflight_lock);
 	atomic_inc(&sdkp->inflight);
 	spin_unlock(&sdkp->inflight_lock);
@@ -1101,13 +1101,12 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 	int result = command->result;
 	int this_count = command->request_bufflen;
 	int good_bytes = (result == 0 ? this_count : 0);
-	sector_t block_sectors = 1;
-	u64 first_err_block;
 	struct scsi_sense_hdr sshdr;
 	int sense_valid = 0;
 	int sense_deferred = 0;
-	int info_valid;
 	struct scsi_device *sdp = command->device;
+	unsigned long flags;
+	struct scsi_osd_disk* sdkp;
 
 	ENTERING;
 
@@ -1159,8 +1158,7 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 		}
 	}
 
-	unsigned long flags;
-	struct scsi_osd_disk* sdkp = dev_get_drvdata(&sdp->sdev_gendev);
+	sdkp = dev_get_drvdata(&sdp->sdev_gendev);
 	spin_lock_irqsave(&sdkp->inflight_lock, flags);
 	if( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
 		printk(KERN_ERR "suo: received more responses than requests on %s. Huh?\n",
@@ -1513,15 +1511,6 @@ static void
 suo_read_capacity(struct scsi_osd_disk *sdkp,
 		 unsigned char *buffer)
 {
-	unsigned char cmd[16];
-	int the_result, retries;
-	int sector_size = 0;
-	int longrc = 0;
-	struct scsi_sense_hdr sshdr;
-	int sense_valid = 0;
-	struct scsi_device *sdp = sdkp->device;
-	char* diskname = sdkp->disk_name;
-
 	/* FIXME: We need to send a GET_ATTRIBUTES to the root osd object.
 	 * However, how the spec defines the formatting of the SCSI 
 	 * command is mostly unintelligible */

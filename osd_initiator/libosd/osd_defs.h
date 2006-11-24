@@ -117,7 +117,7 @@
 
 /* Valid OSD command list supported by Object Storage Devices; these
  * are encoded in the service action field of the command */
-unsigned long VALID_OSD_CMD_LIST[] = { 
+const unsigned long valid_osd_cmd_list[] = { 
 
 	/* Supported by simulation targets */
 	OSD_CREATE, 
@@ -146,7 +146,6 @@ unsigned long VALID_OSD_CMD_LIST[] = {
 	OSD_PERFORM_TSK_MNGN,
 	OSD_REMOVE_COLLECTION,
 	OSD_SET_MASTER_KEY,
-	NULL
 };
 
 

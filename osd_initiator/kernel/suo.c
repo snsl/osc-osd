@@ -235,7 +235,6 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
 static int suo_sync_cache(struct scsi_device *sdp);
 EXPORT_SYMBOL(suo_sync_cache);
 static int suo_dispatch_command(struct scsi_device* sdp, struct request* req);
-static void suo_rw_intr(struct scsi_cmnd * command);
 
 /* Init / Release / Probe */
 static int add_osd_disk(struct scsi_osd_disk* sdkp);
@@ -682,9 +681,9 @@ check_suo_request(struct suo_req* ureq)
 {
 	int ret;
 
-//#ifdef CONFIG_SKIP_VERIFICATION
+#ifdef CONFIG_SKIP_VERIFICATION
 	return 0;
-//#endif
+#endif
 	ENTERING;
 	
 	/* Check the request semantics */
@@ -730,10 +729,58 @@ out:
 	return ret;
 }
 
+static inline int 
+check_osd_command(struct request* req, struct suo_req* ureq)
+{
+	int ret, i;
+
+#ifdef CONFIG_SKIP_VERIFICATION
+	return 0;
+#endif
+	ENTERING;
+
+	ret = -EINVAL;
+
+	/* Check our command is sane */
+	if (sizeof(req->cmd) < ureq->cdb_len) {
+		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
+		        __func__, (size_t) ureq->cdb_len, sizeof(req->cmd));
+		goto out;
+	}
+
+	/* Check the command value */
+	for (i = 0; i < ARRAY_SIZE(valid_scsi_cmd_list); i++)
+		if (req->cmd[0] == valid_scsi_cmd_list[i])
+			goto valid_command;
+
+	/* must be an extended command, else invalid */
+	if (req->cmd[0] != EXTENDED_CDB)
+	{
+		dprintk("%s: Invalid SCSI command 0x%x for OSD disk\n", 
+			__func__, req->cmd[0]);
+		goto out;
+	}
+
+	/* Check the service action to make sure it's OSD supported */
+	for (i = 0; i < ARRAY_SIZE(valid_osd_cmd_list); i++)
+		if (OSD_GET_ACTION(req->cmd) == valid_osd_cmd_list[i])
+			goto valid_command;
+	dprintk("%s: Invalid OSD command 0x%x for OSD disk\n", 
+		__func__, OSD_GET_ACTION(req->cmd));
+	goto out;	/* We didn't find it in the list */
+
+valid_command:
+	/* Winnar */
+	ret = 0;
+	
+out:
+	return ret;
+}
+
 static ssize_t
 suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 {
-	int ret, i;
+	int ret;
 	struct suo_req ureq;
 	struct request *req;
 	int is_write;
@@ -791,14 +838,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		if (ret)
 			goto out_putreq;
 	}
-
-	/* Check our command is sane */
-	if (sizeof(req->cmd) < ureq.cdb_len) {
-		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
-		        __func__, (size_t) ureq.cdb_len, sizeof(req->cmd));
-		ret = -EINVAL;
-		goto out_putreq;
-	}
 	ret = copy_from_user(req->cmd, (void __user *) ureq.cdb_buf,
 	                     ureq.cdb_len);
 	if (ret) {
@@ -806,22 +845,10 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		goto out_putreq;
 	}
 
-	/* Check the command value, after copying the cdb from userspace */
-	ret = -EINVAL;
-	for (i = 0; i < ARRAY_SIZE(valid_scsi_cmd_list); i++)
-		if (req->cmd[0] == valid_scsi_cmd_list[i])
-			goto valid_command;
-
-	/* must be an extended command, else invalid */
-	if (req->cmd[0] != EXTENDED_CDB)
+	/* Check the command itself */
+	ret = check_osd_command(req, &ureq);
+	if (ret)
 		goto out_putreq;
-	/* Check the service action to make sure it's OSD supported */
-	for (i = 0; i < ARRAY_SIZE(valid_osd_cmd_list); i++)
-		if (OSD_GET_ACTION(req->cmd) == valid_osd_cmd_list[i])
-			goto valid_command;
-	goto out_putreq;	/* We didn't find it in the list */
-
-valid_command:;
 
 	sense = kzalloc(SCSI_SENSE_BUFFERSIZE, GFP_NOIO);
 	if (!sense) {
@@ -1013,7 +1040,6 @@ static void sd_rescan(struct device *dev)
 	}
 }
 
-
 /**
  *	suo_dispatch_command - build a scsi (read or write) command from
  *	information in the request structure and send it off
@@ -1036,33 +1062,9 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 		 * quietly refuse to do anything to a changed disc until 
 		 * the changed bit has been reset
 		 */
-		/* printk("SCSI disk has been changed. Prohibiting further I/O.\n"); */
+		 printk("SCSI disk has been changed. Prohibiting further I/O.\n"); 
 		return 0;
 	}
-
-	cmd = scsi_get_command(sdp, GFP_ATOMIC);
-	if (unlikely(!cmd))
-		return 0;
-
-	memcpy(cmd->cmnd, req->cmd, sizeof(cmd->cmnd));
-	cmd->cmd_len = req->cmd_len;
-	if (!req->data_len)
-		cmd->sc_data_direction = DMA_NONE;
-	else if (rq_data_dir(req) == WRITE)
-		cmd->sc_data_direction = DMA_TO_DEVICE;
-	else
-		cmd->sc_data_direction = DMA_FROM_DEVICE;
-	
-	cmd->transfersize = req->data_len;
-	cmd->allowed = req->retries;
-	cmd->timeout_per_command = req->timeout;
-	cmd->device = sdp;
-
-	/*
-	 * This is the completion routine we use.  This is matched in terms
-	 * of capability to this function.
-	 */
-	cmd->done = suo_rw_intr;
 
 	/* Set some params before we jump out */
 	cmd->tag = suo_get_cmdkey();
@@ -1076,9 +1078,11 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 	req->special = cmd;
 	req->retries = SD_MAX_RETRIES;
 	req->timeout = SD_TIMEOUT;
-	req->cmd_type = REQ_TYPE_SPECIAL;
+	req->cmd_type = REQ_TYPE_FS;		/* FIXME: When should this be BLOCK_PC? */
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
+	req->rq_disk = &sdkp->gd;
 
+	/* TODO: Instead of this, set up req appropriately and call out blk_execute_rq_nowait */
 	blk_execute_rq(req->q, NULL, req, 1);
 
 	/*
@@ -1088,7 +1092,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 	return 1;
 }
 
-
+#if 0
 /**
  *	suo_rw_intr - bottom half handler: called when the lower level
  *	driver has completed (successfully or otherwise) a scsi command.
@@ -1158,7 +1162,8 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 		}
 	}
 
-	sdkp = dev_get_drvdata(&sdp->sdev_gendev);
+	sdkp = dev_get_drvdata(&(sdp->sdev_gendev));
+	BUG_ON(sdkp == NULL);
 	spin_lock_irqsave(&sdkp->inflight_lock, flags);
 	if( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
 		printk(KERN_ERR "suo: received more responses than requests on %s. Huh?\n",
@@ -1169,7 +1174,6 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 	}
 	spin_unlock_irqrestore(&sdkp->inflight_lock, flags);
 
-
 	/*
 	 * This calls the generic completion function, now that we know
 	 * how many actual sectors finished, and how many sectors we need
@@ -1177,6 +1181,7 @@ static void suo_rw_intr(struct scsi_cmnd * command)
 	 */
 	scsi_io_completion(command, good_bytes);
 }
+#endif
 
 static int media_not_present(struct scsi_osd_disk *sdkp,
 			     struct scsi_sense_hdr *sshdr)

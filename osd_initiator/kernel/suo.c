@@ -141,6 +141,13 @@ static int drv_major = 0;
  * Structs
  */
 
+struct suo_inflight_response
+{
+	struct list_head list;
+	struct suo_response to_user;
+	struct scsi_osd_disk* sdkp;
+};
+
 struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
@@ -153,6 +160,11 @@ struct scsi_osd_disk {
 	struct kobject kobj;
 	dev_t dev_id;
 	char disk_name[32];
+
+	/* This queue stores the responses collected by suo_rq_complete;
+	 * it gets emptied out by suo_read */
+	struct suo_inflight_response* response_queue;
+	spinlock_t response_queue_lock;
 
 	unsigned int	openers;	/* protected by BKL for now, yuck */
 	sector_t	capacity;	/* size in 512-byte sectors */
@@ -178,8 +190,14 @@ static DEFINE_SPINLOCK(sd_index_lock);
 static DEFINE_MUTEX(sd_ref_mutex);
 
 
+/* A simple rolling key and its lock */
 static DEFINE_SPINLOCK(cmd_key_lock);
 static atomic_t cmd_key;
+
+/* These are used by suo_inflight_response_*; don't access them 
+ * directly */
+static DEFINE_SPINLOCK(unused_response_list_lock);
+static struct suo_inflight_response* unused_response_list = NULL;
 
 
 /*
@@ -203,6 +221,7 @@ static ssize_t suo_read(struct file *filp, char __user *buf,
 		size_t count, loff_t * ppos);
 static ssize_t suo_write(struct file *filp, const char __user *buf, 
 		size_t count, loff_t * ppos);
+static void suo_rq_complete(struct request* req, int error);
 
 
 /* Alloc / free / locks */
@@ -393,6 +412,9 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	cdev_init(chrdev, &suo_fops);
 	sdkp->fops = &suo_fops;
 
+	sdkp->response_queue = kzalloc(sizeof(struct suo_inflight_response), GFP_KERNEL);
+	sdkp->response_queue_lock = SPIN_LOCK_UNLOCKED;
+
 	return sdkp;
 
 out:
@@ -402,7 +424,7 @@ out:
 static struct scsi_osd_disk *__scsi_osd_disk_get(struct cdev* chrdev)
 {
 	struct scsi_osd_disk* sdkp = scsi_osd_disk(chrdev);
-	if(!sdkp)
+	if (!sdkp)
 		return NULL;
 
 	if (scsi_device_get(sdkp->device) == 0)
@@ -454,16 +476,6 @@ static inline int suo_get_cmdkey(void)
 	return ret;
 }
 
-static inline int suo_get_cmdkey_irqsave(void)
-{
-	int ret;
-	unsigned long flags;
-	spin_lock_irqsave(&cmd_key_lock, flags);
-	ret = atomic_read(&cmd_key);
-	spin_unlock_irqrestore(&cmd_key_lock, flags);
-	return ret;
-}
-
 static inline void suo_inc_cmdkey(void)
 {
 	spin_lock(&cmd_key_lock);
@@ -471,17 +483,70 @@ static inline void suo_inc_cmdkey(void)
 	spin_unlock(&cmd_key_lock);
 }
 
-static inline void suo_inc_cmdkey_irqsave(void)
+static inline int suo_get_and_inc_cmdkey(void)
 {
-	unsigned long flags;
-	spin_lock_irqsave(&cmd_key_lock, flags);
+	int ret;
+	spin_lock(&cmd_key_lock);
 	atomic_inc(&cmd_key);
-	spin_unlock_irqrestore(&cmd_key_lock, flags);
+	ret = atomic_read(&cmd_key);
+	atomic_inc(&cmd_key);
+	spin_unlock(&cmd_key_lock);
+	
+	return ret;
 }
 
+static /*inline*/ struct suo_inflight_response* suo_unused_response_get(void)
+{
+	struct suo_inflight_response* ret = NULL; 
+
+	if (unlikely(unused_response_list == NULL))
+	{
+		unused_response_list = kzalloc( sizeof(struct suo_inflight_response), GFP_KERNEL );
+		if(!unused_response_list)	goto out;
+		INIT_LIST_HEAD(&unused_response_list->list);
+	}
+
+	spin_lock(&unused_response_list_lock);
+
+	/* If our stack is empty, create a new item */
+	if (list_empty(&unused_response_list->list))
+	{
+		ret = kzalloc( sizeof(struct suo_inflight_response), GFP_KERNEL );
+		goto out;
+	}
+
+	/* It's not empty; pull one off and return it */
+	ret = list_entry(unused_response_list->list.next, struct suo_inflight_response, list);
+	list_del_init(&ret->list);
+
+out:
+	spin_unlock(&unused_response_list_lock);
+	return ret;
+}
+
+static /*inline*/ void suo_unused_response_put(struct suo_inflight_response* obj)
+{
+	spin_lock(&unused_response_list_lock);
+	list_add(&obj->list, &unused_response_list->list);
+	spin_unlock(&unused_response_list_lock);
+}
+
+static void suo_inflight_response_list_free(struct suo_inflight_response* resp_list, spinlock_t* lock)
+{
+	struct list_head* p;
+	struct suo_inflight_response* cur_item;
+
+	if(lock)	spin_lock(lock);
+	list_for_each(p, &resp_list->list) {
+		cur_item = list_entry(p, struct suo_inflight_response, list);
+		list_del(&cur_item->list);
+		kfree(current);
+	}
+	if(lock)	spin_unlock(lock);
+}
 
 /**
- *	sd_open - open a scsi disk device
+ *	suo_open - open a scsi disk device
  *	@inode: only i_rdev member may be used
  *	@filp: only f_mode and f_flags may be used
  *
@@ -589,6 +654,7 @@ static int suo_release(struct inode *inode, struct file *filp)
 	 * XXX is followed by a "rmmod suo_mod"?
 	 */
 	scsi_osd_disk_put(sdkp);
+
 	return 0;
 }
 
@@ -812,7 +878,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 
 	/* Check our request */
 	ret = check_suo_request(&ureq);
-	if(ret < 0)
+	if (ret < 0)
 		goto out_putdev;
 	is_write = (ureq.data_direction == DMA_TO_DEVICE || 
 		    ureq.data_direction == DMA_BIDIRECTIONAL ? 1 : 0);
@@ -1048,8 +1114,8 @@ static void sd_rescan(struct device *dev)
  **/
 static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 {
-	struct scsi_cmnd* cmd;
 	struct scsi_osd_disk* sdkp;
+	struct suo_inflight_response* response;
 	ENTERING;
 
 	if (!sdp || !scsi_device_online(sdp)) {
@@ -1066,24 +1132,37 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 		return 0;
 	}
 
-	/* Set some params before we jump out */
-	cmd->tag = suo_get_cmdkey();
-	suo_inc_cmdkey();
-	dprintk("init_request: tag = %d\n", cmd->tag);
-
 	sdkp = dev_get_drvdata(&sdp->sdev_gendev);
 	spin_lock(&sdkp->inflight_lock);
 	atomic_inc(&sdkp->inflight);
 	spin_unlock(&sdkp->inflight_lock);
-	req->special = cmd;
 	req->retries = SD_MAX_RETRIES;
 	req->timeout = SD_TIMEOUT;
 	req->cmd_type = REQ_TYPE_FS;		/* FIXME: When should this be BLOCK_PC? */
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
 	req->rq_disk = &sdkp->gd;
 
-	/* TODO: Instead of this, set up req appropriately and call out blk_execute_rq_nowait */
-	blk_execute_rq(req->q, NULL, req, 1);
+	/* Set up the response */
+	response = suo_unused_response_get();
+	if (unlikely(response == NULL)) {
+		printk(KERN_ERR "%s: Couldn't alloc suo_inflight_response; bailing", __func__);
+		return -ENOMEM;
+	}
+	response->to_user.key = suo_get_and_inc_cmdkey();
+	response->to_user.error = -EIO;
+	response->to_user.sense_buffer_len = 0;
+	response->sdkp = sdkp;
+
+	dprintk("%s: key = %d\n", __func__, response->to_user.key);
+
+	/* Set up the last part of the request and send it out */
+	req->end_io_data = response;
+	req->end_io = suo_rq_complete;
+	blk_execute_rq_nowait(req->q, NULL, req, 1, req->end_io);
+
+	spin_lock(&sdkp->inflight_lock);
+	BUG_ON( atomic_add_negative(1, &sdkp->inflight) );
+	spin_unlock(&sdkp->inflight_lock);
 
 	/*
 	 * This indicates that the command is ready from our end to be
@@ -1092,96 +1171,35 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 	return 1;
 }
 
-#if 0
-/**
- *	suo_rw_intr - bottom half handler: called when the lower level
- *	driver has completed (successfully or otherwise) a scsi command.
- *	@command: mid-level's per command structure.
- *
- *	Note: potentially run from within an ISR. Must not block.
- **/
-static void suo_rw_intr(struct scsi_cmnd * command)
+static void suo_rq_complete(struct request* req, int error)
 {
-	int result = command->result;
-	int this_count = command->request_bufflen;
-	int good_bytes = (result == 0 ? this_count : 0);
-	struct scsi_sense_hdr sshdr;
-	int sense_valid = 0;
-	int sense_deferred = 0;
-	struct scsi_device *sdp = command->device;
-	unsigned long flags;
+	struct suo_inflight_response* response = req->end_io_data;
 	struct scsi_osd_disk* sdkp;
 
 	ENTERING;
 
-	if (result) {
-		sense_valid = scsi_command_normalize_sense(command, &sshdr);
-		if (sense_valid)
-			sense_deferred = scsi_sense_is_deferred(&sshdr);
+	if(!response)
+	{
+		printk(KERN_ERR "%s: request io data is NULL", __func__);
+		return;
 	}
+	sdkp = response->sdkp;
 
-	dprintk("suo_rw_intr - key %d\n", command->tag);
-
-	/*
-	   Handle MEDIUM ERRORs that indicate partial success.  Since this is a
-	   relatively rare error condition, no care is taken to avoid
-	   unnecessary additional work such as memcpy's that could be avoided.
-	 */
-	if (driver_byte(result) != 0 &&
-		 sense_valid && !sense_deferred) {
-		switch (sshdr.sense_key) {
-			
-		case MEDIUM_ERROR:
-			break;
-
-		case RECOVERED_ERROR: /* an error occurred, but it recovered */
-		case NO_SENSE: /* LLDD got sense data */
-			/*
-			 * Inform the user, but make sure that it's not treated
-			 * as a hard error.
-			 */
-			scsi_print_sense("sd", command);
-			command->result = 0;
-			memset(command->sense_buffer, 0, SCSI_SENSE_BUFFERSIZE);
-			good_bytes = this_count;
-			break;
-
-		case ILLEGAL_REQUEST:
-			if (command->device->use_10_for_rw &&
-			    (command->cmnd[0] == READ_10 ||
-			     command->cmnd[0] == WRITE_10))
-				command->device->use_10_for_rw = 0;
-			if (command->device->use_10_for_ms &&
-			    (command->cmnd[0] == MODE_SENSE_10 ||
-			     command->cmnd[0] == MODE_SELECT_10))
-				command->device->use_10_for_ms = 0;
-			break;
-
-		default:
-			break;
-		}
-	}
-
-	sdkp = dev_get_drvdata(&(sdp->sdev_gendev));
-	BUG_ON(sdkp == NULL);
-	spin_lock_irqsave(&sdkp->inflight_lock, flags);
-	if( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
+	dprintk("%s - key %d\n", __func__, response->to_user.key);
+	spin_lock(&sdkp->inflight_lock);
+	if ( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
 		printk(KERN_ERR "suo: received more responses than requests on %s. Huh?\n",
 		       sdkp->disk_name);
 	}
 	else {
 		atomic_dec(&sdkp->inflight);
 	}
-	spin_unlock_irqrestore(&sdkp->inflight_lock, flags);
+	spin_unlock(&sdkp->inflight_lock);
 
-	/*
-	 * This calls the generic completion function, now that we know
-	 * how many actual sectors finished, and how many sectors we need
-	 * to say have failed.
-	 */
-	scsi_io_completion(command, good_bytes);
+	spin_lock(&sdkp->response_queue_lock);
+	list_add(&response->list, &sdkp->response_queue->list);
+	spin_unlock(&sdkp->response_queue_lock);
 }
-#endif
 
 static int media_not_present(struct scsi_osd_disk *sdkp,
 			     struct scsi_sense_hdr *sshdr)
@@ -1249,7 +1267,7 @@ sd_spinup_disk(struct scsi_osd_disk *sdkp)
 		if ((driver_byte(the_result) & DRIVER_SENSE) == 0) {
 			/* no sense, TUR either succeeded or failed
 			 * with a status error */
-			if(!spintime && !scsi_status_is_good(the_result))
+			if (!spintime && !scsi_status_is_good(the_result))
 				printk(KERN_NOTICE "%s: Unit Not Ready, "
 				       "error = 0x%x\n", diskname, the_result);
 			break;
@@ -1309,7 +1327,7 @@ sd_spinup_disk(struct scsi_osd_disk *sdkp)
 		} else {
 			/* we don't understand the sense code, so it's
 			 * probably pointless to loop */
-			if(!spintime) {
+			if (!spintime) {
 				printk(KERN_NOTICE "%s: Unit Not Ready, "
 					"sense:\n", diskname);
 				scsi_print_sense_hdr("", &sshdr);
@@ -1587,7 +1605,7 @@ static int add_osd_disk(struct scsi_osd_disk* sdkp)
 	chrdev->owner = THIS_MODULE;
 	chrdev->ops = &suo_fops;
 	ret = cdev_add(chrdev, sdkp->dev_id, 1);
-	if(ret)
+	if (ret)
 	{
 		dprintk("*** Couldn't add chardev! ret = %i\n", ret);
 		goto out;
@@ -1704,7 +1722,7 @@ static int suo_probe(struct device *dev)
 
 	if (sdp->removable)
 		sdkp->removable = 1;
-	if(sdkp->__never_unset_me != 0xDEADBEEF)
+	if (sdkp->__never_unset_me != 0xDEADBEEF)
 		dprintk("the canary is dead! leave the mine!!\n");
 
 	dev_set_drvdata(dev, sdkp);
@@ -1750,6 +1768,8 @@ static int suo_remove(struct device *dev)
 	dev_set_drvdata(dev, NULL);
 	class_device_put(&sdkp->classdev);
 	mutex_unlock(&sd_ref_mutex);
+	suo_inflight_response_list_free(sdkp->response_queue, &sdkp->response_queue_lock);
+	kfree(sdkp);
 
 	return 0;
 }
@@ -1813,7 +1833,7 @@ static int __init init_suo(void)
 
 	SCSI_LOG_HLQUEUE(3, printk("init_suo: suo driver entry point\n")); 
 	so_sysfs_class = NULL;
-	if(major > 0) {
+	if (major > 0) {
 		drv_major = (major ? MKDEV(major, 0) : 0);
 		ret = register_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES, "suo");
 	}
@@ -1842,7 +1862,7 @@ static int __init init_suo(void)
 		goto bail;
 
 	ret = scsi_register_driver(&suo_template.gendrv);
-	if(ret) 
+	if (ret) 
 		goto bail;
 	
 	return 0;
@@ -1851,8 +1871,8 @@ static int __init init_suo(void)
 bail:
 	/* TODO: Unregister SCSI if anything gets added after the
 	 * driver registration */
-	if(so_sysfs_class)	class_destroy(so_sysfs_class);
-	if(has_registered_chrdev) {
+	if (so_sysfs_class)	class_destroy(so_sysfs_class);
+	if (has_registered_chrdev) {
 		unregister_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES);
 	}
 	return ret;
@@ -1867,9 +1887,13 @@ static void __exit exit_suo(void)
 {
 	SCSI_LOG_HLQUEUE(3, printk("exit_suo: exiting sd driver\n"));
 
+	if(unused_response_list) {
+		suo_inflight_response_list_free(unused_response_list,
+						&unused_response_list_lock);
+	}
 	scsi_unregister_driver(&suo_template.gendrv);
 	class_unregister(&suo_disk_class);
-	if(so_sysfs_class)	class_destroy(so_sysfs_class);
+	if (so_sysfs_class)	class_destroy(so_sysfs_class);
 	unregister_chrdev_region(MKDEV(drv_major, 0), SUO_MAX_OSD_ENTRIES);
 }
 

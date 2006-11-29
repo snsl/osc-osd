@@ -141,11 +141,10 @@ static int drv_major = 0;
  * Structs
  */
 
-struct suo_inflight_response
-{
+struct suo_inflight_response {
 	struct list_head list;
 	struct suo_response to_user;
-	struct scsi_osd_disk* sdkp;
+	struct scsi_osd_disk *sdkp;
 };
 
 struct scsi_osd_disk {
@@ -381,12 +380,12 @@ static struct scsi_driver suo_template = {
 	.init_command 		= NULL,
 };
 
-static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev)
+static inline struct scsi_osd_disk *scsi_osd_disk(struct cdev *chrdev)
 {
 	return container_of(chrdev, struct scsi_osd_disk, chrdev);
 }
 
-struct scsi_osd_disk* alloc_osd_disk(void)
+struct scsi_osd_disk *alloc_osd_disk(void)
 {
 	struct cdev* chrdev;
 	struct scsi_osd_disk* sdkp;
@@ -914,7 +913,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->cmd_len = ureq.cdb_len;
 	req->sense = sense;
 	req->sense_len = 0;
-	req->rq_disk = &sdkp->gd;
 	bio = req->bio;
 
 	suo_dispatch_command(sdev, req);
@@ -1099,7 +1097,7 @@ static void sd_rescan(struct device *dev)
  *	suo_dispatch_command - build a scsi (read or write) command from
  *	information in the request structure and send it off
  *
- *	Returns 1 if successful and 0 if error (or cannot be done now).
+ *	Returns 0 if successful and <0 if error (or cannot be done now).
  **/
 static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 {
@@ -1109,7 +1107,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 
 	if (!sdp || !scsi_device_online(sdp)) {
 		SCSI_LOG_HLQUEUE(2, printk("Retry with 0x%p\n", req));
-		return 0;
+		return -EAGAIN;
 	}
 
 	if (sdp->changed) {
@@ -1118,7 +1116,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 		 * the changed bit has been reset
 		 */
 		 printk("SCSI disk has been changed. Prohibiting further I/O.\n"); 
-		return 0;
+		return -EINVAL;
 	}
 
 	sdkp = dev_get_drvdata(&sdp->sdev_gendev);
@@ -1127,7 +1125,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 	spin_unlock(&sdkp->inflight_lock);
 	req->retries = SD_MAX_RETRIES;
 	req->timeout = SD_TIMEOUT;
-	req->cmd_type = REQ_TYPE_FS;		/* FIXME: When should this be BLOCK_PC? */
+	req->cmd_type = REQ_TYPE_BLOCK_PC;  /* always, we supply command */
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
 	req->rq_disk = &sdkp->gd;
 
@@ -1157,18 +1155,17 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 	 * This indicates that the command is ready from our end to be
 	 * queued.
 	 */
-	return 1;
+	return 0;
 }
 
-static void suo_rq_complete(struct request* req, int error)
+static void suo_rq_complete(struct request *req, int error)
 {
-	struct suo_inflight_response* response = req->end_io_data;
-	struct scsi_osd_disk* sdkp;
+	struct suo_inflight_response *response = req->end_io_data;
+	struct scsi_osd_disk *sdkp;
 
 	ENTERING;
 
-	if(!response)
-	{
+	if (!response) {
 		printk(KERN_ERR "%s: request io data is NULL", __func__);
 		return;
 	}
@@ -1179,8 +1176,7 @@ static void suo_rq_complete(struct request* req, int error)
 	if ( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
 		printk(KERN_ERR "suo: received more responses than requests on %s. Huh?\n",
 		       sdkp->disk_name);
-	}
-	else {
+	} else {
 		atomic_dec(&sdkp->inflight);
 	}
 	spin_unlock(&sdkp->inflight_lock);
@@ -1193,7 +1189,6 @@ static void suo_rq_complete(struct request* req, int error)
 static int media_not_present(struct scsi_osd_disk *sdkp,
 			     struct scsi_sense_hdr *sshdr)
 {
-
 	if (!scsi_sense_valid(sshdr))
 		return 0;
 	/* not invoked for commands that could return deferred errors */

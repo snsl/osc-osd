@@ -163,7 +163,7 @@ struct scsi_osd_disk {
 
 	/* This queue stores the responses collected by suo_rq_complete;
 	 * it gets emptied out by suo_read */
-	struct suo_inflight_response* response_queue;
+	struct list_head response_queue;
 	spinlock_t response_queue_lock;
 
 	unsigned int	openers;	/* protected by BKL for now, yuck */
@@ -197,7 +197,7 @@ static atomic_t cmd_key;
 /* These are used by suo_inflight_response_*; don't access them 
  * directly */
 static DEFINE_SPINLOCK(unused_response_list_lock);
-static struct suo_inflight_response* unused_response_list = NULL;
+static LIST_HEAD(unused_response_list);
 
 
 /*
@@ -412,7 +412,7 @@ struct scsi_osd_disk* alloc_osd_disk(void)
 	cdev_init(chrdev, &suo_fops);
 	sdkp->fops = &suo_fops;
 
-	sdkp->response_queue = kzalloc(sizeof(struct suo_inflight_response), GFP_KERNEL);
+	INIT_LIST_HEAD(&sdkp->response_queue);
 	sdkp->response_queue_lock = SPIN_LOCK_UNLOCKED;
 
 	return sdkp;
@@ -495,54 +495,43 @@ static inline int suo_get_and_inc_cmdkey(void)
 	return ret;
 }
 
-static /*inline*/ struct suo_inflight_response* suo_unused_response_get(void)
+static struct suo_inflight_response *suo_unused_response_get(void)
 {
-	struct suo_inflight_response* ret = NULL; 
-
-	if (unlikely(unused_response_list == NULL))
-	{
-		unused_response_list = kzalloc( sizeof(struct suo_inflight_response), GFP_KERNEL );
-		if(!unused_response_list)	goto out;
-		INIT_LIST_HEAD(&unused_response_list->list);
-	}
+	struct suo_inflight_response *resp = NULL; 
 
 	spin_lock(&unused_response_list_lock);
 
 	/* If our stack is empty, create a new item */
-	if (list_empty(&unused_response_list->list))
+	if (list_empty(&unused_response_list))
 	{
-		ret = kzalloc( sizeof(struct suo_inflight_response), GFP_KERNEL );
+		resp = kzalloc(sizeof(*resp), GFP_KERNEL);
 		goto out;
 	}
 
 	/* It's not empty; pull one off and return it */
-	ret = list_entry(unused_response_list->list.next, struct suo_inflight_response, list);
-	list_del_init(&ret->list);
+	resp = list_entry(unused_response_list.next, typeof(*resp), list);
+	list_del_init(&resp->list);
 
 out:
 	spin_unlock(&unused_response_list_lock);
-	return ret;
+	return resp;
 }
 
-static /*inline*/ void suo_unused_response_put(struct suo_inflight_response* obj)
+static void suo_unused_response_put(struct suo_inflight_response *obj)
 {
 	spin_lock(&unused_response_list_lock);
-	list_add(&obj->list, &unused_response_list->list);
+	list_add(&obj->list, &unused_response_list);
 	spin_unlock(&unused_response_list_lock);
 }
 
-static void suo_inflight_response_list_free(struct suo_inflight_response* resp_list, spinlock_t* lock)
+static void suo_inflight_response_list_free(struct list_head *resp_list)
 {
-	struct list_head* p;
-	struct suo_inflight_response* cur_item;
+	struct suo_inflight_response *cur_item, *next;
 
-	if(lock)	spin_lock(lock);
-	list_for_each(p, &resp_list->list) {
-		cur_item = list_entry(p, struct suo_inflight_response, list);
+	list_for_each_entry_safe(cur_item, next, resp_list, list) {
 		list_del(&cur_item->list);
-		kfree(current);
+		kfree(cur_item);
 	}
-	if(lock)	spin_unlock(lock);
 }
 
 /**
@@ -1153,7 +1142,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 	response->to_user.sense_buffer_len = 0;
 	response->sdkp = sdkp;
 
-	dprintk("%s: key = %d\n", __func__, response->to_user.key);
+	dprintk("%s: key = %d\n", __func__, (int) response->to_user.key);
 
 	/* Set up the last part of the request and send it out */
 	req->end_io_data = response;
@@ -1185,7 +1174,7 @@ static void suo_rq_complete(struct request* req, int error)
 	}
 	sdkp = response->sdkp;
 
-	dprintk("%s - key %d\n", __func__, response->to_user.key);
+	dprintk("%s - key %d\n", __func__, (int) response->to_user.key);
 	spin_lock(&sdkp->inflight_lock);
 	if ( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
 		printk(KERN_ERR "suo: received more responses than requests on %s. Huh?\n",
@@ -1197,7 +1186,7 @@ static void suo_rq_complete(struct request* req, int error)
 	spin_unlock(&sdkp->inflight_lock);
 
 	spin_lock(&sdkp->response_queue_lock);
-	list_add(&response->list, &sdkp->response_queue->list);
+	list_add(&response->list, &sdkp->response_queue);
 	spin_unlock(&sdkp->response_queue_lock);
 }
 
@@ -1768,7 +1757,9 @@ static int suo_remove(struct device *dev)
 	dev_set_drvdata(dev, NULL);
 	class_device_put(&sdkp->classdev);
 	mutex_unlock(&sd_ref_mutex);
-	suo_inflight_response_list_free(sdkp->response_queue, &sdkp->response_queue_lock);
+	spin_lock(&sdkp->response_queue_lock);
+	suo_inflight_response_list_free(&sdkp->response_queue);
+	spin_unlock(&sdkp->response_queue_lock);
 	kfree(sdkp);
 
 	return 0;
@@ -1887,10 +1878,9 @@ static void __exit exit_suo(void)
 {
 	SCSI_LOG_HLQUEUE(3, printk("exit_suo: exiting sd driver\n"));
 
-	if(unused_response_list) {
-		suo_inflight_response_list_free(unused_response_list,
-						&unused_response_list_lock);
-	}
+	spin_lock(&unused_response_list_lock);
+	suo_inflight_response_list_free(&unused_response_list);
+	spin_unlock(&unused_response_list_lock);
 	scsi_unregister_driver(&suo_template.gendrv);
 	class_unregister(&suo_disk_class);
 	if (so_sysfs_class)	class_destroy(so_sysfs_class);

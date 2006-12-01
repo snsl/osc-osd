@@ -212,7 +212,6 @@ static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf);
 
 /* File ops */
 static int suo_open(struct inode *inode, struct file *filp);
-static int suo_close(struct inode *inode, struct file *filp);
 static int suo_release(struct inode *inode, struct file *filp);
 /* static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo); */
 static void set_media_not_present(struct scsi_osd_disk *sdkp);
@@ -604,7 +603,7 @@ static int suo_open(struct inode *inode, struct file *filp)
 	if (!scsi_device_online(sdev))
 		goto error_out;
 
-	atomic_add(&sdkp->openers);
+	atomic_inc(&sdkp->openers);
 	if (atomic_read(&sdkp->openers) == 1 && sdev->removable) {
 		if (scsi_block_when_processing_errors(sdev))
 			scsi_set_medium_removal(sdev, SCSI_REMOVAL_PREVENT);
@@ -764,7 +763,8 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 			}
 
 			/* Wait awhile then try again */
-			poll_wait(filp, &sfp->read_wait, wait);
+			/* should be poll_wait(filp, &sfp->read_wait, wait); */
+			yield();
 			continue;
 		}
 

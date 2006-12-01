@@ -145,6 +145,7 @@ struct suo_inflight_response {
 	struct list_head list;
 	struct suo_response to_user;
 	struct scsi_osd_disk *sdkp;
+	struct file* filp;
 };
 
 struct scsi_osd_disk {
@@ -165,7 +166,7 @@ struct scsi_osd_disk {
 	struct list_head response_queue;
 	spinlock_t response_queue_lock;
 
-	unsigned int	openers;	/* protected by BKL for now, yuck */
+	atomic_t 	openers;
 	sector_t	capacity;	/* size in 512-byte sectors */
 	u32		index;
 	u8		media_present;
@@ -211,6 +212,7 @@ static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf);
 
 /* File ops */
 static int suo_open(struct inode *inode, struct file *filp);
+static int suo_close(struct inode *inode, struct file *filp);
 static int suo_release(struct inode *inode, struct file *filp);
 /* static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo); */
 static void set_media_not_present(struct scsi_osd_disk *sdkp);
@@ -252,7 +254,7 @@ static void suo_read_capacity(struct scsi_osd_disk *sdkp,
 static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
 static int suo_sync_cache(struct scsi_device *sdp);
 EXPORT_SYMBOL(suo_sync_cache);
-static int suo_dispatch_command(struct scsi_device* sdp, struct request* req);
+static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, struct request* req);
 
 /* Init / Release / Probe */
 static int add_osd_disk(struct scsi_osd_disk* sdkp);
@@ -268,6 +270,7 @@ static struct file_operations suo_fops = {
 	.ioctl			= suo_ioctl,
 	.read 			= suo_read,
 	.write 			= suo_write,
+/*	.poll 			= suo_poll, */
 
 	/*  OSD Disks don't have geometry (or at least we don't care)
 	.getgeo			= sd_getgeo,
@@ -601,7 +604,8 @@ static int suo_open(struct inode *inode, struct file *filp)
 	if (!scsi_device_online(sdev))
 		goto error_out;
 
-	if (!sdkp->openers++ && sdev->removable) {
+	atomic_add(&sdkp->openers);
+	if (atomic_read(&sdkp->openers) == 1 && sdev->removable) {
 		if (scsi_block_when_processing_errors(sdev))
 			scsi_set_medium_removal(sdev, SCSI_REMOVAL_PREVENT);
 	}
@@ -632,7 +636,7 @@ static int suo_release(struct inode *inode, struct file *filp)
 
 	SCSI_LOG_HLQUEUE(3, printk("suo_release: disk=%s\n", sdkp->disk_name));
 
-	if (!--sdkp->openers && sdev->removable) {
+	if (atomic_dec_and_test(&sdkp->openers) && sdev->removable) {
 		if (scsi_block_when_processing_errors(sdev))
 			scsi_set_medium_removal(sdev, SCSI_REMOVAL_ALLOW);
 	}
@@ -727,7 +731,70 @@ static int suo_ioctl(struct inode * inode, struct file * filp,
 static ssize_t
 suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 {
-	return -EINVAL;
+	int ret, to_copy, num_left;
+	struct scsi_osd_disk *sdkp;
+	char __user *to = buf;
+	struct list_head* from;
+	struct suo_inflight_response* from_ir;
+	
+	sdkp = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
+	if (!sdkp)
+		return -ENXIO;
+
+	/* If count isn't a multiple of suo_request, 
+	 * throw them out on their ear */
+	if (count == 0 || count % sizeof(struct suo_response) != 0)
+		return -EINVAL;
+
+	/* Start pulling items from the request list */
+	to_copy = num_left = count / sizeof(struct suo_response);
+	from = &sdkp->response_queue;
+	while(num_left > 0)
+	{
+		spin_lock(&sdkp->response_queue_lock);
+
+		/* Do we have something to copy out? */
+		if (from->prev == &sdkp->response_queue)
+		{
+			spin_unlock(&sdkp->response_queue_lock);
+			if(filp->f_flags & O_NONBLOCK)
+			{
+				ret = -EAGAIN;
+				goto out;
+			}
+
+			/* Wait awhile then try again */
+			poll_wait(filp, &sfp->read_wait, wait);
+			continue;
+		}
+
+		/* Do it up, Lars */
+		list_for_each_prev(from, &sdkp->response_queue) {
+			from_ir = list_entry(from, struct suo_inflight_response, list);
+
+			/* Copy it to userspace; if we get an error, bail */
+			if (copy_to_user(to, &from_ir->to_user, sizeof(struct suo_response)))
+			{
+				spin_unlock(&sdkp->response_queue_lock);
+				ret = -EFAULT;
+				goto out;
+			}
+
+			/* Release it back to the unused list */
+			list_del_init(from);
+			suo_unused_response_put(from_ir);
+			num_left--;
+			if(num_left < 1)	break;
+		}
+		
+		spin_unlock(&sdkp->response_queue_lock);
+	
+	}
+
+	ret = (to_copy - num_left) * sizeof(struct suo_response);
+
+out:
+	return ret;
 }
 
 static inline int 
@@ -915,7 +982,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->sense_len = 0;
 	bio = req->bio;
 
-	suo_dispatch_command(sdev, req);
+	suo_dispatch_command(sdev, filp, req);
 
 	ret = req->errors;
 	scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
@@ -935,6 +1002,32 @@ out_putdev:
 	scsi_osd_disk_put(sdkp);
 	return ret;
 }
+
+#if 0
+static unsigned int
+suo_poll(struct file *filp, poll_table * wait)
+{
+	unsigned int res = 0;
+	int count = 0;
+	unsigned long iflags;
+	struct scsi_osd_disk *sdkp;
+
+	ENTERING; 
+
+	sdkp = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
+	if (!sdkp)
+		return POLLERR;
+
+	poll_wait(filp, &sfp->read_wait, wait);
+
+	spin_lock(&sdkp->response_queue_lock);
+	if(list_empty(&sdkp>response_queue))
+		res |= POLLOUT | POLLWRNORM;
+	spin_unlock(&sdkp->response_queue_lock);
+
+	return res;
+}
+#endif
 
 
 #if 0
@@ -1099,7 +1192,7 @@ static void sd_rescan(struct device *dev)
  *
  *	Returns 0 if successful and <0 if error (or cannot be done now).
  **/
-static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
+static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, struct request* req)
 {
 	struct scsi_osd_disk* sdkp;
 	struct suo_inflight_response* response;
@@ -1160,6 +1253,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct request* req)
 
 static void suo_rq_complete(struct request *req, int error)
 {
+	int sense_len;
 	struct suo_inflight_response *response = req->end_io_data;
 	struct scsi_osd_disk *sdkp;
 
@@ -1180,6 +1274,14 @@ static void suo_rq_complete(struct request *req, int error)
 		atomic_dec(&sdkp->inflight);
 	}
 	spin_unlock(&sdkp->inflight_lock);
+
+	/* Actually set the information in the response */
+	/* FIXME: Complain if the sense buffer is too big */
+	sense_len = (req->sense_len > OSD_SENSE_BUFFERSIZE ? 
+		     OSD_SENSE_BUFFERSIZE : req->sense_len);
+	response->to_user.error = error;
+	response->to_user.sense_buffer_len = sense_len;
+	memcpy(response->to_user.sense_buffer, req->sense, sense_len);
 
 	spin_lock(&sdkp->response_queue_lock);
 	list_add(&response->list, &sdkp->response_queue);
@@ -1678,7 +1780,7 @@ static int suo_probe(struct device *dev)
 	sdkp->device = sdp;
 	sdkp->driver = &suo_template;
 	sdkp->index = index;
-	sdkp->openers = 0;
+	atomic_set(&sdkp->openers, 0);
 
 	if (!sdp->timeout) {
 		if (sdp->type != TYPE_MOD)

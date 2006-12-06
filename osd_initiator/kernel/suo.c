@@ -969,7 +969,8 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		ret = -EFAULT;
 		goto out_putreq;
 	}
-	dprintk("request_queue = 0x%p", ret->request_queue);
+
+	dprintk("request_queue = 0x%p\n", req->q);
 
 	/* Check the command itself */
 	ret = check_osd_command(req, &ureq);
@@ -1225,7 +1226,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	req->timeout = SD_TIMEOUT;
 	req->cmd_type = REQ_TYPE_BLOCK_PC;  /* always, we supply command */
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
-	req->rq_disk = &sdkp->gd;
+	req->rq_disk = sdkp->gd;
 	dprintk("request_queue = 0x%p\n", req->q);
 
 	/* Set up the response */
@@ -1246,7 +1247,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	req->end_io = suo_rq_complete;
 
 	dprintk("request_queue = 0x%p\n", req->q);
-	blk_execute_rq_nowait(req->q, &sdkp->gd, req, 0, req->end_io);
+	blk_execute_rq_nowait(req->q, sdkp->gd, req, 0, req->end_io);
 
 	spin_lock(&sdkp->inflight_lock);
 	BUG_ON( atomic_add_negative(1, &sdkp->inflight) );

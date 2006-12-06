@@ -939,6 +939,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		    ureq.data_direction == DMA_BIDIRECTIONAL ? 1 : 0);
 
 	req = blk_get_request(sdev->request_queue, is_write, __GFP_WAIT);
+	dprintk("request_queue = 0x%p\n", sdev->request_queue);
 
 	/* Map user buffers into kernel space */
 	if (ureq.out_data_len) {
@@ -982,6 +983,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->sense_len = 0;
 	bio = req->bio;
 
+	dprintk("request_queue = 0x%p\n", req->q);
 	suo_dispatch_command(sdev, filp, req);
 
 	ret = req->errors;
@@ -991,10 +993,9 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	kfree(sense);
 
 	/* for bounce buffers, this actually does the copy */
-	if (ureq.out_data_len)
-		blk_rq_unmap_user(bio, 0);
-	if (ureq.in_data_len)
-		blk_rq_unmap_user(bio, 0);
+	/* FIXME: This may be shady */
+	if (ureq.out_data_len || ureq.in_data_len)
+		blk_rq_unmap_user(req); /*, 0); */
 
 out_putreq:
 	blk_put_request(req);
@@ -1221,6 +1222,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	req->cmd_type = REQ_TYPE_BLOCK_PC;  /* always, we supply command */
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
 	req->rq_disk = &sdkp->gd;
+	dprintk("request_queue = 0x%p\n", req->q);
 
 	/* Set up the response */
 	response = suo_unused_response_get();
@@ -1238,7 +1240,9 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	/* Set up the last part of the request and send it out */
 	req->end_io_data = response;
 	req->end_io = suo_rq_complete;
-	blk_execute_rq_nowait(req->q, NULL, req, 1, req->end_io);
+
+	dprintk("request_queue = 0x%p\n", req->q);
+	blk_execute_rq_nowait(req->q, &sdkp->gd, req, 0, req->end_io);
 
 	spin_lock(&sdkp->inflight_lock);
 	BUG_ON( atomic_add_negative(1, &sdkp->inflight) );
@@ -1259,6 +1263,7 @@ static void suo_rq_complete(struct request *req, int error)
 
 	ENTERING;
 
+	dprintk("request_queue = 0x%p\n", req->q);
 	if (!response) {
 		printk(KERN_ERR "%s: request io data is NULL", __func__);
 		return;

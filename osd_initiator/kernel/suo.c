@@ -152,7 +152,7 @@ struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
 	struct cdev chrdev;
-	struct gendisk gd;		/* not used much but needed for private_data */
+	struct gendisk* gd;		/* not used much but needed for private_data */
 	struct file_operations* fops;
 	struct class_device classdev;
 	unsigned long __never_unset_me;
@@ -400,7 +400,8 @@ struct scsi_osd_disk *alloc_osd_disk(void)
 	atomic_set(&sdkp->inflight, 0);
 	sdkp->inflight_lock = SPIN_LOCK_UNLOCKED;
 	chrdev = &sdkp->chrdev;
-	gd = &sdkp->gd;
+	gd = alloc_disk(1);
+	sdkp->gd = gd;
 
 	/* Even though we don't really use this structure,
 	 * scsi_prep_fn and several other functions expect
@@ -409,6 +410,7 @@ struct scsi_osd_disk *alloc_osd_disk(void)
 	gd->first_minor = MINOR(sdkp->dev_id);
 	gd->minors = 1;	
 	gd->private_data = sdkp->driver;
+	gd->capacity = 1;
 
 	cdev_init(chrdev, &suo_fops);
 	sdkp->fops = &suo_fops;
@@ -462,6 +464,7 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
 {
 	struct scsi_device *sdev = sdkp->device;
 
+	put_disk(sdkp->gd);
 	mutex_lock(&sd_ref_mutex);
 	class_device_put(&sdkp->classdev);
 	scsi_device_put(sdev);
@@ -966,6 +969,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		ret = -EFAULT;
 		goto out_putreq;
 	}
+	dprintk("request_queue = 0x%p", ret->request_queue);
 
 	/* Check the command itself */
 	ret = check_osd_command(req, &ureq);

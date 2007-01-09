@@ -1000,7 +1000,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	/* for bounce buffers, this actually does the copy */
 	/* FIXME: This may be shady */
 	if (ureq.out_data_len || ureq.in_data_len)
-		blk_rq_unmap_user(req); /*, 0); */
+		//blk_rq_unmap_user(req); /*, 0); */
 
 out_putreq:
 	blk_put_request(req);
@@ -1247,7 +1247,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	req->end_io = suo_rq_complete;
 
 	dprintk("request_queue = 0x%p\n", req->q);
-	blk_execute_rq_nowait(req->q, sdkp->gd, req, 0, req->end_io);
+	blk_execute_rq_nowait(req->q, sdkp->gd, req, 1, req->end_io);
 
 	spin_lock(&sdkp->inflight_lock);
 	BUG_ON( atomic_add_negative(1, &sdkp->inflight) );

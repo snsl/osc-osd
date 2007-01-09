@@ -75,20 +75,20 @@ int main(int argc, char *argv[])
 
 	set_progname(argc, argv);
 
-	interface_init("/dev/sua");
+	int fd = uosd_open("/dev/sua");
 
 	info("inquiry");
 	cdb_build_inquiry(cdb);
 	memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
-	cdb_read_cmd(cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
+	uosd_cdb_read(fd, cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
 	hexdump(inquiry_rsp, sizeof(inquiry_rsp));
 
 	info("osd flush osd");
 	varlen_cdb_init(cdb, OSD_FLUSH_OSD);
 	cdb[10] = 2;  /* flush everything */
-	cdb_nodata_cmd(cdb, 200);
+	uosd_cdb_nodata(fd, cdb, 200);
 
-	interface_exit();
+	uosd_close(fd);
 	return 0;
 }
 

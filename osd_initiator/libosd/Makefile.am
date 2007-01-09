@@ -12,7 +12,6 @@ libosd_la_LDFLAGS = \
 	-version-info $(LT_CURRENT):$(LT_REVISION):$(LT_AGE)
 
 INCLUDES = \
-	-I$(KDIR)/include \
 	-Wall
 	
 noinst_HEADERS = \

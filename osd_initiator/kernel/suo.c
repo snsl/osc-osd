@@ -1226,8 +1226,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	req->timeout = SD_TIMEOUT;
 	req->cmd_type = REQ_TYPE_BLOCK_PC;  /* always, we supply command */
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
-	req->rq_disk = sdkp->gd;
-	dprintk("request_queue = 0x%p\n", req->q);
+	dprintk("req %p, request_queue = 0x%p\n", req, req->q);
 
 	/* Set up the response */
 	response = suo_unused_response_get();
@@ -1244,10 +1243,9 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 
 	/* Set up the last part of the request and send it out */
 	req->end_io_data = response;
-	req->end_io = suo_rq_complete;
 
-	dprintk("request_queue = 0x%p\n", req->q);
-	blk_execute_rq_nowait(req->q, sdkp->gd, req, 1, req->end_io);
+	dprintk("%s: request_queue = 0x%p\n", __func__, req->q);
+	blk_execute_rq_nowait(req->q, NULL, req, 1, suo_rq_complete);
 
 	spin_lock(&sdkp->inflight_lock);
 	BUG_ON( atomic_add_negative(1, &sdkp->inflight) );

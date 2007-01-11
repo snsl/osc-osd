@@ -464,9 +464,10 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
 {
 	struct scsi_device *sdev = sdkp->device;
 
-	put_disk(sdkp->gd);
 	mutex_lock(&sd_ref_mutex);
-	class_device_put(&sdkp->classdev);
+	/* FIXME: Let's try leaking some memory and see if this is right... */
+	//put_disk(sdkp->gd);
+	//class_device_put(&sdkp->classdev);
 	scsi_device_put(sdev);
 	mutex_unlock(&sd_ref_mutex);
 }

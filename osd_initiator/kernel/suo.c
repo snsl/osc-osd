@@ -64,7 +64,6 @@ MODULE_AUTHOR("Paul Betts");
 MODULE_DESCRIPTION("SCSI user-mode object storage (suo) driver");
 MODULE_LICENSE("GPL");
 
-/*
 #define DEBUG
 
 #ifdef DEBUG
@@ -72,6 +71,7 @@ MODULE_LICENSE("GPL");
 #else
 #define dprintk(fmt...)
 #endif
+/*
 */
 
 #define dprintk(fmt...) printk(KERN_INFO "suo: " fmt)
@@ -909,7 +909,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	struct suo_req ureq;
 	struct request *req;
 	int is_write;
-	struct scsi_sense_hdr sshdr;
 	struct scsi_osd_disk *sdkp;
 	struct scsi_device *sdev;
 	struct bio *bio;
@@ -987,26 +986,47 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->cmd_len = ureq.cdb_len;
 	req->sense = sense;
 	req->sense_len = 0;
+
+	/* convenience var */
 	bio = req->bio;
 
+	if (bio) {
+	    dprintk("%s: bio %p %p, flags %lx, vec %p, vec[0].page %p len %u off %u\n",
+	    __func__, req->bio, bio, bio->bi_flags, bio->bi_io_vec, bio->bi_io_vec[0].bv_page,
+	    bio->bi_io_vec[0].bv_len, bio->bi_io_vec[0].bv_offset);
+	    unsigned char *p = page_address(bio->bi_io_vec[0].bv_page);
+	    dprintk("%s: page address %p\n", __func__, p);
+	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
+	    memset(p, 0x55, 4096);
+	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
+	    dprintk("%s: q dma align %x\n", __func__, queue_dma_alignment(req->q));
+	}
+
 	dprintk("request_queue = 0x%p\n", req->q);
-	suo_dispatch_command(sdev, filp, req);
+	ret = suo_dispatch_command(sdev, filp, req);
 
-	ret = req->errors;
-	scsi_normalize_sense(sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
-	if (scsi_sense_valid(&sshdr))
-		scsi_print_sense_hdr(sdkp->disk_name, &sshdr);
-	kfree(sense);
+	if (bio) {
+	    dprintk("%s: bIo %p %p, flags %lx, vec %p, vec[0].page %p len %u off %u\n",
+	    __func__, req->bio, bio, bio->bi_flags, bio->bi_io_vec, bio->bi_io_vec[0].bv_page,
+	    bio->bi_io_vec[0].bv_len, bio->bi_io_vec[0].bv_offset);
+	    unsigned char *p = page_address(bio->bi_io_vec[0].bv_page);
+	    dprintk("%s: page address %p\n", __func__, p);
+	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
+	}
 
-	/* for bounce buffers, this actually does the copy */
-	/* FIXME: This may be shady */
-	if (ureq.out_data_len || ureq.in_data_len)
-		//blk_rq_unmap_user(req); /*, 0); */
+	if (ret) {
+		kfree(sense);
+		if (ureq.out_data_len || ureq.in_data_len)
+		    blk_rq_unmap_user(req);
+		goto out_putreq;
+	}
+	goto out;
 
 out_putreq:
 	blk_put_request(req);
 out_putdev:
 	scsi_osd_disk_put(sdkp);
+out:
 	return ret;
 }
 
@@ -1259,15 +1279,21 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	return 0;
 }
 
+/*
+ * Request has been completed.  This is called from a scsi bottom half
+ * handler.  Fill in response fields from the request and free resources.
+ */
 static void suo_rq_complete(struct request *req, int error)
 {
 	int sense_len;
 	struct suo_inflight_response *response = req->end_io_data;
 	struct scsi_osd_disk *sdkp;
+	struct scsi_sense_hdr sshdr;
 
 	ENTERING;
 
-	dprintk("request_queue = 0x%p\n", req->q);
+	dprintk("%s: req %p req->q %p bio %p\n", __func__,
+	        req, req->q, req->bio);
 	if (!response) {
 		printk(KERN_ERR "%s: request io data is NULL", __func__);
 		return;
@@ -1288,9 +1314,38 @@ static void suo_rq_complete(struct request *req, int error)
 	/* FIXME: Complain if the sense buffer is too big */
 	sense_len = (req->sense_len > OSD_SENSE_BUFFERSIZE ? 
 		     OSD_SENSE_BUFFERSIZE : req->sense_len);
+	/* XXX: anything in req->errors? */
 	response->to_user.error = error;
 	response->to_user.sense_buffer_len = sense_len;
 	memcpy(response->to_user.sense_buffer, req->sense, sense_len);
+	/* XXX: for debugging, probably the user's job to deal with it */
+	scsi_normalize_sense(req->sense, SCSI_SENSE_BUFFERSIZE, &sshdr);
+	if (scsi_sense_valid(&sshdr))
+		scsi_print_sense_hdr(sdkp->disk_name, &sshdr);
+
+	/* XXX: bio should not be null here, but it is.  Why? */
+	if (req->bio) {
+	    dprintk("%s: bio %p, flags %lx, vec %p, vec[0].page %p len %u off %u\n",
+	    __func__, req->bio, req->bio->bi_flags, req->bio->bi_io_vec, req->bio->bi_io_vec[0].bv_page,
+	    req->bio->bi_io_vec[0].bv_len, req->bio->bi_io_vec[0].bv_offset);
+	    unsigned char *p = page_address(req->bio->bi_io_vec[0].bv_page);
+	    dprintk("%s: page address %p\n", __func__, p);
+	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
+	}
+
+	/*
+	 * For bounce buffers, this actually does the copy.  Does nothing
+	 * unless req->bio was non-null.
+	 */
+	blk_rq_unmap_user(req);
+
+	/* free resources */
+	kfree(req->sense);
+
+	/* q lock held by thing that calls ->end_io */
+	__blk_put_request(req->q, req);
+
+	scsi_osd_disk_put(sdkp);
 
 	spin_lock(&sdkp->response_queue_lock);
 	list_add(&response->list, &sdkp->response_queue);

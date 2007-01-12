@@ -20,7 +20,9 @@ typedef unsigned long long u64;
 #endif
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <linux/types.h>
 #include <scsi/scsi.h>
 #include <libosd/interface.h>
@@ -78,10 +80,14 @@ int main(int argc, char *argv[])
 	int fd = uosd_open("/dev/sua");
 
 	info("inquiry");
+	memset(inquiry_rsp, 0xaa, 80);
 	cdb_build_inquiry(cdb);
 	memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
 	uosd_cdb_read(fd, cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
 	hexdump(inquiry_rsp, sizeof(inquiry_rsp));
+
+	info("sleeping 10");
+	sleep(10);
 
 	info("osd flush osd");
 	varlen_cdb_init(cdb, OSD_FLUSH_OSD);

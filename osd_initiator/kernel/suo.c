@@ -144,6 +144,7 @@ static int drv_major = 0;
 struct suo_inflight_response {
 	struct list_head list;
 	struct suo_response to_user;
+	struct bio *bio;
 	struct scsi_osd_disk *sdkp;
 	struct file* filp;
 };
@@ -736,9 +737,9 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 {
 	int ret, to_copy, num_left;
 	struct scsi_osd_disk *sdkp;
-	char __user *to = buf;
-	struct list_head* from;
-	struct suo_inflight_response* from_ir;
+	struct suo_inflight_response *from_ir, *next;
+
+	ENTERING;
 	
 	sdkp = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
 	if (!sdkp)
@@ -749,55 +750,58 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 	if (count == 0 || count % sizeof(struct suo_response) != 0)
 		return -EINVAL;
 
-	/* Start pulling items from the request list */
-	to_copy = num_left = count / sizeof(struct suo_response);
-	from = &sdkp->response_queue;
-	while(num_left > 0)
-	{
-		spin_lock(&sdkp->response_queue_lock);
+	/* if blocking, wait for at least one item to finish */
+relook:
+	spin_lock(&sdkp->response_queue_lock);
 
-		/* Do we have something to copy out? */
-		if (from->prev == &sdkp->response_queue)
-		{
-			spin_unlock(&sdkp->response_queue_lock);
-			if(filp->f_flags & O_NONBLOCK)
-			{
-				ret = -EAGAIN;
-				goto out;
-			}
-
-			/* Wait awhile then try again */
-			/* should be poll_wait(filp, &sfp->read_wait, wait); */
-			yield();
-			continue;
-		}
-
-		/* Do it up, Lars */
-		list_for_each_prev(from, &sdkp->response_queue) {
-			from_ir = list_entry(from, struct suo_inflight_response, list);
-
-			/* Copy it to userspace; if we get an error, bail */
-			if (copy_to_user(to, &from_ir->to_user, sizeof(struct suo_response)))
-			{
-				spin_unlock(&sdkp->response_queue_lock);
-				ret = -EFAULT;
-				goto out;
-			}
-
-			/* Release it back to the unused list */
-			list_del_init(from);
-			suo_unused_response_put(from_ir);
-			num_left--;
-			if(num_left < 1)	break;
-		}
-		
+	/* Is there nothing to copy out? */
+	if (list_empty(&sdkp->response_queue)) {
 		spin_unlock(&sdkp->response_queue_lock);
-	
+		if (filp->f_flags & O_NONBLOCK) {
+			ret = -EAGAIN;
+			goto out;
+		}
+
+		/* Wait awhile then try again */
+		/* should be poll_wait(filp, &sfp->read_wait, wait); */
+		yield();
+		goto relook;
 	}
+
+	/* Upper bound on items to pull from the list */
+	to_copy = count / sizeof(struct suo_response);
+	num_left = to_copy;
+
+	/* know there is something to copy out, do so, Lars */
+	list_for_each_entry_safe(from_ir, next, &sdkp->response_queue, list) {
+
+		/* Copy it to userspace; if we get an error, bail */
+		ret = copy_to_user(buf, &from_ir->to_user,
+		                   sizeof(struct suo_response));
+		if (ret) {
+			spin_unlock(&sdkp->response_queue_lock);
+			ret = -EFAULT;
+			goto out;
+		}
+
+		/* Release it back to the unused list */
+		list_del_init(&from_ir->list);
+		suo_unused_response_put(from_ir);
+
+		--num_left;
+		buf += sizeof(struct suo_response);
+
+		if (num_left == 0)
+			break;
+	}
+	
+	spin_unlock(&sdkp->response_queue_lock);
 
 	ret = (to_copy - num_left) * sizeof(struct suo_response);
 
 out:
+	scsi_osd_disk_put(sdkp);
+	dprintk("%s: returning %d\n", __func__, ret);
 	return ret;
 }
 
@@ -942,7 +946,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		    ureq.data_direction == DMA_BIDIRECTIONAL ? 1 : 0);
 
 	req = blk_get_request(sdev->request_queue, is_write, __GFP_WAIT);
-	dprintk("request_queue = 0x%p\n", sdev->request_queue);
 
 	/* Map user buffers into kernel space */
 	if (ureq.out_data_len) {
@@ -970,8 +973,6 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 		goto out_putreq;
 	}
 
-	dprintk("request_queue = 0x%p\n", req->q);
-
 	/* Check the command itself */
 	ret = check_osd_command(req, &ureq);
 	if (ret)
@@ -990,29 +991,12 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	/* convenience var */
 	bio = req->bio;
 
-	if (bio) {
+	if (bio)
 	    dprintk("%s: bio %p %p, flags %lx, vec %p, vec[0].page %p len %u off %u\n",
 	    __func__, req->bio, bio, bio->bi_flags, bio->bi_io_vec, bio->bi_io_vec[0].bv_page,
 	    bio->bi_io_vec[0].bv_len, bio->bi_io_vec[0].bv_offset);
-	    unsigned char *p = page_address(bio->bi_io_vec[0].bv_page);
-	    dprintk("%s: page address %p\n", __func__, p);
-	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
-	    memset(p, 0x55, 4096);
-	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
-	    dprintk("%s: q dma align %x\n", __func__, queue_dma_alignment(req->q));
-	}
 
-	dprintk("request_queue = 0x%p\n", req->q);
 	ret = suo_dispatch_command(sdev, filp, req);
-
-	if (bio) {
-	    dprintk("%s: bIo %p %p, flags %lx, vec %p, vec[0].page %p len %u off %u\n",
-	    __func__, req->bio, bio, bio->bi_flags, bio->bi_io_vec, bio->bi_io_vec[0].bv_page,
-	    bio->bi_io_vec[0].bv_len, bio->bi_io_vec[0].bv_offset);
-	    unsigned char *p = page_address(bio->bi_io_vec[0].bv_page);
-	    dprintk("%s: page address %p\n", __func__, p);
-	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
-	}
 
 	if (ret) {
 		kfree(sense);
@@ -1247,7 +1231,6 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	req->timeout = SD_TIMEOUT;
 	req->cmd_type = REQ_TYPE_BLOCK_PC;  /* always, we supply command */
 	req->cmd_flags |= REQ_QUIET | REQ_PREEMPT;
-	dprintk("req %p, request_queue = 0x%p\n", req, req->q);
 
 	/* Set up the response */
 	response = suo_unused_response_get();
@@ -1255,6 +1238,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 		printk(KERN_ERR "%s: Couldn't alloc suo_inflight_response; bailing", __func__);
 		return -ENOMEM;
 	}
+	response->bio = req->bio;  /* save bio so we can undo it later */
 	response->to_user.key = suo_get_and_inc_cmdkey();
 	response->to_user.error = -EIO;
 	response->to_user.sense_buffer_len = 0;
@@ -1265,7 +1249,6 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	/* Set up the last part of the request and send it out */
 	req->end_io_data = response;
 
-	dprintk("%s: request_queue = 0x%p\n", __func__, req->q);
 	blk_execute_rq_nowait(req->q, NULL, req, 1, suo_rq_complete);
 
 	spin_lock(&sdkp->inflight_lock);
@@ -1292,15 +1275,15 @@ static void suo_rq_complete(struct request *req, int error)
 
 	ENTERING;
 
-	dprintk("%s: req %p req->q %p bio %p\n", __func__,
-	        req, req->q, req->bio);
 	if (!response) {
 		printk(KERN_ERR "%s: request io data is NULL", __func__);
 		return;
 	}
 	sdkp = response->sdkp;
 
-	dprintk("%s - key %d\n", __func__, (int) response->to_user.key);
+	dprintk("%s: req %p req->q %p bio %p saved bio %p key %llu\n", __func__,
+	        req, req->q, req->bio, response->bio, response->to_user.key);
+
 	spin_lock(&sdkp->inflight_lock);
 	if ( unlikely(atomic_read(&sdkp->inflight) == 0) ) {
 		printk(KERN_ERR "suo: received more responses than requests on %s. Huh?\n",
@@ -1323,15 +1306,14 @@ static void suo_rq_complete(struct request *req, int error)
 	if (scsi_sense_valid(&sshdr))
 		scsi_print_sense_hdr(sdkp->disk_name, &sshdr);
 
-	/* XXX: bio should not be null here, but it is.  Why? */
-	if (req->bio) {
-	    dprintk("%s: bio %p, flags %lx, vec %p, vec[0].page %p len %u off %u\n",
-	    __func__, req->bio, req->bio->bi_flags, req->bio->bi_io_vec, req->bio->bi_io_vec[0].bv_page,
-	    req->bio->bi_io_vec[0].bv_len, req->bio->bi_io_vec[0].bv_offset);
-	    unsigned char *p = page_address(req->bio->bi_io_vec[0].bv_page);
-	    dprintk("%s: page address %p\n", __func__, p);
-	    dprintk("%s: page contents %02x %02x %02x %02x\n", __func__, p[0], p[1], p[2], p[3]);
-	}
+	req->bio = response->bio;  /* put back orign to unmap */
+	if (req->bio)
+	    dprintk("%s: bio %p, flags %lx, vec %p, vec[0].page %p len %u"
+	            " off %u\n",
+		    __func__, req->bio, req->bio->bi_flags, req->bio->bi_io_vec,
+		    req->bio->bi_io_vec[0].bv_page,
+		    req->bio->bi_io_vec[0].bv_len,
+		    req->bio->bi_io_vec[0].bv_offset);
 
 	/*
 	 * For bounce buffers, this actually does the copy.  Does nothing
@@ -1348,7 +1330,7 @@ static void suo_rq_complete(struct request *req, int error)
 	scsi_osd_disk_put(sdkp);
 
 	spin_lock(&sdkp->response_queue_lock);
-	list_add(&response->list, &sdkp->response_queue);
+	list_add_tail(&response->list, &sdkp->response_queue);
 	spin_unlock(&sdkp->response_queue_lock);
 }
 
@@ -1750,7 +1732,8 @@ static int add_osd_disk(struct scsi_osd_disk* sdkp)
 	struct cdev* chrdev = &sdkp->chrdev;
 
 	strlcpy(chrdev->kobj.name, sdkp->disk_name, KOBJ_NAME_LEN);
-	dprintk("Adding device, major = %i, minor = %i\n", MAJOR(sdkp->dev_id), MINOR(sdkp->dev_id));
+	dprintk("Adding device, major = %i, minor = %i\n", MAJOR(sdkp->dev_id),
+	        MINOR(sdkp->dev_id));
 
 	chrdev->owner = THIS_MODULE;
 	chrdev->ops = &suo_fops;
@@ -2023,10 +2006,10 @@ static int __init init_suo(void)
 bail:
 	/* TODO: Unregister SCSI if anything gets added after the
 	 * driver registration */
-	if (so_sysfs_class)	class_destroy(so_sysfs_class);
-	if (has_registered_chrdev) {
+	if (so_sysfs_class)
+		class_destroy(so_sysfs_class);
+	if (has_registered_chrdev)
 		unregister_chrdev_region(dev_id, SUO_MAX_OSD_ENTRIES);
-	}
 	return ret;
 }
 
@@ -2044,9 +2027,11 @@ static void __exit exit_suo(void)
 	spin_unlock(&unused_response_list_lock);
 	scsi_unregister_driver(&suo_template.gendrv);
 	class_unregister(&suo_disk_class);
-	if (so_sysfs_class)	class_destroy(so_sysfs_class);
+	if (so_sysfs_class)
+		class_destroy(so_sysfs_class);
 	unregister_chrdev_region(MKDEV(drv_major, 0), SUO_MAX_OSD_ENTRIES);
 }
 
 module_init(init_suo);
 module_exit(exit_suo);
+

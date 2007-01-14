@@ -21,6 +21,25 @@ void uosd_close(int fd)
 	close(fd);
 }
 
+/*
+ * Blocking, waits for a response.
+ */
+int uosd_wait_response(int fd, uint64_t *key)
+{
+	int ret;
+	struct suo_response response;
+
+	ret = read(fd, &response, sizeof(response));
+	if (ret < 0)
+		error_errno("%s: read response", __func__);
+	if (ret != sizeof(response))
+		error("%s: got %d bytes, expecting response %d bytes", __func__,
+		      ret, sizeof(response));
+	if (key)
+		*key = response.key;
+	return response.error;
+}
+
 static int write_cdb(int fd, 
 		     const uint8_t *cdb, 
 		     int cdb_len, 
@@ -71,3 +90,4 @@ int uosd_cdb_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 	return write_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen,
 	               inbuf, inlen);
 }
+

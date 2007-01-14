@@ -16,6 +16,7 @@ enum data_direction {
 
 int uosd_open(const char *dev);
 void uosd_close(int fd);
+int uosd_wait_response(int fd, uint64_t *key);
 int uosd_cdb_nodata(int fd, const uint8_t *cdb, int cdb_len);
 int uosd_cdb_write(int fd, const uint8_t *cdb, int cdb_len, const void *buf, size_t len);
 int uosd_cdb_read(int fd, const uint8_t *cdb, int cdb_len, void *buf, size_t len);

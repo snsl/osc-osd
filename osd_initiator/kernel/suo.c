@@ -149,6 +149,11 @@ struct suo_inflight_response {
 	struct file* filp;
 };
 
+struct suo_filp_extra {
+	spinlock_t lock;
+	wait_queue_head_t read_wait;
+};
+
 struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
@@ -156,6 +161,7 @@ struct scsi_osd_disk {
 	struct gendisk* gd;		/* not used much but needed for private_data */
 	struct file_operations* fops;
 	struct class_device classdev;
+	wait_queue_head_t* o_excl_wait;
 	unsigned long __never_unset_me;
 	
 	struct kobject kobj;
@@ -232,10 +238,12 @@ static struct scsi_osd_disk* alloc_osd_disk(void);
 static struct scsi_osd_disk *scsi_osd_disk_get(struct cdev *chrdev);
 static struct scsi_osd_disk *scsi_osd_disk_get_from_dev(struct device *dev);
 static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp);
+static struct suo_filp_extra* alloc_suo_filp_extra(void);
 EXPORT_SYMBOL(alloc_osd_disk);
 EXPORT_SYMBOL(scsi_osd_disk_get);
 EXPORT_SYMBOL(scsi_osd_disk_get_from_dev);
 EXPORT_SYMBOL(scsi_osd_disk_put);
+EXPORT_SYMBOL(alloc_suo_filp_extra);
 
 /* Disk management */
 /* static int sd_media_changed(struct scsi_osd_disk *sdkp); */
@@ -382,6 +390,19 @@ static struct scsi_driver suo_template = {
 	.issue_flush		= sd_issue_flush,
 	.init_command 		= NULL,
 };
+
+static struct suo_filp_extra* alloc_suo_filp_extra(void)
+{
+	struct suo_filp_extra* newobj = kzalloc(sizeof(struct suo_filp_extra), GFP_KERNEL);
+	if(!newobj)
+		goto done;
+
+	newobj->lock = SPIN_LOCK_UNLOCKED;
+	init_waitqueue_head(&newobj->read_wait);
+
+done:
+	return newobj;
+}
 
 static inline struct scsi_osd_disk *scsi_osd_disk(struct cdev *chrdev)
 {
@@ -614,6 +635,11 @@ static int suo_open(struct inode *inode, struct file *filp)
 			scsi_set_medium_removal(sdev, SCSI_REMOVAL_PREVENT);
 	}
 
+	/* FIXME: Adding some extra info via private_data may be shady */
+	filp->private_data = alloc_suo_filp_extra();
+	if(unlikely(filp->private_data))
+		goto error_out;
+
 	return 0;
 
 error_out:
@@ -637,8 +663,19 @@ static int suo_release(struct inode *inode, struct file *filp)
 	struct cdev* chrdev = inode->i_cdev;
 	struct scsi_osd_disk *sdkp = scsi_osd_disk(chrdev);
 	struct scsi_device *sdev = sdkp->device;
+	struct suo_filp_extra* fe = filp->private_data;
 
 	SCSI_LOG_HLQUEUE(3, printk("suo_release: disk=%s\n", sdkp->disk_name));
+
+	/* FIXME: Does this always get called for each open, even if the process
+	 * gets killed off, etc? */
+	
+	if(unlikely(!fe))
+	{
+		printk(KERN_ERR "suo - %s: filp extra data is null!\n", __func__);
+	}
+	else
+		kfree(fe);
 
 	if (atomic_dec_and_test(&sdkp->openers) && sdev->removable) {
 		if (scsi_block_when_processing_errors(sdev))
@@ -738,11 +775,17 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 	int ret, to_copy, num_left;
 	struct scsi_osd_disk *sdkp;
 	struct suo_inflight_response *from_ir, *next;
+	struct suo_filp_extra *fe;
+	DECLARE_WAITQUEUE(wait, current);
 
 	ENTERING;
 	
 	sdkp = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
-	if (!sdkp)
+	if (unlikely(!sdkp))
+		return -ENXIO;
+
+	fe = filp->private_data;
+	if (unlikely(!fe))
 		return -ENXIO;
 
 	/* If count isn't a multiple of suo_request, 
@@ -751,11 +794,11 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 		return -EINVAL;
 
 	/* if blocking, wait for at least one item to finish */
-relook:
 	spin_lock(&sdkp->response_queue_lock);
 
 	/* Is there nothing to copy out? */
-	if (list_empty(&sdkp->response_queue)) {
+	add_wait_queue(&fe->read_wait, &wait);
+	while(list_empty(&sdkp->response_queue)) {
 		spin_unlock(&sdkp->response_queue_lock);
 		if (filp->f_flags & O_NONBLOCK) {
 			ret = -EAGAIN;
@@ -763,10 +806,13 @@ relook:
 		}
 
 		/* Wait awhile then try again */
-		/* should be poll_wait(filp, &sfp->read_wait, wait); */
-		yield();
-		goto relook;
+		set_current_state(TASK_INTERRUPTIBLE);
+		/* if (signal_pending(current)) */
+			/* Do stuff? */
+		schedule();
 	}
+	set_current_state(TASK_RUNNING);
+	remove_wait_queue(&fe->read_wait, &wait);
 
 	/* Upper bound on items to pull from the list */
 	to_copy = count / sizeof(struct suo_response);

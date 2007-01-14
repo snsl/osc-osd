@@ -637,7 +637,7 @@ static int suo_open(struct inode *inode, struct file *filp)
 
 	/* FIXME: Adding some extra info via private_data may be shady */
 	filp->private_data = alloc_suo_filp_extra();
-	if(unlikely(filp->private_data))
+	if(unlikely(!filp->private_data))
 		goto error_out;
 
 	return 0;
@@ -805,10 +805,13 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 			goto out;
 		}
 
-		/* Wait awhile then try again */
+		/* Wait awhile then try again, If they bail, we just give up */
 		set_current_state(TASK_INTERRUPTIBLE);
-		/* if (signal_pending(current)) */
-			/* Do stuff? */
+		if (signal_pending(current))
+		{
+			ret = -EAGAIN;
+			goto out;
+		}
 		schedule();
 	}
 	set_current_state(TASK_RUNNING);

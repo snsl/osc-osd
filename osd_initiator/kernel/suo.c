@@ -278,7 +278,7 @@ static struct file_operations suo_fops = {
 	.ioctl			= suo_ioctl,
 	.read 			= suo_read,
 	.write 			= suo_write,
-/*	.poll 			= suo_poll, */
+	.poll 			= suo_poll, 
 
 	/*  OSD Disks don't have geometry (or at least we don't care)
 	.getgeo			= sd_getgeo,
@@ -854,6 +854,41 @@ out:
 	return ret;
 }
 
+
+static unsigned int
+suo_poll(struct file *filp, poll_table * wait)
+{
+	unsigned int res = 0;
+	int count = 0;
+	unsigned long iflags;
+	struct scsi_osd_disk *sdkp;
+	struct suo_filp_extra *fe;
+	DECLARE_WAITQUEUE(wait, current);
+
+	ENTERING; 
+
+	sdkp = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
+	if (!sdkp)
+		return POLLERR;
+
+	fe = filp->private_data;
+	if (unlikely(!fe))
+		return POLLERR;
+
+	/* FIXME: I guess this works? */
+	poll_wait(filp, &fe->read_wait, wait);
+
+	spin_lock(&sdkp->response_queue_lock);
+	if(list_empty(&sdkp->response_queue))
+		res |= POLLOUT | POLLWRNORM;
+
+	spin_unlock(&sdkp->response_queue_lock);
+
+	return res;
+}
+
+
+
 static inline int 
 check_suo_request(struct suo_req* ureq)
 {
@@ -1062,33 +1097,6 @@ out_putdev:
 out:
 	return ret;
 }
-
-#if 0
-static unsigned int
-suo_poll(struct file *filp, poll_table * wait)
-{
-	unsigned int res = 0;
-	int count = 0;
-	unsigned long iflags;
-	struct scsi_osd_disk *sdkp;
-
-	ENTERING; 
-
-	sdkp = scsi_osd_disk_get(filp->f_dentry->d_inode->i_cdev);
-	if (!sdkp)
-		return POLLERR;
-
-	poll_wait(filp, &sfp->read_wait, wait);
-
-	spin_lock(&sdkp->response_queue_lock);
-	if(list_empty(&sdkp>response_queue))
-		res |= POLLOUT | POLLWRNORM;
-	spin_unlock(&sdkp->response_queue_lock);
-
-	return res;
-}
-#endif
-
 
 #if 0
 /**

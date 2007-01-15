@@ -35,6 +35,7 @@
 #include <linux/mutex.h>
 #include <linux/kobject.h>
 #include <linux/cdev.h>
+#include <linux/poll.h>
 #include <asm/uaccess.h>
 
 #include <scsi/scsi.h>
@@ -229,7 +230,7 @@ static ssize_t suo_read(struct file *filp, char __user *buf,
 static ssize_t suo_write(struct file *filp, const char __user *buf, 
 		size_t count, loff_t * ppos);
 static void suo_rq_complete(struct request* req, int error);
-
+static unsigned int suo_poll(struct file *filp, poll_table * wait);
 
 /* Alloc / free / locks */
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev);
@@ -856,14 +857,11 @@ out:
 
 
 static unsigned int
-suo_poll(struct file *filp, poll_table * wait)
+suo_poll(struct file *filp, poll_table * wait_table)
 {
 	unsigned int res = 0;
-	int count = 0;
-	unsigned long iflags;
 	struct scsi_osd_disk *sdkp;
 	struct suo_filp_extra *fe;
-	DECLARE_WAITQUEUE(wait, current);
 
 	ENTERING; 
 
@@ -876,7 +874,7 @@ suo_poll(struct file *filp, poll_table * wait)
 		return POLLERR;
 
 	/* FIXME: I guess this works? */
-	poll_wait(filp, &fe->read_wait, wait);
+	poll_wait(filp, &fe->read_wait, wait_table);
 
 	spin_lock(&sdkp->response_queue_lock);
 	if(list_empty(&sdkp->response_queue))
@@ -1300,6 +1298,7 @@ static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, stru
 	response->to_user.error = -EIO;
 	response->to_user.sense_buffer_len = 0;
 	response->sdkp = sdkp;
+	response->filp = filp;
 
 	dprintk("%s: key = %d\n", __func__, (int) response->to_user.key);
 
@@ -1329,14 +1328,20 @@ static void suo_rq_complete(struct request *req, int error)
 	struct suo_inflight_response *response = req->end_io_data;
 	struct scsi_osd_disk *sdkp;
 	struct scsi_sense_hdr sshdr;
+	struct suo_filp_extra* fe; 
 
 	ENTERING;
 
-	if (!response) {
+	if (unlikely(!response)) {
 		printk(KERN_ERR "%s: request io data is NULL", __func__);
 		return;
 	}
 	sdkp = response->sdkp;
+
+	fe = NULL;
+	if (unlikely(response->filp))
+		fe = response->filp->private_data;
+	
 
 	dprintk("%s: req %p req->q %p bio %p saved bio %p key %llu\n", __func__,
 	        req, req->q, req->bio, response->bio, response->to_user.key);
@@ -1383,6 +1388,14 @@ static void suo_rq_complete(struct request *req, int error)
 
 	/* q lock held by thing that calls ->end_io */
 	__blk_put_request(req->q, req);
+
+	/* Signal the associated wait queue to wake up */
+	if(likely(fe))
+	{
+		spin_lock(&fe->lock);
+		wake_up(&fe->read_wait);
+		spin_unlock(&fe->lock);
+	}
 
 	scsi_osd_disk_put(sdkp);
 

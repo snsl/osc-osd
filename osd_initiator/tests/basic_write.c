@@ -75,23 +75,27 @@ int main(int argc, char *argv[])
 	uint8_t cdb[200];
 	uint8_t inquiry_rsp[80];
 	uint64_t key;
-	int fd, err;
+	int fd, err, i;
 
 	set_progname(argc, argv);
 
 	fd = uosd_open("/dev/sua");
 
-	info("inquiry");
-	memset(inquiry_rsp, 0xaa, 80);
-	cdb_build_inquiry(cdb);
-	memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
-	uosd_cdb_read(fd, cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
+	for(i=0; i<10; i++)
+	{
+		info("inquiry");
+		memset(inquiry_rsp, 0xaa, 80);
+		cdb_build_inquiry(cdb);
+		memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
+		uosd_cdb_read(fd, cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
 
-	/* now wait for the result */
-	info("waiting for response");
-	err = uosd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
-	hexdump(inquiry_rsp, sizeof(inquiry_rsp));
+		/* now wait for the result */
+		info("waiting for response");
+		err = uosd_wait_response(fd, &key);
+		info("response key %lx error %d", key, err);
+		hexdump(inquiry_rsp, sizeof(inquiry_rsp));
+		fflush(0);	
+	}
 
 	info("sleeping 10 before flush");
 	sleep(10);
@@ -99,11 +103,11 @@ int main(int argc, char *argv[])
 	info("osd flush osd");
 	varlen_cdb_init(cdb, OSD_FLUSH_OSD);
 	cdb[10] = 2;  /* flush everything */
-	uosd_cdb_nodata(fd, cdb, 200);
+	//uosd_cdb_nodata(fd, cdb, 200);
 
 	/* now wait for the result */
 	info("waiting for response");
-	err = uosd_wait_response(fd, &key);
+	//err = uosd_wait_response(fd, &key);
 	info("response key %lx error %d", key, err);
 
 	uosd_close(fd);

@@ -515,7 +515,6 @@ static inline int suo_get_and_inc_cmdkey(void)
 {
 	int ret;
 	spin_lock(&cmd_key_lock);
-	atomic_inc(&cmd_key);
 	ret = atomic_read(&cmd_key);
 	atomic_inc(&cmd_key);
 	spin_unlock(&cmd_key_lock);

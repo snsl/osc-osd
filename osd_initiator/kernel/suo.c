@@ -1,6 +1,6 @@
 /*
  *  History:
- *  Started: October 2006 by Paul Betts, to allow user process control 
+ *  Started: October 2006 by Paul Betts, to allow user processes control 
  *  	     of Object Storage Devices.
  *
  * Original driver (suo.c):
@@ -14,7 +14,6 @@
  * any later version.
  */
 
-/* FIXME: Was this linux/config.h ? */
 #include <linux/autoconf.h>
 
 #include <linux/module.h>
@@ -72,15 +71,15 @@ MODULE_LICENSE("GPL");
 #else
 #define dprintk(fmt...)
 #endif
-/*
-*/
 
 #define dprintk(fmt...) printk(KERN_INFO "suo: " fmt)
 #define ENTERING 	dprintk("suo: Entering %s\n", __func__)
 
-static int major;
-module_param(major, int, 0);
-MODULE_PARM_DESC(major, "Major device number");
+#define VARLEN_CDB_SIZE 200
+
+#ifndef VARLEN_CDB
+#define VARLEN_CDB 0x7f
+#endif
 
 
 /*
@@ -133,28 +132,8 @@ const unsigned char valid_scsi_cmd_list[] = {
 
 
 /*
- * Globals
- */
-static struct class *so_sysfs_class;
-static int drv_major = 0;
-
-/*
  * Structs
  */
-
-struct suo_inflight_response {
-	struct list_head list;
-	struct suo_response to_user;
-	struct bio *bio;
-	struct scsi_osd_disk *sdkp;
-	struct file* filp;
-};
-
-struct suo_filp_extra {
-	spinlock_t lock;
-	wait_queue_head_t read_wait;
-};
-
 struct scsi_osd_disk {
 	struct scsi_driver *driver;	/* always &suo_template */
 	struct scsi_device *device;
@@ -163,7 +142,6 @@ struct scsi_osd_disk {
 	struct file_operations* fops;
 	struct class_device classdev;
 	wait_queue_head_t* o_excl_wait;
-	unsigned long __never_unset_me;
 	
 	struct kobject kobj;
 	dev_t dev_id;
@@ -189,6 +167,26 @@ struct scsi_osd_disk {
 };
 #define to_osd_disk(obj) container_of(obj,struct scsi_osd_disk,classdev)
 
+struct suo_inflight_response {
+	struct list_head list;
+	struct suo_response to_user;
+	struct bio *bio;
+	struct scsi_osd_disk *sdkp;
+	struct file* filp;
+};
+
+struct suo_filp_extra {
+	spinlock_t lock;
+	wait_queue_head_t read_wait;
+};
+
+
+/*
+ * Globals
+ */
+static struct class *so_sysfs_class;
+static int drv_major = 0;
+
 static DEFINE_IDR(sd_index_idr);
 static DEFINE_SPINLOCK(sd_index_lock);
 
@@ -197,40 +195,23 @@ static DEFINE_SPINLOCK(sd_index_lock);
  * object after last put) */
 static DEFINE_MUTEX(sd_ref_mutex);
 
-
 /* A simple rolling key and its lock */
-static DEFINE_SPINLOCK(cmd_key_lock);
 static atomic_t cmd_key;
 
 /* These are used by suo_inflight_response_*; don't access them 
- * directly */
+ * directly. This stores a list of available response structs 
+ * so that we don't kzalloc/kfree a lot of stuff */
 static DEFINE_SPINLOCK(unused_response_list_lock);
 static LIST_HEAD(unused_response_list);
+
+static int major;
+module_param(major, int, 0);
+MODULE_PARM_DESC(major, "Major device number");
 
 
 /*
  * Forward Declarations
  */
-
-/* Cache stuff */
-static ssize_t sd_store_cache_type(struct class_device *classdev, 
-		const char *buf, size_t count);
-static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf);
-/* static ssize_t sd_show_fua(struct class_device *classdev, char *buf); */
-
-/* File ops */
-static int suo_open(struct inode *inode, struct file *filp);
-static int suo_release(struct inode *inode, struct file *filp);
-/* static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo); */
-static void set_media_not_present(struct scsi_osd_disk *sdkp);
-static int suo_ioctl(struct inode * inode, struct file * filp, 
-		unsigned int cmd, unsigned long arg);
-static ssize_t suo_read(struct file *filp, char __user *buf, 
-		size_t count, loff_t * ppos);
-static ssize_t suo_write(struct file *filp, const char __user *buf, 
-		size_t count, loff_t * ppos);
-static void suo_rq_complete(struct request* req, int error);
-static unsigned int suo_poll(struct file *filp, poll_table * wait);
 
 /* Alloc / free / locks */
 static inline struct scsi_osd_disk* scsi_osd_disk(struct cdev* chrdev);
@@ -246,10 +227,27 @@ EXPORT_SYMBOL(scsi_osd_disk_get_from_dev);
 EXPORT_SYMBOL(scsi_osd_disk_put);
 EXPORT_SYMBOL(alloc_suo_filp_extra);
 
-/* Disk management */
-/* static int sd_media_changed(struct scsi_osd_disk *sdkp); */
+/* Cache stuff */
+static ssize_t sd_store_cache_type(struct class_device *classdev, 
+		const char *buf, size_t count);
+static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf);
+static ssize_t sd_show_fua(struct class_device *classdev, char *buf);
+
+/* File ops */
+static int suo_open(struct inode *inode, struct file *filp);
+static int suo_release(struct inode *inode, struct file *filp);
+static void set_media_not_present(struct scsi_osd_disk *sdkp);
+static int suo_ioctl(struct inode * inode, struct file * filp, 
+		unsigned int cmd, unsigned long arg);
+static ssize_t suo_read(struct file *filp, char __user *buf, 
+		size_t count, loff_t * ppos);
+static ssize_t suo_write(struct file *filp, const char __user *buf, 
+		size_t count, loff_t * ppos);
+static void suo_rq_complete(struct request* req, int error);
+static unsigned int suo_poll(struct file *filp, poll_table * wait);
+
+/* Disk management / Support functions */
 static int sd_issue_flush(struct device *dev, sector_t *error_sector);
-/* static void sd_prepare_flush(request_queue_t *q, struct request *rq); */
 static void sd_rescan(struct device *dev);
 static int media_not_present(struct scsi_osd_disk *sdkp,
 		struct scsi_sense_hdr *sshdr);
@@ -264,6 +262,8 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp);
 static int suo_sync_cache(struct scsi_device *sdp);
 EXPORT_SYMBOL(suo_sync_cache);
 static int suo_dispatch_command(struct scsi_device* sdp, struct file* filp, struct request* req);
+static inline int check_suo_request(struct suo_req* ureq);
+static inline int check_osd_command(struct request* req, struct suo_req* ureq);
 
 /* Init / Release / Probe */
 static int add_osd_disk(struct scsi_osd_disk* sdkp);
@@ -271,6 +271,11 @@ static int suo_probe(struct device *dev);
 static int suo_remove(struct device *dev);
 static void scsi_osd_disk_release(struct class_device *classdev);
 static void sd_shutdown(struct device *dev);
+
+
+/*
+ * Ops Structs
+ */
 
 static struct file_operations suo_fops = {
 	.owner			= THIS_MODULE,
@@ -281,10 +286,6 @@ static struct file_operations suo_fops = {
 	.write 			= suo_write,
 	.poll 			= suo_poll, 
 
-	/*  OSD Disks don't have geometry (or at least we don't care)
-	.getgeo			= sd_getgeo,
-	*/
-
 	/* Char devices don't have an interface for these things
 	 * FIXME: We'll have to make these available via ioctls or something
 	
@@ -293,6 +294,36 @@ static struct file_operations suo_fops = {
 
 	*/
 };
+
+static struct class_device_attribute suo_disk_attrs[] = {
+	__ATTR(cache_type, S_IRUGO|S_IWUSR, sd_show_cache_type,
+	       sd_store_cache_type),
+	__ATTR_NULL,
+};
+
+static struct class suo_disk_class = {
+	.name		= "scsi_osd",
+	.owner		= THIS_MODULE,
+	.release	= scsi_osd_disk_release,
+	.class_dev_attrs = suo_disk_attrs,
+};
+
+static struct scsi_driver suo_template = {
+	.owner			= THIS_MODULE,
+	.gendrv = {
+		.name		= "suo",
+		.probe		= suo_probe,
+		.remove		= suo_remove,
+		.shutdown	= sd_shutdown,
+	},
+	.rescan			= sd_rescan,
+	.issue_flush		= sd_issue_flush,
+	.init_command 		= NULL,
+};
+
+/* 
+ * Cache stuff 
+ */
 
 static const char *sd_cache_types[] = {
 	"write through", "none", "write back",
@@ -357,40 +388,27 @@ static ssize_t sd_show_cache_type(struct class_device *classdev, char *buf)
 	return snprintf(buf, 40, "%s\n", sd_cache_types[ct]);
 }
 
-#if 0
 static ssize_t sd_show_fua(struct class_device *classdev, char *buf)
 {
 	struct scsi_osd_disk *sdkp = to_osd_disk(classdev);
 
 	return snprintf(buf, 20, "%u\n", sdkp->DPOFUA);
 }
-#endif
 
-static struct class_device_attribute suo_disk_attrs[] = {
-	__ATTR(cache_type, S_IRUGO|S_IWUSR, sd_show_cache_type,
-	       sd_store_cache_type),
-	__ATTR_NULL,
-};
 
-static struct class suo_disk_class = {
-	.name		= "scsi_osd",
-	.owner		= THIS_MODULE,
-	.release	= scsi_osd_disk_release,
-	.class_dev_attrs = suo_disk_attrs,
-};
+/* 
+ * Alloc / free / locks 
+ */
 
-static struct scsi_driver suo_template = {
-	.owner			= THIS_MODULE,
-	.gendrv = {
-		.name		= "suo",
-		.probe		= suo_probe,
-		.remove		= suo_remove,
-		.shutdown	= sd_shutdown,
-	},
-	.rescan			= sd_rescan,
-	.issue_flush		= sd_issue_flush,
-	.init_command 		= NULL,
-};
+static void varlen_cdb_init(u8 *cdb, u16 action)
+{
+	memset(cdb, 0, VARLEN_CDB_SIZE);
+	cdb[0] = VARLEN_CDB;
+	cdb[7] = 192;
+	cdb[8] = action >> 8;
+	cdb[9] = action & 0xff;
+	cdb[11] = 2 << 4;  /* get/set attributes page format */
+}
 
 static struct suo_filp_extra* alloc_suo_filp_extra(void)
 {
@@ -419,7 +437,6 @@ struct scsi_osd_disk *alloc_osd_disk(void)
 	sdkp = kzalloc(sizeof(*sdkp), GFP_KERNEL);
 	if (!sdkp)
 		goto out;
-	sdkp->__never_unset_me = 0xDEADBEEF;
 	atomic_set(&sdkp->inflight, 0);
 	sdkp->inflight_lock = SPIN_LOCK_UNLOCKED;
 	chrdev = &sdkp->chrdev;
@@ -498,26 +515,20 @@ static void scsi_osd_disk_put(struct scsi_osd_disk *sdkp)
 static inline int suo_get_cmdkey(void)
 {
 	int ret;
-	spin_lock(&cmd_key_lock);
 	ret = atomic_read(&cmd_key);
-	spin_unlock(&cmd_key_lock);
 	return ret;
 }
 
 static inline void suo_inc_cmdkey(void)
 {
-	spin_lock(&cmd_key_lock);
 	atomic_inc(&cmd_key);
-	spin_unlock(&cmd_key_lock);
 }
 
 static inline int suo_get_and_inc_cmdkey(void)
 {
 	int ret;
-	spin_lock(&cmd_key_lock);
 	ret = atomic_read(&cmd_key);
 	atomic_inc(&cmd_key);
-	spin_unlock(&cmd_key_lock);
 	
 	return ret;
 }
@@ -560,6 +571,11 @@ static void suo_inflight_response_list_free(struct list_head *resp_list)
 		kfree(cur_item);
 	}
 }
+
+
+/* 
+ * File ops 
+ */
 
 /**
  *	suo_open - open a scsi disk device
@@ -690,33 +706,6 @@ static int suo_release(struct inode *inode, struct file *filp)
 
 	return 0;
 }
-
-#if 0
-static int sd_getgeo(struct block_device *bdev, struct hd_geometry *geo)
-{
-	struct scsi_osd_disk *sdkp = container_of(bdev->bd_disk,
-	                                          struct scsi_osd_disk, gd);
-	struct scsi_device *sdp = sdkp->device;
-	struct Scsi_Host *host = sdp->host;
-	int diskinfo[4];
-
-	/* default to most commonly used values */
-        diskinfo[0] = 0x40;	/* 1 << 6 */
-       	diskinfo[1] = 0x20;	/* 1 << 5 */
-       	diskinfo[2] = sdkp->capacity >> 11;
-	
-	/* override with calculated, extended default, or driver values */
-	if (host->hostt->bios_param)
-		host->hostt->bios_param(sdp, bdev, sdkp->capacity, diskinfo);
-	else
-		scsicam_bios_param(bdev, sdkp->capacity, diskinfo);
-
-	geo->heads = diskinfo[0];
-	geo->sectors = diskinfo[1];
-	geo->cylinders = diskinfo[2];
-	return 0;
-}
-#endif
 
 static void set_media_not_present(struct scsi_osd_disk *sdkp)
 {
@@ -884,109 +873,6 @@ suo_poll(struct file *filp, poll_table * wait_table)
 	return res;
 }
 
-
-
-static inline int 
-check_suo_request(struct suo_req* ureq)
-{
-	int ret;
-
-#ifdef CONFIG_SKIP_VERIFICATION
-	return 0;
-#endif
-	ENTERING;
-	
-	/* Check the request semantics */
-	ret = -EINVAL;
-	switch (ureq->data_direction) {
-	case DMA_TO_DEVICE:
-		if (ureq->in_data_len || !ureq->out_data_len) {
-			dprintk("%s: to_device but (in len or no out len)\n",
-			        __func__);
-			goto out;
-		}
-		break;
-	case DMA_FROM_DEVICE:
-		if (!ureq->in_data_len || ureq->out_data_len) {
-			dprintk("%s: from_device but (no in len or out len)\n",
-				__func__);
-			goto out;
-		}
-		break;
-	case DMA_NONE:
-		if (ureq->in_data_len || ureq->out_data_len) {
-			dprintk("%s: none but (out len or in len)\n", __func__);
-			goto out;
-		}
-		break;
-	case DMA_BIDIRECTIONAL:  /* not supported yet */
-		if (!ureq->in_data_len || !ureq->out_data_len) {
-			dprintk("%s: bidir but (no in len or no out len)\n",
-				__func__);
-			goto out;
-		}
-		dprintk("%s: bidirectional unsupported\n", __func__);
-		goto out;
-	default:
-		dprintk("%s: invalid direction %d\n", __func__,
-		        ureq->data_direction);
-		goto out;
-	}
-
-	/* Winnar */
-	ret = 0;
-out:
-	return ret;
-}
-
-static inline int 
-check_osd_command(struct request* req, struct suo_req* ureq)
-{
-	int ret, i;
-
-#ifdef CONFIG_SKIP_VERIFICATION
-	return 0;
-#endif
-	ENTERING;
-
-	ret = -EINVAL;
-
-	/* Check our command is sane */
-	if (sizeof(req->cmd) < ureq->cdb_len) {
-		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
-		        __func__, (size_t) ureq->cdb_len, sizeof(req->cmd));
-		goto out;
-	}
-
-	/* Check the command value */
-	for (i = 0; i < ARRAY_SIZE(valid_scsi_cmd_list); i++)
-		if (req->cmd[0] == valid_scsi_cmd_list[i])
-			goto valid_command;
-
-	/* must be an extended command, else invalid */
-	if (req->cmd[0] != EXTENDED_CDB)
-	{
-		dprintk("%s: Invalid SCSI command 0x%x for OSD disk\n", 
-			__func__, req->cmd[0]);
-		goto out;
-	}
-
-	/* Check the service action to make sure it's OSD supported */
-	for (i = 0; i < ARRAY_SIZE(valid_osd_cmd_list); i++)
-		if (OSD_GET_ACTION(req->cmd) == valid_osd_cmd_list[i])
-			goto valid_command;
-	dprintk("%s: Invalid OSD command 0x%x for OSD disk\n", 
-		__func__, OSD_GET_ACTION(req->cmd));
-	goto out;	/* We didn't find it in the list */
-
-valid_command:
-	/* Winnar */
-	ret = 0;
-	
-out:
-	return ret;
-}
-
 static ssize_t
 suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 {
@@ -1095,92 +981,110 @@ out:
 	return ret;
 }
 
-#if 0
-/**
- *	sd_media_changed - check if our medium changed
- *	@disk: kernel device descriptor 
- *
- *	Returns 0 if not applicable or no change; 1 if change
- *
- *	Note: this function is invoked from the block subsystem.
- **/
-static int sd_media_changed(struct scsi_osd_disk *sdkp)
-{
-	struct scsi_device *sdp = sdkp->device;
-	int retval;
 
-	SCSI_LOG_HLQUEUE(3, printk("sd_media_changed: disk=%s\n",
-						sdkp->disk_name));
-
-	if (!sdp->removable)
-		return 0;
-
-	/*
-	 * If the device is offline, don't send any commands - just pretend as
-	 * if the command failed.  If the device ever comes back online, we
-	 * can deal with it then.  It is only because of unrecoverable errors
-	 * that we would ever take a device offline in the first place.
-	 */
-	if (!scsi_device_online(sdp))
-		goto not_present;
-
-	/*
-	 * Using TEST_UNIT_READY enables differentiation between drive with
-	 * no cartridge loaded - NOT READY, drive with changed cartridge -
-	 * UNIT ATTENTION, or with same cartridge - GOOD STATUS.
-	 *
-	 * Drives that auto spin down. eg iomega jaz 1G, will be started
-	 * by sd_spinup_disk() from suo_revalidate_disk(), which happens whenever
-	 * suo_revalidate_disk() is called.
-	 */
-	retval = -ENODEV;
-	if (scsi_block_when_processing_errors(sdp))
-		retval = scsi_test_unit_ready(sdp, SD_TIMEOUT, SD_MAX_RETRIES);
-
-	/*
-	 * Unable to test, unit probably not ready.   This usually
-	 * means there is no disc in the drive.  Mark as changed,
-	 * and we will figure it out later once the drive is
-	 * available again.
-	 */
-	if (retval)
-		 goto not_present;
-
-	/*
-	 * For removable scsi disk we have to recognise the presence
-	 * of a disk in the drive. This is kept in the struct scsi_osd_disk
-	 * struct and tested at open !  Daniel Roche (dan@lectra.fr)
-	 */
-	sdkp->media_present = 1;
-
-	retval = sdp->changed;
-	sdp->changed = 0;
-
-	return retval;
-
-not_present:
-	set_media_not_present(sdkp);
-	return 1;
-}
-#endif
-
-#define VARLEN_CDB_SIZE 200
-
-#ifndef VARLEN_CDB
-#define VARLEN_CDB 0x7f
-#endif
-
-/*
- * Initializes a new varlen cdb.
+/* 
+ * Disk management / Support functions 
  */
-static void varlen_cdb_init(u8 *cdb, u16 action)
+
+static inline int 
+check_suo_request(struct suo_req* ureq)
 {
-	memset(cdb, 0, VARLEN_CDB_SIZE);
-	cdb[0] = VARLEN_CDB;
-	cdb[7] = 192;
-	cdb[8] = action >> 8;
-	cdb[9] = action & 0xff;
-	cdb[11] = 2 << 4;  /* get/set attributes page format */
+	int ret;
+
+#ifdef CONFIG_SKIP_VERIFICATION
+	return 0;
+#endif
+	ENTERING;
+	
+	/* Check the request semantics */
+	ret = -EINVAL;
+	switch (ureq->data_direction) {
+	case DMA_TO_DEVICE:
+		if (ureq->in_data_len || !ureq->out_data_len) {
+			dprintk("%s: to_device but (in len or no out len)\n",
+			        __func__);
+			goto out;
+		}
+		break;
+	case DMA_FROM_DEVICE:
+		if (!ureq->in_data_len || ureq->out_data_len) {
+			dprintk("%s: from_device but (no in len or out len)\n",
+				__func__);
+			goto out;
+		}
+		break;
+	case DMA_NONE:
+		if (ureq->in_data_len || ureq->out_data_len) {
+			dprintk("%s: none but (out len or in len)\n", __func__);
+			goto out;
+		}
+		break;
+	case DMA_BIDIRECTIONAL:  /* not supported yet */
+		if (!ureq->in_data_len || !ureq->out_data_len) {
+			dprintk("%s: bidir but (no in len or no out len)\n",
+				__func__);
+			goto out;
+		}
+		dprintk("%s: bidirectional unsupported\n", __func__);
+		goto out;
+	default:
+		dprintk("%s: invalid direction %d\n", __func__,
+		        ureq->data_direction);
+		goto out;
+	}
+
+	/* Winnar */
+	ret = 0;
+out:
+	return ret;
+}
+
+static inline int 
+check_osd_command(struct request* req, struct suo_req* ureq)
+{
+	int ret, i;
+
+#ifdef CONFIG_SKIP_VERIFICATION
+	return 0;
+#endif
+	ENTERING;
+
+	ret = -EINVAL;
+
+	/* Check our command is sane */
+	if (sizeof(req->cmd) < ureq->cdb_len) {
+		dprintk("%s: cdb len %lu too big for req->cmd size %lu\n",
+		        __func__, (size_t) ureq->cdb_len, sizeof(req->cmd));
+		goto out;
+	}
+
+	/* Check the command value */
+	for (i = 0; i < ARRAY_SIZE(valid_scsi_cmd_list); i++)
+		if (req->cmd[0] == valid_scsi_cmd_list[i])
+			goto valid_command;
+
+	/* must be an extended command, else invalid */
+	if (req->cmd[0] != EXTENDED_CDB)
+	{
+		dprintk("%s: Invalid SCSI command 0x%x for OSD disk\n", 
+			__func__, req->cmd[0]);
+		goto out;
+	}
+
+	/* Check the service action to make sure it's OSD supported */
+	for (i = 0; i < ARRAY_SIZE(valid_osd_cmd_list); i++)
+		if (OSD_GET_ACTION(req->cmd) == valid_osd_cmd_list[i])
+			goto valid_command;
+	dprintk("%s: Invalid OSD command 0x%x for OSD disk\n", 
+		__func__, OSD_GET_ACTION(req->cmd));
+	goto out;	/* We didn't find it in the list */
+
+valid_command:
+	/* Winnar */
+	ret = 0;
+	
+out:
+	return ret;
 }
 
 static int suo_sync_cache(struct scsi_device *sdp)
@@ -1229,17 +1133,6 @@ static int sd_issue_flush(struct device *dev, sector_t *error_sector)
 	scsi_osd_disk_put(sdkp);
 	return ret;
 }
-
-#if 0
-static void sd_prepare_flush(request_queue_t *q, struct request *rq)
-{
-	memset(rq->cmd, 0, sizeof(rq->cmd));
-	rq->flags |= REQ_BLOCK_PC;
-	rq->timeout = SD_TIMEOUT;
-	rq->cmd[0] = SYNCHRONIZE_CACHE;
-	rq->cmd_len = 10;
-}
-#endif
 
 static void sd_rescan(struct device *dev)
 {
@@ -1327,7 +1220,7 @@ static void suo_rq_complete(struct request *req, int error)
 	struct suo_inflight_response *response = req->end_io_data;
 	struct scsi_osd_disk *sdkp;
 	struct scsi_sense_hdr sshdr;
-	struct suo_filp_extra* fe; 
+	struct suo_filp_extra* fe = NULL; 
 
 	ENTERING;
 
@@ -1337,10 +1230,8 @@ static void suo_rq_complete(struct request *req, int error)
 	}
 	sdkp = response->sdkp;
 
-	fe = NULL;
 	if (unlikely(response->filp))
 		fe = response->filp->private_data;
-	
 
 	dprintk("%s: req %p req->q %p bio %p saved bio %p key %llu\n", __func__,
 	        req, req->q, req->bio, response->bio, response->to_user.key);
@@ -1795,6 +1686,12 @@ static int suo_revalidate_disk(struct scsi_osd_disk* sdkp)
 	return 0;
 }
 
+
+/* 
+ * Disk management 
+ */
+
+
 static int add_osd_disk(struct scsi_osd_disk* sdkp)
 {
 	int ret;
@@ -1924,8 +1821,6 @@ static int suo_probe(struct device *dev)
 
 	if (sdp->removable)
 		sdkp->removable = 1;
-	if (sdkp->__never_unset_me != 0xDEADBEEF)
-		dprintk("the canary is dead! leave the mine!!\n");
 
 	dev_set_drvdata(dev, sdkp);
 

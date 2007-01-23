@@ -69,9 +69,9 @@ struct init_attr {
 #define MAXNAMELEN (256UL)
 #define MAXROOTLEN (200UL)
 
-typedef struct osd {
+struct osd_device {
 	char *root;
 	sqlite3 *db;
-} osd_t;
+};
 
 #endif /* __OSD_TYPES_H */

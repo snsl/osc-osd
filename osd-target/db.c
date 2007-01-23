@@ -36,7 +36,7 @@ static struct init_attr root_info[] = {
 /*
  * Create root object and attributes for root and partition zero.
  */
-static int initial_populate(osd_t *osd)
+static int initial_populate(struct osd_device *osd)
 {
 	int i = 0, ret = 0;
 
@@ -58,7 +58,7 @@ out:
 	return ret;
 }
 
-int db_open(const char *path, osd_t *osd)
+int db_open(const char *path, struct osd_device *osd)
 {
 	int ret;
 	struct stat sb;
@@ -110,7 +110,7 @@ out:
 	return ret;
 }
 
-int db_close(osd_t *osd)
+int db_close(struct osd_device *osd)
 {
 	int ret = 0;
 	sqlite3 *dbp = osd->db;

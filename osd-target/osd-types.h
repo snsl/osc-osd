@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <sqlite3.h>
 
 typedef uint64_t object_id_t;
 typedef uint64_t object_len_t;
@@ -38,10 +39,10 @@ typedef enum {
 	ANY_PG        = 0xF0000000,
 } attrpg_range_t;
 
-typedef struct object {
+struct object {
 	uint64_t pid;
 	uint64_t oid;
-} obj_id_t;
+}; 
 
 typedef struct attr {
 	uint32_t page;
@@ -50,7 +51,7 @@ typedef struct attr {
 	void *val;
 } attr_t;
 typedef  attr_t list_entry_t;
-#define ATTR_T_DSZ (offsetof(attr_t , val))
+#define ATTR_VAL_OFFSET (offsetof(attr_t , val))
 
 /*
  * Things that go as attributes on the root page.
@@ -70,7 +71,7 @@ struct init_attr {
 
 typedef struct osd {
 	char *root;
-	void *db;
+	sqlite3 *db;
 } osd_t;
 
 #endif /* __OSD_TYPES_H */

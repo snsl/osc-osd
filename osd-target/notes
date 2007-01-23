@@ -122,3 +122,17 @@ clean finalize code
 -	p23, p87, p112: No explicit call to delete an object's attribute. only
 	thing possible is to set an attribute's length to 0. Since only
 	attributes with non-zero length can be retrieved.
+
+# Tue Jan 23 11:59:47 EST 2007
+remove attr_insert and attr_delete. 
+change set_attr properly
+obj: insert, delete works
+attr: 
+	set_attr -> check if attr exists, if so update else insert it
+	get_attr -> select attr, if empty EEMPTY
+	delete_attr -> delete all attr for object
+	get_attr_page -> get all attr in a page
+
+define return values, we return same return values as sqlite or should
+we assume this is single threaded app => no table locking, no checking for
+EBUSY. in future keep sqlite3_step in a infinite loop

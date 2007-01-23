@@ -113,7 +113,7 @@ out:
 int db_close(osd_t *osd)
 {
 	int ret = 0;
-	sqlite3 *dbp = (sqlite3 *)osd->db;
+	sqlite3 *dbp = osd->db;
 
 	if (dbp == NULL)
 		return -1;

@@ -3,7 +3,6 @@
 
 #include "osd-types.h"
 
-obj_id_t *obj_lookup(osd_t *osd, uint64_t pid, uint64_t oid);
 int obj_insert(osd_t *osd, uint64_t pid, uint64_t oid);
 int obj_delete(osd_t *osd, uint64_t pid, uint64_t oid);
 

@@ -63,7 +63,7 @@ int osd_open(const char *root, osd_t *osd)
 		goto out;
 
 	ret = obj_insert(osd, 0, 0);
-	if (ret == EEXIST)
+	if (ret == -EEXIST)
 		ret = 0;
 out:
 	return ret;

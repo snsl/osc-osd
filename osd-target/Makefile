@@ -4,8 +4,9 @@
 # $Id: $
 #
 
-SRC := $(wildcard *.c) osd-schema.c
-INC := $(wildcard *.h)
+SRC := attr.c db.c obj.c osd-schema.c osd.c util.c
+SRC += osd-schema.c
+INC := attr.h db.h obj.h osd-types.h osd.h util.h
 OBJ := $(SRC:.c=.o)
 LIB := libosd.a
 

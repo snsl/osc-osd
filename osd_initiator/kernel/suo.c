@@ -1279,7 +1279,7 @@ static void suo_rq_complete(struct request *req, int error)
 	/* q lock held by thing that calls ->end_io */
 	__blk_put_request(req->q, req);
 
-	if (likely(response->filp))
+	if (likely(response->filp->private_data))
 	{
 		fe = response->filp->private_data;
 		spin_lock(&fe->lock);

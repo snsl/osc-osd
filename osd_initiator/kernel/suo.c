@@ -686,6 +686,10 @@ static int suo_release(struct inode *inode, struct file *filp)
 	/* FIXME: Does this always get called for each open, even if the process
 	 * gets killed off, etc? */
 	
+	/* XXX: This is trying to prevent a race condition in suo_rq_complete
+	 * but it probably doesn't completely cover it */
+	filp->private_data = NULL;
+
 	if(unlikely(!fe))
 	{
 		printk(KERN_ERR "suo - %s: filp extra data is null!\n", __func__);
@@ -1223,15 +1227,11 @@ static void suo_rq_complete(struct request *req, int error)
 	struct suo_filp_extra* fe = NULL; 
 
 	ENTERING;
-
 	if (unlikely(!response)) {
 		printk(KERN_ERR "%s: request io data is NULL", __func__);
 		return;
 	}
 	sdkp = response->sdkp;
-
-	if (unlikely(response->filp))
-		fe = response->filp->private_data;
 
 	dprintk("%s: req %p req->q %p bio %p saved bio %p key %llu\n", __func__,
 	        req, req->q, req->bio, response->bio, response->to_user.key);
@@ -1279,9 +1279,9 @@ static void suo_rq_complete(struct request *req, int error)
 	/* q lock held by thing that calls ->end_io */
 	__blk_put_request(req->q, req);
 
-	/* Signal the associated wait queue to wake up */
-	if(likely(fe))
+	if (likely(response->filp))
 	{
+		fe = response->filp->private_data;
 		spin_lock(&fe->lock);
 		wake_up(&fe->read_wait);
 		spin_unlock(&fe->lock);

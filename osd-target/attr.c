@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <sys/stat.h>
 
-#include "osd-types.h"
+#include "libosd/osd_attr.h"
 #include "db.h"
 #include "attr.h"
 #include "util.h"

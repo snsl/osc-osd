@@ -60,8 +60,10 @@ int obj_delete(sqlite3 *db, uint64_t pid, uint64_t oid)
 	sprintf(SQL, "DELETE FROM obj WHERE pid = %lu AND oid = %lu",
 		pid, oid);
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
-	if (ret != SQLITE_OK)
-		return db_err_free(err, -1);
+	if (ret != SQLITE_OK) {
+		sqlite3_free(err);
+		return -1;
+	}
 
 	return 0;
 }

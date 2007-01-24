@@ -96,8 +96,10 @@ int db_open(const char *path, struct osd_device *osd)
 		 * Build tables from schema file.
 		 */
 		ret = sqlite3_exec(osd->db, osd_schema, NULL, NULL, &err);
-		if (ret != SQLITE_OK) 
-			return db_err_free(err, -1);
+		if (ret != SQLITE_OK) {
+			sqlite3_free(err);
+			return -1;
+		}
 
 		ret = initial_populate(osd);
 		if (ret)
@@ -125,19 +127,5 @@ int db_close(struct osd_device *osd)
 	}
 
 	return 0;
-}
-
-int db_err_finalize(const char *errmsg, sqlite3_stmt *stmt, int ret)
-{
-	fprintf(stderr,"SQL ERROR: %s\n", errmsg);
-	sqlite3_finalize(stmt);
-	return ret;
-}
-
-int db_err_free(char *err, int ret)
-{
-	fprintf(stderr, "SQL ERROR: %s\n", err);
-	sqlite3_free(err);
-	return ret;
 }
 

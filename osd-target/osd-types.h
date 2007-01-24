@@ -36,7 +36,7 @@ typedef enum {
 	COLLECTION_PG = 0x60000000,
 	ROOT_PG       = 0x90000000,
 	RESERVED_PG   = 0xC0000000,
-	ANY_PG        = 0xF0000000,
+	ANY_PG        = 0xF0000000
 } attrpg_range_t;
 
 struct object {

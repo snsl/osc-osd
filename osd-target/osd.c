@@ -69,6 +69,8 @@ int osd_close(struct osd_device *osd)
 	int ret;
 	
 	ret = db_close(osd);
+	if (ret != 0)
+		error("%s: db_close", __func__);
 	free(osd->root);
 	return ret;
 }

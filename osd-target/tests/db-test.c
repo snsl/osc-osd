@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "osd-types.h"
+#include "osd.h"
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
@@ -11,6 +12,7 @@
 
 void test_obj(struct osd_device *osd);
 void test_attr(struct osd_device *osd);
+void test_osd_interface(void);
 
 void test_obj(struct osd_device *osd)
 {
@@ -47,6 +49,24 @@ void test_attr(struct osd_device *osd)
 	free(val);
 }
 
+void test_osd_interface(void)
+{
+	int ret = 0;
+	const char *root = "/tmp/";
+	struct osd_device osd;
+
+	ret = osd_open(root, &osd);
+	if (ret != 0)
+		error_fatal("%s: osd_open", __func__);
+
+	test_obj(&osd);
+	test_attr(&osd);
+
+	ret = osd_close(&osd);
+	if (ret != 0)
+		error_fatal("%s: osd_close", __func__);
+}
+
 int main()
 {
 	char path[]="/tmp/osd";
@@ -58,11 +78,13 @@ int main()
 		return ret;
 
 	/*test_obj(&osd);*/
-	test_attr(&osd);
+	/*test_attr(&osd);*/
 
 	ret = db_close(&osd);
 	if (ret != 0)
 		return ret;
+
+	test_osd_interface();
 
 	return 0;
 }

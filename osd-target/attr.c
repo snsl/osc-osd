@@ -44,38 +44,41 @@ int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	ret = sqlite3_bind_int64(stmt, 1, pid);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: bind 1", __func__);
-		goto out;
+		goto out_finalize;
 	}
 	ret = sqlite3_bind_int64(stmt, 2, oid);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: bind 2", __func__);
-		goto out;
+		goto out_finalize;
 	}
 	ret = sqlite3_bind_int(stmt, 3, page);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: bind 3", __func__);
-		goto out;
+		goto out_finalize;
 	}
 	ret = sqlite3_bind_int(stmt, 4, number);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: bind 4", __func__);
-		goto out;
+		goto out_finalize;
 	}
 	ret = sqlite3_bind_blob(stmt, 5, val, len, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: bind 5", __func__);
-		goto out;
+		goto out_finalize;
 	}
 	ret = sqlite3_step(stmt);
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: attr exists", __func__);
+		goto out_finalize;
+	}
+
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: finalize", __func__);
 		goto out;
 	}
-	ret = 0; /* success */
-
 out:
-	if (sqlite3_finalize(stmt) != SQLITE_DONE)
-		return -1;
 	return ret;
 }
 

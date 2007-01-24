@@ -10,11 +10,24 @@ error(const char *fmt, ...)
 {
     va_list ap;
 
-    fprintf(stderr, "obfs: ");
+    fprintf(stderr, "osd: ");
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
     fprintf(stderr, ".\n");
+}
+
+void __attribute__((noreturn, format(printf,1,2)))
+error_fatal(const char *fmt, ...)
+{
+    va_list ap;
+
+    fprintf(stderr, "osd: ");
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, ".\n");
+    exit(1);
 }
 
 void __attribute__((format(printf,1,2)))
@@ -22,7 +35,7 @@ error_errno(const char *fmt, ...)
 {
     va_list ap;
 
-    fprintf(stderr, "obfs: ");
+    fprintf(stderr, "osd: ");
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
@@ -34,7 +47,7 @@ error_sql(sqlite3 *db, const char *fmt, ...)
 {
     va_list ap;
 
-    fprintf(stderr, "obfs: ");
+    fprintf(stderr, "osd: ");
     va_start(ap, fmt);
     vfprintf(stderr, fmt, ap);
     va_end(ap);
@@ -71,3 +84,17 @@ Malloc(size_t n)
     return x;
 }
 
+void * __attribute__((malloc))
+Calloc(size_t nmemb, size_t n)
+{
+    void *x;
+
+    if (n == 0)
+	error("%s: called on zero bytes", __func__);
+    else {
+	x = calloc(nmemb, n);
+	if (!x)
+	    error("%s: couldn't get %zu bytes", __func__, n);
+    }
+    return x;
+}

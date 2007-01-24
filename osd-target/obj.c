@@ -10,11 +10,10 @@
 #include "obj.h"
 #include "db.h"
 
-int obj_insert(struct osd_device *osd, uint64_t pid, uint64_t oid)
+int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid)
 {
 	int ret;
 	char SQL[MAXSQLEN];
-	sqlite3 *db = osd->db;
 	sqlite3_stmt *stmt = NULL;
 
 	if (db == NULL)
@@ -49,12 +48,11 @@ out:
 	return ret;
 }
 
-int obj_delete(struct osd_device *osd, uint64_t pid, uint64_t oid)
+int obj_delete(sqlite3 *db, uint64_t pid, uint64_t oid)
 {
 	int ret = 0;
 	char SQL[MAXSQLEN];
 	char *err = NULL;
-	sqlite3 *db = osd->db;
 
 	if (db == NULL)
 		return -1;

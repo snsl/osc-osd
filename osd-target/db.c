@@ -40,7 +40,7 @@ static int initial_populate(struct osd_device *osd)
 {
 	int i = 0, ret = 0;
 
-	ret = obj_insert(osd, 0, 0);
+	ret = obj_insert(osd->db, 0, 0);
 	if (ret)
 		goto out;
 

@@ -133,12 +133,12 @@ static int attr_gather_attr(sqlite3_stmt *stmt, void *outbuf, uint16_t len)
 
 	ent->page = sqlite3_column_int(stmt, 0);
 	ent->number = sqlite3_column_int(stmt, 1);
-	ent->len = sqlite3_column_int(stmt, 2);
+	ent->len = sqlite3_column_bytes(stmt, 2);
 	if (ent->len + ATTR_VAL_OFFSET < len)
-		memcpy(ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 3), 
+		memcpy(ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 2), 
 		       ent->len);
 	else
-		memcpy(ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 3), 
+		memcpy(ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 2), 
 		       len - ATTR_VAL_OFFSET);
 	return 0;
 }
@@ -157,9 +157,9 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	if (db == NULL || outbuf == NULL)
 		return -1;
 
-	sprintf(SQL, "SELECT * FROM attr WHERE"
+	sprintf(SQL, "SELECT page, number, value FROM attr WHERE"
 		" pid = ? AND oid = ? AND page = ? AND number = ?");
-	ret = sqlite3_prepare(db, SQL, strlen(SQL), &stmt, NULL);
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: prepare", __func__);
 		goto out;
@@ -224,7 +224,7 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 
 	sprintf(SQL, "SELECT * FROM attr"
 		"WHERE pid = ? AND oid = ? AND page = ?");
-	ret = sqlite3_prepare(db, SQL, strlen(SQL), &stmt, NULL);
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: prepare", __func__);
 		goto out;

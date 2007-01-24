@@ -1,9 +1,9 @@
 #ifndef __OBJ_H
 #define __OBJ_H
 
-#include "osd-types.h"
+#include <sqlite3.h>
 
-int obj_insert(struct osd_device *osd, uint64_t pid, uint64_t oid);
-int obj_delete(struct osd_device *osd, uint64_t pid, uint64_t oid);
+int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid);
+int obj_delete(sqlite3 *db, uint64_t pid, uint64_t oid);
 
 #endif /* __OBJ_H */

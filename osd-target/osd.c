@@ -59,12 +59,7 @@ int osd_open(const char *root, struct osd_device *osd)
 	osd->root = strdup(root);
 	sprintf(path, "%s/%s", root, dbname);
 	ret = db_open(path, osd);
-	if (ret < 0)
-		goto out;
 
-	ret = obj_insert(osd, 0, 0);
-	if (ret == -EEXIST)
-		ret = 0;
 out:
 	return ret;
 }

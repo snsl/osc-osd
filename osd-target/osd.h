@@ -19,7 +19,7 @@ int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                          int flush_scope);
 int osd_flush_osd(struct osd_device *osd, int flush_scope);
 int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope);
-int osd_format(struct osd_device *osd, uint64_t capacity);
+int osd_format_osd(struct osd_device *osd, uint64_t capacity);
 int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid);
 int osd_get_member_attributes(struct osd_device *osd, uint64_t pid, uint64_t cid);
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id, uint64_t alloc_len,

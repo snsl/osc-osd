@@ -179,7 +179,7 @@ int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope)
 /*
  * Destroy the db and start over again.
  */
-int osd_format(struct osd_device *osd, uint64_t capacity)
+int osd_format_osd(struct osd_device *osd, uint64_t capacity)
 {
 	int ret;
 	char *root;

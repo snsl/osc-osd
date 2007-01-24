@@ -35,13 +35,11 @@ typedef unsigned long long u64;
 /*
  * Initializes a new varlen cdb.
  */
-static void varlen_cdb_init(uint8_t *cdb, uint16_t action)
+static void varlen_cdb_init(uint8_t *cdb)
 {
 	memset(cdb, 0, VARLEN_CDB_SIZE);
 	cdb[0] = VARLEN_CDB;
-	cdb[7] = 192;
-	cdb[8] = action >> 8;
-	cdb[9] = action & 0xff;
+	cdb[7] = VARLEN_CDB_SIZE - 8;  /* total length */
 	cdb[11] = 2 << 4;  /* get/set attributes page format */
 }
 
@@ -81,7 +79,7 @@ int main(int argc, char *argv[])
 
 	fd = uosd_open("/dev/sua");
 
-	for(i=0; i<10; i++)
+	for (i=0; i<2; i++)
 	{
 		info("inquiry");
 		memset(inquiry_rsp, 0xaa, 80);
@@ -97,17 +95,25 @@ int main(int argc, char *argv[])
 		fflush(0);	
 	}
 
-	info("sleeping 10 before flush");
-	sleep(10);
+	info("sleeping 2 before flush");
+	sleep(2);
 
 	info("osd flush osd");
-	varlen_cdb_init(cdb, OSD_FLUSH_OSD);
-	cdb[10] = 2;  /* flush everything */
-	//uosd_cdb_nodata(fd, cdb, 200);
+	varlen_cdb_init(cdb);
+	osd_flush_osd(cdb, 2);   /* flush everything */
+	uosd_cdb_nodata(fd, cdb, 200);
+
+	info("sleeping 2 before format");
+	sleep(2);
+
+	info("osd format osd");
+	varlen_cdb_init(cdb);
+	osd_format_osd(cdb, 1<<30);   /* capacity 1 GB */
+	uosd_cdb_nodata(fd, cdb, 200);
 
 	/* now wait for the result */
 	info("waiting for response");
-	//err = uosd_wait_response(fd, &key);
+	err = uosd_wait_response(fd, &key);
 	info("response key %lx error %d", key, err);
 
 	uosd_close(fd);

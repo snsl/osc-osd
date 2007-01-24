@@ -43,6 +43,21 @@ info(const char *fmt, ...)
 }
 
 /*
+ * XXX: later add first parameter "level".
+ */
+void __attribute__((format(printf,1,2)))
+debug(const char *fmt, ...)
+{
+    va_list ap;
+
+    fprintf(stderr, "%s: ", progname);
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, ".\n");
+}
+
+/*
  * Warning, non-fatal.
  */
 void __attribute__((format(printf,1,2)))

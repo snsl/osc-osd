@@ -6,6 +6,7 @@
 extern const char *progname;
 extern void set_progname(int argc, char *const argv[]);
 extern void info(const char *fmt, ...) __attribute__((format(printf,1,2)));
+extern void debug(const char *fmt, ...) __attribute__((format(printf,1,2)));
 extern void warning(const char *fmt, ...) __attribute__((format(printf,1,2)));
 extern void error(const char *fmt, ...)
   __attribute__((noreturn,format(printf,1,2)));

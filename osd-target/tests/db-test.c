@@ -12,7 +12,7 @@ int main()
 {
 	char path[]="/tmp/osd";
 	int ret = 0;
-	osd_t osd;
+	struct osd_device osd;
 
 	ret = db_open(path, &osd);
 	if (ret != 0)

@@ -78,7 +78,8 @@ int osd_close(struct osd_device *osd)
 /*
  * Commands
  */
-int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len)
+int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+               uint8_t *data)
 {
 	debug(__func__);
 	return 0;
@@ -88,13 +89,22 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len)
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
 	       uint16_t num)
 {
-	debug(__func__);
-	return 0;
+	int i, ret;
+
+	debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
+	      llu(requested_oid), num);
+	for (i=0; i<num; i++) {
+		ret = obj_insert(osd->db, pid, requested_oid);
+		if (ret)
+			break;
+	}
+	return ret;
 }
 
 
 int osd_create_and_write(struct osd_device *osd, uint64_t pid, 
-			 uint64_t requested_oid, uint64_t len, uint64_t offset)
+			 uint64_t requested_oid, uint64_t len, uint64_t offset,
+			 uint8_t *data)
 {
 	debug(__func__);
 	return 0;
@@ -185,7 +195,7 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity)
 	char *root;
 	char path[MAXNAMELEN];
 	
-	debug(__func__);
+	debug("%s: capacity %llu MB", __func__, llu(capacity >> 20));
 
 	root = strdup(osd->root);
 	ret = db_close(osd);
@@ -244,10 +254,26 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 }
 
 
-int osd_read(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
-	     uint64_t offset)
+int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	     uint64_t offset, uint8_t **data, uint64_t *outlen)
 {
-	debug(__func__);
+	const char result[] = "Falls mainly in the plain";
+	uint8_t *v;
+
+	debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
+	      llu(pid), llu(oid), llu(len), llu(offset));
+	v = malloc(len);
+	if (!v) {
+		error("%s: malloc %llu bytes", __func__, llu(len));
+		return -ENOMEM;
+	}
+	memset(v, 0, len);
+	if (len > strlen(result))
+		len = strlen(result);
+	memcpy(v, result, len);
+	v[len-1] = '\0';
+	*data = v;
+	*outlen = len;
 	return 0;
 }
 
@@ -316,10 +342,11 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 }
 
 
-int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
-	      uint64_t offset)
+int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	      uint64_t offset, const uint8_t *data)
 {
-	debug(__func__);
+	debug("%s: pid %llu oid %llu len %llu offset %llu data %p", __func__,
+	      llu(pid), llu(oid), llu(len), llu(offset), data);
 	return 0;
 }
 

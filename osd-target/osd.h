@@ -9,11 +9,12 @@ int osd_close(struct osd_device *osd);
 
 /* commands */
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, 
-	       uint64_t len);
+	       uint64_t len, uint8_t *data);
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
 	       uint16_t num);
 int osd_create_and_write(struct osd_device *osd, uint64_t pid, 
-			 uint64_t requested_oid, uint64_t len, uint64_t offset);
+			 uint64_t requested_oid, uint64_t len, uint64_t offset,
+			 uint8_t *data);
 int osd_create_collection(struct osd_device *osd, uint64_t pid, 
 			  uint64_t requested_cid);
 int osd_create_partition(struct osd_device *osd, uint64_t requested_pid);
@@ -35,7 +36,7 @@ int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid, 
 	      uint32_t query_len, uint64_t alloc_len);
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
-	     uint64_t offset);
+	     uint64_t offset, uint8_t **data, uint64_t *outlen);
 int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t uid);
 int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid);
 int osd_remove_member_objects(struct osd_device *osd, uint64_t pid, 
@@ -49,6 +50,6 @@ int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
 int osd_set_member_attributes(struct osd_device *osd, uint64_t pid, 
 			      uint64_t cid);
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
-	      uint64_t offset);
+	      uint64_t offset, const uint8_t *data);
 
 #endif /* __OSD_H */

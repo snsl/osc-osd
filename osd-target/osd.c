@@ -86,13 +86,20 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 }
 
 
+/*
+ * Following steps for creating objects
+ * -	check if requested_oid is in user
+ */
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
-	       uint16_t num)
+	       uint16_t num, )
 {
 	int i, ret;
 
 	debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
 	      llu(requested_oid), num);
+	if (pid == 0)
+		return -1;
+
 	for (i=0; i<num; i++) {
 		ret = obj_insert(osd->db, pid, requested_oid);
 		if (ret)

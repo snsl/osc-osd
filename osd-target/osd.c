@@ -88,7 +88,9 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 
 /*
  * Following steps for creating objects
- * -	check if requested_oid is in user
+ * -	check if requested_oid is in userobject space
+ * -	check if pid is 0
+ * -	
  */
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
 	       uint16_t num, )

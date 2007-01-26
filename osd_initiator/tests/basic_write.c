@@ -29,22 +29,24 @@ typedef unsigned long long u64;
 #include <libosd/util.h>
 #include <libosd/osd_hdr.h>
 
+
 #define VARLEN_CDB_SIZE 200
 #define VARLEN_CDB 0x7f
+#define CONTROL_BYTE 0x0
+#define TIMESTAMP_ON 0x0
+#define TIMESTAMP_OFF 0x7f
 
 /*
  * Initializes a new varlen cdb.
  */
 static void varlen_cdb_init(uint8_t *cdb)
 {
-	int i;
-
-	/* memset(cdb, 0, VARLEN_CDB_SIZE); */
-	for (i=0; i<VARLEN_CDB_SIZE; i++)
-		cdb[i] = i;
+	memset(cdb, '\0', VARLEN_CDB_SIZE);
 	cdb[0] = VARLEN_CDB;
-	cdb[7] = VARLEN_CDB_SIZE - 8;  /* total length */
-	cdb[11] = 2 << 4;  /* get/set attributes page format */
+	cdb[1] = CONTROL_BYTE;  /*XXX Look this up in SAM3*/
+	cdb[7] = VARLEN_CDB_SIZE - 8;  /* total length = 192*/
+	cdb[11] = 2 << 4;  /* get attr page and set value see spec 5.2.2.2 */
+	cdb[12] = TIMESTAMP_OFF; /*Update timestamps based on action 5.2.8*/
 }
 
 static void cdb_build_inquiry(uint8_t *cdb)
@@ -76,12 +78,12 @@ int main(int argc, char *argv[])
 {
 	uint8_t cdb[200];
 	uint8_t inquiry_rsp[80];
-	uint64_t key;
-	int fd, err, i;
+	uint64_t key; 
+	int fd, err, i;  
 
-	set_progname(argc, argv);
+	set_progname(argc, argv); 
 
-	fd = uosd_open("/dev/sua");
+	fd = dev_osd_open("/dev/sua");
 
 #if 0
 	for (i=0; i<2; i++)
@@ -117,35 +119,35 @@ int main(int argc, char *argv[])
 
 	info("osd format osd");
 	varlen_cdb_init(cdb);
-	osd_format_osd(cdb, 1<<30);   /* capacity 1 GB */
-	uosd_cdb_nodata(fd, cdb, 200);
-	err = uosd_wait_response(fd, &key);
+	set_cdb_osd_format_osd(cdb, 1<<30);   /* capacity 1 GB */
+	dev_osd_write_nodata(fd, cdb, 200);
+	err = dev_osd_wait_response(fd, &key);
 	info("response key %lx error %d", key, err);
 
 	info("osd create");
 	varlen_cdb_init(cdb);
-	osd_create(cdb, 0, 27, 1);
-	uosd_cdb_nodata(fd, cdb, 200);
-	err = uosd_wait_response(fd, &key);
+	set_cdb_osd_create(cdb, 0, 27, 1);
+	dev_osd_write_nodata(fd, cdb, 200);
+	err = dev_osd_wait_response(fd, &key);
 	info("response key %lx error %d", key, err);
 
 	const char buf[] = "The rain in spain";
 	info("osd write");
 	varlen_cdb_init(cdb);
-	osd_write(cdb, 0, 27, 10, 5);
-	uosd_cdb_write(fd, cdb, 200, buf, 10);
-	err = uosd_wait_response(fd, &key);
+	set_cdb_osd_write(cdb, 0, 27, 10, 5);
+	dev_osd_write(fd, cdb, 200, buf, 10);
+	err = dev_osd_wait_response(fd, &key);
 	info("response key %lx error %d", key, err);
 
 	char bufout[] = "xxxxxxxxxxxxxxxxx";
 	info("osd read");
 	varlen_cdb_init(cdb);
-	osd_read(cdb, 0, 27, 10, 5);
-	uosd_cdb_read(fd, cdb, 200, bufout, 10);
-	err = uosd_wait_response(fd, &key);
+	set_cdb_osd_read(cdb, 0, 27, 10, 5);
+	dev_osd_read(fd, cdb, 200, bufout, 10);
+	err = dev_osd_wait_response(fd, &key);
 	info("response key %lx error %d, bufout %s", key, err, bufout);
 
-	uosd_close(fd);
+	dev_osd_close(fd);
 	return 0;
 }
 

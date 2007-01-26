@@ -1,8 +1,6 @@
 #ifndef __OSD_SENSE_H
 #define __OSD_SENSE_H
 
-#include <stdint>
-
 /* stage of command. osd2 rev 10 table 33, 34, 35 */
 /* setters */
 #define SET_OSD_VALIDATON_STG(s) (s = (s) | (0x1U << 7))
@@ -60,7 +58,13 @@
 #define OSD_ASC_SECURITY_WORKING_KEY_FROZEN (0x2406)
 #define OSD_ASC_SYSTEM_RESOURCE_FAILURE (0x5500)
 
+/* including 8 byte header, and additional len = 244, as given by spc3 */
+#define MAX_SENSE_LEN 252
 
+/*
+ * These are sense descriptors.  One or more of them get tacked behind
+ * a header that iis assembled in stgt's descriptor_sense_data_build().
+ */
 /* OSD error identification send data descriptor. osd2 T10 r10, Sec 4.14.2.1 */
 typedef struct osd_err_id_sdd {
     uint8_t key; /* 0x6 */
@@ -71,8 +75,6 @@ typedef struct osd_err_id_sdd {
     uint64_t pid;
     uint64_t oid;
 } __attribute__((packed)) osd_err_id_sdd_t;
-
-typedef struct 
 
 /* OSD attribute identification sense data descriptor. osd2 T10 r10 4.14.2.3 */
 typedef struct osd_attr_id_sdd_t {

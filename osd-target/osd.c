@@ -12,6 +12,7 @@
 #include "attr.h"
 #include "util.h"
 #include "obj.h"
+#include "osd-sense.h"
 
 static const char *dbname = "osd.db";
 
@@ -76,13 +77,94 @@ int osd_close(struct osd_device *osd)
 }
 
 /*
+ * Descriptor format sense data.  See spc3 p 31.  Returns length of
+ * buffer used so far.
+ */
+static int sense_header_build(uint8_t *data, int len, uint8_t key, uint8_t asc,
+                              uint8_t ascq, uint8_t additional_len)
+{
+	if (len < 8)
+		return 0;
+	data[0] = 0x72;  /* current, not deferred */
+	data[1] = key;
+	data[2] = asc;
+	data[3] = ascq;
+	data[7] = additional_len;  /* additional length, beyond these 8 bytes */
+	return 8;
+}
+
+/*
+ * OSD object identification sense data descriptor.  Always need one
+ * of these, then perhaps some others.  This goes just beyond the 8
+ * byte sense header above.  The length of this is 32.
+ */
+static int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
+                            uint32_t completed_funcs, uint64_t pid,
+			    uint64_t oid)
+{
+	if (len < 32)
+		return 0;
+	data[0] = 0x6;
+	data[1] = 0x1e;
+	/* XXX: get interface split up properly...
+	htonl_set(&data[8], not_init_funcs);
+	htonl_set(&data[12], completed_funcs);
+	htonll_set(&data[16], pid);
+	htonll_set(&data[24], oid);
+	*/
+	return 32;
+}
+
+/*
+ * Helper to create sense data where no processing was initiated or completed,
+ * and just a header and basic info descriptor are required.  Assumes full 252
+ * byte sense buffer.
+ */
+static int sense_basic_build(uint8_t *sense, uint8_t key, uint8_t asc,
+                             uint8_t ascq, uint64_t pid, uint64_t oid)
+{
+	uint8_t off = 0;
+	uint8_t len = MAX_SENSE_LEN;
+	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
+
+	off = sense_header_build(sense+off, len-off, key, asc, ascq, 40);
+	off = sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
+	return off;
+}
+
+/*
+ * Externally callable error response generators.
+ */
+int osd_error_unimplemented(uint16_t action, uint8_t *sense)
+{
+	int ret;
+
+	debug(__func__);
+	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0, 0);
+	return ret;
+}
+
+int osd_error_bad_cdb(uint8_t *sense)
+{
+	int ret;
+
+	debug(__func__);
+	/* should probably add what part of the cdb was bad */
+	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0, 0);
+	return ret;
+}
+
+/*
  * Commands
  */
-int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
-               uint8_t *data)
+int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
+               uint64_t len, uint8_t *data, uint8_t *sense)
 {
+	int ret;
+
 	debug(__func__);
-	return 0;
+	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, pid, oid);
+	return ret;
 }
 
 
@@ -92,8 +174,8 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
  * -	check if pid is 0
  * -	
  */
-int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
-	       uint16_t num)
+int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
+	       uint16_t num, uint8_t *sense)
 {
 	int i, ret;
 
@@ -111,63 +193,35 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 }
 
 
-int osd_create_and_write(struct osd_device *osd, uint64_t pid, 
+int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 			 uint64_t requested_oid, uint64_t len, uint64_t offset,
-			 uint8_t *data)
+			 uint8_t *data, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_create_collection(struct osd_device *osd, uint64_t pid, 
-			  uint64_t requested_cid)
+int osd_create_collection(struct osd_device *osd, uint64_t pid,
+			  uint64_t requested_cid, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
-static struct init_attr partition_info[] = {
-	{ PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory" },
-	{ PARTITION_PG + 0, PARTITION_PG + 1,
-		"INCITS  T10 Partition Information" },
-	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
-};
-
-int osd_create_partition(struct osd_device *osd, uint64_t requested_pid)
+int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
+                         uint8_t *sense)
 {
-	int i, ret;
+	int ret;
 
-	if (requested_pid != 0) {
-		/*
-		 * Partition zero does not have an entry in the obj db; those
-		 * are only for user-created partitions.
-		 */
-		ret = obj_insert(osd->db, requested_pid, 0);
-		if (ret)
-			goto out;
-	}
-	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
-		struct init_attr *ia = &partition_info[i];
-		ret = attr_set_attr(osd->db, requested_pid, 0, ia->page, 
-				    ia->number, ia->s, strlen(ia->s)+1);
-		if (ret)
-			goto out;
-	}
-
-	/* the pid goes here */
-	ret = attr_set_attr(osd->db, requested_pid, 0, PARTITION_PG + 1, 
-			    1, &requested_pid, 8);
-	if (ret)
-		goto out;
-
-out:
+	debug(__func__);
+	ret = create_partition(osd, 0);
+	/* XXX: generate sense data from bad ret sometime */
 	return ret;
 }
 
-
-int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid, 
-	      int flush_scope)
+int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
+	      int flush_scope, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -175,21 +229,22 @@ int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 
 int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
-                         int flush_scope)
+                         int flush_scope, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_flush_osd(struct osd_device *osd, int flush_scope)
+int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope)
+int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
+                        uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -198,7 +253,7 @@ int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope)
 /*
  * Destroy the db and start over again.
  */
-int osd_format_osd(struct osd_device *osd, uint64_t capacity)
+int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 {
 	int ret;
 	char *root;
@@ -223,23 +278,24 @@ out:
 }
 
 
-int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid)
+int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
+                       uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_get_member_attributes(struct osd_device *osd, uint64_t pid, 
-			      uint64_t cid)
+int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
+			      uint64_t cid, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id, 
-	     uint64_t alloc_len, uint64_t initial_oid)
+int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
+	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -248,15 +304,15 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 
 int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                         uint32_t list_id, uint64_t alloc_len,
-			uint64_t initial_oid)
+			uint64_t initial_oid, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid, 
-	      uint32_t query_len, uint64_t alloc_len)
+int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
+	      uint32_t query_len, uint64_t alloc_len, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -264,7 +320,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 
 
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
-	     uint64_t offset, uint8_t **data, uint64_t *outlen)
+	     uint64_t offset, uint8_t **data, uint64_t *outlen, uint8_t *sense)
 {
 	const char result[] = "Falls mainly in the plain";
 	uint8_t *v;
@@ -287,29 +343,31 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 }
 
 
-int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t uid)
+int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t uid,
+               uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid)
+int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
+                          uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_remove_member_objects(struct osd_device *osd, uint64_t pid, 
-			      uint64_t cid)
+int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
+			      uint64_t cid, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_remove_partition(struct osd_device *osd, uint64_t pid)
+int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -320,15 +378,16 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid)
  * Settable page numbers in any given U,P,C,R range are further restricted
  * by osd2r00 p 23:  >= 0x10000 && < 0x20000000.
  */
-int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid)
+int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
+                       uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid, 
-		uint64_t key, uint8_t seed[20])
+int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
+		uint64_t key, uint8_t seed[20], uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -336,15 +395,15 @@ int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
 
 
 int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
-                       uint32_t param_len, uint32_t alloc_len)
+                       uint32_t param_len, uint32_t alloc_len, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
 }
 
 
-int osd_set_member_attributes(struct osd_device *osd, uint64_t pid, 
-			      uint64_t cid)
+int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
+			      uint64_t cid, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -352,7 +411,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 
 
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
-	      uint64_t offset, const uint8_t *data)
+	      uint64_t offset, const uint8_t *data, uint8_t *sense)
 {
 	debug("%s: pid %llu oid %llu len %llu offset %llu data %p", __func__,
 	      llu(pid), llu(oid), llu(len), llu(offset), data);

@@ -34,6 +34,47 @@ static struct init_attr root_info[] = {
 };
 
 /*
+ * This goes someplace else, perhaps.
+ */
+static struct init_attr partition_info[] = {
+	{ PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory" },
+	{ PARTITION_PG + 0, PARTITION_PG + 1,
+		"INCITS  T10 Partition Information" },
+	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
+};
+int create_partition(struct osd_device *osd, uint64_t requested_pid)
+{
+	int i, ret;
+
+	if (requested_pid != 0) {
+		/*
+		 * Partition zero does not have an entry in the obj db; those
+		 * are only for user-created partitions.
+		 */
+		ret = obj_insert(osd->db, requested_pid, 0);
+		if (ret)
+			goto out;
+	}
+	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
+		struct init_attr *ia = &partition_info[i];
+		ret = attr_set_attr(osd->db, requested_pid, 0, ia->page,
+				    ia->number, ia->s, strlen(ia->s)+1);
+		if (ret)
+			goto out;
+	}
+
+	/* the pid goes here */
+	ret = attr_set_attr(osd->db, requested_pid, 0, PARTITION_PG + 1,
+			    1, &requested_pid, 8);
+	if (ret)
+		goto out;
+
+out:
+	return ret;
+}
+
+
+/*
  * Create root object and attributes for root and partition zero.
  */
 static int initial_populate(struct osd_device *osd)
@@ -58,7 +99,7 @@ static int initial_populate(struct osd_device *osd)
 			goto out;
 	}
 
-	ret = osd_create_partition(osd, 0);
+	ret = create_partition(osd, 0);
 
 out:
 	return ret;

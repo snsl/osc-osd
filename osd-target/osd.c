@@ -185,7 +185,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		return -1;
 
 	for (i=0; i<num; i++) {
-		ret = obj_insert(osd->db, pid, requested_oid);
+		ret = obj_insert(osd->db, pid, requested_oid + i);
 		if (ret)
 			break;
 	}

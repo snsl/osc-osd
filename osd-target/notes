@@ -136,3 +136,9 @@ attr:
 define return values, we return same return values as sqlite or should
 we assume this is single threaded app => no table locking, no checking for
 EBUSY. in future keep sqlite3_step in a infinite loop
+
+# Fri Jan 26 11:03:52 EST 2007
+- 	put sqlite_step statemnts in infinite loop.
+-	consistent return codes
+-	single makefile for tests and libosd
+-	make rules for dependencies

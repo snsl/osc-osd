@@ -17,7 +17,7 @@ int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid)
 	sqlite3_stmt *stmt = NULL;
 
 	if (db == NULL)
-		return -1;
+		return -EINVAL;
 
 	sprintf(SQL, "INSERT INTO obj VALUES(?, ?);");
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
@@ -25,30 +25,33 @@ int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid)
 		error_sql(db, "%s: prepare", __func__);
 		goto out;
 	}
-	ret = sqlite3_bind_int64(stmt, OBJ_PID_COLUMN, pid);
+	ret = sqlite3_bind_int64(stmt, 1, pid);
 	if (ret) {
 		error_sql(db, "%s: bind pid", __func__);
-		goto out;
+		goto out_finalize;
 	}
-	ret = sqlite3_bind_int64(stmt, OBJ_OID_COLUMN, oid);
+	ret = sqlite3_bind_int64(stmt, 2, oid);
 	if (ret) {
 		error_sql(db, "%s: bind oid", __func__);
-		goto out;
+		goto out_finalize;
 	}
 
 	ret = sqlite3_step(stmt);
 	if (ret != SQLITE_DONE) {
 		/* FIXME: Do we know for certain that the record exists here? */
 		ret = -EEXIST;
-		error_sql(db, "%s: %lu %lu exists!", __func__, pid, oid);
-		goto out;
+		error_sql(db, "%s: object %lu %lu exists!", __func__, pid, oid);
+		goto out_finalize;
 	} 
-	ret = 0;
 
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: finalize", __func__);
+		goto out;
+	}
+	
 out:
-	/* FIXME: Should we always finalize? We lose ret here too */
-	if (sqlite3_finalize(stmt) != SQLITE_OK)
-		return -1;
 	return ret;
 }
 
@@ -59,7 +62,7 @@ int obj_delete(sqlite3 *db, uint64_t pid, uint64_t oid)
 	char *err = NULL;
 
 	if (db == NULL)
-		return -ENXIO;
+		return -EINVAL;
 
 	sprintf(SQL, "DELETE FROM obj WHERE pid = %lu AND oid = %lu",
 		pid, oid);

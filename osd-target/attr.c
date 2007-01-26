@@ -19,9 +19,8 @@ int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	sqlite3_stmt *stmt = NULL;
 
 	if (db == NULL)
-		return -ENXIO;
+		return -EINVAL;
 
-	/* FIXME: Why zero? */
 	if (number == 0) {
 		const uint8_t *s = val;
 		int i;
@@ -31,7 +30,8 @@ int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 			goto out;
 
 		for (i=0; i<len; i++) {
-			if (s[i] == 0) 	break;
+			if (s[i] == 0) 	
+				break;
 		}
 
 		if (i == len) {
@@ -40,35 +40,35 @@ int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		}
 	}
 
-	sprintf(SQL, "INSERT OR REPLACE INTO attr VALUES (?, ?, ?, ?, ?);");
+	sprintf(SQL, "INSERT OR REPLACE INTO attr valueS (?, ?, ?, ?, ?);");
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: prepare", __func__);
-		goto out;
+		goto out; /* no prepared stmt, no need to finalize */
 	}
-	ret = sqlite3_bind_int64(stmt, ATTR_PID_COLUMN, pid);
+	ret = sqlite3_bind_int64(stmt, 1, pid);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind PID", __func__);
+		error_sql(db, "%s: bind pid", __func__);
 		goto out_finalize;
 	}
-	ret = sqlite3_bind_int64(stmt, ATTR_OID_COLUMN, oid);
+	ret = sqlite3_bind_int64(stmt, 2, oid);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind OID", __func__);
+		error_sql(db, "%s: bind oid", __func__);
 		goto out_finalize;
 	}
-	ret = sqlite3_bind_int(stmt, ATTR_PAGE_COLUMN, page);
+	ret = sqlite3_bind_int(stmt, 3, page);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind PAGE", __func__);
+		error_sql(db, "%s: bind page", __func__);
 		goto out_finalize;
 	}
-	ret = sqlite3_bind_int(stmt, ATTR_NUM_COLUMN, number);
+	ret = sqlite3_bind_int(stmt, 4, number);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind NUM", __func__);
+		error_sql(db, "%s: bind num", __func__);
 		goto out_finalize;
 	}
-	ret = sqlite3_bind_blob(stmt, ATTR_VALUE_COLUMN, val, len, SQLITE_TRANSIENT);
+	ret = sqlite3_bind_blob(stmt, 5, val, len, SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind VALUE", __func__);
+		error_sql(db, "%s: bind value", __func__);
 		goto out_finalize;
 	}
 	ret = sqlite3_step(stmt);
@@ -78,6 +78,8 @@ int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	}
 
 out_finalize:
+	/* NOTE: in case of error sqlite3_finalize will grab the error code, so
+	 * return will not be lost. On success it returns SQLITE_OK */
 	ret = sqlite3_finalize(stmt);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: finalize", __func__);
@@ -95,15 +97,15 @@ int attr_delete_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	char *err = NULL;
 
 	if (db == NULL)
-		return -ENXIO;
+		return -EINVAL;
 
 	sprintf(SQL, "DELETE FROM attr WHERE "
-		"pid = %lu AND oid = %lu AND page = %u AND number = %u;", 
+		" pid = %lu AND oid = %lu AND page = %u AND number = %u;", 
 		pid, oid, page, number);
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		error("%s: sqlite3_exec : %s", __func__, err);
-		free(err);
+		sqlite3_free(err);
 	}
 
 	return ret;
@@ -116,25 +118,28 @@ int attr_delete_all(sqlite3 *db, uint64_t pid, uint64_t oid)
 	char *err = NULL;
 
 	if (db == NULL)
-		return -ENXIO;
+		return -EINVAL;
 
-	sprintf(SQL, "DELETE FROM attr WHERE pid = %lu AND oid = %lu",
+	sprintf(SQL, "DELETE FROM attr WHERE pid = %lu AND oid = %lu;",
 		pid, oid);
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		error("%s: sqlite3_exec : %s", __func__, err);
-		free(err);
+		sqlite3_free(err);
 	}
 
 	return ret;
 }
 
+/* 
+ * Gather the results into list_entry format. Each row has page, number, len,
+ * value. Look at queries in attr_get_attr attr_get_attr_page.
+ */
 static int attr_gather_attr(sqlite3_stmt *stmt, void *outbuf, uint16_t len)
 {
 	list_entry_t *ent = (list_entry_t *)outbuf;
 	assert(len > ATTR_VAL_OFFSET);
 
-	/* FIXME: Why 0,1,2? */
 	ent->page = sqlite3_column_int(stmt, 0);
 	ent->number = sqlite3_column_int(stmt, 1);
 	ent->len = sqlite3_column_bytes(stmt, 2);
@@ -159,11 +164,8 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
-	if (db == NULL)
-		return -ENXIO;
-
-	if (outbuf == NULL)
-		return -EFAULT;
+	if (db == NULL || outbuf == NULL)
+		return -EINVAL;
 
 	sprintf(SQL, "SELECT page, number, value FROM attr WHERE"
 		" pid = ? AND oid = ? AND page = ? AND number = ?");
@@ -172,52 +174,54 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		error_sql(db, "%s: prepare", __func__);
 		goto out;
 	}
-	ret = sqlite3_bind_int64(stmt, ATTR_PID_COLUMN, pid);
+	ret = sqlite3_bind_int64(stmt, 1, pid);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind 1", __func__);
-		goto out;
+		error_sql(db, "%s: bind pid", __func__);
+		goto out_finalize;
 	}
-	ret = sqlite3_bind_int64(stmt, ATTR_OID_COLUMN, oid);
+	ret = sqlite3_bind_int64(stmt, 2, oid);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind 2", __func__);
-		goto out;
+		error_sql(db, "%s: bind oid", __func__);
+		goto out_finalize;
 	}
-	ret = sqlite3_bind_int(stmt, ATTR_PAGE_COLUMN, page);
+	ret = sqlite3_bind_int(stmt, 3, page);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind 3", __func__);
-		goto out;
+		error_sql(db, "%s: bind page", __func__);
+		goto out_finalize;
 	}
-	ret = sqlite3_bind_int(stmt, ATTR_NUMBER_COLUMN, number);
+	ret = sqlite3_bind_int(stmt, 4, number);
 	if (ret != SQLITE_OK){
-		error_sql(db, "%s: bind 4", __func__);
-		goto out;
+		error_sql(db, "%s: bind number", __func__);
+		goto out_finalize;
 	}
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		if ( (ret = attr_gather_attr(stmt, outbuf, len)) != SQLITE_OK) {
 			error_sql(db, "%s: attr_gather_attr", __func__);
-			error_sql(db, "%s: stmt = %s", __func__, stmt);
-			goto out;
+			goto out_finalize;
 		}
 	}
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: sqlite3_step", __func__);
-		goto out;
+		goto out_finalize;
 	} else if (ret == SQLITE_NOTFOUND) {
 		error_sql(db, "%s: attr not found", __func__);
-		goto out;
+		goto out_finalize;
 	}
-	ret = 0; /* success */
 
 	/* XXX:
 	 * if number == 0 and page not found, return this:
 	 memcpy(outbuf, unidentified_page_identification, 40);
 	 */
 
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: finalize", __func__);
+		goto out;
+	}
+	
 out:
-	/* XXX: Should we finalize if we fail? Also, we lose ret */
-	if (sqlite3_finalize(stmt) != SQLITE_OK)
-		return -1;
 	return ret;
 }
 
@@ -229,10 +233,8 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
-	if (db == NULL)
-		return -ENXIO;
-	if (outbuf == NULL)
-		return -EFAULT;
+	if (db == NULL || outbuf == NULL)
+		return -EINVAL;
 
 	sprintf(SQL, "SELECT * FROM attr"
 		"WHERE pid = ? AND oid = ? AND page = ?");
@@ -241,26 +243,25 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		error_sql(db, "%s: prepare", __func__);
 		goto out;
 	}
-	ret = sqlite3_bind_int64(stmt, ATTR_PID_COLUMN, pid);
+	ret = sqlite3_bind_int64(stmt, 1, pid);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind PID", __func__);
-		goto out;
+		error_sql(db, "%s: bind pid", __func__);
+		goto out_finalize;
 	}
-	ret = sqlite3_bind_int64(stmt, ATTR_OID_COLUMN, oid);
+	ret = sqlite3_bind_int64(stmt, 2, oid);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind OID", __func__);
-		goto out;
+		error_sql(db, "%s: bind oid", __func__);
+		goto out_finalize;
 	}
-	ret = sqlite3_bind_int(stmt, ATTR_PAGE_COLUMN, page);
+	ret = sqlite3_bind_int(stmt, 3, page);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind PAGE", __func__);
-		goto out;
+		error_sql(db, "%s: bind page", __func__);
+		goto out_finalize;
 	}
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		if ((ret = attr_gather_attr(stmt, outbuf, len)) != 0) {
 			error_sql(db, "%s: attr_gather_attr", __func__);
-			error_sql(db, "%s: stmt = %s", __func__, stmt);
 			goto out;
 		}
 		/* retrieve attr in list entry format; tab 129 Sec 7.1.3.3 */
@@ -268,24 +269,21 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		len -= it_len;
 		outbuf = (char *) outbuf + it_len;
 	}
-	switch(ret)
-	{
-	case SQLITE_DONE:
-		break;
-	case SQLITE_NOTFOUND:
-		error_sql(db, "%s: attr not found", __func__);
-		ret = -ENOENT;
-		goto out;
-	default:
+	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: sqlite3_step", __func__);
-		goto out;
+		goto out_finalize;
+	} else if (ret == SQLITE_NOTFOUND) {
+		error_sql(db, "%s: attr not found", __func__);
+		goto out_finalize;
 	}
 
-	ret = 0; /* success */
-
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: finalize", __func__);
+		goto out;
+	}
+	
 out:
-	/* XXX: Should we finalize if we fail? Also, we lose ret */
-	if (sqlite3_finalize(stmt) != SQLITE_OK)
-		return -1;
 	return ret;
 }

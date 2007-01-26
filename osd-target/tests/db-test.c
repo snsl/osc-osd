@@ -11,6 +11,7 @@
 #include "util.h"
 
 void test_obj(struct osd_device *osd);
+void test_dup_obj(struct osd_device *osd);
 void test_attr(struct osd_device *osd);
 void test_osd_interface(void);
 
@@ -26,6 +27,23 @@ void test_obj(struct osd_device *osd)
 	if (ret != 0)
 		error_fatal("%s: obj_delete failed", __func__);
 
+}
+
+void test_dup_obj(struct osd_device *osd)
+{
+	int ret = 0;
+
+	ret = obj_insert(osd->db, 1, 2);
+	if (ret != 0)
+		error_fatal("%s: obj_insert failed", __func__);
+
+	ret = obj_insert(osd->db, 1, 2);
+	if (ret != 0)
+		error("%s: obj_insert failed as expected", __func__);
+
+	ret = obj_delete(osd->db, 1, 2);
+	if (ret != 0)
+		error_fatal("%s: obj_delete failed", __func__);
 }
 
 void test_attr(struct osd_device *osd)
@@ -79,6 +97,7 @@ int main()
 
 	/*test_obj(&osd);*/
 	/*test_attr(&osd);*/
+	test_dup_obj(&osd);
 
 	ret = db_close(&osd);
 	if (ret != 0)

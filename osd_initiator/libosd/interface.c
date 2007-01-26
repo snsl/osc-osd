@@ -12,21 +12,24 @@
 #include "osd_hdr.h"
 #include "../kernel/suo_ioctl.h"
 
-int uosd_open(const char *dev)
+/*Forward declaration -- don't define in interface.h or test codes will complain*/
+static int write_cdb(int fd, const uint8_t *cdb, int cdb_len,  enum data_direction dir,
+		     const void *outbuf,  size_t outlen, void *inbuf, size_t inlen);
+
+
+/*Functions for user codes to manipulate the character device*/
+int dev_osd_open(const char *dev)
 {
 	int interface_fd = open(dev, O_RDWR);
 	return interface_fd;
 }
 
-void uosd_close(int fd)
+void dev_osd_close(int fd)
 {
 	close(fd);
 }
 
-/*
- * Blocking, waits for a response.
- */
-int uosd_wait_response(int fd, uint64_t *key)
+int dev_osd_wait_response(int fd, uint64_t *key)  /*blocking*/
 {
 	int ret;
 	struct suo_response response;
@@ -42,6 +45,42 @@ int uosd_wait_response(int fd, uint64_t *key)
 	return response.error;
 }
 
+
+
+
+
+
+
+
+
+
+int dev_osd_write_nodata(int fd, const uint8_t *cdb, int cdb_len)
+{
+	return write_cdb(fd, cdb, cdb_len, DMA_NONE, NULL, 0, NULL, 0);
+}
+
+int dev_osd_write(int fd, const uint8_t *cdb, int cdb_len, const void *buf, size_t len)
+{
+	return write_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, buf, len, NULL, 0);
+}
+
+int dev_osd_read(int fd, const uint8_t *cdb, int cdb_len, void *buf, size_t len)
+{
+	return write_cdb(fd, cdb, cdb_len, DMA_FROM_DEVICE, NULL, 0, buf, len);
+}
+
+int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
+		   size_t outlen, void *inbuf, size_t inlen)
+{
+	error("%s: cannot do bidirectional yet", __func__);
+	return write_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen,
+	               inbuf, inlen);
+}
+
+
+
+
+/*Actually do the writing to the char dev - not for user codes*/
 static int write_cdb(int fd, 
 		     const uint8_t *cdb, 
 		     int cdb_len, 
@@ -70,36 +109,16 @@ static int write_cdb(int fd,
 	return ret;
 }
 
-int uosd_cdb_nodata(int fd, const uint8_t *cdb, int cdb_len)
-{
-	return write_cdb(fd, cdb, cdb_len, DMA_NONE, NULL, 0, NULL, 0);
-}
 
-int uosd_cdb_write(int fd, const uint8_t *cdb, int cdb_len, const void *buf, size_t len)
-{
-	return write_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, buf, len, NULL, 0);
-}
 
-int uosd_cdb_read(int fd, const uint8_t *cdb, int cdb_len, void *buf, size_t len)
-{
-	return write_cdb(fd, cdb, cdb_len, DMA_FROM_DEVICE, NULL, 0, buf, len);
-}
-
-int uosd_cdb_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
-		   size_t outlen, void *inbuf, size_t inlen)
-{
-	error("%s: cannot do bidirectional yet", __func__);
-	return write_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen,
-	               inbuf, inlen);
-}
-
+/*bit twiddling functions*/
 static uint32_t swab32(uint32_t d)
 {
 	return  (d & (uint32_t) 0x000000ffUL) << 24 |
 	        (d & (uint32_t) 0x0000ff00UL) << 8  |
 	        (d & (uint32_t) 0x00ff0000UL) >> 8  |
 	        (d & (uint32_t) 0xff000000UL) >> 24;
-}
+} 
 
 #if 0  /* will be needed for parsing returned values */
 /*
@@ -148,7 +167,7 @@ static void set_htons_le(uint8_t *x, uint16_t val)
 	uint16_t *xh = (uint16_t *) x;
 
 	*xh = (val & (uint16_t) 0x00ffU) << 8 |
-	      (val & (uint16_t) 0xff00U) >> 8;
+	      (val & (uint16_t) 0xff00U) >> 8; 
 }
 
 /* some day deal with the big-endian versions */
@@ -171,7 +190,7 @@ static void set_action(uint8_t *cdb, uint16_t command)
  * and the arguments needed for the particular command.  They marshal
  * the arguments but do not submit the command.
  */
-int osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len)
+int set_cdb_osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len)
 {
 	debug(__func__);
 	set_action(cdb, OSD_APPEND);
@@ -182,7 +201,7 @@ int osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len)
 }
 
 
-int osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid, uint16_t num)
+int set_cdb_osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid, uint16_t num)
 {
 	debug(__func__);
 	set_action(cdb, OSD_CREATE);
@@ -193,7 +212,7 @@ int osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid, uint16_t num)
 }
 
 
-int osd_create_and_write(uint8_t *cdb, uint64_t pid, uint64_t requested_oid,
+int set_cdb_osd_create_and_write(uint8_t *cdb, uint64_t pid, uint64_t requested_oid,
                          uint64_t len, uint64_t offset)
 {
 	debug(__func__);
@@ -206,7 +225,7 @@ int osd_create_and_write(uint8_t *cdb, uint64_t pid, uint64_t requested_oid,
 }
 
 
-int osd_create_collection(uint8_t *cdb, uint64_t pid, uint64_t requested_cid)
+int set_cdb_osd_create_collection(uint8_t *cdb, uint64_t pid, uint64_t requested_cid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_CREATE_COLLECTION);
@@ -216,7 +235,7 @@ int osd_create_collection(uint8_t *cdb, uint64_t pid, uint64_t requested_cid)
 }
 
 
-int osd_create_partition(uint8_t *cdb, uint64_t requested_pid)
+int set_cdb_osd_create_partition(uint8_t *cdb, uint64_t requested_pid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_CREATE_PARTITION);
@@ -225,7 +244,7 @@ int osd_create_partition(uint8_t *cdb, uint64_t requested_pid)
 }
 
 
-int osd_flush(uint8_t *cdb, uint64_t pid, uint64_t oid, int flush_scope)
+int set_cdb_osd_flush(uint8_t *cdb, uint64_t pid, uint64_t oid, int flush_scope)
 {
 	debug(__func__);
 	set_action(cdb, OSD_FLUSH);
@@ -236,7 +255,7 @@ int osd_flush(uint8_t *cdb, uint64_t pid, uint64_t oid, int flush_scope)
 }
 
 
-int osd_flush_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,
+int set_cdb_osd_flush_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,
                          int flush_scope)
 {
 	debug(__func__);
@@ -248,7 +267,7 @@ int osd_flush_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,
 }
 
 
-int osd_flush_osd(uint8_t *cdb, int flush_scope)
+int set_cdb_osd_flush_osd(uint8_t *cdb, int flush_scope)
 {
 	debug(__func__);
 	set_action(cdb, OSD_FLUSH_OSD);
@@ -257,7 +276,7 @@ int osd_flush_osd(uint8_t *cdb, int flush_scope)
 }
 
 
-int osd_flush_partition(uint8_t *cdb, uint64_t pid, int flush_scope)
+int set_cdb_osd_flush_partition(uint8_t *cdb, uint64_t pid, int flush_scope)
 {
 	debug(__func__);
 	set_action(cdb, OSD_FLUSH_PARTITION);
@@ -269,7 +288,7 @@ int osd_flush_partition(uint8_t *cdb, uint64_t pid, int flush_scope)
 /*
  * Destroy the db and start over again.
  */
-int osd_format_osd(uint8_t *cdb, uint64_t capacity)
+int set_cdb_osd_format_osd(uint8_t *cdb, uint64_t capacity)
 {
 	debug(__func__);
 	set_action(cdb, OSD_FORMAT_OSD);
@@ -278,7 +297,7 @@ int osd_format_osd(uint8_t *cdb, uint64_t capacity)
 }
 
 
-int osd_get_attributes(uint8_t *cdb, uint64_t pid, uint64_t oid)
+int set_cdb_osd_get_attributes(uint8_t *cdb, uint64_t pid, uint64_t oid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_GET_ATTRIBUTES);
@@ -288,7 +307,7 @@ int osd_get_attributes(uint8_t *cdb, uint64_t pid, uint64_t oid)
 }
 
 
-int osd_get_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid)
+int set_cdb_osd_get_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid) /*section in spec?*/
 {
 	debug(__func__);
 	set_action(cdb, OSD_GET_MEMBER_ATTRIBUTES);
@@ -298,7 +317,7 @@ int osd_get_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid)
 }
 
 
-int osd_list(uint8_t *cdb, uint64_t pid, uint32_t list_id, uint64_t alloc_len,
+int set_cdb_osd_list(uint8_t *cdb, uint64_t pid, uint32_t list_id, uint64_t alloc_len,
              uint64_t initial_oid)
 {
 	debug(__func__);
@@ -311,7 +330,7 @@ int osd_list(uint8_t *cdb, uint64_t pid, uint32_t list_id, uint64_t alloc_len,
 }
 
 
-int osd_list_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,
+int set_cdb_osd_list_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,  /*section in spec?*/
                         uint32_t list_id, uint64_t alloc_len,
 			uint64_t initial_oid)
 {
@@ -325,17 +344,17 @@ int osd_list_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,
 	return 0;
 }
 
-int osd_perform_scsi_command(uint8_t *cdb)
+int set_cdb_osd_perform_scsi_command(uint8_t *cdb)
 {
 	error("%s: unimplemented", __func__);
 }
 
-int osd_perform_task_mgmt_func(uint8_t *cdb)
+int set_cdb_osd_perform_task_mgmt_func(uint8_t *cdb)
 {
 	error("%s: unimplemented", __func__);
 }
 
-int osd_query(uint8_t *cdb, uint64_t pid, uint64_t cid, uint32_t query_len,
+int set_cdb_osd_query(uint8_t *cdb, uint64_t pid, uint64_t cid, uint32_t query_len,    /*section in spec?*/
               uint64_t alloc_len)
 {
 	debug(__func__);
@@ -348,7 +367,7 @@ int osd_query(uint8_t *cdb, uint64_t pid, uint64_t cid, uint32_t query_len,
 }
 
 
-int osd_read(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
+int set_cdb_osd_read(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
 	     uint64_t offset)
 {
 	debug(__func__);
@@ -361,7 +380,7 @@ int osd_read(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
 }
 
 
-int osd_remove(uint8_t *cdb, uint64_t pid, uint64_t oid)
+int set_cdb_osd_remove(uint8_t *cdb, uint64_t pid, uint64_t oid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_REMOVE);
@@ -371,7 +390,7 @@ int osd_remove(uint8_t *cdb, uint64_t pid, uint64_t oid)
 }
 
 
-int osd_remove_collection(uint8_t *cdb, uint64_t pid, uint64_t cid)
+int set_cdb_osd_remove_collection(uint8_t *cdb, uint64_t pid, uint64_t cid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_REMOVE_COLLECTION);
@@ -381,7 +400,7 @@ int osd_remove_collection(uint8_t *cdb, uint64_t pid, uint64_t cid)
 }
 
 
-int osd_remove_member_objects(uint8_t *cdb, uint64_t pid, uint64_t cid)
+int set_cdb_osd_remove_member_objects(uint8_t *cdb, uint64_t pid, uint64_t cid) /*section in spec?*/
 {
 	debug(__func__);
 	set_action(cdb, OSD_REMOVE_MEMBER_OBJECTS);
@@ -391,7 +410,7 @@ int osd_remove_member_objects(uint8_t *cdb, uint64_t pid, uint64_t cid)
 }
 
 
-int osd_remove_partition(uint8_t *cdb, uint64_t pid)
+int set_cdb_osd_remove_partition(uint8_t *cdb, uint64_t pid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_REMOVE_PARTITION);
@@ -399,7 +418,7 @@ int osd_remove_partition(uint8_t *cdb, uint64_t pid)
 	return 0;
 }
 
-int osd_set_attributes(uint8_t *cdb, uint64_t pid, uint64_t oid)
+int set_cdb_osd_set_attributes(uint8_t *cdb, uint64_t pid, uint64_t oid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_SET_ATTRIBUTES);
@@ -409,7 +428,7 @@ int osd_set_attributes(uint8_t *cdb, uint64_t pid, uint64_t oid)
 }
 
 
-int osd_set_key(uint8_t *cdb, int key_to_set, uint64_t pid, uint64_t key,
+int set_cdb_osd_set_key(uint8_t *cdb, int key_to_set, uint64_t pid, uint64_t key,
                 uint8_t seed[20])
 {
 	debug(__func__);
@@ -422,7 +441,7 @@ int osd_set_key(uint8_t *cdb, int key_to_set, uint64_t pid, uint64_t key,
 }
 
 
-int osd_set_master_key(uint8_t *cdb, int dh_step, uint64_t key,
+int set_cdb_osd_set_master_key(uint8_t *cdb, int dh_step, uint64_t key,
                        uint32_t param_len, uint32_t alloc_len)
 {
 	debug(__func__);
@@ -435,7 +454,7 @@ int osd_set_master_key(uint8_t *cdb, int dh_step, uint64_t key,
 }
 
 
-int osd_set_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid)
+int osd_set_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid)  /*section in spec?*/
 {
 	debug(__func__);
 	set_action(cdb, OSD_SET_MEMBER_ATTRIBUTES);
@@ -445,7 +464,7 @@ int osd_set_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid)
 }
 
 
-int osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
+int set_cdb_osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
 	      uint64_t offset)
 {
 	debug(__func__);

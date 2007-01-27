@@ -1044,7 +1044,7 @@ out:
 }
 
 static inline int 
-check_osd_command(struct request* req, struct suo_req* ureq)
+check_osd_command(struct request *req, struct suo_req *ureq)
 {
 	int ret, i;
 

@@ -29,7 +29,8 @@ void dev_osd_close(int fd)
 	close(fd);
 }
 
-int dev_osd_wait_response(int fd, uint64_t *key)  /*blocking*/
+/* blocking */
+int dev_osd_wait_response(int fd, uint64_t *key)
 {
 	int ret;
 	struct suo_response response;
@@ -45,13 +46,31 @@ int dev_osd_wait_response(int fd, uint64_t *key)  /*blocking*/
 	return response.error;
 }
 
+/*
+ * Trying a different style.  Need sense data sometimes.
+ */
+int dev_osd_wait_response2(int fd, struct dev_response *devresp)
+{
+	int ret;
+	struct suo_response response;
 
-
-
-
-
-
-
+	ret = read(fd, &response, sizeof(response));
+	if (ret < 0)
+		error_errno("%s: read response", __func__);
+	if (ret != sizeof(response))
+		error("%s: got %d bytes, expecting response %zu bytes",
+		      __func__, ret, sizeof(response));
+	/* I don't particularly like this copying.  But maybe it is
+	 * unavoidable.  Or we could come up with a shared interface
+	 * for kernel/userlib and userlib/usercode to share.
+	 */
+	devresp->key = response.key;
+	devresp->error = response.error;
+	devresp->sense_buffer_len = response.sense_buffer_len;
+	memcpy(devresp->sense_buffer, response.sense_buffer,
+	       response.sense_buffer_len);
+	return 0;
+}
 
 
 int dev_osd_write_nodata(int fd, const uint8_t *cdb, int cdb_len)

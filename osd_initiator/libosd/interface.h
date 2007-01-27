@@ -9,6 +9,13 @@ enum data_direction {
     DMA_NONE = 3,
 };
 
+struct dev_response {
+	uint64_t key;
+	int error;
+	int sense_buffer_len;
+	unsigned char sense_buffer[252];  /* hackety hack */
+};
+
 
 /*
  * Public functions
@@ -17,6 +24,7 @@ enum data_direction {
 int dev_osd_open(const char *dev);
 void dev_osd_close(int fd);
 int dev_osd_wait_response(int fd, uint64_t *key);
+int dev_osd_wait_response2(int fd, struct dev_response *devresp);
 int dev_osd_write_nodata(int fd, const uint8_t *cdb, int cdb_len);
 int dev_osd_write(int fd, const uint8_t *cdb, int cdb_len, const void *buf, size_t len);
 int dev_osd_read(int fd, const uint8_t *cdb, int cdb_len, void *buf, size_t len);

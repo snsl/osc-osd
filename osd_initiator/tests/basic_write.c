@@ -1,38 +1,17 @@
 /*
  * Test the chardev transport to the kernel.
  */
-
-#ifndef __KERNEL__
-typedef signed char s8;
-typedef unsigned char u8;
-
-typedef signed short s16;
-typedef unsigned short u16;
-
-typedef signed int s32;
-typedef unsigned int u32;
-
-typedef signed long long s64;
-typedef unsigned long long u64;
-
-#define BITS_PER_LONG 32 
-
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <linux/types.h>
 #include <scsi/scsi.h>
 #include <libosd/interface.h>
 #include <libosd/util.h>
 #include <libosd/osd_hdr.h>
 
-
-#define VARLEN_CDB_SIZE 200
+#define OSD_CDB_SIZE 200
 #define VARLEN_CDB 0x7f
-#define CONTROL_BYTE 0x0
 #define TIMESTAMP_ON 0x0
 #define TIMESTAMP_OFF 0x7f
 
@@ -41,12 +20,12 @@ typedef unsigned long long u64;
  */
 static void varlen_cdb_init(uint8_t *cdb)
 {
-	memset(cdb, '\0', VARLEN_CDB_SIZE);
+	memset(cdb, 0, OSD_CDB_SIZE);
 	cdb[0] = VARLEN_CDB;
-	cdb[1] = CONTROL_BYTE;  /*XXX Look this up in SAM3*/
-	cdb[7] = VARLEN_CDB_SIZE - 8;  /* total length = 192*/
+	/* we do not support ACA or LINK in control byte cdb[1], leave as 0 */
+	cdb[7] = OSD_CDB_SIZE - 8;
 	cdb[11] = 2 << 4;  /* get attr page and set value see spec 5.2.2.2 */
-	cdb[12] = TIMESTAMP_OFF; /*Update timestamps based on action 5.2.8*/
+	cdb[12] = TIMESTAMP_OFF; /* Update timestamps based on action 5.2.8 */
 }
 
 static void cdb_build_inquiry(uint8_t *cdb)
@@ -80,6 +59,7 @@ int main(int argc, char *argv[])
 	uint8_t inquiry_rsp[80];
 	uint64_t key; 
 	int fd, err, i;  
+	struct dev_response resp;
 
 	set_progname(argc, argv); 
 
@@ -144,8 +124,23 @@ int main(int argc, char *argv[])
 	varlen_cdb_init(cdb);
 	set_cdb_osd_read(cdb, 0, 27, 10, 5);
 	dev_osd_read(fd, cdb, 200, bufout, 10);
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d, bufout %s", key, err, bufout);
+	err = dev_osd_wait_response2(fd, &resp);
+	info("response key %lx error %d, bufout %s, sense len %d", resp.key,
+	     resp.error, bufout, resp.sense_buffer_len);
+
+	char bad_bufout[] = "xxxxxxxxxxxxxxxxx";
+	info("osd read bad");
+	varlen_cdb_init(cdb);
+	set_cdb_osd_read(cdb, 16, 27, 10, 5);  /* magic bad pid causes error */
+	/*
+	 * Also need a way to get back how much data was written.  It could
+	 * be a partial read, with good data, but sense saying we asked for
+	 * more than was in the object.
+	 */
+	dev_osd_read(fd, cdb, 200, bad_bufout, 10);
+	err = dev_osd_wait_response2(fd, &resp);
+	info("response key %lx error %d, sense len %d", resp.key, resp.error,
+	     resp.sense_buffer_len);
 
 	dev_osd_close(fd);
 	return 0;

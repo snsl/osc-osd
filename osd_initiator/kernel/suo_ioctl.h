@@ -6,7 +6,8 @@ typedef uint64_t ptr_t;
 
 /* FIXME: How do we get the value of SCSI_SENSE_BUFFERSIZE without including
  * the kernel headers? */
-#define OSD_SENSE_BUFFERSIZE 128
+/* XXX: osd max could be 252.  Make sure kernel captures all that. */
+#define OSD_SENSE_BUFFERSIZE 252
 
 /*
  * Passed from userspace to kernel to initiate a SCSI request.  Arranged

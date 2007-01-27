@@ -181,13 +181,21 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 
 	debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
 	      llu(requested_oid), num);
-	if (pid == 0)
-		return -1;
+	if (pid == 0) {
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
+		                        pid, requested_oid);
+		return ret;
+	}
 
 	for (i=0; i<num; i++) {
 		ret = obj_insert(osd->db, pid, requested_oid + i);
 		if (ret)
 			break;
+	}
+	if (ret < 0) {
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
+		                        pid, requested_oid);
+		return ret;
 	}
 	return ret;
 }
@@ -323,14 +331,27 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	     uint64_t offset, uint8_t **data, uint64_t *outlen, uint8_t *sense)
 {
 	const char result[] = "Falls mainly in the plain";
+	int ret;
 	uint8_t *v;
 
 	debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
 	      llu(pid), llu(oid), llu(len), llu(offset));
+	if (pid == 16) {
+		/* Testing read of non-existent object.  Return the appropriate
+		 * error.
+		 */
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
+		                        pid, oid);
+		return ret;
+	}
+
 	v = malloc(len);
 	if (!v) {
 		error("%s: malloc %llu bytes", __func__, llu(len));
-		return -ENOMEM;
+		/* actually -ENOMEM, but do not know what better to return */
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
+		                        pid, oid);
+		return ret;
 	}
 	memset(v, 0, len);
 	if (len > strlen(result))

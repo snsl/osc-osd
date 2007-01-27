@@ -413,7 +413,7 @@ static void varlen_cdb_init(u8 *cdb, u16 action)
 static struct suo_filp_extra* alloc_suo_filp_extra(void)
 {
 	struct suo_filp_extra* newobj = kzalloc(sizeof(struct suo_filp_extra), GFP_KERNEL);
-	if(!newobj)
+	if (!newobj)
 		goto done;
 
 	newobj->lock = SPIN_LOCK_UNLOCKED;
@@ -653,7 +653,7 @@ static int suo_open(struct inode *inode, struct file *filp)
 
 	/* FIXME: Adding some extra info via private_data may be shady */
 	filp->private_data = alloc_suo_filp_extra();
-	if(unlikely(!filp->private_data))
+	if (unlikely(!filp->private_data))
 		goto error_out;
 
 	return 0;
@@ -690,7 +690,7 @@ static int suo_release(struct inode *inode, struct file *filp)
 	 * but it probably doesn't completely cover it */
 	filp->private_data = NULL;
 
-	if(unlikely(!fe))
+	if (unlikely(!fe))
 	{
 		printk(KERN_ERR "suo - %s: filp extra data is null!\n", __func__);
 	}
@@ -791,7 +791,7 @@ suo_read(struct file *filp, char __user *buf, size_t count, loff_t * ppos)
 
 	/* Is there nothing to copy out? */
 	add_wait_queue(&fe->read_wait, &wait);
-	while(list_empty(&sdkp->response_queue)) {
+	while (list_empty(&sdkp->response_queue)) {
 		spin_unlock(&sdkp->response_queue_lock);
 		if (filp->f_flags & O_NONBLOCK) {
 			ret = -EAGAIN;
@@ -869,7 +869,7 @@ suo_poll(struct file *filp, poll_table * wait_table)
 	poll_wait(filp, &fe->read_wait, wait_table);
 
 	spin_lock(&sdkp->response_queue_lock);
-	if(list_empty(&sdkp->response_queue))
+	if (list_empty(&sdkp->response_queue))
 		res |= POLLOUT | POLLWRNORM;
 
 	spin_unlock(&sdkp->response_queue_lock);

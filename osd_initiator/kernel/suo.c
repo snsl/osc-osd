@@ -958,7 +958,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	req->sense = sense;
 	req->sense_len = 0;
 
-	/* convenience var */
+	/* hang onto bio before submission, need to unmap later if error */
 	bio = req->bio;
 
 	if (bio)
@@ -969,9 +969,10 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	ret = suo_dispatch_command(sdev, filp, req);
 
 	if (ret) {
+		/* only on error */
 		kfree(sense);
 		if (ureq.out_data_len || ureq.in_data_len)
-		    blk_rq_unmap_user(req->bio);
+			blk_rq_unmap_user(bio);
 		goto out_putreq;
 	}
 	goto out;
@@ -1257,20 +1258,20 @@ static void suo_rq_complete(struct request *req, int error)
 	if (scsi_sense_valid(&sshdr))
 		scsi_print_sense_hdr(sdkp->disk_name, &sshdr);
 
-	req->bio = response->bio;  /* put back orign to unmap */
-	if (req->bio)
-	    dprintk("%s: bio %p, flags %lx, vec %p, vec[0].page %p len %u"
-	            " off %u\n",
-		    __func__, req->bio, req->bio->bi_flags, req->bio->bi_io_vec,
-		    req->bio->bi_io_vec[0].bv_page,
-		    req->bio->bi_io_vec[0].bv_len,
-		    req->bio->bi_io_vec[0].bv_offset);
+	if (response->bio)
+		dprintk("%s: bio %p, flags %lx, vec %p, vec[0].page %p len %u"
+	            	" off %u\n",
+		    	__func__, response->bio, response->bio->bi_flags,
+			response->bio->bi_io_vec,
+		    	response->bio->bi_io_vec[0].bv_page,
+		    	response->bio->bi_io_vec[0].bv_len,
+		    	response->bio->bi_io_vec[0].bv_offset);
 
 	/*
 	 * For bounce buffers, this actually does the copy.  Does nothing
 	 * unless req->bio was non-null.
 	 */
-	blk_rq_unmap_user(req->bio);
+	blk_rq_unmap_user(response->bio);
 
 	/* free resources */
 	kfree(req->sense);

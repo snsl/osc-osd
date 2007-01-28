@@ -30,6 +30,8 @@ int dev_osd_write(int fd, const uint8_t *cdb, int cdb_len, const void *buf, size
 int dev_osd_read(int fd, const uint8_t *cdb, int cdb_len, void *buf, size_t len);
 int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen);
+void hexdump(uint8_t *d, size_t len);
+void dev_show_sense(uint8_t *sense, int len);
 
 /*Functions to set up CDB*/
 int set_cdb_osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len);

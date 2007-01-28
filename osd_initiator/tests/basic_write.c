@@ -35,24 +35,6 @@ static void cdb_build_inquiry(uint8_t *cdb)
 	cdb[4] = 80;
 }
 
-static void hexdump(uint8_t *d, size_t len)
-{
-	size_t offset = 0;
-
-	while (offset < len) {
-		int i, range;
-
-		range = 8;
-		if (range > len-offset)
-			range = len-offset;
-		printf("%4lx:", offset);
-		for (i=0; i<range; i++)
-			printf(" %02x", d[offset+i]);
-		printf("\n");
-		offset += range;
-	}
-}
-
 int main(int argc, char *argv[])
 {
 	uint8_t cdb[200];
@@ -65,18 +47,18 @@ int main(int argc, char *argv[])
 
 	fd = dev_osd_open("/dev/sua");
 
-#if 0
+#if 1
 	for (i=0; i<2; i++)
 	{
 		info("inquiry");
 		memset(inquiry_rsp, 0xaa, 80);
 		cdb_build_inquiry(cdb);
 		memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
-		uosd_cdb_read(fd, cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
+		dev_osd_read(fd, cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
 
 		/* now wait for the result */
 		info("waiting for response");
-		err = uosd_wait_response(fd, &key);
+		err = dev_osd_wait_response(fd, &key);
 		info("response key %lx error %d", key, err);
 		hexdump(inquiry_rsp, sizeof(inquiry_rsp));
 		fflush(0);	
@@ -87,16 +69,17 @@ int main(int argc, char *argv[])
 
 	info("osd flush osd");
 	varlen_cdb_init(cdb);
-	osd_flush_osd(cdb, 2);   /* flush everything */
-	uosd_cdb_nodata(fd, cdb, 200);
+	set_cdb_osd_flush_osd(cdb, 2);   /* flush everything */
+	dev_osd_write_nodata(fd, cdb, 200);
 	info("waiting for response");
-	err = uosd_wait_response(fd, &key);
+	err = dev_osd_wait_response(fd, &key);
 	info("response key %lx error %d", key, err);
 
 	info("sleeping 2 before format");
 	sleep(2);
 #endif
 
+#if 1
 	info("osd format osd");
 	varlen_cdb_init(cdb);
 	set_cdb_osd_format_osd(cdb, 1<<30);   /* capacity 1 GB */
@@ -127,6 +110,7 @@ int main(int argc, char *argv[])
 	err = dev_osd_wait_response2(fd, &resp);
 	info("response key %lx error %d, bufout %s, sense len %d", resp.key,
 	     resp.error, bufout, resp.sense_buffer_len);
+#endif
 
 	char bad_bufout[] = "xxxxxxxxxxxxxxxxx";
 	info("osd read bad");
@@ -141,6 +125,8 @@ int main(int argc, char *argv[])
 	err = dev_osd_wait_response2(fd, &resp);
 	info("response key %lx error %d, sense len %d", resp.key, resp.error,
 	     resp.sense_buffer_len);
+	if (resp.sense_buffer_len)
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
 
 	dev_osd_close(fd);
 	return 0;

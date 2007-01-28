@@ -72,7 +72,6 @@ MODULE_LICENSE("GPL");
 #define dprintk(fmt...)
 #endif
 
-#define dprintk(fmt...) printk(KERN_INFO "suo: " fmt)
 #define ENTERING 	dprintk("suo: Entering %s\n", __func__)
 
 #define VARLEN_CDB_SIZE 200
@@ -972,7 +971,7 @@ suo_write(struct file *filp, const char __user *buf, size_t count, loff_t *ppos)
 	if (ret) {
 		kfree(sense);
 		if (ureq.out_data_len || ureq.in_data_len)
-		    blk_rq_unmap_user(req);
+		    blk_rq_unmap_user(req->bio);
 		goto out_putreq;
 	}
 	goto out;
@@ -1271,7 +1270,7 @@ static void suo_rq_complete(struct request *req, int error)
 	 * For bounce buffers, this actually does the copy.  Does nothing
 	 * unless req->bio was non-null.
 	 */
-	blk_rq_unmap_user(req);
+	blk_rq_unmap_user(req->bio);
 
 	/* free resources */
 	kfree(req->sense);

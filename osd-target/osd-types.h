@@ -5,20 +5,15 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
-typedef uint64_t object_id_t;
-typedef uint64_t object_len_t;
-typedef uint64_t object_off_t;
-typedef uint64_t partition_id_t;
-typedef uint64_t usrobject_id_t;
-typedef uint64_t collection_id_t;
-typedef uint16_t num_of_usr_object_t;
+#define ROOT_PID (0LLU)
+#define ROOT_OID (0LLU)
+#define PARTITION_PID_LB (0x10000LLU)
+#define PARTITION_OID (0x0LLU)
+#define COLLECTION_PID_LB (0x10000LLU)
+#define USEROBJECT_PID_LB (0x10000LLU)
+#define COLLECTION_OID_LB COLLECTION_PID_LB
+#define USEROBJECT_OID_LB USEROBJECT_PID_LB
 
-typedef uint32_t attr_len_t;
-typedef uint32_t attr_off_t;
-
-typedef uint32_t list_len_t;
-typedef uint32_t list_off_t;
-typedef uint32_t list_alloc_len_t;
 
 typedef enum {
 	ROOT = 1,

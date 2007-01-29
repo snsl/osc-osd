@@ -8,6 +8,7 @@
 CREATE TABLE obj (
 	pid INTEGER,
 	oid INTEGER,
+	type INTEGER,
 	PRIMARY KEY (pid, oid)
 );
 

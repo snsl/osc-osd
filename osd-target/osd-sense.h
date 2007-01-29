@@ -22,7 +22,7 @@
 #define UNSET_OSD_GA_CAP_V_STG (s = (s) | ~(0x1U << 29))
 #define UNSET_OSD_GET_ATT_STG (s = (s) | ~(0x1U << 28))
 
-/* scsi sense keys defined in table 27, SPC3 r23 */
+/* scsi sense keys (SSK) defined in table 27, SPC3 r23 */
 #define OSD_SSK_NO_SENSE (0x00)
 #define OSD_SSK_RECOVERED_ERROR (0x01)
 #define OSD_SSK_NOT_READY (0x02)
@@ -40,8 +40,8 @@
 #define OSD_SSK_MISCOMPARE (0x0E)
 #define OSD_SSK_RESERVED_SENSE_KEY (0x0F)
 
-/* OSD specific additional sense codes, defined in table 28 SPC3 r23. OSD
- * specific ASC from osd2 T10 r10 section 4, 5, 6, 7 */
+/* OSD specific additional sense codes (ASC), defined in table 28 SPC3 r23.
+ * OSD specific ASC from osd2 T10 r10 section 4, 5, 6, 7 */
 #define OSD_ASC_INVALID_COMMAND_OPERATION_CODE (0x2000)
 #define OSD_ASC_INVALID_DATA_OUT_BUFFER_INTEGRITY_CHECK_VALUE (0x260F)
 #define OSD_ASC_INVALID_FIELD_IN_CDB (0x2400)
@@ -58,14 +58,31 @@
 #define OSD_ASC_SECURITY_WORKING_KEY_FROZEN (0x2406)
 #define OSD_ASC_SYSTEM_RESOURCE_FAILURE (0x5500)
 
+#define ASC(x) ((x & 0xFF00) >> 8)
+#define ASCQ(x) (x & 0x00FF)
+
 /* including 8 byte header, and additional len = 244, as given by spc3 */
 #define MAX_SENSE_LEN 252
 
+/* Descriptor format sense data (fsd). SPC3 r23, 4.5.2.1 */
+typedef struct scsi_desc_fsd {
+	uint8_t resp_code; /* 0x72 */
+	uint8_t sense_key;
+	uint8_t asc;
+	uint8_t ascq;
+	uint8_t reserved[3];
+	uint8_t add_sense_len;
+} scsi_desc_fsd_t;
+
 /*
  * These are sense descriptors.  One or more of them get tacked behind
- * a header that iis assembled in stgt's descriptor_sense_data_build().
+ * a header that is assembled in stgt's descriptor_sense_data_build().
  */
-/* OSD error identification send data descriptor. osd2 T10 r10, Sec 4.14.2.1 */
+
+/* 
+ * OSD error identification sense data descriptor (sdd). osd2 T10 r10, 
+ * Sec 4.14.2.1 
+ */
 typedef struct osd_err_id_sdd {
     uint8_t key; /* 0x6 */
     uint8_t add_len; /* 0x1E */
@@ -76,7 +93,10 @@ typedef struct osd_err_id_sdd {
     uint64_t oid;
 } __attribute__((packed)) osd_err_id_sdd_t;
 
-/* OSD attribute identification sense data descriptor. osd2 T10 r10 4.14.2.3 */
+/* 
+ * OSD attribute identification sense data descriptor (sdd). osd2 T10 r10 
+ * 4.14.2.3 
+ */
 typedef struct osd_attr_id_sdd_t {
     uint8_t key; /* 0x8 */
     uint8_t add_len; /* num attributes*8 - 2 */

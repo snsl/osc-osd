@@ -160,7 +160,7 @@ static const char unidentified_page_identification[40]
 int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page, 
 		  uint32_t number, void *outbuf, uint16_t len)
 {
-	int ret = -EINVAL;
+	int ret = -EINVAL, found = 0;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
@@ -196,16 +196,18 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	}
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		if ( (ret = attr_gather_attr(stmt, outbuf, len)) != SQLITE_OK) {
+		if ((ret = attr_gather_attr(stmt, outbuf, len)) != SQLITE_OK) {
 			error_sql(db, "%s: attr_gather_attr", __func__);
 			goto out_finalize;
 		}
+		found = 1;
 	}
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: sqlite3_step", __func__);
 		goto out_finalize;
-	} else if (ret == SQLITE_NOTFOUND) {
-		error_sql(db, "%s: attr not found", __func__);
+	} else if (found == 0) {
+		error("%s: attr (%llu %llu %u %u) not found", __func__,
+		      llu(pid), llu(oid), page, number);
 		goto out_finalize;
 	}
 
@@ -228,7 +230,7 @@ out:
 int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		       uint32_t page, void *outbuf, uint16_t len)
 {
-	int ret = -EINVAL;
+	int ret = -EINVAL, found = 0;
 	int it_len = 0;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
@@ -268,12 +270,14 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		it_len = ((list_entry_t *)outbuf)->len + ATTR_VAL_OFFSET;
 		len -= it_len;
 		outbuf = (char *) outbuf + it_len;
+		found = 1;
 	}
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: sqlite3_step", __func__);
 		goto out_finalize;
-	} else if (ret == SQLITE_NOTFOUND) {
-		error_sql(db, "%s: attr not found", __func__);
+	} else if (found == 0) {
+		error("%s: attr (%llu %llu %u ) not found", __func__,
+		      llu(pid), llu(oid), page);
 		goto out_finalize;
 	}
 

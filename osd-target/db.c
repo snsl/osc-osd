@@ -42,6 +42,7 @@ static struct init_attr partition_info[] = {
 		"INCITS  T10 Partition Information" },
 	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
 };
+
 int create_partition(struct osd_device *osd, uint64_t requested_pid)
 {
 	int i, ret;
@@ -51,7 +52,7 @@ int create_partition(struct osd_device *osd, uint64_t requested_pid)
 		 * Partition zero does not have an entry in the obj db; those
 		 * are only for user-created partitions.
 		 */
-		ret = obj_insert(osd->db, requested_pid, 0);
+		ret = obj_insert(osd->db, requested_pid, 0, PARTITION);
 		if (ret)
 			goto out;
 	}
@@ -84,7 +85,7 @@ static int initial_populate(struct osd_device *osd)
 	if (!osd)
 		return -EINVAL;
 
-	ret = obj_insert(osd->db, 0, 0);
+	ret = obj_insert(osd->db, ROOT_PID, ROOT_OID, PARTITION);
 	if (ret != SQLITE_OK)
 		goto out;
 
@@ -93,8 +94,8 @@ static int initial_populate(struct osd_device *osd)
 
 		/* FIXME: We may want to define a ROOT_OID constant
 		 * just so the code reads better */
-		ret = attr_set_attr(osd->db, 0 , 0, ia->page, ia->number,
-				    ia->s, strlen(ia->s)+1);
+		ret = attr_set_attr(osd->db, ROOT_PID , ROOT_OID, ia->page, 
+				    ia->number, ia->s, strlen(ia->s)+1);
 		if (ret != SQLITE_OK)
 			goto out;
 	}

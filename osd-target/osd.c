@@ -168,36 +168,116 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 }
 
 
+static int osd_create_datafile(struct osd_device *osd, uint64_t pid, 
+			       uint64_t oid)
+{
+	int ret = 0;
+	char path[MAXNAMELEN];
+	struct stat sb;
+
+	sprintf(path, "%s/%llu.%llu", osd->root, llu(pid), llu(oid));
+	ret = stat(path, &sb);
+	if (ret == 0 && S_ISREG(sb.st_mode)) {
+		return -EEXIST;
+	} else if (ret == -1 && errno == ENOENT) {
+		ret = creat(path, 0666);
+		if (ret <= 0)
+			return ret;
+		close(ret);
+	}
+
+	return 0;
+}
+
 /*
- * Following steps for creating objects
- * -	check if requested_oid is in userobject space
- * -	check if pid is 0
- * -	
+ * -	check if requested oid and pid are in legal range
+ * -	if pid == 0 return error
+ * -	if oid == 0 assign any oid
+ * -	if oid != 0 and oid assignment fails return err
+ * -	unique oid for user objects and collections within a partition_info
+ * -	if num == 0 || 1, create one object, else create num user objects.
+ * 	assign consequetive values to oids. place the lowest valued oid in
+ * 	current command attribute.
+ * -	if num > 1 and requested oid != 0 return error
+ * FIXME: get set attributes left
  */
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t num, uint8_t *sense)
 {
 	int i, ret;
+	uint64_t oid = 0;
 
 	debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
 	      llu(requested_oid), num);
-	if (pid == 0) {
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
-		                        pid, requested_oid);
+
+	if (pid == 0 || pid < USEROBJECT_PID_LB) {
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
+					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+					pid, requested_oid);
+		return ret;
+	}
+	
+	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB) {
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
+					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+					pid, requested_oid);
+		return ret;
+	}
+	
+	if (num > 1 && requested_oid != 0) {
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
+					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+					pid, requested_oid);
 		return ret;
 	}
 
+	if (requested_oid == 0) {
+		ret = obj_get_nextoid(osd->db, pid, USEROBJECT, &oid);
+		if (ret != 0) {
+			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
+						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+						pid, requested_oid);
+			return ret;
+		}
+	} else {
+		ret = obj_ispresent(osd->db, pid, requested_oid);
+		if (ret != 0) {
+			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
+						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+						pid, requested_oid);
+			return ret;
+		}
+		oid = requested_oid; /* requested_oid works! */
+	}
+
+	if (num == 0)
+		num = 1; /* create atleast one object */
 	for (i=0; i<num; i++) {
-		ret = obj_insert(osd->db, pid, requested_oid + i);
-		if (ret)
-			break;
+		ret = obj_insert(osd->db, pid, oid+i, USEROBJECT);
+		if (ret != 0) {
+			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
+						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+						pid, oid);
+			return ret;
+		}
+		ret = osd_create_datafile(osd, pid, oid+i);
+		if (ret) {
+			obj_delete(osd->db, pid, oid+i); /* delete new obj */
+			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
+						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+						pid, oid);
+			return ret;
+		}
 	}
-	if (ret < 0) {
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
-		                        pid, requested_oid);
-		return ret;
-	}
-	return ret;
+
+	return 0;
 }
 
 
@@ -364,10 +444,34 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 }
 
 
-int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t uid,
+int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
                uint8_t *sense)
 {
-	debug(__func__);
+	int ret = 0;
+	char path[MAXNAMELEN];
+	
+	debug("%s: removing userobject pid %llu oid %llu", __func__,
+	      llu(pid), llu(oid));
+
+	sprintf(path, "%s/%llu.%llu", osd->root, llu(pid), llu(oid));
+	ret = unlink(path);
+	if (ret != 0) {
+		ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
+					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+					pid, oid);
+		return ret;
+	}
+
+	ret = obj_delete(osd->db, pid, oid);
+	if (ret != 0) {
+		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
+					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+					pid, oid);
+		return ret;
+	}
+
 	return 0;
 }
 

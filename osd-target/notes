@@ -142,3 +142,15 @@ EBUSY. in future keep sqlite3_step in a infinite loop
 -	consistent return codes
 -	single makefile for tests and libosd
 -	make rules for dependencies
+-	defines for ROOT_OBJECT, ROOT_PARTITION
+-	osd_device to osd_hndl
+-	change obj tab, include type of object being created
+
+# Mon Jan 29 12:39:02 EST 2007
+-	prepare frequently used statements and store them. Make a list of
+	potential optimizations.
+-	what is current commands attr page
+-	sense_* functions are not up to date. osd_* are not returning correct
+	values.
+-	loosing return value due to finalize
+-	collect all errors using goto

@@ -5,35 +5,6 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
-#define ROOT_PID (0LLU)
-#define ROOT_OID (0LLU)
-#define PARTITION_PID_LB (0x10000LLU)
-#define PARTITION_OID (0x0LLU)
-#define COLLECTION_PID_LB (0x10000LLU)
-#define USEROBJECT_PID_LB (0x10000LLU)
-#define COLLECTION_OID_LB COLLECTION_PID_LB
-#define USEROBJECT_OID_LB USEROBJECT_PID_LB
-
-
-typedef enum {
-	ROOT = 1,
-	PARTITION,
-	COLLECTION,
-	USEROBJECT
-} typeof_obj_t;
-
-/*
- * See osd2r00 pg 22
- */
-typedef enum {
-	USER_PG       = 0,
-	PARTITION_PG  = 0x30000000,
-	COLLECTION_PG = 0x60000000,
-	ROOT_PG       = 0x90000000,
-	RESERVED_PG   = 0xC0000000,
-	ANY_PG        = 0xF0000000
-} attrpg_range_t;
-
 struct object {
 	uint64_t pid;
 	uint64_t oid;

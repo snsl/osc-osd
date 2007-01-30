@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <string.h>
 
+#include "osd-defs.h"
 #include "osd-types.h"
 #include "osd.h"
 #include "db.h"

@@ -154,3 +154,8 @@ EBUSY. in future keep sqlite3_step in a infinite loop
 	values.
 -	loosing return value due to finalize
 -	collect all errors using goto
+
+# Tue Jan 30 16:12:47 EST 2007
+schema changes. attr table need to have directory pages. rows need to have
+writable flags to prevent certain directory pages to be modified. directories
+can be implemented as a sql view on page numbers 0

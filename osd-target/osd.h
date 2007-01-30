@@ -60,7 +60,8 @@ int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);
 int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense);
 int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
-                       uint8_t *sense);
+                       uint32_t page, uint32_t number, const void *val,
+		       uint16_t len, uint8_t *sense);
 int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
 		uint64_t key, uint8_t seed[20], uint8_t *sense);
 int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,

@@ -21,25 +21,6 @@ int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	if (db == NULL)
 		return -EINVAL;
 
-	if (number == 0) {
-		const uint8_t *s = val;
-		int i;
-
-		/* information page, make sure null terminated */
-		if (len > 40)
-			goto out;
-
-		for (i=0; i<len; i++) {
-			if (s[i] == 0) 	
-				break;
-		}
-
-		if (i == len) {
-			ret = -EFAULT;
-			goto out;
-		}
-	}
-
 	sprintf(SQL, "INSERT OR REPLACE INTO attr valueS (?, ?, ?, ?, ?);");
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {

@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 
 #include "osd.h"
+#include "osd-defs.h"
 #include "db.h"
 #include "attr.h"
 #include "util.h"
@@ -132,6 +133,19 @@ static int sense_basic_build(uint8_t *sense, uint8_t key, uint8_t asc,
 	return off;
 }
 
+static int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t sense_code,
+			   uint64_t pid, uint64_t oid)
+{
+	uint8_t off = 0;
+	uint8_t len = MAX_SENSE_LEN;
+	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
+
+	off = sense_header_build(sense+off, len-off, key, ASC(sense_code), 
+				 ASCQ(sense_code), 40);
+	off = sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
+	return off;
+}
+
 /*
  * Externally callable error response generators.
  */
@@ -190,66 +204,54 @@ static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 }
 
 /*
- * -	check if requested oid and pid are in legal range
- * -	if pid == 0 return error
- * -	if oid == 0 assign any oid
- * -	if oid != 0 and oid assignment fails return err
- * -	unique oid for user objects and collections within a partition_info
- * -	if num == 0 || 1, create one object, else create num user objects.
- * 	assign consequetive values to oids. place the lowest valued oid in
- * 	current command attribute.
- * -	if num > 1 and requested oid != 0 return error
  * FIXME: get set attributes left
  */
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t num, uint8_t *sense)
 {
-	int i, ret;
+	int ret = 0;
+	uint64_t i = 0;
 	uint64_t oid = 0;
 
 	debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
 	      llu(requested_oid), num);
 
 	if (pid == 0 || pid < USEROBJECT_PID_LB) {
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
-					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-					pid, requested_oid);
+		ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+				      OSD_ASC_INVALID_FIELD_IN_CDB, 
+				      pid, requested_oid);
 		return ret;
 	}
 	
 	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB) {
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
-					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-					pid, requested_oid);
+		ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+				      OSD_ASC_INVALID_FIELD_IN_CDB, 
+				      pid, requested_oid);
 		return ret;
 	}
 	
 	if (num > 1 && requested_oid != 0) {
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
-					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-					pid, requested_oid);
+		ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+				      OSD_ASC_INVALID_FIELD_IN_CDB, 
+				      pid, requested_oid);
 		return ret;
 	}
 
 	if (requested_oid == 0) {
 		ret = obj_get_nextoid(osd->db, pid, USEROBJECT, &oid);
 		if (ret != 0) {
-			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
-						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-						pid, requested_oid);
+			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+					      OSD_ASC_INVALID_FIELD_IN_CDB, 
+					      pid, requested_oid);
 			return ret;
 		}
 	} else {
 		ret = obj_ispresent(osd->db, pid, requested_oid);
-		if (ret != 0) {
-			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
-						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-						pid, requested_oid);
+		if (ret == 1) {
+			/* requested_oid already exists! */
+			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+					      OSD_ASC_INVALID_FIELD_IN_CDB, 
+					      pid, requested_oid);
 			return ret;
 		}
 		oid = requested_oid; /* requested_oid works! */
@@ -257,22 +259,21 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 
 	if (num == 0)
 		num = 1; /* create atleast one object */
-	for (i=0; i<num; i++) {
-		ret = obj_insert(osd->db, pid, oid+i, USEROBJECT);
+
+	for (i = oid; i < (oid + num); i++) {
+		ret = obj_insert(osd->db, pid, i, USEROBJECT);
 		if (ret != 0) {
-			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
-						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-						pid, oid);
+			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+					      OSD_ASC_INVALID_FIELD_IN_CDB, 
+					      pid, i);
 			return ret;
 		}
-		ret = osd_create_datafile(osd, pid, oid+i);
+		ret = osd_create_datafile(osd, pid, i);
 		if (ret) {
-			obj_delete(osd->db, pid, oid+i); /* delete new obj */
-			ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
-						ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-						ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-						pid, oid);
+			obj_delete(osd->db, pid, i); 
+			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+					      OSD_ASC_INVALID_FIELD_IN_CDB, 
+					      pid, i);
 			return ret;
 		}
 	}
@@ -455,24 +456,26 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	sprintf(path, "%s/%llu.%llu", osd->root, llu(pid), llu(oid));
 	ret = unlink(path);
-	if (ret != 0) {
-		ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
-					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-					pid, oid);
-		return ret;
-	}
+	if (ret != 0) 
+		goto out_err;
+
+	/* delete all attr of the object */
+	ret = attr_delete_all(osd->db, pid, oid);
+	if (ret != 0) 
+		goto out_err;
 
 	ret = obj_delete(osd->db, pid, oid);
-	if (ret != 0) {
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 
-					ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-					ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-					pid, oid);
-		return ret;
-	}
+	if (ret != 0)
+		goto out_err;
 
-	return 0;
+	return 0; /* success */
+
+out_err:
+	ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
+				ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
+				ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
+				pid, oid);
+	return ret;
 }
 
 
@@ -502,12 +505,93 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 /*
  * Settable page numbers in any given U,P,C,R range are further restricted
  * by osd2r00 p 23:  >= 0x10000 && < 0x20000000.
+ *
+ * -	XXX: attr directory setting
  */
 int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
-                       uint8_t *sense)
+                       uint32_t page, uint32_t number, const void *val,
+		       uint16_t len, uint8_t *sense)
 {
-	debug(__func__);
-	return 0;
+	int ret = 0;
+
+	debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid), 
+	      llu(oid));
+
+	if (obj_ispresent(osd->db, pid, oid) == 0) /* object not present! */
+		goto out_cdb;
+
+	/* 
+	 * for each kind of object, check if pages are within bounds.
+	 * also trap attribute directory page assignments.
+	 */
+	if (pid == ROOT_PID && oid == ROOT_OID) {
+		if (page < ROOT_PG_LB || page == GETALLATTR_PG ||
+		    (page > ROOT_PG_UB && page < ANY_PG))
+			goto out_param_list;
+		else 
+			goto test_number;
+	} else if (pid >= PARTITION_PID_LB && oid == PARTITION_OID) {
+		if (page < PARTITION_PG_LB || page == GETALLATTR_PG ||
+		    (page > PARTITION_PG_UB && page < ANY_PG))
+			goto out_param_list;
+		else 
+			goto test_number;
+	} else if (pid >= OBJECT_PID_LB && oid >= OBJECT_OID_LB) {
+		if ((COLLECTION_PG_LB <= page && page <=COLLECTION_PG_UB) ||
+		    (page != GETALLATTR_PG && page >= ANY_PG)) {
+			goto test_number;
+		} else if ((USEROBJECT_PG_LB <= page && 
+			    page <= USEROBJECT_PG_UB) ||
+			   (page != GETALLATTR_PG && page >= ANY_PG)) {
+			goto test_number;
+
+		} else {
+			goto out_param_list;
+		}
+	} else {
+		goto out_cdb;
+	}
+
+test_number:
+	if (number == ATTRNUM_UNMODIFIABLE)
+		goto out_param_list;
+	if (val == NULL)
+		goto out_cdb;
+
+	/* information page, make sure null terminated. osd2r00 7.1.2.2 */
+	if (number == ATTRNUM_INFO) {
+		int i;
+		const uint8_t *s = val;
+
+		if (len > 40)
+			goto out_cdb;
+		for (i=0; i<len; i++) {
+			if (s[i] == 0) 	
+				break;
+		}
+		if (i == len)
+			goto out_cdb;
+	}
+
+	ret = attr_set_attr(osd->db, pid, oid, page, number, val, len);
+	if (ret != 0) {
+		ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+				      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+		return ret;
+	}
+	return ret; /* success */
+	
+out_param_list:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST, 
+			      pid, oid);
+	return ret;
+
+out_cdb:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
 }
 
 

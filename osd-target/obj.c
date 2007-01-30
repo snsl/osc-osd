@@ -115,7 +115,7 @@ int obj_get_nextoid(sqlite3 *db, uint64_t pid, uint32_t type, uint64_t *oid)
 	}
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		/* store next oid, if new (pid, oid) *oid will be 1 */
+		/* store next oid; if new (pid, oid) *oid will be 1 */
 		*oid = sqlite3_column_int64(stmt, 0) + 1; 
 	}
 	if (ret != SQLITE_DONE) {
@@ -169,7 +169,6 @@ int obj_ispresent(sqlite3 *db, uint64_t pid, uint64_t oid)
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		present = sqlite3_column_int(stmt, 0);
 	}
-
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: max oid for pid %llu, oid %llu", __func__, 
 			  llu(pid), llu(oid));

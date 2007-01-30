@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <sys/stat.h>
 
+#include "osd-defs.h"
 #include "osd-types.h"
 #include "osd.h"
 #include "db.h"
@@ -161,14 +162,14 @@ out:
 int db_close(struct osd_device *osd)
 {
 	int ret = 0;
-	sqlite3 *dbp = osd->db;
+	sqlite3 *db = osd->db;
 
-	if (dbp == NULL)
+	if (db == NULL)
 		return -EINVAL;
 
-	ret = sqlite3_close(dbp);
+	ret = sqlite3_close(db);
 	if (ret != SQLITE_OK) {
-		printf("Failed to close db %s\n", sqlite3_errmsg(dbp));
+		printf("Failed to close db %s\n", sqlite3_errmsg(db));
 		return ret;
 	}
 

@@ -181,7 +181,7 @@ class Writer:
             if func[0] == '_':
                 continue
 
-            str = ', '.join(args)
+            str = (', '.join(args)).replace(' struct ', ' ')
             if str.find('...') != -1:
                 continue
             if str.find('va_list') != -1:

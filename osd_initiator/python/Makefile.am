@@ -4,10 +4,10 @@ lib_LTLIBRARIES = libosdpython.la
 PYREX_FLAGS = -+ -I $(top_builddir)/libosd
 
 PYREX_SOURCE_FILES = \
-	libosd.pyx
+	libosdpython.pyx
 
 PYREX_HEADER_FILES = \
-	libosd.pxd
+	libosdpython.pxd
 
 libosdpython_la_LDFLAGS = -Xlinker -export-dynamic 
 
@@ -26,6 +26,9 @@ SUFFIXES = .pyd.in .pyd
 
 osd_wrap.c: $(PYREX_SOURCE_FILES) $(PYREX_HEADER_FILES)
 	$(PYREX) $(PYREX_FLAGS) -o $@ $(PYREX_SOURCE_FILES)
+
+clean:
+	rm -f $(PYREX_HEADER_FILES)
 
 EXTRA_DIST = \
 	$(pyrex_header_includes)

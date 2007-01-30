@@ -1,5 +1,0 @@
-%module libosdpython
-%{
-#include "@top_builddir@/libosd/interface.h"
-#include "@top_builddir@/libosd/util.h"
-%}

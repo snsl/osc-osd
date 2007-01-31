@@ -9,7 +9,6 @@
 
 #include <stdint.h>
 #include <sys/types.h>
-#include "common.h"
 
 #include "util/util.h"
 

@@ -9,30 +9,6 @@ AC_SUBST(ISODATE)
 AM_MAINTAINER_MODE
 AM_CONFIG_HEADER(config.h)
 
-dnl ################################################################
-dnl # Version information
-dnl ################################################################
-LIBOSD_MAJOR_VERSION=0
-LIBOSD_MINOR_VERSION=1
-LIBOSD_MICRO_VERSION=0
-LIBOSD_DEVEL_VERSION=0
-
-LIBOSD_VERSION=$LIBOSD_MAJOR_VERSION.$LIBOSD_MINOR_VERSION.$LIBOSD_MICRO_VERSION
-
-if test "x$LIBOSD_DEVEL_VERSION" != "x0"; then
-	LIBOSD_VERSION=$LIBOSD_VERSION.$LIBOSD_DEVEL_VERSION
-fi
-
-AC_DEFINE_UNQUOTED(LIBOSD_MAJOR_VERSION, $LIBOSD_MAJOR_VERSION,
-	[libosd major version.])
-AC_DEFINE_UNQUOTED(LIBOSD_MINOR_VERSION, $LIBOSD_MINOR_VERSION,
-	[libosd minor version.])
-AC_DEFINE_UNQUOTED(LIBOSD_MICRO_VERSION, $LIBOSD_MICRO_VERSION,
-	[libosd micro version.])
-AC_DEFINE_UNQUOTED(LIBOSD_VERSION, "$LIBOSD_VERSION",
-	[libosd version.])
-
-
 dnl Checks for programs.
 AC_PROG_INSTALL
 AC_PROG_CC
@@ -108,8 +84,7 @@ dnl #
 LT_CURRENT=1
 LT_REVISION=0
 LT_AGE=1
-
-LT_RELEASE=$LIBOSD_MAJOR_VERSION.$LIBOSD_MINOR_VERSION.$LIBOSD_MICRO_VERSION
+LT_RELEASE=0.0.0.1
 
 AC_SUBST(LT_RELEASE)
 AC_SUBST(LT_CURRENT)
@@ -135,5 +110,4 @@ AC_OUTPUT([
 	   Makefile
 	   python/Makefile
 	   python/libosdpython.pxd
-	   libosd.pc
 	])

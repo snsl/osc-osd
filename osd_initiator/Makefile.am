@@ -4,9 +4,6 @@ endif
 
 SUBDIRS = libosd $(python_dir) tests 
 
-pcdata_DATA = libosd.pc
-pcdatadir = $(libdir)/pkgconfig
-
 EXTRA_DIST = \
 	AUTHORS NEWS INSTALL COPYING README \
 	ChangeLog \

@@ -12,7 +12,7 @@ CPP_M := -MM
 LD := $(CC)
 COPTS := -g
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
-	-Wbad-function-cast -Wundef -Wmissing-prototypes \
+	-Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \
 	-Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) -I../.. -Wno-unused
 

@@ -5,7 +5,7 @@
 PROGSRC := basic_write.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
-LIB := ../libosd/libosd.a
+LIB := ../libosd/libosd.a ../../util/libosdutil.a
 
 CC := gcc
 CPP_M := -MM
@@ -14,7 +14,7 @@ COPTS := -g
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../libosd
+CFLAGS := $(COPTS) $(CWARN) -I.. -I../.. -Wno-unused
 
 all:: $(LIB) $(PROGEXE)
 

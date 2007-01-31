@@ -464,11 +464,13 @@ int set_cdb_osd_list_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,  /*sec
 int set_cdb_osd_perform_scsi_command(uint8_t *cdb)
 {
 	error("%s: unimplemented", __func__);
+	return 1;
 }
 
 int set_cdb_osd_perform_task_mgmt_func(uint8_t *cdb)
 {
 	error("%s: unimplemented", __func__);
+	return 1;
 }
 
 int set_cdb_osd_query(uint8_t *cdb, uint64_t pid, uint64_t cid, uint32_t query_len,    /*section in spec?*/

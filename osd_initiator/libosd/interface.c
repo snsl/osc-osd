@@ -7,7 +7,12 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include <stdint.h>
+#include <sys/types.h>
+#include "common.h"
+
 #include "util/util.h"
+
 #include "interface.h"
 #include "osd_hdr.h"
 #include "../../kernel/suo_ioctl.h"

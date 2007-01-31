@@ -1,21 +1,23 @@
-#include <stdint.h>
-#include <sys/types.h>
-#include "common.h"
+#ifndef _INTERFACE_H
+#define _INTERFACE_H
 
-enum data_direction {
+
+/* These are only typedef'd because Pyrex won't pick them up
+ * correctly otherwise */
+
+typedef enum data_direction {
     DMA_BIDIRECTIONAL = 0,
     DMA_TO_DEVICE = 1,
     DMA_FROM_DEVICE = 2,
     DMA_NONE = 3,
 };
 
-struct dev_response {
+typedef struct dev_response {
 	uint64_t key;
 	int error;
 	int sense_buffer_len;
 	unsigned char sense_buffer[252];  /* hackety hack */
 };
-
 
 /*
  * Public functions
@@ -72,3 +74,6 @@ int set_cdb_osd_set_master_key(uint8_t *cdb, int dh_step, uint64_t key,
 int set_cdb_osd_set_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid);
 int set_cdb_osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
 	      uint64_t offset);
+
+
+#endif

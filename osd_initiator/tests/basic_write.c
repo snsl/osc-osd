@@ -6,6 +6,12 @@
 #include <string.h>
 #include <unistd.h>
 #include <scsi/scsi.h>
+
+#include <stdint.h>
+#include <sys/types.h>
+#include "common.h"
+
+
 #include <libosd/interface.h>
 #include <libosd/util.h>
 #include <libosd/osd_hdr.h>

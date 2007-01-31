@@ -1,14 +1,16 @@
 #
 # OSD target makefile
 #
-# $Id: $
-#
 
 SRC := attr.c db.c obj.c osd-schema.c osd.c util.c cdb.c
 SRC += osd-schema.c
 INC := attr.h db.h obj.h osd-types.h osd.h util.h osd-sense.h cdb.h osd-defs.h
 OBJ := $(SRC:.c=.o)
-LIB := libosd.a
+OSDTARGETLIB := libosd.a
+
+STGTLIB := ../stgt/libstgt.a
+UTILLIB := ../util/libosdutil.a
+LIBS := -lcrypto -lsqlite3 -laio
 
 CC := gcc
 CPP_M := -MM
@@ -21,10 +23,12 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
 
 .SUFFIXES: .c .o .i
 
-# default target
-all :: $(LIB) $(OBJ)
+all: tgtd
 
-$(LIB) : $(OBJ)
+tgtd: $(STGTLIB) $(OSDTARGETLIB) $(UTILLIB)
+	$(LD) -o $@ $^ $(LIBS)
+
+$(OSDTARGETLIB): $(OBJ)
 	ar cr $@ $^
 
 %.o: %.c
@@ -38,7 +42,7 @@ osd-schema.c: osd.schema
 $(OBJ): $(INC)
 
 clean:
-	rm -f $(LIB) $(OBJ) osd-schema.c
+	rm -f tgtd $(OSDTARGETLIB) $(OBJ) osd-schema.c
 
 tags: FORCE
 	ctags $(SRC) $(INC)

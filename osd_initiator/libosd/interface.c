@@ -10,7 +10,7 @@
 #include "util.h"
 #include "interface.h"
 #include "osd_hdr.h"
-#include "../kernel/suo_ioctl.h"
+#include "../../kernel/suo_ioctl.h"
 
 /*Forward declaration -- don't define in interface.h or test codes will complain*/
 static int write_cdb(int fd, const uint8_t *cdb, int cdb_len,  enum data_direction dir,
@@ -80,7 +80,7 @@ void hexdump(uint8_t *d, size_t len)
 	size_t offset = 0;
 
 	while (offset < len) {
-		int i, range;
+		unsigned int i, range;
 
 		range = 8;
 		if (range > len-offset)
@@ -574,7 +574,7 @@ int set_cdb_osd_set_master_key(uint8_t *cdb, int dh_step, uint64_t key,
 }
 
 
-int osd_set_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid)  /*section in spec?*/
+int set_cdb_osd_set_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid)
 {
 	debug(__func__);
 	set_action(cdb, OSD_SET_MEMBER_ATTRIBUTES);

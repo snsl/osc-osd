@@ -133,9 +133,7 @@ echo "
 
 AC_OUTPUT([
 	   Makefile
-	   libosd/Makefile
 	   python/Makefile
 	   python/libosdpython.pxd
-	   tests/Makefile
 	   libosd.pc
 	])

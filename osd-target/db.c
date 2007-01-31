@@ -10,7 +10,7 @@
 #include "osd.h"
 #include "db.h"
 #include "obj.h"
-#include "util.h"
+#include "util/util.h"
 #include "attr.h"
 
 extern const char osd_schema[];

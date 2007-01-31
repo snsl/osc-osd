@@ -11,7 +11,7 @@
 #include "osd-defs.h"
 #include "db.h"
 #include "attr.h"
-#include "util.h"
+#include "util/util.h"
 #include "obj.h"
 #include "osd-sense.h"
 

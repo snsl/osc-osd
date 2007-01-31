@@ -7,7 +7,7 @@
 #include <fcntl.h>
 #include <errno.h>
 
-#include "util.h"
+#include "util/util.h"
 #include "interface.h"
 #include "osd_hdr.h"
 #include "../../kernel/suo_ioctl.h"
@@ -115,9 +115,6 @@ static const char *const snstext[] = {
 	"Miscompare",	    /* E: Source data and data on the medium
 				  do not agree */
 };
-
-/* util lib...*/
-#define ARRAY_SIZE(x) ((sizeof(x)/sizeof(x[0])))
 
 /*
  * Possibly debugging support.  Parse and print out interesting bits of the

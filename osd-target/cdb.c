@@ -10,7 +10,7 @@
 #include "osd.h"
 #include "osd-defs.h"
 #include "cdb.h"
-#include "util.h"
+#include "util/util.h"
 
 /*
  * XXX: these should go in a shared header somewhere.

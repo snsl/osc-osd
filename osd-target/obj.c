@@ -7,6 +7,7 @@
 #include "osd-types.h"
 #include "osd.h"
 #include "util.h"
+#include "util/util.h"
 #include "obj.h"
 #include "db.h"
 

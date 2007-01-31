@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2000-6 Pete Wyckoff <pw@osc.edu>
+ * Copyright (C) 2000-7 Pete Wyckoff <pw@osc.edu>
+ * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -73,9 +74,9 @@ warning(const char *fmt, ...)
 }
 
 /*
- * Error, fatal.
+ * Error.
  */
-void __attribute__((noreturn,format(printf,1,2)))
+void __attribute__((format(printf,1,2)))
 error(const char *fmt, ...)
 {
     va_list ap;
@@ -85,13 +86,12 @@ error(const char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     va_end(ap);
     fprintf(stderr, ".\n");
-    exit(1);
 }
 
 /*
  * Error, fatal, with the errno message.
  */
-void __attribute__((noreturn,format(printf,1,2)))
+void __attribute__((format(printf,1,2)))
 error_errno(const char *fmt, ...)
 {
     va_list ap;
@@ -101,7 +101,6 @@ error_errno(const char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     va_end(ap);
     fprintf(stderr, ": %s.\n", strerror(errno));
-    exit(1);
 }
 
 /*
@@ -110,13 +109,33 @@ error_errno(const char *fmt, ...)
 void * __attribute__((malloc))
 Malloc(size_t n)
 {
-    void *x;
+    void *x = NULL;
 
     if (n == 0)
 	error("%s: called on zero bytes", __func__);
-    x = malloc(n);
-    if (!x)
-	error("%s: couldn't get %lu bytes", __func__, (unsigned long) n);
+    else {
+	x = malloc(n);
+	if (!x)
+	    error("%s: couldn't get %lu bytes", __func__, (unsigned long) n);
+    }
+    return x;
+}
+
+/*
+ * Error-checking counted cleared memory.
+ */
+void * __attribute__((malloc))
+Calloc(size_t nmemb, size_t n)
+{
+    void *x = NULL;
+
+    if (n == 0)
+	error("%s: called on zero bytes", __func__);
+    else {
+	x = calloc(nmemb, n);
+	if (!x)
+	    error("%s: couldn't get %zu bytes", __func__, nmemb * n);
+    }
     return x;
 }
 

@@ -10,6 +10,7 @@
 #include "db.h"
 #include "attr.h"
 #include "util.h"
+#include "util/util.h"
 
 int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page, 
 		  uint32_t number, const void *val, uint16_t len)

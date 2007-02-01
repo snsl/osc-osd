@@ -4,6 +4,7 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <stdarg.h>
 #include <errno.h>
@@ -179,4 +180,39 @@ safewrite(int fd, const void *buf, size_t num)
     }
     return total;
 }
+
+/* endian functions */
+uint32_t swab32(uint32_t d)
+{
+	return  (d & (uint32_t) 0x000000ffUL) << 24 |
+	        (d & (uint32_t) 0x0000ff00UL) << 8  |
+	        (d & (uint32_t) 0x00ff0000UL) >> 8  |
+	        (d & (uint32_t) 0xff000000UL) >> 24;
+}
+
+/*
+ * Things are not aligned in the current osd2r00, but they probably
+ * will be soon.  Assume 4-byte alignment though.
+ */
+uint64_t ntohll_le(uint8_t *d)
+{
+	uint32_t d0 = swab32(*(uint32_t *) d);
+	uint32_t d1 = swab32(*(uint32_t *) (d+4));
+
+	return (uint64_t) d0 << 32 | d1;
+}
+
+uint32_t ntohl_le(uint8_t *d)
+{
+	return swab32(*(uint32_t *) d);
+}
+
+uint16_t ntohs_le(uint8_t *d)
+{
+	uint16_t x = *(uint16_t *) d;
+
+	return (x & (uint16_t) 0x00ffU) << 8 |
+	       (x & (uint16_t) 0xff00U) >> 8;
+}
+
 

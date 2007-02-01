@@ -14,53 +14,6 @@
 #include "util/util.h"
 
 /*
- * XXX: these should go in a shared header somewhere.
- * Ananth probably put them somewhere but forgot to check it in.  For now,
- * back it comes again.
- */
-static uint32_t swab32(uint32_t d)
-{
-       return  (d & (uint32_t) 0x000000ffUL) << 24 |
-               (d & (uint32_t) 0x0000ff00UL) << 8  |
-               (d & (uint32_t) 0x00ff0000UL) >> 8  |
-               (d & (uint32_t) 0xff000000UL) >> 24;
-}
-
-/*
- * Things are not aligned in the current osd2r00, but they probably
- * will be soon.  Assume 4-byte alignment though.
- */
-static uint64_t ntohll_le(uint8_t *d)
-{
-       uint32_t d0 = swab32(*(uint32_t *) d);
-       uint32_t d1 = swab32(*(uint32_t *) (d+4));
-
-       return (uint64_t) d0 << 32 | d1;
-}
-
-static uint32_t ntohl_le(uint8_t *d)
-{
-       return swab32(*(uint32_t *) d);
-}
-
-static uint16_t ntohs_le(uint8_t *d)
-{
-       uint16_t x = *(uint16_t *) d;
-
-       return (x & (uint16_t) 0x00ffU) << 8 |
-              (x & (uint16_t) 0xff00U) >> 8;
-}
-
-/* some day deal with the big-endian versions */
-#define ntohs ntohs_le
-#define ntohl ntohl_le
-#define ntohll ntohll_le
-
-/* including 8 byte header, and additional len = 244, as given by spc3 */
-#define MAX_SENSE_LEN 252
-
-
-/*
  * Compare, and complain if not the same.  Return sense data if so.
  */
 static int verify_enough_input_data(uint64_t datalen, uint64_t cdblen,

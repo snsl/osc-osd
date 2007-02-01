@@ -90,7 +90,7 @@ error(const char *fmt, ...)
 }
 
 /*
- * Error, fatal, with the errno message.
+ * Error with the errno message.
  */
 void __attribute__((format(printf,1,2)))
 error_errno(const char *fmt, ...)
@@ -102,6 +102,22 @@ error_errno(const char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     va_end(ap);
     fprintf(stderr, ": %s.\n", strerror(errno));
+}
+
+/*
+ * Error, fatal with the errno message.
+ */
+void __attribute__((format(printf,1,2)))
+error_fatal(const char *fmt, ...)
+{
+    va_list ap;
+
+    fprintf(stderr, "%s: Error: ", progname);
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, ": %s.\n", strerror(errno));
+    exit(1);
 }
 
 /*

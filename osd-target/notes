@@ -163,3 +163,7 @@ can be implemented as a sql view on page numbers 0
 # Wed Jan 31 14:26:19 EST 2007
 need sense.c which builds sense, since both cdb and osd want to construct
 sense.
+
+# Thu Feb  1 14:53:38 EST 2007
+implement error_fatal as a separate function.
+

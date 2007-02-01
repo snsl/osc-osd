@@ -114,7 +114,6 @@ int db_open(const char *path, struct osd_device *osd)
 	char SQL[MAXSQLEN];
 	char *err = NULL;
 	int is_new_db = 0;
-	sqlite3 *dbp;
 
 	ret = stat(path, &sb);
 	if (ret == 0) {
@@ -125,7 +124,7 @@ int db_open(const char *path, struct osd_device *osd)
 		}
 	} else {
 		if (errno != ENOENT) {
-			error_errno("%s: stat path %s", __func__, path);
+			error("%s: stat path %s", __func__, path);
 			goto out;
 		}
 
@@ -133,12 +132,11 @@ int db_open(const char *path, struct osd_device *osd)
 		is_new_db = 1;
 	}
 
-	ret = sqlite3_open(path, &dbp);
+	ret = sqlite3_open(path, &(osd->db));
 	if (ret != SQLITE_OK) {
 		error("%s: open db %s", __func__, path);
 		goto out;
 	}
-	osd->db = dbp;
 
 	if (is_new_db) {
 		/* Build tables from schema file.  */

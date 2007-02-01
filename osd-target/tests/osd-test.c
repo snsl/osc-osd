@@ -14,6 +14,7 @@
 
 void test_osd_create(struct osd_device *osd);
 void test_osd_set_attributes(struct osd_device *osd);
+void test_osd_format(struct osd_device *osd);
 
 void test_osd_create(struct osd_device *osd)
 {
@@ -89,10 +90,22 @@ void test_osd_set_attributes(struct osd_device *osd)
 	free(val);
 }
 
+void test_osd_format(struct osd_device *osd)
+{
+	int ret = 0;
+	void *sense = Calloc(1, 1024);
+
+	ret = osd_format_osd(osd, 0, sense);
+	if (ret != 0)
+		error_errno("%s:osd_format", __func__);
+
+	free(sense);
+}
+
 int main()
 {
 	int ret = 0;
-	const char *root = "/tmp/";
+	const char *root = "/tmp/osd/";
 	struct osd_device osd;
 
 	ret = osd_open(root, &osd);
@@ -100,11 +113,13 @@ int main()
 		error_errno("%s: osd_open", __func__);
 
 	/*test_osd_create(&osd);*/
-	test_osd_set_attributes(&osd);
+	/*test_osd_set_attributes(&osd);*/
+	test_osd_format(&osd);
 
 	ret = osd_close(&osd);
 	if (ret != 0)
 		error_errno("%s: osd_close", __func__);
+
 
 	return 0;
 }

@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 
 #include "osd.h"
 #include "osd-defs.h"
@@ -16,15 +18,75 @@
 #include "osd-sense.h"
 
 static const char *dbname = "osd.db";
+static const char *dfiles = "dfiles";
+static const char *stranded = "stranded";
 
-/*
- * Module interface
- */
+static int create_dir(const char *dirname)
+{
+	int ret = 0;
+	struct stat sb;
+
+	ret = stat(dirname, &sb);
+	if (ret == 0) {
+		if (!S_ISDIR(sb.st_mode)) {
+			error("%s: dirname %s not a directory", __func__, 
+			      dirname);
+			return -ENOTDIR;
+		}
+	} else {
+		if (errno != ENOENT) {
+			error("%s: stat dirname %s", __func__, dirname);
+			return -ENOTDIR;
+		}
+
+		/* create dir*/
+		ret = mkdir(dirname, 0777);
+		if (ret < 0) {
+			error("%s: create dirname %s", __func__, dirname);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+
+/* only empties 1-level deep directories */ 
+static int empty_dir(const char *dirname)
+{
+	int ret = 0;
+	char path[MAXNAMELEN];
+	DIR *dir = NULL;
+	struct dirent *ent = NULL;
+	
+	if ((dir = opendir(dirname)) == NULL)
+		return -1;
+
+	while ((ent = readdir(dir)) != NULL) {
+		if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
+			continue;
+		/* NOTE: no need to memset path */
+		sprintf(path, "%s/%s", dirname, ent->d_name);
+		ret = unlink(path);
+		if (ret != 0)
+			return -1;
+	}
+	ret = rmdir(dirname);
+	if (ret != 0)
+		return -1;
+
+	return 0;
+}
+
+static inline void get_dfile_name(char *path, const char *root,
+				  uint64_t pid, uint64_t oid)
+{
+	sprintf(path, "%s/%s/%llu.%llu", root, dfiles, llu(pid), llu(oid));
+}
+
 int osd_open(const char *root, struct osd_device *osd)
 {
 	int ret;
 	char path[MAXNAMELEN];
-	struct stat sb;
 
 	if (strlen(root) > MAXROOTLEN) {
 		ret = -ENAMETOOLONG;
@@ -32,30 +94,23 @@ int osd_open(const char *root, struct osd_device *osd)
 	}
 
 	/* test if root exists and is a directory */
-	ret = stat(root, &sb);
-	if (ret == 0) {
-		if (!S_ISDIR(sb.st_mode)) {
-			fprintf(stderr, "%s: root %s not a directory\n",
-			        __func__, root);
-			ret = -ENOTDIR;
-			goto out;
-		}
-	} else {
-		if (errno != ENOENT) {
-			fprintf(stderr, "%s: stat root %s: %m\n",
-			        __func__, root);
-			ret = -ENOTDIR;
-			goto out;
-		}
+	ret = create_dir(root);
+	if (ret != 0)
+		goto out;
 
-		/* if not, create it */
-		ret = mkdir(root, 0777);
-		if (ret < 0) {
-			fprintf(stderr, "%s: create root %s: %m\n",
-			        __func__, root);
-			goto out;
-		}
-	}
+	/* create dfiles sub-directory */
+	memset(path, 0, MAXNAMELEN);
+	sprintf(path, "%s/%s/", root, dfiles);
+	ret = create_dir(path);
+	if (ret != 0)
+		goto out;
+
+	/* create stranded-files sub-directory */
+	memset(path, 0, MAXNAMELEN);
+	sprintf(path, "%s/%s/", root, stranded);
+	ret = create_dir(path);
+	if (ret != 0)
+		goto out;
 
 	/* auto-creates db if necessary, and sets osd->db */
 	osd->root = strdup(root);
@@ -189,7 +244,7 @@ static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 	char path[MAXNAMELEN];
 	struct stat sb;
 
-	sprintf(path, "%s/%llu.%llu", osd->root, llu(pid), llu(oid));
+	get_dfile_name(path, osd->root, pid, oid);
 	ret = stat(path, &sb);
 	if (ret == 0 && S_ISREG(sb.st_mode)) {
 		return -EEXIST;
@@ -198,6 +253,8 @@ static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 		if (ret <= 0)
 			return ret;
 		close(ret);
+	} else {
+		return ret;
 	}
 
 	return 0;
@@ -353,20 +410,44 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 	
 	ret = db_close(osd);  /*don't need to call if DB is not open*/
 	if (ret){
-		debug("%s: DB close failed", __func__);
-		goto out;
+		error("%s: DB close failed, ret %d", __func__, ret);
+		goto out_sense;
 	}
 	
 	ret = unlink(path);
 	if (ret) {
 		error_errno("%s: unlink db %s", __func__, path);
-		goto out;
+		goto out_sense;
+	}
+	
+	sprintf(path, "%s/%s", root, stranded);
+	ret = empty_dir(path);
+	if (ret) {
+		error("%s: empty_dir %s failed", __func__, path);
+		goto out_sense;
+	}
+
+	sprintf(path, "%s/%s", root, dfiles);
+	ret = empty_dir(path);
+	if (ret) {
+		error("%s: empty_dir %s failed", __func__, path);
+		goto out_sense;
 	}
 	
 create:
-	ret = osd_open(root, osd);
-	free(root);
+	ret = osd_open(root, osd); /* will create files/dirs under root */
+	if (ret != 0) {
+		error("%s: osd_open %s failed", __func__, root);
+		goto out_sense;
+	}
+	goto out;
+
+out_sense:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_SYSTEM_RESOURCE_FAILURE, 0, 0);
+
 out:
+	free(root);
 	return ret;
 }
 
@@ -478,7 +559,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	debug("%s: removing userobject pid %llu oid %llu", __func__,
 	      llu(pid), llu(oid));
 
-	sprintf(path, "%s/%llu.%llu", osd->root, llu(pid), llu(oid));
+	get_dfile_name(path, osd->root, pid, oid);
 	ret = unlink(path);
 	if (ret != 0) 
 		goto out_err;

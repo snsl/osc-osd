@@ -11,6 +11,7 @@ void debug(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void warning(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void error(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void error_errno(const char *fmt, ...) __attribute__((format(printf,1,2)));
+void error_fatal(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void *Malloc(size_t n) __attribute__((malloc));
 void *Calloc(size_t nmemb, size_t n) __attribute__((malloc));
 ssize_t saferead(int fd, void *buf, size_t num);

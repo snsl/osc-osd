@@ -25,7 +25,7 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
 
 .SUFFIXES: .c .o .i
 
-all: UTIL tgtd TESTS
+all: TESTS UTIL tgtd
 
 tgtd: $(STGTLIB) $(OSDTARGETLIB) $(UTILLIB)
 	$(LD) -o $@ $^ $(LIBS)
@@ -39,7 +39,7 @@ $(STGTLIB):
 $(UTILLIB) UTIL:
 	make -C ../util/
 
-TESTS:
+TESTS: UTIL $(OSDTARGETLIB)
 	make -C ./tests/
 
 %.o: %.c

@@ -13,7 +13,7 @@
 #include "util/util.h"
 
 #include "interface.h"
-#include "osd_hdr.h"
+#include "osd_cmds.h"
 #include "../../kernel/suo_ioctl.h"
 
 /*Forward declaration -- don't define in interface.h or test codes will complain*/
@@ -232,6 +232,7 @@ static int write_cdb(int fd,
 
 
 
+#if 0  /* will be needed for parsing returned values */
 /*bit twiddling functions*/
 static uint32_t swab32(uint32_t d)
 {
@@ -241,7 +242,6 @@ static uint32_t swab32(uint32_t d)
 	        (d & (uint32_t) 0xff000000UL) >> 24;
 } 
 
-#if 0  /* will be needed for parsing returned values */
 /*
  * Things are not aligned in the current osd2r00, but they probably
  * will be soon.  Assume 4-byte alignment though.

@@ -17,7 +17,7 @@
 #include "../../kernel/suo_ioctl.h"
 
 
-static char *osd_get_drive_serial(int fd)
+char *osd_get_drive_serial(int fd)
 {
 	char buf[512];
 	unsigned char cdb[] = {0,0,0,0,0,0};
@@ -114,9 +114,9 @@ out:
 
 void osd_drive_list_free(char **drive_list)
 {
-	char **iter;
+	char *iter;
 
-	for (iter = drive_list; iter != NULL; iter++) {
+	for (iter = *drive_list; iter != NULL; iter++) {
 		free(iter);
 	}
 	free(drive_list);

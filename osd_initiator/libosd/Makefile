@@ -2,8 +2,8 @@
 # OSD initiator library
 #
 
-SRC := interface.c
-INC := interface.h
+SRC := interface.c diskinfo.c
+INC := interface.h diskinfo.h
 OBJ := $(SRC:.c=.o)
 LIB := libosd.a
 

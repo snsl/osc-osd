@@ -1,6 +1,7 @@
 #ifndef _DISKINFO_H
 #define _DISKINFO_H
 
-char* get_disk_serial
+char **osd_get_drive_list(void);
+void osd_drive_list_free(char **drive_list);
 
 #endif

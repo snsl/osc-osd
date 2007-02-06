@@ -5,6 +5,7 @@
 #include <errno.h>
 
 #include <stdint.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <dirent.h>
 
@@ -16,8 +17,7 @@
 #include "../../kernel/suo_ioctl.h"
 
 
-char* 
-osd_get_drive_serial(int fd)
+static char *osd_get_drive_serial(int fd)
 {
 	char buf[512];
 	unsigned char cdb[] = {0,0,0,0,0,0};
@@ -30,26 +30,27 @@ osd_get_drive_serial(int fd)
 	cdb[4] = 6;	/* Length */
 
 	/* Trickery to ensure the buffer is always null-terminated */
-	if(!dev_osd_read(fd, cdb, 6, buf, 511)) {
+	if (!dev_osd_read(fd, cdb, 6, buf, 511)) {
 		return NULL;
 	}
 
 	return strdup(buf);
 }
 
-char* get_chardev_from_sysfs(const char* root)
+static char *get_chardev_from_sysfs(const char *root)
 {
-	char* ret = NULL;
-	struct dirent* entry;
-	char* buf[512];
-	struct DIR* toplevel = opendir(root);
+	char *ret = NULL;
+	struct dirent *entry;
+	char buf[512];
+
+	DIR *toplevel = opendir(root);
 	if (!toplevel)
 		return strdup(ret);
 
-	while ( (entry = readdir(toplevel)) ) {
-		if(entry->d_name[0] == 's' &&
+	while ((entry = readdir(toplevel))) {
+		if (entry->d_name[0] == 's' &&
 		   entry->d_name[1] == 'u') {
-			snprintf(buf, "/dev/%s", entry->d_name);
+			snprintf(buf, sizeof(buf), "/dev/%s", entry->d_name);
 			ret = strdup(buf);
 			break;
 		}
@@ -59,40 +60,40 @@ char* get_chardev_from_sysfs(const char* root)
 	return ret;
 }
 
-char** 
-osd_get_drive_list(void)
+char **osd_get_drive_list(void)
 {
-	char** ret = NULL;
-	struct dirent* entry;
+	char **ret = NULL;
+	struct dirent *entry;
 	int count = 0, fd;
 	char buf[512];
-	char* chardev, serial;
+	char *chardev, *serial;
 
 	/* Walk along sysfs looking for the drives */
-	struct DIR* toplevel = opendir("/sys/class/scsi_osd");
+	DIR *toplevel = opendir("/sys/class/scsi_osd");
 	if (!toplevel)
 		return NULL;
 
 	/* First, get the count */
-	while ( (entry = readdir(toplevel)) ) {
+	while ((entry = readdir(toplevel))) {
 		count++;
 	}
 
-	if(count == 0)
+	if (count == 0)
 		goto out;
 
 	ret = malloc( sizeof(char**) * (count+1));
 	bzero(ret, sizeof(char**) * (count+1));
 	rewinddir(toplevel);
 	count = 0;
-	while( (entry = readdir(toplevel)) ) {
-		snprintf(buf, "/sys/class/scsi_osd/%s", entry->d_name);
+	while ((entry = readdir(toplevel))) {
+		snprintf(buf, sizeof(buf), "/sys/class/scsi_osd/%s",
+		         entry->d_name);
 		chardev = get_chardev_from_sysfs(buf);
-		if(!chardev)
+		if (!chardev)
 			continue;
 
 		fd = dev_osd_open(chardev);
-		if(fd <= 0) {
+		if (fd <= 0) {
 			free(chardev);
 			continue;
 		}
@@ -106,18 +107,18 @@ osd_get_drive_list(void)
 	}
 
 out:
-	if(toplevel)
+	if (toplevel)
 		closedir(toplevel);
 	return ret;
 }
 
-void 
-osd_drive_list_free(char** drive_list)
+void osd_drive_list_free(char **drive_list)
 {
-	char* iter;
+	char **iter;
 
-	for(iter = drive_list; iter != NULL; iter++) {
+	for (iter = drive_list; iter != NULL; iter++) {
 		free(iter);
 	}
 	free(drive_list);
 }
+

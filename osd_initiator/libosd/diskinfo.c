@@ -30,9 +30,12 @@ char *osd_get_drive_serial(int fd)
 	cdb[4] = 6;	/* Length */
 
 	/* Trickery to ensure the buffer is always null-terminated */
-	if (!dev_osd_read(fd, cdb, 6, buf, 511)) {
+	if (dev_osd_read(fd, cdb, 6, buf, 511) <= 0) {
+		printf("Read failed!\n");
+		printf("buf = '%s'\n", buf);
 		return NULL;
 	}
+	dev_osd_wait_response(fd, NULL);
 
 	return strdup(buf);
 }

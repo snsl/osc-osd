@@ -11,6 +11,10 @@ cdef extern from "Python.h":
 
 
 class OSDDevice:
+
+	def __init__(self):
+		self.handle = 0
+
 	def Open(self, path):
 		self.handle = dev_osd_open(path)
 		if(self.handle <= 0):
@@ -19,6 +23,15 @@ class OSDDevice:
 	def Close(self):
 		if self.handle and self.handle > 0:
 			dev_osd_close(self.handle)
-			self.handle = None
+			self.handle = 0
 		else:
 			print "Hey that's lame!"
+	
+	def Serial(self):
+		if self.handle <= 0:
+			raise Exception 
+		cdef char* ret 
+		ret = osd_get_drive_serial(self.handle)
+		if ret == NULL:
+			return None 
+		return ret

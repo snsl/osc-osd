@@ -5,14 +5,14 @@
 /* These are only typedef'd because Pyrex won't pick them up
  * correctly otherwise */
 
-enum data_direction {
+typedef enum data_direction {
     DMA_BIDIRECTIONAL = 0,
     DMA_TO_DEVICE = 1,
     DMA_FROM_DEVICE = 2,
     DMA_NONE = 3,
 };
 
-struct dev_response {
+typedef struct dev_response {
 	uint64_t key;
 	int error;
 	int sense_buffer_len;

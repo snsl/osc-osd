@@ -5,5 +5,5 @@ from libosdpython import *
 
 d = OSDDevice()
 d.Open('/dev/sua')
-d.Serial()
+print "Serial is: '" + d.Serial() + "'"
 d.Close()

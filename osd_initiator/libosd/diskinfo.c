@@ -63,9 +63,9 @@ static char *get_chardev_from_sysfs(const char *root)
 	return ret;
 }
 
-char **osd_get_drive_list(void)
+struct osd_drive_description *osd_get_drive_list(void)
 {
-	char **ret = NULL;
+	struct osd_drive_description *ret = NULL;
 	struct dirent *entry;
 	int count = 0, fd;
 	char buf[512];
@@ -74,7 +74,7 @@ char **osd_get_drive_list(void)
 	/* Walk along sysfs looking for the drives */
 	DIR *toplevel = opendir("/sys/class/scsi_osd");
 	if (!toplevel)
-		return NULL;
+		goto out;
 
 	/* First, get the count */
 	while ((entry = readdir(toplevel))) {
@@ -84,8 +84,8 @@ char **osd_get_drive_list(void)
 	if (count == 0)
 		goto out;
 
-	ret = malloc( sizeof(char**) * (count+1));
-	bzero(ret, sizeof(char**) * (count+1));
+	ret = malloc( sizeof(*ret) * (count+1));
+	memset(ret, 0, sizeof(*ret) * (count+1));
 	rewinddir(toplevel);
 	count = 0;
 	while ((entry = readdir(toplevel))) {
@@ -103,9 +103,14 @@ char **osd_get_drive_list(void)
 
 		serial = osd_get_drive_serial(fd);
 		dev_osd_close(fd);
-		sprintf(buf, "%s:%s", serial, chardev);
 
-		ret[count] = strdup(buf);
+		if (!serial) {
+			free(chardev);
+			continue;
+		}
+
+		ret[count].targetname = serial;
+		ret[count].chardev = chardev;
 		count++;
 	}
 
@@ -115,12 +120,13 @@ out:
 	return ret;
 }
 
-void osd_drive_list_free(char **drive_list)
+void osd_drive_list_free(struct osd_drive_description *drive_list)
 {
-	char *iter;
+	struct osd_drive_description *iter;
 
-	for (iter = *drive_list; iter != NULL; iter++) {
-		free(iter);
+	for (iter = drive_list; iter != NULL; iter++) {
+		free(iter->targetname);
+		free(iter->chardev);
 	}
 	free(drive_list);
 }

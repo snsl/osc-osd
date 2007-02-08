@@ -10,13 +10,31 @@ typedef enum data_direction {
     DMA_TO_DEVICE = 1,
     DMA_FROM_DEVICE = 2,
     DMA_NONE = 3,
-};
+} ignore_typedef1_t;
 
 typedef struct dev_response {
 	uint64_t key;
 	int error;
 	int sense_buffer_len;
 	unsigned char sense_buffer[252];  /* hackety hack */
+} ignore_typedef2_t;
+
+/*
+ * All information needed to submit a command to the kernel module.
+ *   [i] = provided by caller to submit_osd()
+ *   [o] = return from library to caller
+ */
+struct osd_command {
+	uint8_t cdb[200];   /* [i] maximum length CDB */
+	int cdb_len;        /* [i] actual len of valid bytes */
+	void *outdata;      /* [i] data for command, goes out to target */
+	size_t outlen;      /* [i] length */
+	void *indata;       /* [o] results from command, returned from target */
+	size_t inlen_alloc; /* [i] allocated size for command results */
+	size_t inlen;       /* [o] actual size returned */
+	uint8_t sense[252]; /* [o] sense errors */
+	int sense_len;      /* [o] number of bytes in sense */
+/* maybe..	uint64_t tag; */      /* [x] ignored, for convenient tracking */
 };
 
 /*
@@ -34,6 +52,12 @@ int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen);
 void hexdump(uint8_t *d, size_t len);
 void dev_show_sense(uint8_t *sense, int len);
+
+/*
+ * XXX: new functions, please give better names and implement.
+ */
+int osd_submit_command(int fd, struct osd_command *command);
+int osd_retrieve_result(int fd, struct osd_command **command);
 
 /*Functions to set up CDB*/
 int set_cdb_osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len);

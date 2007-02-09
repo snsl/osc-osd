@@ -2,6 +2,9 @@
 #define _INTERFACE_H
 
 
+#define FIRST_USER_PARTITION (0x10000LLU)
+#define FIRST_USER_OBJECT (0x10000LLU)
+
 /* These are only typedef'd because Pyrex won't pick them up
  * correctly otherwise */
 

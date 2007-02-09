@@ -34,7 +34,7 @@ static void varlen_cdb_init(uint8_t *cdb)
 
 static void cdb_build_inquiry(uint8_t *cdb)
 {
-	memset(cdb, 0, 6);
+	memset(cdb, 0, 6); 
 	cdb[0] = INQUIRY;
 	cdb[4] = 80;
 }
@@ -54,28 +54,28 @@ int main(int argc, char *argv[])
 {
 	int cdb_len = OSD_CDB_SIZE;
 	int fd, i;  
-
+	const char * buf[10];
+	char outbuf[10] = "xxxxxxx";
+	
 	set_progname(argc, argv); 
-
 	fd = dev_osd_open("/dev/sua");
 
+#if 0
 	inquiry(fd, cdb_len);
 	inquiry(fd, cdb_len);
-
 	info("sleeping 2 before flush");
 	sleep(2);
-
-	flush_osd(fd, cdb_len);
-
+	flush_osd(fd, cdb_len);  /*this is a no op no need to flush*/
 	info("sleeping 2 before format");
 	sleep(2);
-
-	format_osd(fd, cdb_len, 1<<30);
-	create_osd(fd, cdb_len, 0, 27, 1); 
-	const char * buf[10];
-	*buf = "The Rain in Spain"; 
-	write_osd(fd, cdb_len, 0, 27, 20, 5, buf); 
-	char outbuf[10] = "xxxxxxx";
+#endif
+	
+	format_osd(fd, cdb_len, 1<<30);  /*1GB*/
+	create_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 1); 
+	printf("Format and create work, need to fix up buf for write to work\n");
+	return 0;
+	*buf = "The Rain in Spain"; /*buf only has 10 bytes allocated though?*/
+	write_osd(fd, cdb_len, 0, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 0, buf); 
 	read_osd(fd, cdb_len, 0, 27, 20, 5, outbuf);
 
 

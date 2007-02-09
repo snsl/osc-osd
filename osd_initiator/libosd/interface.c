@@ -17,7 +17,7 @@
 #include "../../kernel/suo_ioctl.h"
 
 /*Forward declaration -- don't define in interface.h or test codes will complain*/
-static int write_cdb(int fd, const uint8_t *cdb, int cdb_len,  enum data_direction dir,
+static int submit_cdb(int fd, const uint8_t *cdb, int cdb_len,  enum data_direction dir,
 		     const void *outbuf,  size_t outlen, void *inbuf, size_t inlen);
 
 
@@ -175,62 +175,36 @@ void dev_show_sense(uint8_t *sense, int len)
 	*/
 }
 
-int dev_osd_write_nodata(int fd, const uint8_t *cdb, int cdb_len)
-{
-	return write_cdb(fd, cdb, cdb_len, DMA_NONE, NULL, 0, NULL, 0);
-}
-
-int dev_osd_write(int fd, const uint8_t *cdb, int cdb_len, const void *buf, size_t len)
-{
-	return write_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, buf, len, NULL, 0);
-}
-
-int dev_osd_read(int fd, const uint8_t *cdb, int cdb_len, void *buf, size_t len)
-{
-	return write_cdb(fd, cdb, cdb_len, DMA_FROM_DEVICE, NULL, 0, buf, len);
-}
-
+/*
 int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen)
 {
 	error("%s: cannot do bidirectional yet", __func__);
-	return write_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen,
-	               inbuf, inlen);
+//	return submit_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen,
+//	               inbuf, inlen);
 }
+*/
+/* *** */
 
-
-
-
-/*Actually do the writing to the char dev - not for user codes*/
-static int write_cdb(int fd, 
-		     const uint8_t *cdb, 
-		     int cdb_len, 
-		     enum data_direction dir,
-		     const void *outbuf, 
-		     size_t outlen, 
-		     void *inbuf, 
-		     size_t inlen)
+int osd_submit_command(int fd, struct osd_command *command, enum data_direction dir)
 {
 	struct suo_req req;
 	int ret;
-
 	req.data_direction = dir;
-	req.cdb_len = cdb_len;
-	req.cdb_buf = (uint64_t) (uintptr_t)cdb;
-	req.in_data_len = (uint32_t) inlen;
-	req.in_data_buf = (uint64_t) (uintptr_t) inbuf;
-	req.out_data_len = (uint32_t) outlen;
-	req.out_data_buf = (uint64_t) (uintptr_t) outbuf;
-
-	info("%s: write_cdb %02x len %d inbuf %p len %zu outbuf %p len %zu",
-	     __func__, cdb[0], cdb_len, inbuf, inlen, outbuf, outlen);
+	req.cdb_len = command->cdb_len;
+	req.cdb_buf = (uint64_t) (uintptr_t) command->cdb;
+	req.out_data_len = (uint32_t) command->outlen;
+	req.out_data_buf = (uint64_t) (uintptr_t) command->outdata;
+	req.in_data_len = (uint32_t) command->inlen;
+	req.in_data_buf = (uint64_t) (uintptr_t) command->indata;
+	info("%s: submit_cdb %02x len %d inbuf %p len %zu outbuf %p len %zu",
+	     __func__, command->cdb[0], command->cdb_len, command->indata, 
+	    command->inlen, command->outdata, command->outlen);
 	ret = write(fd, &req, sizeof(req));
 	if (ret < 0)
-		error_errno("%s: write suo request", __func__);
+	  error_errno("%s: write suo request", __func__);
 	return ret;
 }
-
-
 
 #if 0  /* will be needed for parsing returned values */
 /*bit twiddling functions*/
@@ -328,7 +302,7 @@ int set_cdb_osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid, uint1
 	set_action(cdb, OSD_CREATE);
 	set_htonll(&cdb[16], pid);
 	set_htonll(&cdb[24], requested_oid);
-	set_htons(&cdb[36], num);
+	set_htons(&cdb[36], num); // Number of user objects.
 	return 0;
 }
 

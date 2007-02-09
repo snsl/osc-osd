@@ -25,9 +25,9 @@ typedef struct dev_response {
  *   [o] = return from library to caller
  */
 struct osd_command {
-	uint8_t cdb[200];   /* [i] maximum length CDB */
+	const uint8_t * cdb;/* [i] maximum length CDB */
 	int cdb_len;        /* [i] actual len of valid bytes */
-	void *outdata;      /* [i] data for command, goes out to target */
+	const void *outdata;/* [i] data for command, goes out to target */
 	size_t outlen;      /* [i] length */
 	void *indata;       /* [o] results from command, returned from target */
 	size_t inlen_alloc; /* [i] allocated size for command results */
@@ -45,9 +45,6 @@ int dev_osd_open(const char *dev);
 void dev_osd_close(int fd);
 int dev_osd_wait_response(int fd, uint64_t *key);
 int dev_osd_wait_response2(int fd, struct dev_response *devresp);
-int dev_osd_write_nodata(int fd, const uint8_t *cdb, int cdb_len);
-int dev_osd_write(int fd, const uint8_t *cdb, int cdb_len, const void *buf, size_t len);
-int dev_osd_read(int fd, const uint8_t *cdb, int cdb_len, void *buf, size_t len);
 int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen);
 void hexdump(uint8_t *d, size_t len);
@@ -56,7 +53,7 @@ void dev_show_sense(uint8_t *sense, int len);
 /*
  * XXX: new functions, please give better names and implement.
  */
-int osd_submit_command(int fd, struct osd_command *command);
+int osd_submit_command(int fd, struct osd_command *command, enum data_direction dir);
 int osd_retrieve_result(int fd, struct osd_command **command);
 
 /*Functions to set up CDB*/

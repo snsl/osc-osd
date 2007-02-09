@@ -39,87 +39,53 @@ static void cdb_build_inquiry(uint8_t *cdb)
 	cdb[4] = 80;
 }
 
+int format_osd(int fd, int cdb_len, int capacity);
+int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
+		uint16_t num_user_objects);
+int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
+		uint64_t buf_len, uint64_t offset, const char * buf[]);
+int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
+		uint64_t buf_len, uint64_t offset, char bufout[]);
+int inquiry(int fd, int cdb_len);
+int flush_osd(int fd, int cdb_len);
+
+
 int main(int argc, char *argv[])
 {
-	uint8_t cdb[200];
-	uint8_t inquiry_rsp[80];
-	uint64_t key; 
-	int fd, err, i;  
-	struct dev_response resp;
+	int cdb_len = OSD_CDB_SIZE;
+	int fd, i;  
 
 	set_progname(argc, argv); 
 
 	fd = dev_osd_open("/dev/sua");
 
-#if 1
-	for (i=0; i<2; i++)
-	{
-		info("inquiry");
-		memset(inquiry_rsp, 0xaa, 80);
-		cdb_build_inquiry(cdb);
-		memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
-		dev_osd_read(fd, cdb, 6, inquiry_rsp, sizeof(inquiry_rsp));
-
-		/* now wait for the result */
-		info("waiting for response");
-		err = dev_osd_wait_response(fd, &key);
-		info("response key %lx error %d", key, err);
-		hexdump(inquiry_rsp, sizeof(inquiry_rsp));
-		fflush(0);	
-	}
+	inquiry(fd, cdb_len);
+	inquiry(fd, cdb_len);
 
 	info("sleeping 2 before flush");
 	sleep(2);
 
-	info("osd flush osd");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_flush_osd(cdb, 2);   /* flush everything */
-	dev_osd_write_nodata(fd, cdb, 200);
-	info("waiting for response");
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
+	flush_osd(fd, cdb_len);
 
 	info("sleeping 2 before format");
 	sleep(2);
-#endif
 
-#if 1
-	info("osd format osd");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_format_osd(cdb, 1<<30);   /* capacity 1 GB */
-	dev_osd_write_nodata(fd, cdb, 200);
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
+	format_osd(fd, cdb_len, 1<<30);
+	create_osd(fd, cdb_len, 0, 27, 1); 
+	const char * buf[10];
+	*buf = "The Rain in Spain"; 
+	write_osd(fd, cdb_len, 0, 27, 20, 5, buf); 
+	char outbuf[10] = "xxxxxxx";
+	read_osd(fd, cdb_len, 0, 27, 20, 5, outbuf);
 
-	info("osd create");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_create(cdb, 0, 27, 1);
-	dev_osd_write_nodata(fd, cdb, 200);
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
 
-	const char buf[] = "The rain in spain";
-	info("osd write");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_write(cdb, 0, 27, 10, 5);
-	dev_osd_write(fd, cdb, 200, buf, 10);
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
+	// read_osd(fd, cdb_len, 16, 27, 20, 5, "xxxxxxxxxxxxxxxx");
 
-	char bufout[] = "xxxxxxxxxxxxxxxxx";
-	info("osd read");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_read(cdb, 0, 27, 10, 5);
-	dev_osd_read(fd, cdb, 200, bufout, 10);
-	err = dev_osd_wait_response2(fd, &resp);
-	info("response key %lx error %d, bufout %s, sense len %d", resp.key,
-	     resp.error, bufout, resp.sense_buffer_len);
-#endif
-
+#if 0
 	char bad_bufout[] = "xxxxxxxxxxxxxxxxx";
 	info("osd read bad");
 	varlen_cdb_init(cdb);
-	set_cdb_osd_read(cdb, 16, 27, 10, 5);  /* magic bad pid causes error */
+	set_cdb_osd_read(cdb, 16, 27, 10, 5);  // magic bad pid causes error 
 	/*
 	 * Also need a way to get back how much data was written.  It could
 	 * be a partial read, with good data, but sense saying we asked for
@@ -131,8 +97,174 @@ int main(int argc, char *argv[])
 	     resp.sense_buffer_len);
 	if (resp.sense_buffer_len)
 		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+#endif
 
 	dev_osd_close(fd);
 	return 0;
 }
 
+// fd, cdb_len, capacity 
+int format_osd(int fd, int cdb_len, int capacity)
+{
+	int err;
+        uint64_t key;
+	uint8_t cdb[cdb_len];
+	struct osd_command command;
+	enum data_direction dir = DMA_NONE;	
+	info("********** OSD FORMAT **********");
+	varlen_cdb_init(cdb);
+	set_cdb_osd_format_osd(cdb, capacity);
+
+	command.cdb = cdb;
+	command.cdb_len = cdb_len;
+	command.outdata = NULL;
+	command.outlen = 0;
+	command.indata = NULL;
+	command.inlen = 0;
+	osd_submit_command(fd, &command, dir); 
+
+	err = dev_osd_wait_response(fd, &key);	
+	info("response key %lx error %d", key, err);
+	return err;
+}
+
+// fd, cdb_len, partition ID, requested user object ID, number of user objects 
+int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
+		uint16_t num_user_objects)
+{
+	int err;
+	uint64_t key;
+	uint8_t cdb[cdb_len];
+	struct osd_command command;
+	enum data_direction dir = DMA_NONE;
+	info("********** OSD CREATE **********");
+	varlen_cdb_init(cdb);
+	set_cdb_osd_create(cdb, pid, requested_oid, num_user_objects);
+
+	command.cdb = cdb;
+	command.cdb_len = cdb_len;
+	command.outdata = NULL;
+	command.outlen = 0;
+	command.indata = NULL;
+	command.inlen = 0;
+	osd_submit_command(fd, &command, dir); 
+
+	err = dev_osd_wait_response(fd, &key);
+	info("response key %lx error %d", key, err);
+	return err;
+}
+
+// fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument
+int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
+		uint64_t buf_len, uint64_t offset, const char * buf[])
+{
+	int err;
+	uint64_t key;
+	uint8_t cdb[cdb_len];
+	struct osd_command command;
+	enum data_direction dir = DMA_TO_DEVICE;
+
+	info("********** OSD WRITE **********");
+	varlen_cdb_init(cdb);
+	set_cdb_osd_write(cdb, pid, oid, buf_len, offset);
+
+	command.cdb = cdb;
+	command.cdb_len = cdb_len;	
+	command.outdata = buf;
+	command.outlen = buf_len;
+	command.indata = NULL;
+	command.inlen = 0;
+	osd_submit_command(fd, &command, dir);
+
+	err = dev_osd_wait_response(fd, &key);
+	info("argument: '%s'", *buf);
+	info("response key %lx error %d", key, err);
+	return err;
+}
+
+// fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument
+int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
+		uint64_t buf_len, uint64_t offset, char bufout[])
+{
+	int err;
+	struct dev_response resp;
+	uint8_t cdb[cdb_len];
+	struct osd_command command;
+	enum data_direction dir = DMA_FROM_DEVICE;
+
+	info("********** OSD READ **********");
+	varlen_cdb_init(cdb);
+	set_cdb_osd_read(cdb, pid, oid, buf_len, offset);
+
+	command.cdb = cdb;
+	command.cdb_len = cdb_len;
+	command.outdata = NULL;
+	command.outlen = 0;
+	command.indata = bufout;
+	command.inlen = buf_len;
+	osd_submit_command(fd, &command, dir);
+
+	//err = dev_osd_wait_response2(fd, &resp);
+	info("argument: '%s'", bufout);
+	info("response key %lx error %d, bufout %s, sense len %d", resp.key,
+	     resp.error, bufout, resp.sense_buffer_len);
+	return err;
+}
+
+int inquiry(int fd, int cdb_len)
+{
+	int err;
+	uint64_t key;
+	uint8_t inquiry_rsp[80], cdb[cdb_len];
+	struct osd_command command;
+	enum data_direction dir = DMA_FROM_DEVICE;
+
+	info("********** INQUIRY **********");
+	info("inquiry");
+	memset(inquiry_rsp, 0xaa, 80);
+	cdb_build_inquiry(cdb);
+	memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
+
+	command.cdb = cdb;
+	command.cdb_len = 6;	
+	command.outdata = NULL;
+	command.outlen = 0;
+	command.indata = inquiry_rsp;
+	command.inlen = sizeof(inquiry_rsp);
+	osd_submit_command(fd, &command, dir); 
+
+	info("waiting for response");
+	err = dev_osd_wait_response(fd, &key);
+	info("response key %lx error %d", key, err);
+	hexdump(inquiry_rsp, sizeof(inquiry_rsp));
+	fflush(0);
+
+	return err;
+}
+
+int flush_osd(int fd, int cdb_len)
+{
+	int err;
+	uint8_t cdb[cdb_len];
+	uint64_t key;
+	struct osd_command command;
+	enum data_direction dir = DMA_NONE;
+
+	info("********** OSD FLUSH OSD **********");
+	varlen_cdb_init(cdb);
+	set_cdb_osd_flush_osd(cdb, 2);   /* flush everything: cdb, flush_scope */ 
+
+	command.cdb = cdb;
+	command.cdb_len = cdb_len;
+	command.outdata = NULL;
+	command.outlen = 0;
+	command.indata = NULL;
+	command.inlen = 0;
+	osd_submit_command(fd, &command, dir); 
+
+	info("waiting for response");
+	err = dev_osd_wait_response(fd, &key);
+	info("response key %lx error %d", key, err);
+
+	return err;
+}

@@ -19,8 +19,11 @@
 
 char *osd_get_drive_serial(int fd)
 {
+	struct osd_command command;
 	char buf[512];
+	int ret;
 	unsigned char cdb[] = {0,0,0,0,0,0};
+
 	bzero(buf, 512);
 
 	/* See http://en.wikipedia.org/wiki/SCSI_Inquiry_Command */
@@ -29,13 +32,25 @@ char *osd_get_drive_serial(int fd)
 	cdb[2] = 0x80;   /* Serial number */
 	cdb[4] = 6;	/* Length */
 
-	/* Trickery to ensure the buffer is always null-terminated */
-	if (dev_osd_read(fd, cdb, 6, buf, 511) <= 0) {
+	memset(&command, 0, sizeof(command));
+	command.cdb = cdb;
+	command.cdb_len = 6;
+	command.indata = buf;
+	command.inlen_alloc = 512;
+
+	ret = osd_submit_command(fd, &command, DMA_NONE);
+	if (ret < 0) {
 		printf("Read failed!\n");
 		printf("buf = '%s'\n", buf);
 		return NULL;
 	}
-	dev_osd_wait_response(fd, NULL);
+
+	ret = dev_osd_wait_response(fd, NULL);
+	if (ret < 0) {
+		printf("Wait response failed!\n");
+		printf("buf = '%s'\n", buf);
+		return NULL;
+	}
 
 	return strdup(buf);
 }

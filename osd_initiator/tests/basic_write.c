@@ -46,7 +46,7 @@ int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, const char * buf[]);
 int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, char bufout[]);
-int inquiry(int fd, int cdb_len);
+int inquiry(int fd);
 int flush_osd(int fd, int cdb_len);
 
 
@@ -59,17 +59,22 @@ int main(int argc, char *argv[])
 	
 	set_progname(argc, argv); 
 	fd = dev_osd_open("/dev/sua");
+	if (fd < 0) {
+		error_errno("%s: open /dev/sua", __func__);
+		return 1;
+	}
 
-#if 0
-	inquiry(fd, cdb_len);
-	inquiry(fd, cdb_len);
+	inquiry(fd);
+
+#if 1
 	info("sleeping 2 before flush");
 	sleep(2);
 	flush_osd(fd, cdb_len);  /*this is a no op no need to flush*/
 	info("sleeping 2 before format");
 	sleep(2);
 #endif
-	
+
+#if 0
 	format_osd(fd, cdb_len, 1<<30);  /*1GB*/
 	create_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 1); 
 	printf("Format and create work, need to fix up buf for write to work\n");
@@ -80,6 +85,7 @@ int main(int argc, char *argv[])
 
 
 	// read_osd(fd, cdb_len, 16, 27, 20, 5, "xxxxxxxxxxxxxxxx");
+#endif
 
 #if 0
 	char bad_bufout[] = "xxxxxxxxxxxxxxxxx";
@@ -211,19 +217,18 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	return err;
 }
 
-int inquiry(int fd, int cdb_len)
+int inquiry(int fd)
 {
 	int err;
 	uint64_t key;
-	uint8_t inquiry_rsp[80], cdb[cdb_len];
+	uint8_t inquiry_rsp[80], cdb[200];
 	struct osd_command command;
 	enum data_direction dir = DMA_FROM_DEVICE;
 
 	info("********** INQUIRY **********");
 	info("inquiry");
-	memset(inquiry_rsp, 0xaa, 80);
 	cdb_build_inquiry(cdb);
-	memset(inquiry_rsp, 0, sizeof(inquiry_rsp));
+	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
 
 	command.cdb = cdb;
 	command.cdb_len = 6;	

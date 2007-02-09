@@ -190,6 +190,7 @@ int osd_submit_command(int fd, struct osd_command *command, enum data_direction 
 {
 	struct suo_req req;
 	int ret;
+
 	req.data_direction = dir;
 	req.cdb_len = command->cdb_len;
 	req.cdb_buf = (uint64_t) (uintptr_t) command->cdb;
@@ -202,7 +203,7 @@ int osd_submit_command(int fd, struct osd_command *command, enum data_direction 
 	    command->inlen, command->outdata, command->outlen);
 	ret = write(fd, &req, sizeof(req));
 	if (ret < 0)
-	  error_errno("%s: write suo request", __func__);
+		error_errno("%s: write suo request", __func__);
 	return ret;
 }
 

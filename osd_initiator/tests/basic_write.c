@@ -1,5 +1,5 @@
 /*
- * Test the use of the existing SG_IO interface to transport OSD commands.
+ * Test the chardev transport to the kernel.
  */
 #include <stdio.h>
 #include <stdlib.h>

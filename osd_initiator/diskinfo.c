@@ -22,23 +22,21 @@ char *osd_get_drive_serial(int fd)
 	struct osd_command command;
 	char buf[512];
 	int ret;
-	unsigned char cdb[] = {0,0,0,0,0,0};
 
-	bzero(buf, 512);
+	memset(buf, 0, sizeof(buf));
+	memset(&command, 0, sizeof(command));
 
 	/* See http://en.wikipedia.org/wiki/SCSI_Inquiry_Command */
-	cdb[0] = 0x12; 	/* SCSI INQUIRY */
-	cdb[1] = 1; 	/* Enable extra info */
-	cdb[2] = 0x80;   /* Serial number */
-	cdb[4] = 6;	/* Length */
+	command.cdb[0] = 0x12; 	/* SCSI INQUIRY */
+	command.cdb[1] = 1; 	/* Enable extra info */
+	command.cdb[2] = 0x80;   /* Serial number */
+	command.cdb[4] = 6;	/* Length */
 
-	memset(&command, 0, sizeof(command));
-	command.cdb = cdb;
 	command.cdb_len = 6;
 	command.indata = buf;
 	command.inlen_alloc = 512;
 
-	ret = osd_submit_command(fd, &command, DMA_NONE);
+	ret = osd_submit_command(fd, &command);
 	if (ret < 0) {
 		printf("Read failed!\n");
 		printf("buf = '%s'\n", buf);

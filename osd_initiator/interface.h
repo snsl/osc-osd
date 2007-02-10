@@ -28,7 +28,7 @@ struct dev_response {
  *   [o] = return from library to caller
  */
 struct osd_command {
-	const uint8_t *cdb; /* [i] maximum length CDB */
+	uint8_t cdb[200];   /* [i] maximum length CDB */
 	int cdb_len;        /* [i] actual len of valid bytes */
 	const void *outdata;/* [i] data for command, goes out to target */
 	size_t outlen;      /* [i] length */
@@ -56,7 +56,7 @@ void dev_show_sense(uint8_t *sense, int len);
 /*
  * XXX: new functions, please give better names and implement.
  */
-int osd_submit_command(int fd, struct osd_command *command, enum data_direction dir);
+int osd_submit_command(int fd, struct osd_command *command);
 int osd_retrieve_result(int fd, struct osd_command **command);
 
 /*Functions to set up CDB*/

@@ -116,20 +116,18 @@ int format_osd(int fd, int cdb_len, int capacity)
 {
 	int err;
         uint64_t key;
-	uint8_t cdb[cdb_len];
 	struct osd_command command;
-	enum data_direction dir = DMA_NONE;	
 	info("********** OSD FORMAT **********");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_format_osd(cdb, capacity);
 
-	command.cdb = cdb;
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_format_osd(command.cdb, capacity);
+
 	command.cdb_len = cdb_len;
 	command.outdata = NULL;
 	command.outlen = 0;
 	command.indata = NULL;
 	command.inlen = 0;
-	osd_submit_command(fd, &command, dir); 
+	osd_submit_command(fd, &command); 
 
 	err = dev_osd_wait_response(fd, &key);	
 	info("response key %lx error %d", key, err);
@@ -142,20 +140,18 @@ int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 {
 	int err;
 	uint64_t key;
-	uint8_t cdb[cdb_len];
 	struct osd_command command;
-	enum data_direction dir = DMA_NONE;
-	info("********** OSD CREATE **********");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_create(cdb, pid, requested_oid, num_user_objects);
 
-	command.cdb = cdb;
+	info("********** OSD CREATE **********");
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_create(command.cdb, pid, requested_oid, num_user_objects);
+
 	command.cdb_len = cdb_len;
 	command.outdata = NULL;
 	command.outlen = 0;
 	command.indata = NULL;
 	command.inlen = 0;
-	osd_submit_command(fd, &command, dir); 
+	osd_submit_command(fd, &command); 
 
 	err = dev_osd_wait_response(fd, &key);
 	info("response key %lx error %d", key, err);
@@ -168,21 +164,18 @@ int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 {
 	int err;
 	uint64_t key;
-	uint8_t cdb[cdb_len];
 	struct osd_command command;
-	enum data_direction dir = DMA_TO_DEVICE;
 
 	info("********** OSD WRITE **********");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_write(cdb, pid, oid, buf_len, offset);
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_write(command.cdb, pid, oid, buf_len, offset);
 
-	command.cdb = cdb;
 	command.cdb_len = cdb_len;	
 	command.outdata = buf;
 	command.outlen = buf_len;
 	command.indata = NULL;
 	command.inlen = 0;
-	osd_submit_command(fd, &command, dir);
+	osd_submit_command(fd, &command);
 
 	err = dev_osd_wait_response(fd, &key);
 	info("argument: '%s'", buf);
@@ -196,21 +189,18 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 {
 	int err;
 	struct dev_response resp;
-	uint8_t cdb[cdb_len];
 	struct osd_command command;
-	enum data_direction dir = DMA_FROM_DEVICE;
 
 	info("********** OSD READ **********");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_read(cdb, pid, oid, buf_len, offset);
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_read(command.cdb, pid, oid, buf_len, offset);
 
-	command.cdb = cdb;
 	command.cdb_len = cdb_len;
 	command.outdata = NULL;
 	command.outlen = 0;
 	command.indata = bufout;
 	command.inlen = buf_len;
-	osd_submit_command(fd, &command, dir);
+	osd_submit_command(fd, &command);
 
 	/* err = dev_osd_wait_response2(fd, &resp); */
 	info("argument: '%s'", bufout);
@@ -223,22 +213,20 @@ int inquiry(int fd)
 {
 	int err;
 	uint64_t key;
-	uint8_t inquiry_rsp[80], cdb[200];
+	uint8_t inquiry_rsp[80];
 	struct osd_command command;
-	enum data_direction dir = DMA_FROM_DEVICE;
 
 	info("********** INQUIRY **********");
 	info("inquiry");
-	cdb_build_inquiry(cdb);
+	cdb_build_inquiry(command.cdb);
 	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
 
-	command.cdb = cdb;
 	command.cdb_len = 6;	
 	command.outdata = NULL;
 	command.outlen = 0;
 	command.indata = inquiry_rsp;
 	command.inlen = sizeof(inquiry_rsp);
-	osd_submit_command(fd, &command, dir); 
+	osd_submit_command(fd, &command); 
 
 	info("waiting for response");
 	err = dev_osd_wait_response(fd, &key);
@@ -252,22 +240,19 @@ int inquiry(int fd)
 int flush_osd(int fd, int cdb_len)
 {
 	int err;
-	uint8_t cdb[cdb_len];
 	uint64_t key;
 	struct osd_command command;
-	enum data_direction dir = DMA_NONE;
 
 	info("********** OSD FLUSH OSD **********");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_flush_osd(cdb, 2);   /* flush everything: cdb, flush_scope */ 
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_flush_osd(command.cdb, 2);   /* flush everything: cdb, flush_scope */ 
 
-	command.cdb = cdb;
 	command.cdb_len = cdb_len;
 	command.outdata = NULL;
 	command.outlen = 0;
 	command.indata = NULL;
 	command.inlen = 0;
-	osd_submit_command(fd, &command, dir); 
+	osd_submit_command(fd, &command); 
 
 	info("waiting for response");
 	err = dev_osd_wait_response(fd, &key);

@@ -186,11 +186,20 @@ int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 }
 #endif
 
-int osd_submit_command(int fd, struct osd_command *command, enum data_direction dir)
+int osd_submit_command(int fd, struct osd_command *command)
 {
 	struct suo_req req;
 	int ret;
+	enum data_direction dir = DMA_NONE;
 
+	if (command->outlen) {
+		if (command->inlen)
+			dir = DMA_BIDIRECTIONAL;
+		else
+			dir = DMA_TO_DEVICE;
+	} else if (command->inlen) {
+		dir = DMA_FROM_DEVICE;
+	}
 	req.data_direction = dir;
 	req.cdb_len = command->cdb_len;
 	req.cdb_buf = (uint64_t) (uintptr_t) command->cdb;

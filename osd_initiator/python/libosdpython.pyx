@@ -32,8 +32,8 @@ cdef class OSDDevice:
 	def WaitResponse(self):
 		if self.handle < 0:
 			raise Exception 
-		cdef uint64_t key 
-		dev_osd_wait_response(self.handle, &key)
+		#cdef uint64_t key 
+		#dev_osd_wait_response(self.handle, &key)
 		return key
 
 	def WriteNoData(self, cdb):

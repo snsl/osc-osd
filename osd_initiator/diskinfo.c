@@ -14,7 +14,7 @@
 #include "interface.h"
 #include "diskinfo.h"
 #include "osd_hdr.h"
-#include "../kernel/suo_ioctl.h"
+#include "kernel/suo_ioctl.h"
 
 
 char *osd_get_drive_serial(int fd)

@@ -1,3 +1,6 @@
+#
+# Wrapper classes around osd initiator library.
+#
 cimport libosdpython
 
 cdef extern from "Python.h":

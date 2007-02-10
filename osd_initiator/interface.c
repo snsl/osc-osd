@@ -175,16 +175,16 @@ void dev_show_sense(uint8_t *sense, int len)
 	*/
 }
 
-/*
+
+#if 0
 int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen)
 {
 	error("%s: cannot do bidirectional yet", __func__);
-/*	return submit_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen, */
-/*	               inbuf, inlen); */
+	//return submit_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen, 
+	//               inbuf, inlen); 
 }
-*/
-/* *** */
+#endif
 
 int osd_submit_command(int fd, struct osd_command *command, enum data_direction dir)
 {

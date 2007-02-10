@@ -48,7 +48,7 @@ libosdpython.c: libosdpython.pyx libosdpython.pxd
 	pyrexc -o $@ $<
 
 libosdpython.pxd: libosdpython.h
-	./extract.py libosdpython.pxd.in > $@
+	python ./extract.py $< > $@
 
 ifeq (,$(filter clean distclean dist,$(MAKECMDGOALS)))
 -include .depend

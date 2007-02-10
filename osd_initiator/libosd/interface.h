@@ -8,19 +8,19 @@
 /* These are only typedef'd because Pyrex won't pick them up
  * correctly otherwise */
 
-typedef enum data_direction {
+enum data_direction {
     DMA_BIDIRECTIONAL = 0,
     DMA_TO_DEVICE = 1,
     DMA_FROM_DEVICE = 2,
     DMA_NONE = 3,
-} ignore_typedef1_t;
+};
 
-typedef struct dev_response {
+struct dev_response {
 	uint64_t key;
 	int error;
 	int sense_buffer_len;
 	unsigned char sense_buffer[252];  /* hackety hack */
-} ignore_typedef2_t;
+};
 
 /*
  * All information needed to submit a command to the kernel module.
@@ -28,7 +28,7 @@ typedef struct dev_response {
  *   [o] = return from library to caller
  */
 struct osd_command {
-	const uint8_t * cdb;/* [i] maximum length CDB */
+	const uint8_t *cdb; /* [i] maximum length CDB */
 	int cdb_len;        /* [i] actual len of valid bytes */
 	const void *outdata;/* [i] data for command, goes out to target */
 	size_t outlen;      /* [i] length */

@@ -43,7 +43,7 @@ int format_osd(int fd, int cdb_len, int capacity);
 int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 		uint16_t num_user_objects);
 int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
-		uint64_t buf_len, uint64_t offset, const char * buf[]);
+		uint64_t buf_len, uint64_t offset, const char *buf);
 int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, char bufout[]);
 int inquiry(int fd);
@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
 {
 	int cdb_len = OSD_CDB_SIZE;
 	int fd, i;  
-	const char * buf[10];
+	const char *buf;
 	char outbuf[10] = "xxxxxxx";
 	
 	set_progname(argc, argv); 
@@ -79,8 +79,10 @@ int main(int argc, char *argv[])
 	create_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 1); 
 	printf("Format and create work, need to fix up buf for write to work\n");
 	return 0;
-	*buf = "The Rain in Spain"; /*buf only has 10 bytes allocated though?*/
-	write_osd(fd, cdb_len, 0, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 0, buf); 
+#endif
+	buf = "The Rain in Spain";
+	write_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, strlen(buf)+1, 0, buf); 
+#if 0
 	read_osd(fd, cdb_len, 0, 27, 20, 5, outbuf);
 
 
@@ -162,7 +164,7 @@ int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 
 /* fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument */
 int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
-		uint64_t buf_len, uint64_t offset, const char * buf[])
+		uint64_t buf_len, uint64_t offset, const char *buf)
 {
 	int err;
 	uint64_t key;
@@ -183,7 +185,7 @@ int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	osd_submit_command(fd, &command, dir);
 
 	err = dev_osd_wait_response(fd, &key);
-	info("argument: '%s'", *buf);
+	info("argument: '%s'", buf);
 	info("response key %lx error %d", key, err);
 	return err;
 }

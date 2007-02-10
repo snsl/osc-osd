@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import commands
 import re
 import string
@@ -47,20 +48,22 @@ def find_enums(buf):
     buf = strip_comments(buf)
     buf = re.sub('\n', ' ', buf)
     
-    enum_pat = re.compile(r'enum\s*{([^}]*)}\s*([A-Z][A-Za-z]*)(\s|;)')
+    enum_pat = re.compile(r'enum\s*([_A-Za-z][_A-Za-z0-9]*)\s*{([^}]*)};')
     splitter = re.compile(r'\s*,\s', re.MULTILINE)
     pos = 0
     while pos < len(buf):
         m = enum_pat.search(buf, pos)
         if not m: break
 
-        name = m.group(2)
-        vals = m.group(1)
+        name = m.group(1)
+        vals = m.group(2)
+	#print >>sys.stderr, "found enum %s %s" % (name, vals)
         isflags = string.find(vals, '<<') >= 0
         entries = []
         for val in splitter.split(vals):
             if not string.strip(val): continue
-            entries.append(string.split(val)[0])
+	    #print >>sys.stderr, "val %s" % (val)
+            entries.append(' '.join(string.split(val)))
         enums.append((name, isflags, entries))
         
         pos = m.end()
@@ -90,6 +93,7 @@ def find_typedefs(buf):
         m = typedef_pat.search(buf, pos)
         if not m:
             break
+	#print >>sys.stderr, "found typedef %s" % (m.group('type'))
         if m.group('type') == 'enum':
             pos = m.end()
             continue
@@ -104,6 +108,37 @@ def find_typedefs(buf):
         typedefs.append(current)
         pos = m.end()
     return typedefs
+
+def find_structs(buf):
+    structs = []
+    buf = re.sub('\n', ' ', strip_comments(buf))
+    struct_pat = re.compile(
+	r"""struct\s*(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)
+	    \s*
+	    {
+	    (?P<contents>[^}]*)
+	    };""",
+	re.MULTILINE | re.VERBOSE);
+    splitter = re.compile(r'\s*;\s', re.MULTILINE)
+    pos = 0
+    while pos < len(buf):
+        m = struct_pat.search(buf, pos)
+        if not m:
+            break
+	#print >>sys.stderr, "found struct %s vals %s" % (m.group('name'), m.group('contents'))
+	guts = []
+	for val in splitter.split(m.group('contents')):
+            if not string.strip(val): continue
+	    words = []
+	    for word in string.split(val):
+		if word == "const":
+		    pass
+		else:
+		    words.append(word)
+	    guts.append(' '.join(words))
+	structs.append((m.group('name'), guts))
+	pos = m.end()
+    return structs
 
 proto_pat = re.compile(r"""
 (?P<ret>(-|\w|\&|\*|\s)+\s*)      # return type
@@ -129,40 +164,29 @@ def find_functions(buf):
         ret = m.group('ret')
         args = m.group('args')
         args = arg_split_pat.split(args)
-#        for i in range(len(args)):
-#            spaces = string.count(args[i], ' ')
-#            if spaces > 1:
-#                args[i] = string.replace(args[i], ' ', '-', spaces - 1)
-
+	for i in range(len(args)):
+	    if args[i].startswith('enum '):
+		args[i] = args[i][5:]
+	    if args[i].startswith('struct '):
+		args[i] = args[i][7:]
+	#print >>sys.stderr, "args", args
         functions.append((func, ret, args))
     return functions
 
 class Writer:
-    def __init__(self, filename, enums, typedefs, functions):
+    def __init__(self, filename, typedefs, enums, structs, functions):
         if not (enums or typedefs or functions):
             return
         print 'cdef extern from "%s":' % filename
 
-        self.output_enums(enums)
-        self.output_typedefs(typedefs)
-        self.output_functions(functions)        
+	self.output_typedefs(typedefs)
+	self.output_enums(enums)
+	self.output_structs(structs)
+	self.output_functions(functions)        
         
         print '    pass'
         print
         
-    def output_enums(self, enums):
-        for enum in enums:
-            print '    ctypedef enum %s:' % enum[0]
-            if enum[1] == 0:
-                for item in enum[2]:
-                    print '        %s' % item
-            else:
-                i = 0
-                for item in enum[2]:
-                    print '        %s' % item                    
-#                    print '        %s = 1 << %d' % (item, i)
-                    i += 1
-            print
     def output_typedefs(self, typedefs):
         for typedef in typedefs:
             if typedef.find('va_list') != -1:
@@ -176,6 +200,27 @@ class Writer:
             else:
                 print '    ctypedef %s' % typedef
 
+    def output_enums(self, enums):
+        for enum in enums:
+            print '    cdef enum %s:' % enum[0]
+            if enum[1] == 0:
+                for item in enum[2]:
+                    print '        %s' % item
+            else:
+                i = 0
+                for item in enum[2]:
+                    print '        %s' % item                    
+#                    print '        %s = 1 << %d' % (item, i)
+                    i += 1
+            print
+
+    def output_structs(self, structs):
+	for struct in structs:
+	    print '    cdef struct %s:' % struct[0]
+	    for gut in struct[1]:
+		print '        %s' % gut
+	    print
+
     def output_functions(self, functions):
         for func, ret, args in functions:
             if func[0] == '_':
@@ -188,14 +233,15 @@ class Writer:
                 continue
             if str.strip() == 'void':
                 continue
-            print '    %-20s %s (%s)' % (ret, func, str)
+            print '    %s %s(%s)' % (ret, func, str)
 
 def do_buffer(name, buffer):
-    functions = find_functions(buffer)
     typedefs = find_typedefs(buffer)
     enums = find_enums(buffer)
+    structs = find_structs(buffer)
+    functions = find_functions(buffer)
 
-    Writer(name, enums, typedefs, functions)
+    Writer(name, typedefs, enums, structs, functions)
     
 def do_header(filename, name=None):
     if name == None:
@@ -228,10 +274,10 @@ def main(filename, flags, output=None):
 
         if match:
             filename = match.group(1)
-            print >>sys.stderr, "matched %s" % (filename)
+            #print >>sys.stderr, "matched %s" % (filename)
             command = "echo '%s'|cpp %s" % (line, cppflags)
             output = commands.getoutput(command)
-            print >>sys.stderr, "output %s" % (output)
+            #print >>sys.stderr, "output %s" % (output)
             do_buffer(filename, output)
         else:
             print line[:-1]

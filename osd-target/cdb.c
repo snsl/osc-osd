@@ -42,7 +42,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	uint16_t action = (cdb[8] << 8) | cdb[9];
 	uint8_t sense[MAX_SENSE_LEN];  /* for output sense data */
 
-	//figure out if get/set attribute is using page or list mode
+	/* Figure out if get/set attribute is using page or list mode */
 	uint8_t get_set_page_or_list = (cdb[11] & 0x30) >> 4;
 
 	memset(sense, 0, MAX_SENSE_LEN);
@@ -122,12 +122,12 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 		
-		// if =2, get an attribute page and set an attribute value
+		/* if =2, get an attribute page and set an attribute value */
 		if( get_set_page_or_list==2 ){
 			
 			uint32_t page = ntohl(&cdb[52]);
 		
-			// if page = 0, no attributes are to be gotten
+			/* if page = 0, no attributes are to be gotten */
 			if( page != 0){
 				/* XXX: what are these?
 				uint32_t number = 0;
@@ -143,7 +143,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			    /* XXX: need to get attributes page*/
 			}
 			
-			// set attributes section
+			/* set attributes section */
 			uint32_t set_page = ntohl(&cdb[64]);
 			
 			if( set_page != 0 ){
@@ -154,7 +154,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 				/*XXX - need to set  an attribute */
 			}
 		}
-		// else if =3, get and set attributes using lists
+		/* else if =3, get and set attributes using lists */
 		else if( get_set_page_or_list==3 ){
 			uint32_t get_list_len = ntohl(&cdb[52]);
 
@@ -174,7 +174,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			}
 
 		}
-		else{  // shouldn't happen, 0&1 are reserved
+		else{  /* shouldn't happen, 0&1 are reserved */
 			debug("%s: GET/SET CDBFMT code error, value is: %d", 
 					__func__, get_set_page_or_list);
 			/* XXX: generate sense and return that */
@@ -255,7 +255,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 
-		// if =2, set an attribute value, and get an attribute page
+		/* if =2, set an attribute value, and get an attribute page */
 		if( get_set_page_or_list==2 ){
 			
 			uint32_t set_page = ntohl(&cdb[64]);
@@ -281,7 +281,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			}
 			
 		}
-		// else if =3, get and set attributes using lists
+		/* else if =3, get and set attributes using lists */
 		else if( get_set_page_or_list==3 ){
 			
 			uint32_t set_list_len = ntohl(&cdb[68]);
@@ -300,7 +300,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			}
 
 		}
-		else{  // shouldn't happen, 0&1 are reserved
+		else{  /* shouldn't happen, 0&1 are reserved */
 			debug("%s: GET/SET CDBFMT code error, value is: %d", 
 					__func__, get_set_page_or_list);
 			/* XXX: generate sense and return that */

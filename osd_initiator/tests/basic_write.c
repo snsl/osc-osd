@@ -84,14 +84,14 @@ int main(int argc, char *argv[])
 	read_osd(fd, cdb_len, 0, 27, 20, 5, outbuf);
 
 
-	// read_osd(fd, cdb_len, 16, 27, 20, 5, "xxxxxxxxxxxxxxxx");
+	/* read_osd(fd, cdb_len, 16, 27, 20, 5, "xxxxxxxxxxxxxxxx"); */
 #endif
 
 #if 0
 	char bad_bufout[] = "xxxxxxxxxxxxxxxxx";
 	info("osd read bad");
 	varlen_cdb_init(cdb);
-	set_cdb_osd_read(cdb, 16, 27, 10, 5);  // magic bad pid causes error 
+	set_cdb_osd_read(cdb, 16, 27, 10, 5);  /* magic bad pid causes error  */
 	/*
 	 * Also need a way to get back how much data was written.  It could
 	 * be a partial read, with good data, but sense saying we asked for
@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-// fd, cdb_len, capacity 
+/* fd, cdb_len, capacity  */
 int format_osd(int fd, int cdb_len, int capacity)
 {
 	int err;
@@ -134,7 +134,7 @@ int format_osd(int fd, int cdb_len, int capacity)
 	return err;
 }
 
-// fd, cdb_len, partition ID, requested user object ID, number of user objects 
+/* fd, cdb_len, partition ID, requested user object ID, number of user objects  */
 int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 		uint16_t num_user_objects)
 {
@@ -160,7 +160,7 @@ int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 	return err;
 }
 
-// fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument
+/* fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument */
 int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, const char * buf[])
 {
@@ -188,7 +188,7 @@ int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	return err;
 }
 
-// fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument
+/* fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument */
 int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, char bufout[])
 {
@@ -210,7 +210,7 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	command.inlen = buf_len;
 	osd_submit_command(fd, &command, dir);
 
-	//err = dev_osd_wait_response2(fd, &resp);
+	/* err = dev_osd_wait_response2(fd, &resp); */
 	info("argument: '%s'", bufout);
 	info("response key %lx error %d, bufout %s, sense len %d", resp.key,
 	     resp.error, bufout, resp.sense_buffer_len);

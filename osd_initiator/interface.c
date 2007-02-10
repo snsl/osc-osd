@@ -180,8 +180,8 @@ int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen)
 {
 	error("%s: cannot do bidirectional yet", __func__);
-//	return submit_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen,
-//	               inbuf, inlen);
+/*	return submit_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen, */
+/*	               inbuf, inlen); */
 }
 */
 /* *** */
@@ -303,7 +303,7 @@ int set_cdb_osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid, uint1
 	set_action(cdb, OSD_CREATE);
 	set_htonll(&cdb[16], pid);
 	set_htonll(&cdb[24], requested_oid);
-	set_htons(&cdb[36], num); // Number of user objects.
+	set_htons(&cdb[36], num); /* Number of user objects. */
 	return 0;
 }
 

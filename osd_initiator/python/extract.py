@@ -262,9 +262,9 @@ def main(filename, flags, output=None):
         old_stdout = sys.stdout
         sys.stdout = output
 
-    if filename.endswith('.h'):
-        do_header(filename)
-        return
+    #if filename.endswith('.h'):
+    #    do_header(filename)
+    #    return
 
     cppflags = ' '.join(flags)
 
@@ -279,8 +279,6 @@ def main(filename, flags, output=None):
             output = commands.getoutput(command)
             #print >>sys.stderr, "output %s" % (output)
             do_buffer(filename, output)
-        else:
-            print line[:-1]
     fd.close()
 
     if old_stdout is not None:

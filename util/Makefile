@@ -10,7 +10,7 @@ LIB := libosdutil.a
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g
+COPTS := -g -fPIC
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs -fPIC

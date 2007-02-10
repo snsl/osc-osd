@@ -1,6 +1,6 @@
 now: libosdpython.so
 
-libosdpython.so: osd_wrap.o ../libosd/libosd.a ../../util/libosdutil.a
+libosdpython.so: osd_wrap.o ../libosd.a ../../util/libosdutil.a
 	gcc -shared -o $@ $^
 
 osd_wrap.o: osd_wrap.c
@@ -9,7 +9,7 @@ osd_wrap.o: osd_wrap.c
 osd_wrap.c: libosdpython.pyx libosdpython.pxd
 	pyrexc -I../libosd -o $@ $<
 
-libosdpython.pxd: libosdpython.pxd.in extract.py ../libosd/interface.h ../libosd/diskinfo.h
+libosdpython.pxd: libosdpython.pxd.in extract.py ../interface.h ../diskinfo.h
 	./extract.py $< > $@
 
 clean:

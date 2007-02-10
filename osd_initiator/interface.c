@@ -14,7 +14,7 @@
 
 #include "interface.h"
 #include "osd_cmds.h"
-#include "../../kernel/suo_ioctl.h"
+#include "../kernel/suo_ioctl.h"
 
 /*Forward declaration -- don't define in interface.h or test codes will complain*/
 static int submit_cdb(int fd, const uint8_t *cdb, int cdb_len,  enum data_direction dir,

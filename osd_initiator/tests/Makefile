@@ -5,7 +5,7 @@
 PROGSRC := basic_write.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
-LIB := ../libosd/libosd.a ../../util/libosdutil.a
+LIB := ../libosd.a ../../util/libosdutil.a
 
 CC := gcc
 CPP_M := -MM

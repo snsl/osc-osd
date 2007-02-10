@@ -14,7 +14,7 @@ COPTS := -g -fPIC
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \
 	-Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I../.. -Wno-unused
+CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
 
 all:: $(LIB) $(OBJ)
 

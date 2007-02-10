@@ -1,4 +1,4 @@
 #include <stddef.h>
 #include <stdint.h>
-#include "../libosd/interface.h"
-#include "../libosd/diskinfo.h"
+#include "../interface.h"
+#include "../diskinfo.h"

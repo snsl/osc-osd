@@ -10,24 +10,27 @@ cdef extern from "Python.h":
 	void PyGILState_Release(PyGILState_STATE)
 
 cdef class OSDDevice:
+	cdef int handle
 
 	def __init__(self):
-		self.handle = 0
+		self.handle = -1
 
 	def Open(self, path):
 		self.handle = dev_osd_open(path)
-		if(self.handle <= 0):
+		if self.handle < 0:
 			print "No open!"
+			raise Exception 
 	
 	def Close(self):
-		if self.handle and self.handle > 0:
+		if self.handle >= 0:
 			dev_osd_close(self.handle)
-			self.handle = 0
+			self.handle = -1
 		else:
 			print "Hey that's lame!"
+			raise Exception 
 
 	def WaitResponse(self):
-		if self.handle <= 0:
+		if self.handle < 0:
 			raise Exception 
 		cdef uint64_t key 
 		dev_osd_wait_response(self.handle, &key)
@@ -39,7 +42,7 @@ cdef class OSDDevice:
 		#dev_osd_write_nodata( 
 	
 	def Serial(self):
-		if self.handle <= 0:
+		if self.handle < 0:
 			raise Exception 
 		cdef char* ret 
 		ret = osd_get_drive_serial(self.handle)

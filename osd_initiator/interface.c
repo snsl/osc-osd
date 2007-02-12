@@ -44,27 +44,6 @@ int dev_osd_wait_response(int fd, struct suo_response *devresp)
 	return 0;
 }
 
-/*
- * Debugging, should go in some util library.
- */
-void hexdump(uint8_t *d, size_t len)
-{
-	size_t offset = 0;
-
-	while (offset < len) {
-		unsigned int i, range;
-
-		range = 8;
-		if (range > len-offset)
-			range = len-offset;
-		printf("%4lx:", offset);
-		for (i=0; i<range; i++)
-			printf(" %02x", d[offset+i]);
-		printf("\n");
-		offset += range;
-	}
-}
-
 /* description of the sense key values */
 static const char *const snstext[] = {
 	"No Sense",	    /* 0: There is no sense information */
@@ -136,11 +115,9 @@ void dev_show_sense(uint8_t *sense, int len)
 		return;
 	}
 	/* ignore not_init and completed funcs */
-	/* XXX: need these funcs from a standard interface somewhere...
 	pid = ntohll(&info[16]);
 	oid = ntohll(&info[16]);
 	printf("%s: offending pid 0x%016lx oid 0x%016lx\n", __func__, pid, oid);
-	*/
 }
 
 int osd_sgio_submit_command(int fd, struct osd_command *command)
@@ -271,73 +248,6 @@ int osd_submit_command(int fd, struct osd_command *command)
 		error_errno("%s: write suo request", __func__);
 	return ret;
 }
-
-#if 0  /* will be needed for parsing returned values */
-/*bit twiddling functions*/
-static uint32_t swab32(uint32_t d)
-{
-	return  (d & (uint32_t) 0x000000ffUL) << 24 |
-	        (d & (uint32_t) 0x0000ff00UL) << 8  |
-	        (d & (uint32_t) 0x00ff0000UL) >> 8  |
-	        (d & (uint32_t) 0xff000000UL) >> 24;
-} 
-
-/*
- * Things are not aligned in the current osd2r00, but they probably
- * will be soon.  Assume 4-byte alignment though.
- */
-static uint64_t ntohll_le(uint8_t *d)
-{
-	uint32_t d0 = swab32(*(uint32_t *) d);
-	uint32_t d1 = swab32(*(uint32_t *) (d+4));
-
-	return (uint64_t) d0 << 32 | d1;
-}
-
-static uint32_t ntohl_le(uint8_t *d)
-{
-	return swab32(*(uint32_t *) d);
-}
-
-static uint16_t ntohs_le(uint8_t *d)
-{
-	uint16_t x = *(uint16_t *) d;
-
-	return (x & (uint16_t) 0x00ffU) << 8 |
-	       (x & (uint16_t) 0xff00U) >> 8;
-}
-#endif
-
-static void set_htonll_le(uint8_t *x, uint64_t val)
-{
-	uint32_t *xw = (uint32_t *) x;
-
-	xw[0] = swab32((val & (uint64_t) 0xffffffff00000000ULL) >> 32);
-	xw[1] = swab32((val & (uint64_t) 0x00000000ffffffffULL));
-}
-
-static void set_htonl_le(uint8_t *x, uint32_t val)
-{
-	uint32_t *xw = (uint32_t *) x;
-
-	*xw = swab32(val);
-}
-
-static void set_htons_le(uint8_t *x, uint16_t val)
-{
-	uint16_t *xh = (uint16_t *) x;
-
-	*xh = (val & (uint16_t) 0x00ffU) << 8 |
-	      (val & (uint16_t) 0xff00U) >> 8; 
-}
-
-/* some day deal with the big-endian versions */
-#define     ntohs      ntohs_le
-#define     ntohl      ntohl_le
-#define     ntohll     ntohll_le
-#define set_htons  set_htons_le
-#define set_htonl  set_htonl_le
-#define set_htonll set_htonll_le
 
 
 static void set_action(uint8_t *cdb, uint16_t command)

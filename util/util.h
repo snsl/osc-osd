@@ -16,6 +16,7 @@ void *Malloc(size_t n) __attribute__((malloc));
 void *Calloc(size_t nmemb, size_t n) __attribute__((malloc));
 ssize_t saferead(int fd, void *buf, size_t num);
 ssize_t safewrite(int fd, const void *buf, size_t num);
+void hexdump(const uint8_t *d, size_t len);
 
 #define ARRAY_SIZE(x) (int)(sizeof(x) / sizeof((x)[0]))
 
@@ -26,12 +27,18 @@ ssize_t safewrite(int fd, const void *buf, size_t num);
 #endif
 
 /* endian covertors */
-uint32_t swab32(uint32_t d);
 uint64_t ntohll_le(uint8_t *d);
 uint32_t ntohl_le(uint8_t *d);
 uint16_t ntohs_le(uint8_t *d);
+void set_htonll_le(uint8_t *x, uint64_t val);
+void set_htonl_le(uint8_t *x, uint32_t val);
+void set_htons_le(uint8_t *x, uint16_t val);
 
 /* some day deal with the big-endian versions */
-#define ntohs ntohs_le
-#define ntohl ntohl_le
-#define ntohll ntohll_le
+#define     ntohs      ntohs_le
+#define     ntohl      ntohl_le
+#define     ntohll     ntohll_le
+#define set_htons  set_htons_le
+#define set_htonl  set_htonl_le
+#define set_htonll set_htonll_le
+

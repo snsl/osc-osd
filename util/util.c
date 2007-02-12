@@ -197,8 +197,29 @@ safewrite(int fd, const void *buf, size_t num)
     return total;
 }
 
+/*
+ * Debugging.
+ */
+void hexdump(const uint8_t *d, size_t len)
+{
+	size_t offset = 0;
+
+	while (offset < len) {
+		unsigned int i, range;
+
+		range = 8;
+		if (range > len-offset)
+			range = len-offset;
+		printf("%4lx:", offset);
+		for (i=0; i<range; i++)
+			printf(" %02x", d[offset+i]);
+		printf("\n");
+		offset += range;
+	}
+}
+
 /* endian functions */
-uint32_t swab32(uint32_t d)
+static uint32_t swab32(uint32_t d)
 {
 	return  (d & (uint32_t) 0x000000ffUL) << 24 |
 	        (d & (uint32_t) 0x0000ff00UL) << 8  |
@@ -231,4 +252,26 @@ uint16_t ntohs_le(uint8_t *d)
 	       (x & (uint16_t) 0xff00U) >> 8;
 }
 
+void set_htonll_le(uint8_t *x, uint64_t val)
+{
+	uint32_t *xw = (uint32_t *) x;
+
+	xw[0] = swab32((val & (uint64_t) 0xffffffff00000000ULL) >> 32);
+	xw[1] = swab32((val & (uint64_t) 0x00000000ffffffffULL));
+}
+
+void set_htonl_le(uint8_t *x, uint32_t val)
+{
+	uint32_t *xw = (uint32_t *) x;
+
+	*xw = swab32(val);
+}
+
+void set_htons_le(uint8_t *x, uint16_t val)
+{
+	uint16_t *xh = (uint16_t *) x;
+
+	*xh = (val & (uint16_t) 0x00ffU) << 8 |
+	      (val & (uint16_t) 0xff00U) >> 8; 
+}
 

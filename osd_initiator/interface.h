@@ -50,7 +50,6 @@ void dev_osd_close(int fd);
 int dev_osd_wait_response(int fd, struct suo_response *devresp);
 int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen);
-void hexdump(uint8_t *d, size_t len);
 void dev_show_sense(uint8_t *sense, int len);
 
 /*

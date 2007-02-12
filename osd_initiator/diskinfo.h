@@ -7,7 +7,7 @@ struct osd_drive_description {
 };
 
 char *osd_get_drive_serial(int fd);
-struct osd_drive_description *osd_get_drive_list(void);
-void osd_drive_list_free(struct osd_drive_description *drive_list);
+int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives);
+void osd_free_drive_list(struct osd_drive_description *drives, int num_drives);
 
 #endif

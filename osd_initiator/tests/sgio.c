@@ -15,12 +15,8 @@
 
 #include "util/util.h"
 #include "interface.h"
+#include "diskinfo.h"
 #include "osd_hdr.h"
-
-#define OSD_CDB_SIZE 200
-#define VARLEN_CDB 0x7f
-#define TIMESTAMP_ON 0x0
-#define TIMESTAMP_OFF 0x7f
 
 static const uint64_t pid = 0x10000LLU;
 static const uint64_t oid = 0x10003LLU;
@@ -30,6 +26,9 @@ static const uint64_t oid = 0x10003LLU;
  */
 static void varlen_cdb_init(uint8_t *cdb)
 {
+	static const int VARLEN_CDB = 0x7f;
+	static const int TIMESTAMP_OFF = 0x7f;
+
 	cdb[0] = VARLEN_CDB;
 	/* we do not support ACA or LINK in control byte cdb[1], leave as 0 */
 	cdb[7] = OSD_CDB_SIZE - 8;
@@ -153,23 +152,43 @@ static int read_osd(int fd)
 	return 0;
 }
 
-
 int main(int argc, char *argv[])
 {
-	int fd;  
-	
+	int fd, ret, num_drives, i;
+	struct osd_drive_description *drives;
+
 	set_progname(argc, argv); 
-	fd = open("/dev/sg1", O_RDWR);
-	if (fd < 0) {
-		error_errno("%s: open /dev/sg1", __func__);
+
+	ret = osd_get_drive_list(&drives, &num_drives);
+	if (ret < 0) {
+		error("%s: get drive error", __func__);
 		return 1;
 	}
+	if (num_drives == 0) {
+		error("%s: no drives", __func__);
+		return 1;
+	}
+	
+	for (i=0; i<num_drives; i++) {
 
-	inquiry(fd);
-	create_osd(fd);
-	write_osd(fd);
-	read_osd(fd);
-	close(fd);
+		printf("%s: drive %s name %s\n", progname, drives[i].chardev,
+		       drives[i].targetname);
+		fd = open(drives[i].chardev, O_RDWR);
+		if (fd < 0) {
+			error_errno("%s: open %s", __func__, drives[i].chardev);
+			return 1;
+		}
+
+		inquiry(fd);
+		create_osd(fd);
+		write_osd(fd);
+		read_osd(fd);
+
+		close(fd);
+	}
+
+	osd_free_drive_list(drives, num_drives);
+
 	return 0;
 }
 

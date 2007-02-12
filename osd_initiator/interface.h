@@ -7,6 +7,9 @@
 #define FIRST_USER_PARTITION (0x10000LLU)
 #define FIRST_USER_OBJECT (0x10000LLU)
 
+#define OSD_CDB_SIZE 200
+#define OSD_MAX_SENSE 252
+
 /* These are only typedef'd because Pyrex won't pick them up
  * correctly otherwise */
 
@@ -25,7 +28,7 @@ enum data_direction {
  *   [o] = return from library to caller
  */
 struct osd_command {
-	uint8_t cdb[200];   /* [i] maximum length CDB */
+	uint8_t cdb[OSD_CDB_SIZE];   /* [i] maximum length CDB */
 	int cdb_len;        /* [i] actual len of valid bytes */
 	const void *outdata;/* [i] data for command, goes out to target */
 	size_t outlen;      /* [i] length */
@@ -33,7 +36,7 @@ struct osd_command {
 	size_t inlen_alloc; /* [i] allocated size for command results */
 	size_t inlen;       /* [o] actual size returned */
 	uint8_t status;     /* [o] scsi status */
-	uint8_t sense[252]; /* [o] sense errors */
+	uint8_t sense[OSD_MAX_SENSE]; /* [o] sense errors */
 	int sense_len;      /* [o] number of bytes in sense */
 /* maybe..	uint64_t tag; */      /* [x] ignored, for convenient tracking */
 };

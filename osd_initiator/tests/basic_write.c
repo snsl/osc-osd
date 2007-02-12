@@ -12,7 +12,6 @@
 
 #include "util/util.h" 
 #include "interface.h"
-#include "osd_hdr.h"
 
 #define OSD_CDB_SIZE 200
 #define VARLEN_CDB 0x7f

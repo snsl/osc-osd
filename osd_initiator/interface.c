@@ -14,7 +14,7 @@
 
 #include "interface.h"
 #include "osd_cmds.h"
-#include "kernel/suo_ioctl.h"
+
 
 /*Forward declaration -- don't define in interface.h or test codes will complain*/
 static int submit_cdb(int fd, const uint8_t *cdb, int cdb_len,  enum data_direction dir,
@@ -34,45 +34,17 @@ void dev_osd_close(int fd)
 }
 
 /* blocking */
-int dev_osd_wait_response(int fd, uint64_t *key)
+int dev_osd_wait_response(int fd, struct suo_response *devresp)
 {
 	int ret;
-	struct suo_response response;
 
-	ret = read(fd, &response, sizeof(response));
+	ret = read(fd, devresp, sizeof(struct suo_response));
 	if (ret < 0)
 		error_errno("%s: read response", __func__);
-	if (ret != sizeof(response))
+	if (ret != sizeof(struct suo_response))
 		error("%s: got %d bytes, expecting response %zu bytes",
-		      __func__, ret, sizeof(response));
-	if (key)
-		*key = response.key;
-	return response.error;
-}
-
-/*
- * Trying a different style.  Need sense data sometimes.
- */
-int dev_osd_wait_response2(int fd, struct dev_response *devresp)
-{
-	int ret;
-	struct suo_response response;
-
-	ret = read(fd, &response, sizeof(response));
-	if (ret < 0)
-		error_errno("%s: read response", __func__);
-	if (ret != sizeof(response))
-		error("%s: got %d bytes, expecting response %zu bytes",
-		      __func__, ret, sizeof(response));
-	/* I don't particularly like this copying.  But maybe it is
-	 * unavoidable.  Or we could come up with a shared interface
-	 * for kernel/userlib and userlib/usercode to share.
-	 */
-	devresp->key = response.key;
-	devresp->error = response.error;
-	devresp->sense_buffer_len = response.sense_buffer_len;
-	memcpy(devresp->sense_buffer, response.sense_buffer,
-	       response.sense_buffer_len);
+		      __func__, ret, sizeof(struct suo_response));
+	
 	return 0;
 }
 

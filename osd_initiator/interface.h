@@ -2,6 +2,8 @@
 #define _INTERFACE_H
 
 
+#include "kernel/suo_ioctl.h"
+
 #define FIRST_USER_PARTITION (0x10000LLU)
 #define FIRST_USER_OBJECT (0x10000LLU)
 
@@ -15,12 +17,7 @@ enum data_direction {
     DMA_NONE = 3,
 };
 
-struct dev_response {
-	uint64_t key;
-	int error;
-	int sense_buffer_len;
-	unsigned char sense_buffer[252];  /* hackety hack */
-};
+
 
 /*
  * All information needed to submit a command to the kernel module.
@@ -46,8 +43,7 @@ struct osd_command {
 
 int dev_osd_open(const char *dev);
 void dev_osd_close(int fd);
-int dev_osd_wait_response(int fd, uint64_t *key);
-int dev_osd_wait_response2(int fd, struct dev_response *devresp);
+int dev_osd_wait_response(int fd, struct suo_response *devresp);
 int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
 		   size_t outlen, void *inbuf, size_t inlen);
 void hexdump(uint8_t *d, size_t len);

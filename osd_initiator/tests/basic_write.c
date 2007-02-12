@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "util/util.h"
+#include "util/util.h" 
 #include "interface.h"
 #include "osd_hdr.h"
 
@@ -18,6 +18,8 @@
 #define VARLEN_CDB 0x7f
 #define TIMESTAMP_ON 0x0
 #define TIMESTAMP_OFF 0x7f
+
+#define BUFSIZE 1024
 
 /*
  * Initializes a new varlen cdb.
@@ -54,9 +56,10 @@ int main(int argc, char *argv[])
 {
 	int cdb_len = OSD_CDB_SIZE;
 	int fd, i;  
-	const char *buf;
-	char outbuf[10] = "xxxxxxx";
-	
+	char *buf;
+	int ret;
+	int len;
+		
 	set_progname(argc, argv); 
 	fd = dev_osd_open("/dev/sua");
 	if (fd < 0) {
@@ -65,48 +68,34 @@ int main(int argc, char *argv[])
 	}
 
 	inquiry(fd);
+	flush_osd(fd, cdb_len);  /*this is a no op no need to flush, on target files are
+						opened read/written and closed each time so 
+						objects are in a sense flushed every time*/
 
-#if 1
-	info("sleeping 2 before flush");
-	sleep(2);
-	flush_osd(fd, cdb_len);  /*this is a no op no need to flush*/
-	info("sleeping 2 before format");
-	sleep(2);
-#endif
-
-#if 0
-	format_osd(fd, cdb_len, 1<<30);  /*1GB*/
-	create_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 1); 
-	printf("Format and create work, need to fix up buf for write to work\n");
-	return 0;
-#endif
-	buf = "The Rain in Spain";
-	write_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, strlen(buf)+1, 0, buf); 
-#if 0
-	read_osd(fd, cdb_len, 0, 27, 20, 5, outbuf);
-
-
-	/* read_osd(fd, cdb_len, 16, 27, 20, 5, "xxxxxxxxxxxxxxxx"); */
-#endif
-
-#if 0
-	char bad_bufout[] = "xxxxxxxxxxxxxxxxx";
-	info("osd read bad");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_read(cdb, 16, 27, 10, 5);  /* magic bad pid causes error  */
-	/*
-	 * Also need a way to get back how much data was written.  It could
-	 * be a partial read, with good data, but sense saying we asked for
-	 * more than was in the object.
-	 */
-	dev_osd_read(fd, cdb, 200, bad_bufout, 10);
-	err = dev_osd_wait_response2(fd, &resp);
-	info("response key %lx error %d, sense len %d", resp.key, resp.error,
-	     resp.sense_buffer_len);
-	if (resp.sense_buffer_len)
-		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
-#endif
-
+	ret = format_osd(fd, cdb_len, 1<<30);  /*1GB*/
+	if(ret != 0)
+		return ret;
+	ret = create_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 1); 
+	if(ret != 0)
+		return ret;
+	
+	buf = malloc(BUFSIZE);
+	memset(buf, '\0', BUFSIZE);
+	strcpy(buf, "The Rain in Spain");
+	
+	printf("Going to write: %s\n", buf);
+	len = strlen(buf)+1;
+	ret =write_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, len, 0, buf); 	
+	if(ret != 0)
+		return ret;
+	
+	memset(buf, '\0', BUFSIZE);
+	printf("Buf should be cleared: %s\n", buf);
+	ret = read_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, len, 0, buf);
+	if(ret != 0)
+		return ret;
+	printf("Read back: %s\n", buf);
+	
 	dev_osd_close(fd);
 	return 0;
 }
@@ -117,6 +106,8 @@ int format_osd(int fd, int cdb_len, int capacity)
 	int err;
         uint64_t key;
 	struct osd_command command;
+	struct suo_response resp;	
+	
 	info("********** OSD FORMAT **********");
 
 	varlen_cdb_init(command.cdb);
@@ -129,8 +120,16 @@ int format_osd(int fd, int cdb_len, int capacity)
 	command.inlen = 0;
 	osd_submit_command(fd, &command); 
 
-	err = dev_osd_wait_response(fd, &key);	
-	info("response key %lx error %d", key, err);
+	err = dev_osd_wait_response(fd, &resp);
+	info("response key %lx error %d,sense len %d", resp.key, resp.error, resp.sense_buffer_len); 
+	
+	if(err != 0)
+		return err;
+	
+	if(resp.sense_buffer_len){
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+		err = -1;
+	}
 	return err;
 }
 
@@ -139,8 +138,8 @@ int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 		uint16_t num_user_objects)
 {
 	int err;
-	uint64_t key;
-	struct osd_command command;
+	struct osd_command command; 
+	struct suo_response resp;
 
 	info("********** OSD CREATE **********");
 	varlen_cdb_init(command.cdb);
@@ -152,9 +151,17 @@ int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 	command.indata = NULL;
 	command.inlen = 0;
 	osd_submit_command(fd, &command); 
-
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
+	
+	err = dev_osd_wait_response(fd, &resp);
+	info("response key %lx error %d,sense len %d", resp.key, resp.error, resp.sense_buffer_len); 
+	
+	if(err != 0)
+		return err; 
+	
+	if(resp.sense_buffer_len){
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+		err = -1;
+	}
 	return err;
 }
 
@@ -163,23 +170,32 @@ int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, const char *buf)
 {
 	int err;
-	uint64_t key;
+	struct suo_response resp;
 	struct osd_command command;
 
 	info("********** OSD WRITE **********");
 	varlen_cdb_init(command.cdb);
 	set_cdb_osd_write(command.cdb, pid, oid, buf_len, offset);
 
-	command.cdb_len = cdb_len;	
+	command.cdb_len = cdb_len;	 
 	command.outdata = buf;
 	command.outlen = buf_len;
 	command.indata = NULL;
 	command.inlen = 0;
 	osd_submit_command(fd, &command);
 
-	err = dev_osd_wait_response(fd, &key);
+	err = dev_osd_wait_response(fd, &resp);
 	info("argument: '%s'", buf);
-	info("response key %lx error %d", key, err);
+	info("response key %lx error %d,sense len %d", resp.key,
+	     resp.error, resp.sense_buffer_len); 
+	
+	if(err != 0)
+		return err;
+	
+	if(resp.sense_buffer_len){
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+		err = -1;
+	}
 	return err;
 }
 
@@ -188,7 +204,7 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, char bufout[])
 {
 	int err;
-	struct dev_response resp;
+	struct suo_response resp;
 	struct osd_command command;
 
 	info("********** OSD READ **********");
@@ -202,10 +218,18 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	command.inlen = buf_len;
 	osd_submit_command(fd, &command);
 
-	/* err = dev_osd_wait_response2(fd, &resp); */
+	err = dev_osd_wait_response(fd, &resp);
 	info("argument: '%s'", bufout);
 	info("response key %lx error %d, bufout %s, sense len %d", resp.key,
 	     resp.error, bufout, resp.sense_buffer_len);
+	
+	if(err != 0)
+		return err;
+	
+	if(resp.sense_buffer_len){
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+		err = -1; 
+	}
 	return err;
 }
 
@@ -215,6 +239,7 @@ int inquiry(int fd)
 	uint64_t key;
 	uint8_t inquiry_rsp[80];
 	struct osd_command command;
+	struct suo_response resp;
 
 	info("********** INQUIRY **********");
 	info("inquiry");
@@ -229,8 +254,14 @@ int inquiry(int fd)
 	osd_submit_command(fd, &command); 
 
 	info("waiting for response");
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
+	err = dev_osd_wait_response(fd, &resp);
+	info("response key %lx error %d, sense len %d", resp.key, resp.error, resp.sense_buffer_len);
+	if(err != 0)
+		return err;
+	if(resp.sense_buffer_len){
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+		err = -1; 
+	}
 	hexdump(inquiry_rsp, sizeof(inquiry_rsp));
 	fflush(0);
 
@@ -242,6 +273,7 @@ int flush_osd(int fd, int cdb_len)
 	int err;
 	uint64_t key;
 	struct osd_command command;
+	struct suo_response resp;
 
 	info("********** OSD FLUSH OSD **********");
 	varlen_cdb_init(command.cdb);
@@ -255,8 +287,15 @@ int flush_osd(int fd, int cdb_len)
 	osd_submit_command(fd, &command); 
 
 	info("waiting for response");
-	err = dev_osd_wait_response(fd, &key);
-	info("response key %lx error %d", key, err);
-
+	err = dev_osd_wait_response(fd, &resp);
+	info("response key %lx error %d, sense len %d", resp.key,  resp.error, resp.sense_buffer_len);
+ 	
+	if(err != 0)
+		return err;
+	
+	if(resp.sense_buffer_len){
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+		err = -1; 
+	}
 	return err;
 }

@@ -42,7 +42,7 @@ static void cdb_build_inquiry(uint8_t *cdb)
 }
 
 int format_osd(int fd, int cdb_len, int capacity);
-int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
+int create_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 		uint16_t num_user_objects);
 int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, const char *buf);
@@ -50,7 +50,7 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, char bufout[]);
 int inquiry(int fd);
 int flush_osd(int fd, int cdb_len);
-
+int remove_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid);
 
 int main(int argc, char *argv[])
 {
@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
 	char *buf;
 	int ret;
 	int len;
+	
 		
 	set_progname(argc, argv); 
 	fd = dev_osd_open("/dev/sua");
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
 	ret = format_osd(fd, cdb_len, 1<<30);  /*1GB*/
 	if(ret != 0)
 		return ret;
-	ret = create_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 1); 
+	ret = create_object(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, 1); 
 	if(ret != 0)
 		return ret;
 	
@@ -95,6 +96,19 @@ int main(int argc, char *argv[])
 	if(ret != 0)
 		return ret;
 	printf("Read back: %s\n", buf);
+	
+	/*create a bunch of objects*/
+	for(i=0; i< 10; i+=1){
+		ret = create_object(fd, cdb_len, FIRST_USER_PARTITION+1+i, FIRST_USER_OBJECT+1+i, 1); 
+		if(ret != 0)
+			return ret;
+	}
+	/*remove some of those objects*/
+	for(i=0; i< 10; i+=2){
+		ret = remove_object(fd, cdb_len, FIRST_USER_PARTITION+1+i, FIRST_USER_OBJECT+1+i);
+		if(ret != 0)
+			return ret;
+	}
 	
 	dev_osd_close(fd);
 	return 0;
@@ -134,14 +148,14 @@ int format_osd(int fd, int cdb_len, int capacity)
 }
 
 /* fd, cdb_len, partition ID, requested user object ID, number of user objects  */
-int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
+int create_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 		uint16_t num_user_objects)
 {
 	int err;
 	struct osd_command command; 
 	struct suo_response resp;
 
-	info("********** OSD CREATE **********");
+	info("********** CREATE OBJECT **********");
 	varlen_cdb_init(command.cdb);
 	set_cdb_osd_create(command.cdb, pid, requested_oid, num_user_objects);
 
@@ -163,6 +177,38 @@ int create_osd(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 		err = -1;
 	}
 	return err;
+}
+
+
+int remove_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid)
+{
+	int err;
+	struct osd_command command; 
+	struct suo_response resp;
+
+	info("********** REMOVE OBJECT **********");
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_remove(command.cdb, pid, requested_oid);
+
+	command.cdb_len = cdb_len;
+	command.outdata = NULL;
+	command.outlen = 0;
+	command.indata = NULL;
+	command.inlen = 0;
+	osd_submit_command(fd, &command); 
+	
+	err = dev_osd_wait_response(fd, &resp);
+	info("response key %lx error %d,sense len %d", resp.key, resp.error, resp.sense_buffer_len); 
+	if(err != 0)
+		return err; 
+	
+	if(resp.sense_buffer_len){
+		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
+		err = -1;
+	}
+	return err;
+	
+	
 }
 
 /* fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument */

@@ -34,7 +34,7 @@ CWARN := -Wall -Wno-unused -W -Wno-missing-field-initializers \
          -Wpointer-arith -Wcast-align -Wcast-qual \
 	 -Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \
 	 -Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I/usr/include/python2.4
+CFLAGS := $(COPTS) $(CWARN) -I/usr/include/python2.4 -I../..
 
 all:: $(LIB)
 

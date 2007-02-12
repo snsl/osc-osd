@@ -4,5 +4,7 @@
  */
 #include <stddef.h>
 #include <stdint.h>
+#include "../../kernel/suo_ioctl.h"
 #include "../interface.h"
 #include "../diskinfo.h"
+

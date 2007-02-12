@@ -30,7 +30,6 @@ static const uint64_t oid = 0x10003LLU;
  */
 static void varlen_cdb_init(uint8_t *cdb)
 {
-	memset(cdb, 0, OSD_CDB_SIZE);
 	cdb[0] = VARLEN_CDB;
 	/* we do not support ACA or LINK in control byte cdb[1], leave as 0 */
 	cdb[7] = OSD_CDB_SIZE - 8;
@@ -38,56 +37,36 @@ static void varlen_cdb_init(uint8_t *cdb)
 	cdb[12] = TIMESTAMP_OFF; /* Update timestamps based on action 5.2.8 */
 }
 
-static void cdb_build_inquiry(uint8_t *cdb)
+static void cdb_build_inquiry(uint8_t *cdb, uint8_t outlen)
 {
-	memset(cdb, 0, 6); 
 	cdb[0] = INQUIRY;
-	cdb[4] = 80;
+	cdb[4] = outlen;
 }
 
 static int inquiry(int fd)
 {
 	int ret;
-	uint8_t inquiry_rsp[80], cdb[OSD_CDB_SIZE], sense[252];
-	struct sg_io_hdr sg;
+	uint8_t inquiry_rsp[80];
+	struct osd_command command, *cmp;
 
 	info("inquiry");
-	cdb_build_inquiry(cdb);
 	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
 
-	memset(&sg, 0, sizeof(sg));
-	sg.interface_id = 'S';
-	sg.dxfer_direction = SG_DXFER_FROM_DEV;
-	sg.cmd_len = 6;
-	sg.mx_sb_len = sizeof(sense);
-	sg.dxfer_len = sizeof(inquiry_rsp);
-	sg.dxferp = inquiry_rsp;
-	sg.cmdp = cdb;
-	sg.sbp = sense;
-	sg.timeout = 3000;
-	ret = write(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: write", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
+	memset(&command, 0, sizeof(command));
+	cdb_build_inquiry(command.cdb, sizeof(inquiry_rsp));
+	command.cdb_len = 6;
+	command.indata = inquiry_rsp;
+	command.inlen_alloc = sizeof(inquiry_rsp);
+
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret) {
+		error("%s: submit failed", __func__);
+		return ret;
 	}
 
-	ret = read(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: read", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short read, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
-	}
-
-	printf("%s: status %u sense len %u resid %d\n", __func__, sg.status,
-	       sg.sb_len_wr, sg.resid);
-	hexdump(inquiry_rsp, sizeof(inquiry_rsp) - sg.resid);
+	printf("%s: status %u sense len %u inlen %zu\n", __func__,
+	       command.status, command.sense_len, command.inlen);
+	hexdump(inquiry_rsp, command.inlen);
 
 	return 0;
 }
@@ -95,43 +74,23 @@ static int inquiry(int fd)
 static int create_osd(int fd)
 {
 	int ret;
-	uint8_t cdb[OSD_CDB_SIZE], sense[252];
-	struct sg_io_hdr sg;
+	struct osd_command command, *cmp;
 
 	info("create");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_create(cdb, pid, oid, 1);
 
-	memset(&sg, 0, sizeof(sg));
-	sg.interface_id = 'S';
-	sg.dxfer_direction = SG_DXFER_FROM_DEV;
-	sg.cmd_len = OSD_CDB_SIZE;
-	sg.mx_sb_len = sizeof(sense);
-	sg.cmdp = cdb;
-	sg.sbp = sense;
-	sg.timeout = 3000;
-	ret = write(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: write", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
+	memset(&command, 0, sizeof(command));
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_create(command.cdb, pid, oid, 1);
+	command.cdb_len = OSD_CDB_SIZE;
+
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret) {
+		error("%s: submit failed", __func__);
+		return ret;
 	}
 
-	ret = read(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: read", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short read, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
-	}
-
-	printf("%s: status %u sense len %u resid %d\n", __func__, sg.status,
-	       sg.sb_len_wr, sg.resid);
+	printf("%s: status %u sense len %u inlen %zu\n", __func__,
+	       command.status, command.sense_len, command.inlen);
 
 	return 0;
 }
@@ -139,46 +98,26 @@ static int create_osd(int fd)
 static int write_osd(int fd)
 {
 	int ret;
-	uint8_t cdb[OSD_CDB_SIZE], sense[252];
 	const char buf[] = "Some write data.\n";
-	struct sg_io_hdr sg;
+	struct osd_command command, *cmp;
 
 	info("write");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_write(cdb, pid, oid, strlen(buf)+1, 0);
 
-	memset(&sg, 0, sizeof(sg));
-	sg.interface_id = 'S';
-	sg.dxfer_direction = SG_DXFER_TO_DEV;
-	sg.cmd_len = OSD_CDB_SIZE;
-	sg.mx_sb_len = sizeof(sense);
-	sg.dxfer_len = strlen(buf)+1;
-	sg.dxferp = (void *)(uintptr_t) buf;  /* discard const */
-	sg.cmdp = cdb;
-	sg.sbp = sense;
-	sg.timeout = 3000;
-	ret = write(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: write", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
+	memset(&command, 0, sizeof(command));
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_write(command.cdb, pid, oid, strlen(buf)+1, 0);
+	command.cdb_len = OSD_CDB_SIZE;
+	command.outdata = buf;
+	command.outlen = strlen(buf) + 1;
+
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret) {
+		error("%s: submit failed", __func__);
+		return ret;
 	}
 
-	ret = read(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: read", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short read, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
-	}
-
-	printf("%s: status %u sense len %u resid %d\n", __func__, sg.status,
-	       sg.sb_len_wr, sg.resid);
+	printf("%s: status %u sense len %u inlen %zu\n", __func__,
+	       command.status, command.sense_len, command.inlen);
 	printf("%s: wrote: %s", __func__, buf);
 
 	return 0;
@@ -187,48 +126,28 @@ static int write_osd(int fd)
 static int read_osd(int fd)
 {
 	int ret;
-	uint8_t cdb[OSD_CDB_SIZE], sense[252];
 	uint8_t buf[100];
-	struct sg_io_hdr sg;
+	struct osd_command command;
 
 	info("read");
-	varlen_cdb_init(cdb);
-	set_cdb_osd_read(cdb, pid, oid, sizeof(buf), 0);
+
+	memset(&command, 0, sizeof(command));
+	varlen_cdb_init(command.cdb);
+	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), 0);
+	command.cdb_len = OSD_CDB_SIZE;
+	command.indata = buf;
+	command.inlen_alloc = sizeof(buf);
 
 	buf[0] = '\0';
-	memset(&sg, 0, sizeof(sg));
-	sg.interface_id = 'S';
-	sg.dxfer_direction = SG_DXFER_FROM_DEV;
-	sg.cmd_len = OSD_CDB_SIZE;
-	sg.mx_sb_len = sizeof(sense);
-	sg.dxfer_len = sizeof(buf);
-	sg.dxferp = buf;
-	sg.cmdp = cdb;
-	sg.sbp = sense;
-	sg.timeout = 3000;
-	ret = write(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: write", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
+
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret) {
+		error("%s: submit failed", __func__);
+		return ret;
 	}
 
-	ret = read(fd, &sg, sizeof(sg));
-	if (ret < 0) {
-		error_errno("%s: read", __func__);
-		return -errno;
-	}
-	if (ret != sizeof(sg)) {
-		error("%s: short read, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
-	}
-
-	printf("%s: status %u sense len %u resid %d\n", __func__, sg.status,
-	       sg.sb_len_wr, sg.resid);
-	hexdump(buf, sizeof(buf) - sg.resid);
+	printf("%s: status %u sense len %u inlen %zu\n", __func__,
+	       command.status, command.sense_len, command.inlen);
 	printf("%s: read back: %s", __func__, buf);
 
 	return 0;

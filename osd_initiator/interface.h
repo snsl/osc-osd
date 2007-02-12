@@ -32,6 +32,7 @@ struct osd_command {
 	void *indata;       /* [o] results from command, returned from target */
 	size_t inlen_alloc; /* [i] allocated size for command results */
 	size_t inlen;       /* [o] actual size returned */
+	uint8_t status;     /* [o] scsi status */
 	uint8_t sense[252]; /* [o] sense errors */
 	int sense_len;      /* [o] number of bytes in sense */
 /* maybe..	uint64_t tag; */      /* [x] ignored, for convenient tracking */
@@ -54,6 +55,13 @@ void dev_show_sense(uint8_t *sense, int len);
  */
 int osd_submit_command(int fd, struct osd_command *command);
 int osd_retrieve_result(int fd, struct osd_command **command);
+
+/*
+ * Experimental stuff, ignore for now.
+ */
+int osd_sgio_submit_command(int fd, struct osd_command *command);
+int osd_sgio_wait_response(int fd, struct osd_command **command);
+int osd_sgio_submit_and_wait(int fd, struct osd_command *command);
 
 /*Functions to set up CDB*/
 int set_cdb_osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len);

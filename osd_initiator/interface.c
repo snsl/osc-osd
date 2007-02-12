@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <scsi/sg.h>
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -14,11 +15,6 @@
 
 #include "interface.h"
 #include "osd_cmds.h"
-
-
-/*Forward declaration -- don't define in interface.h or test codes will complain*/
-static int submit_cdb(int fd, const uint8_t *cdb, int cdb_len,  enum data_direction dir,
-		     const void *outbuf,  size_t outlen, void *inbuf, size_t inlen);
 
 
 /*Functions for user codes to manipulate the character device*/
@@ -147,16 +143,104 @@ void dev_show_sense(uint8_t *sense, int len)
 	*/
 }
 
-
-#if 0
-int dev_osd_bidir(int fd, const uint8_t *cdb, int cdb_len, const void *outbuf,
-		   size_t outlen, void *inbuf, size_t inlen)
+int osd_sgio_submit_command(int fd, struct osd_command *command)
 {
-	error("%s: cannot do bidirectional yet", __func__);
-	//return submit_cdb(fd, cdb, cdb_len, DMA_TO_DEVICE, outbuf, outlen, 
-	//               inbuf, inlen); 
+	struct sg_io_hdr sg;
+	int dir = SG_DXFER_NONE;
+	void *buf = NULL;
+	unsigned int len = 0;
+	int ret;
+
+	if (command->outlen) {
+		if (command->inlen_alloc) {
+			error("%s: bidirectional not supported", __func__);
+			return 1;
+		} else {
+			buf = (void *)(uintptr_t)command->outdata;
+			len = command->outlen;
+			dir = SG_DXFER_TO_DEV;
+		}
+	} else if (command->inlen_alloc) {
+		buf = command->indata;
+		len = command->inlen_alloc;
+		dir = SG_DXFER_FROM_DEV;
+	}
+	memset(&sg, 0, sizeof(sg));
+	sg.interface_id = 'S';
+	sg.dxfer_direction = dir;
+	sg.cmd_len = command->cdb_len;
+	sg.mx_sb_len = command->sense_len;
+	sg.dxfer_len = len;
+	sg.dxferp = buf;
+	sg.cmdp = command->cdb;
+	sg.sbp = command->sense;
+	sg.timeout = 3000;
+	sg.usr_ptr = command;
+	ret = write(fd, &sg, sizeof(sg));
+	if (ret < 0) {
+		error_errno("%s: write", __func__);
+		return -errno;
+	}
+	if (ret != sizeof(sg)) {
+		error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
+		return 1;
+	}
+	return 0;
 }
-#endif
+
+int osd_sgio_wait_response(int fd, struct osd_command **out_command)
+{
+	struct sg_io_hdr sg;
+	struct osd_command *command;
+	int ret;
+
+	ret = read(fd, &sg, sizeof(sg));
+	if (ret < 0) {
+		error_errno("%s: read", __func__);
+		return -errno;
+	}
+	if (ret != sizeof(sg)) {
+		error("%s: short read, %d not %zu", __func__, ret, sizeof(sg));
+		return 1;
+	}
+
+	printf("%s: status %u sense len %u resid %d\n", __func__, sg.status,
+	       sg.sb_len_wr, sg.resid);
+	command = sg.usr_ptr;
+
+	if (command->inlen_alloc)
+		command->inlen = command->inlen_alloc - sg.resid;
+	command->status = sg.status;
+	command->sense_len = sg.sb_len_wr;
+
+	*out_command = command;
+
+	return 0;
+}
+
+int osd_sgio_submit_and_wait(int fd, struct osd_command *command)
+{
+	int ret;
+	struct osd_command *cmp;
+
+	ret = osd_sgio_submit_command(fd, command);
+	if (ret) {
+		error("%s: submit failed", __func__);
+		return ret;
+	}
+
+	ret = osd_sgio_wait_response(fd, &cmp);
+	if (ret) {
+		error("%s: wait_response failed", __func__);
+		return ret;
+	}
+	if (cmp != command) {
+		error("%s: wait_response returned %p, expecting %p", __func__,
+		      cmp, command);
+		return 1;
+	}
+	return 0;
+}
 
 int osd_submit_command(int fd, struct osd_command *command)
 {
@@ -179,7 +263,7 @@ int osd_submit_command(int fd, struct osd_command *command)
 	req.out_data_buf = (uint64_t) (uintptr_t) command->outdata;
 	req.in_data_len = (uint32_t) command->inlen;
 	req.in_data_buf = (uint64_t) (uintptr_t) command->indata;
-	info("%s: submit_cdb %02x len %d inbuf %p len %zu outbuf %p len %zu",
+	info("%s: cdb[0] %02x len %d inbuf %p len %zu outbuf %p len %zu",
 	     __func__, command->cdb[0], command->cdb_len, command->indata, 
 	    command->inlen, command->outdata, command->outlen);
 	ret = write(fd, &req, sizeof(req));

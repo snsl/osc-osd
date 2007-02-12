@@ -18,7 +18,7 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -I../.. -Wno-unused
 
 all:: $(LIB) $(PROGEXE)
 
-%: %.o
+%: %.o $(LIB)
 	$(CC) -o $@ $^ $(LIB)
 
 %.o: %.c

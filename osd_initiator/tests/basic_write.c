@@ -12,6 +12,7 @@
 
 #include "util/util.h" 
 #include "interface.h"
+#include "cdb_manip.h"
 
 #define OSD_CDB_SIZE 200
 #define VARLEN_CDB 0x7f
@@ -43,13 +44,14 @@ static void cdb_build_inquiry(uint8_t *cdb)
 int format_osd(int fd, int cdb_len, int capacity);
 int create_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 		uint16_t num_user_objects);
+int remove_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid);
 int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, const char *buf);
 int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 		uint64_t buf_len, uint64_t offset, char bufout[]);
 int inquiry(int fd);
 int flush_osd(int fd, int cdb_len);
-int remove_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid);
+
 
 int main(int argc, char *argv[])
 {
@@ -58,7 +60,6 @@ int main(int argc, char *argv[])
 	char *buf;
 	int ret;
 	int len;
-	
 		
 	set_progname(argc, argv); 
 	fd = dev_osd_open("/dev/sua");
@@ -84,8 +85,8 @@ int main(int argc, char *argv[])
 	strcpy(buf, "The Rain in Spain");
 	
 	printf("Going to write: %s\n", buf);
-	len = strlen(buf)+1;
-	ret =write_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, len, 0, buf); 	
+	len = strlen(buf) + 1;
+	ret = write_osd(fd, cdb_len, FIRST_USER_PARTITION, FIRST_USER_OBJECT, len, 0, buf); 	
 	if(ret != 0)
 		return ret;
 	

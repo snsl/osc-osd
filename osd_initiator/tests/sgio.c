@@ -16,6 +16,7 @@
 #include "util/util.h"
 #include "interface.h"
 #include "diskinfo.h"
+#include "cdb_manip.h"
 
 static const uint64_t pid = 0x10000LLU;
 static const uint64_t oid = 0x10003LLU;

@@ -21,21 +21,6 @@
 static const uint64_t pid = 0x10000LLU;
 static const uint64_t oid = 0x10003LLU;
 
-/*
- * Initializes a new varlen cdb.
- */
-static void varlen_cdb_init(uint8_t *cdb)
-{
-	static const int VARLEN_CDB = 0x7f;
-	static const int TIMESTAMP_OFF = 0x7f;
-
-	cdb[0] = VARLEN_CDB;
-	/* we do not support ACA or LINK in control byte cdb[1], leave as 0 */
-	cdb[7] = OSD_CDB_SIZE - 8;
-	cdb[11] = 2 << 4;  /* get attr page and set value see spec 5.2.2.2 */
-	cdb[12] = TIMESTAMP_OFF; /* Update timestamps based on action 5.2.8 */
-}
-
 static void cdb_build_inquiry(uint8_t *cdb, uint8_t outlen)
 {
 	cdb[0] = INQUIRY;
@@ -78,7 +63,6 @@ static int create_osd(int fd)
 	info("create");
 
 	memset(&command, 0, sizeof(command));
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_create(command.cdb, pid, oid, 1);
 	command.cdb_len = OSD_CDB_SIZE;
 
@@ -103,7 +87,6 @@ static int write_osd(int fd)
 	info("write");
 
 	memset(&command, 0, sizeof(command));
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_write(command.cdb, pid, oid, strlen(buf)+1, 0);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.outdata = buf;
@@ -131,7 +114,6 @@ static int read_osd(int fd)
 	info("read");
 
 	memset(&command, 0, sizeof(command));
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), 0);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.indata = buf;

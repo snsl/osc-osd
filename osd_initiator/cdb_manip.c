@@ -13,8 +13,27 @@
 #include "cdb_manip.h"
 #include "osd_cmds.h"
 
+#define OSD_CDB_SIZE 200
+#define VARLEN_CDB 0x7f
+#define TIMESTAMP_ON 0x0
+#define TIMESTAMP_OFF 0x7f
+
+/*
+ * Initializes a new varlen cdb.
+ */
+static void varlen_cdb_init(uint8_t *cdb)
+{
+	memset(cdb, 0, OSD_CDB_SIZE);
+	cdb[0] = VARLEN_CDB;
+	/* we do not support ACA or LINK in control byte cdb[1], leave as 0 */
+	cdb[7] = OSD_CDB_SIZE - 8;
+	cdb[11] = 2 << 4;  /* get attr page and set value see spec 5.2.2.2 */
+	cdb[12] = TIMESTAMP_OFF; /* Update timestamps based on action 5.2.8 */
+}
+
 static void set_action(uint8_t *cdb, uint16_t command)
 {
+	varlen_cdb_init(cdb);
         cdb[8] = (command & 0xff00U) >> 8;
         cdb[9] = (command & 0x00ffU);
 }

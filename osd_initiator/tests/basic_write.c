@@ -15,24 +15,8 @@
 #include "cdb_manip.h"
 
 #define OSD_CDB_SIZE 200
-#define VARLEN_CDB 0x7f
-#define TIMESTAMP_ON 0x0
-#define TIMESTAMP_OFF 0x7f
 
 #define BUFSIZE 1024
-
-/*
- * Initializes a new varlen cdb.
- */
-static void varlen_cdb_init(uint8_t *cdb)
-{
-	memset(cdb, 0, OSD_CDB_SIZE);
-	cdb[0] = VARLEN_CDB;
-	/* we do not support ACA or LINK in control byte cdb[1], leave as 0 */
-	cdb[7] = OSD_CDB_SIZE - 8;
-	cdb[11] = 2 << 4;  /* get attr page and set value see spec 5.2.2.2 */
-	cdb[12] = TIMESTAMP_OFF; /* Update timestamps based on action 5.2.8 */
-}
 
 static void cdb_build_inquiry(uint8_t *cdb)
 {
@@ -124,7 +108,6 @@ int format_osd(int fd, int cdb_len, int capacity)
 	
 	info("********** OSD FORMAT **********");
 
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_format_osd(command.cdb, capacity);
 
 	command.cdb_len = cdb_len;
@@ -156,7 +139,6 @@ int create_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid,
 	struct suo_response resp;
 
 	info("********** CREATE OBJECT **********");
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_create(command.cdb, pid, requested_oid, num_user_objects);
 
 	command.cdb_len = cdb_len;
@@ -187,7 +169,6 @@ int remove_object(int fd, int cdb_len, uint64_t pid, uint64_t requested_oid)
 	struct suo_response resp;
 
 	info("********** REMOVE OBJECT **********");
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_remove(command.cdb, pid, requested_oid);
 
 	command.cdb_len = cdb_len;
@@ -220,7 +201,6 @@ int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	struct osd_command command;
 
 	info("********** OSD WRITE **********");
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_write(command.cdb, pid, oid, buf_len, offset);
 
 	command.cdb_len = cdb_len;	 
@@ -254,7 +234,6 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	struct osd_command command;
 
 	info("********** OSD READ **********");
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_read(command.cdb, pid, oid, buf_len, offset);
 
 	command.cdb_len = cdb_len;
@@ -322,7 +301,6 @@ int flush_osd(int fd, int cdb_len)
 	struct suo_response resp;
 
 	info("********** OSD FLUSH OSD **********");
-	varlen_cdb_init(command.cdb);
 	set_cdb_osd_flush_osd(command.cdb, 2);   /* flush everything: cdb, flush_scope */ 
 
 	command.cdb_len = cdb_len;

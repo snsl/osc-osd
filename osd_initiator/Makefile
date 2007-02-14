@@ -16,6 +16,9 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
 
+# experimental bsg, do not use yet
+#CFLAGS += -DUSE_BSG -I/lib/modules/$(shell uname -r)/build/include/
+
 all:: $(LIB) $(OBJ)
 
 $(LIB): $(OBJ)

@@ -118,14 +118,44 @@ void dev_show_sense(uint8_t *sense, int len)
 	printf("%s: offending pid 0x%016lx oid 0x%016lx\n", __func__, pid, oid);
 }
 
+#ifdef USE_BSG
+typedef  int32_t __s32;
+typedef uint32_t __u32;
+typedef uint64_t __u64;
+#include <linux/bsg.h>
+#endif
+
 int osd_sgio_submit_command(int fd, struct osd_command *command)
 {
+	int ret;
+#ifdef USE_BSG
+	struct sg_io_v4 sg;
+#else
 	struct sg_io_hdr sg;
-	int dir = SG_DXFER_NONE;
 	void *buf = NULL;
 	unsigned int len = 0;
-	int ret;
+	int dir = SG_DXFER_NONE;
+#endif
 
+	memset(&sg, 0, sizeof(sg));
+#ifdef USE_BSG
+	sg.guard = 'Q';
+	sg.request_len = command->cdb_len;
+	sg.request = (uint64_t) (uintptr_t) command->cdb;
+	sg.max_response_len = command->sense_len;
+	sg.response = (uint64_t) (uintptr_t) command->sense;
+
+	if (command->outlen) {
+		sg.dout_xfer_len = command->outlen;
+		sg.dout_xferp = (uint64_t) (uintptr_t) command->outdata;
+	}
+	if (command->inlen_alloc) {
+		sg.din_xfer_len = command->inlen_alloc;
+		sg.din_xferp = (uint64_t) (uintptr_t) command->indata;
+	}
+	sg.timeout = 3000;
+	sg.usr_ptr = (uint64_t) (uintptr_t) command;
+#else
 	if (command->outlen) {
 		if (command->inlen_alloc) {
 			error("%s: bidirectional not supported", __func__);
@@ -140,7 +170,6 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 		len = command->inlen_alloc;
 		dir = SG_DXFER_FROM_DEV;
 	}
-	memset(&sg, 0, sizeof(sg));
 	sg.interface_id = 'S';
 	sg.dxfer_direction = dir;
 	sg.cmd_len = command->cdb_len;
@@ -151,6 +180,7 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 	sg.sbp = command->sense;
 	sg.timeout = 3000;
 	sg.usr_ptr = command;
+#endif
 	ret = write(fd, &sg, sizeof(sg));
 	if (ret < 0) {
 		error_errno("%s: write", __func__);
@@ -158,14 +188,18 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 	}
 	if (ret != sizeof(sg)) {
 		error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
-		return 1;
+		return -EIO;
 	}
 	return 0;
 }
 
 int osd_sgio_wait_response(int fd, struct osd_command **out_command)
 {
+#ifdef USE_BSG
+	struct sg_io_v4 sg;
+#else
 	struct sg_io_hdr sg;
+#endif
 	struct osd_command *command;
 	int ret;
 
@@ -179,14 +213,24 @@ int osd_sgio_wait_response(int fd, struct osd_command **out_command)
 		return 1;
 	}
 
+#ifdef USE_BSG
+	command = (void *) sg.usr_ptr;
+	if (command->inlen_alloc)
+		command->inlen = command->inlen_alloc - sg.din_resid;
+	command->status = sg.device_status;
+	command->sense_len = sg.response_len;
+#else
+	/*
 	printf("%s: status %u sense len %u resid %d\n", __func__, sg.status,
 	       sg.sb_len_wr, sg.resid);
+	*/
 	command = sg.usr_ptr;
 
 	if (command->inlen_alloc)
 		command->inlen = command->inlen_alloc - sg.resid;
 	command->status = sg.status;
 	command->sense_len = sg.sb_len_wr;
+#endif
 
 	*out_command = command;
 

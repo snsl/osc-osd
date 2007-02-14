@@ -1,7 +1,6 @@
 #ifndef _CDB_MANIP_H
 #define _CDB_MANIP_H
 
-static void set_action(uint8_t *cdb, uint16_t command);
 int set_cdb_osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len);
 int set_cdb_osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid,
                uint16_t num);

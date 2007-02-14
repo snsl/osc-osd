@@ -129,7 +129,10 @@ static int read_osd(int fd)
 
 	printf("%s: status %u sense len %u inlen %zu\n", __func__,
 	       command.status, command.sense_len, command.inlen);
-	printf("%s: read back: %s", __func__, buf);
+	printf("%s: hexdump of read data\n", __func__);
+	hexdump(buf, command.inlen);
+	if (command.inlen > 0)
+	    printf("%s: read back: %s", __func__, buf);
 
 	return 0;
 }

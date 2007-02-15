@@ -23,9 +23,9 @@ int inquiry_sgio(int fd)
 {
 	int ret;
 	uint8_t inquiry_rsp[80];
-	struct osd_command command, *cmp;
+	struct osd_command command;
 
-	info("inquiry");
+	info("*** inquiry ***");
 	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
 
 	memset(&command, 0, sizeof(command));
@@ -47,15 +47,15 @@ int inquiry_sgio(int fd)
 	return 0;
 }
 
-int create_osd_sgio(int fd)
+int create_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_objects)
 {
 	int ret;
-	struct osd_command command, *cmp;
+	struct osd_command command;
 
-	info("create");
+	info("*** create ***");
 
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_create(command.cdb, pid, oid, 1);
+	set_cdb_osd_create(command.cdb, pid, requested_oid, num_user_objects);
 	command.cdb_len = OSD_CDB_SIZE;
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
@@ -70,16 +70,15 @@ int create_osd_sgio(int fd)
 	return 0;
 }
 
-int write_osd_sgio(int fd)
+int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char buf[], uint64_t offset)
 {
 	int ret;
-	const char buf[] = "Some write data.\n";
-	struct osd_command command, *cmp;
+	struct osd_command command;
 
-	info("write");
+	info("*** write ***");
 
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_write(command.cdb, pid, oid, strlen(buf)+1, 0);
+	set_cdb_osd_write(command.cdb, pid, oid, strlen(buf) + 1, offset);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.outdata = buf;
 	command.outlen = strlen(buf) + 1;
@@ -97,16 +96,16 @@ int write_osd_sgio(int fd)
 	return 0;
 }
 
-int read_osd_sgio(int fd)
+int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 {
 	int ret;
 	uint8_t buf[100];
 	struct osd_command command;
 
-	info("read");
+	info("*** read ***");
 
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), 0);
+	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), offset);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.indata = buf;
 	command.inlen_alloc = sizeof(buf);

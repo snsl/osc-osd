@@ -13,7 +13,7 @@
 
 #include "util/util.h"
 
-#include "interface.h"
+#include "kernel_interface.h"
 
 /*Functions for user codes to manipulate the character device*/
 int dev_osd_open(const char *dev)

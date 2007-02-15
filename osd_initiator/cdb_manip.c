@@ -18,7 +18,7 @@
 #define TIMESTAMP_ON 0x0
 #define TIMESTAMP_OFF 0x7f
 
-/* Static cdb initialization / manipulation functions */
+/* cdb initialization / manipulation functions */
 
 void cdb_build_inquiry(uint8_t *cdb, uint8_t outlen)
 {

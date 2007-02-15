@@ -30,7 +30,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	inquiry(fd);
+	inquiry_osd(fd);
 	flush_osd(fd, cdb_len);  /*this is a no op no need to flush, on target files are
 						opened read/written and closed each time so 
 						objects are in a sense flushed every time*/

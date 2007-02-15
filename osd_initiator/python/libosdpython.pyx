@@ -3,15 +3,6 @@
 #
 cimport libosdpython
 
-cdef extern from "Python.h":
-	void Py_XINCREF (object)
-	void Py_XDECREF (object)
-	object PyString_FromStringAndSize(char *, int)
-	ctypedef void *PyGILState_STATE
-	void PyErr_Clear()
-	PyGILState_STATE PyGILState_Ensure()
-	void PyGILState_Release(PyGILState_STATE)
-
 cdef class OSDDevice:
 	cdef int handle
 

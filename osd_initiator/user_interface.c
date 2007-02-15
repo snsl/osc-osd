@@ -144,7 +144,7 @@ int write_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 
 /* fd, cdb_len, partition ID, user object ID, length of argument, starting byte address, argument */
 int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
-		uint64_t buf_len, uint64_t offset, char bufout[])
+		uint64_t buf_len, uint64_t offset, const char* bufout)
 {
 	int err;
 	struct suo_response resp;
@@ -175,7 +175,7 @@ int read_osd(int fd, int cdb_len, uint64_t pid, uint64_t oid,
 	return err;
 }
 
-int inquiry(int fd)
+int inquiry_osd(int fd)
 {
 	int err;
 	uint64_t key;

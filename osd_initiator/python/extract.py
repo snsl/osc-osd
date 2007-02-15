@@ -4,6 +4,15 @@ import re
 import string
 import sys
 
+def rprint(str, rt):
+    if rt == None:
+	    print str
+	    return
+    buf = str
+    for i in rt.keys():
+	buf = buf.replace(i, rt[i])
+    print buf
+
 def clean_func(buf):
     buf = strip_comments(buf)
     pat = re.compile(r"""\\\n""", re.MULTILINE) 
@@ -174,11 +183,12 @@ def find_functions(buf):
     return functions
 
 class Writer:
-    def __init__(self, filename, typedefs, enums, structs, functions):
+    def __init__(self, filename, typedefs, enums, structs, functions, rt):
         if not (enums or typedefs or functions):
             return
         print 'cdef extern from "%s":' % filename
 
+	self.rt = rt
 	self.output_typedefs(typedefs)
 	self.output_enums(enums)
 	self.output_structs(structs)
@@ -196,29 +206,29 @@ class Writer:
             if parts[0] == 'struct':
                 if parts[-2] == parts[-1]:
                     parts = parts[:-1]
-                print '    ctypedef %s' % ' '.join(parts)
+                rprint('    ctypedef %s' % ' '.join(parts), self.rt)
             else:
-                print '    ctypedef %s' % typedef
+                rprint('    ctypedef %s' % typedef, self.rt)
 
     def output_enums(self, enums):
         for enum in enums:
-            print '    cdef enum %s:' % enum[0]
+            rprint('    cdef enum %s:' % enum[0], self.rt)
             if enum[1] == 0:
                 for item in enum[2]:
-                    print '        %s' % item
+                    rprint('        %s' % item, self.rt)
             else:
                 i = 0
                 for item in enum[2]:
-                    print '        %s' % item                    
+                    rprint('        %s' % item, self.rt)
 #                    print '        %s = 1 << %d' % (item, i)
                     i += 1
             print
 
     def output_structs(self, structs):
 	for struct in structs:
-	    print '    cdef struct %s:' % struct[0]
+	    rprint('    cdef struct %s:' % struct[0], self.rt)
 	    for gut in struct[1]:
-		print '        %s' % gut
+		rprint('        %s' % gut, self.rt)
 	    print
 
     def output_functions(self, functions):
@@ -233,17 +243,17 @@ class Writer:
                 continue
             if str.strip() == 'void':
                 continue
-            print '    %s %s(%s)' % (ret, func, str)
+            rprint('    %s %s(%s)' % (ret, func, str), self.rt)
 
-def do_buffer(name, buffer):
+def do_buffer(name, buffer, rt):
     typedefs = find_typedefs(buffer)
     enums = find_enums(buffer)
     structs = find_structs(buffer)
     functions = find_functions(buffer)
 
-    Writer(name, typedefs, enums, structs, functions)
+    Writer(name, typedefs, enums, structs, functions, rt)
     
-def do_header(filename, name=None):
+def do_header(filename, name=None, rt=None):
     if name == None:
         name = filename
         
@@ -254,7 +264,7 @@ def do_header(filename, name=None):
         buffer += line
 
     print '# -- %s -- ' % filename
-    do_buffer(name, buffer)
+    do_buffer(name, buffer, rt)
     
 def main(filename, flags, output=None):
     old_stdout = None
@@ -268,17 +278,22 @@ def main(filename, flags, output=None):
 
     cppflags = ' '.join(flags)
 
+    replace_table = {}
     fd = open(filename)
     for line in fd:
         match = re.match('#include [<"]([^">]+)[">]$', line)
-
         if match:
             filename = match.group(1)
             #print >>sys.stderr, "matched %s" % (filename)
             command = "echo '%s'|cpp %s" % (line, cppflags)
             output = commands.getoutput(command)
             #print >>sys.stderr, "output %s" % (output)
-            do_buffer(filename, output)
+            do_buffer(filename, output, replace_table)
+	
+	match = re.match('^#define\W+(\w+)\W+(\w+)$', line)
+	if match:
+	    replace_table[match.group(1)] = match.group(2)
+
     fd.close()
 
     if old_stdout is not None:

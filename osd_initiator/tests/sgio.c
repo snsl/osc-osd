@@ -19,6 +19,12 @@
 #include "diskinfo.h"
 #include "cdb_manip.h"
 
+static const uint64_t PID = 0x10000LLU;
+static const uint64_t OID = 0x10003LLU;
+static const uint16_t NUM_USER_OBJ = 1;
+static const uint64_t OFFSET = 0;
+static const char WRITEDATA[] = "Write some data.\n";
+
 int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
@@ -47,9 +53,9 @@ int main(int argc, char *argv[])
 		}
 
 		inquiry_sgio(fd);
-		create_osd_sgio(fd);
-		write_osd_sgio(fd);
-		read_osd_sgio(fd);
+		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ);
+		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
+		read_osd_sgio(fd, PID, OID, OFFSET);
 
 		close(fd);
 	}

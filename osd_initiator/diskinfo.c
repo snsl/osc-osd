@@ -11,7 +11,7 @@
 
 #include "util/util.h"
 
-#include "interface.h"
+#include "kernel_interface.h"
 #include "diskinfo.h"
 #include "kernel/suo_ioctl.h"
 

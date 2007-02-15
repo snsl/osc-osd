@@ -18,10 +18,16 @@
 #define TIMESTAMP_ON 0x0
 #define TIMESTAMP_OFF 0x7f
 
-/*
- * Initializes a new varlen cdb.
- */
-static void varlen_cdb_init(uint8_t *cdb)
+/* Static cdb initialization / manipulation functions */
+
+void cdb_build_inquiry(uint8_t *cdb, uint8_t outlen)
+{
+	memset(cdb, 0, 6);
+	cdb[0] = INQUIRY;
+	cdb[4] = 80;
+}
+
+void varlen_cdb_init(uint8_t *cdb)
 {
 	memset(cdb, 0, OSD_CDB_SIZE);
 	cdb[0] = VARLEN_CDB;
@@ -31,16 +37,18 @@ static void varlen_cdb_init(uint8_t *cdb)
 	cdb[12] = TIMESTAMP_OFF; /* Update timestamps based on action 5.2.8 */
 }
 
-static void set_action(uint8_t *cdb, uint16_t command)
+void set_action(uint8_t *cdb, uint16_t command)
 {
 	varlen_cdb_init(cdb);
         cdb[8] = (command & 0xff00U) >> 8;
         cdb[9] = (command & 0x00ffU);
 }
 
+
+
 /*
  * These functions take a cdb of the appropriate size (200 bytes),
- * and the arguments needed for the particular command.  They marshal
+ * and the arguments needed for the particular command.  They marshall
  * the arguments but do not submit the command.
  */     
 int set_cdb_osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len)
@@ -54,13 +62,13 @@ int set_cdb_osd_append(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len)
 }
 
 
-int set_cdb_osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid, uint16_t num)
+int set_cdb_osd_create(uint8_t *cdb, uint64_t pid, uint64_t requested_oid, uint16_t num_user_objects)
 {
         debug(__func__);
         set_action(cdb, OSD_CREATE);
         set_htonll(&cdb[16], pid);
         set_htonll(&cdb[24], requested_oid);
-        set_htons(&cdb[36], num); /* Number of user objects. */
+        set_htons(&cdb[36], num_user_objects);
         return 0;
 }
 

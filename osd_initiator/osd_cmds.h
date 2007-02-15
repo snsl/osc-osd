@@ -6,6 +6,7 @@
  *
  */
 /* varlen cdb service actions for OSD-2 (before SNIA changes 17 jan 07) */
+#define INQUIRY				0x12
 #define OSD_APPEND			0x8807
 #define OSD_CREATE			0x8802
 #define OSD_CREATE_AND_WRITE		0x8812

@@ -6,22 +6,35 @@ cimport libosdpython
 cdef class OSDDevice:
 	cdef int handle
 
-	def __init__(self):
-		self.handle = -1
-
-	def Open(self, path):
+	def __init__(self, path):
 		self.handle = dev_osd_open(path)
 		if self.handle < 0:
 			print "No open!"
 			raise Exception 
 	
-	def Close(self):
+	def __del__(self):
 		if self.handle >= 0:
 			dev_osd_close(self.handle)
 			self.handle = -1
 		else:
-			print "Hey that's lame!"
+			print "Device not open."
 			raise Exception 
+
+	def get_handle(self):
+		return self.handle
+
+	def submit(self, cdb, cdb_len, outdata, outlen, inlen_alloc):
+		cdef void *nodata
+		cdef object pbuf
+		cdef uint8_t *buf
+
+		nodata = NULL
+		pbuf = cdb.get_buffer()
+		buf = <uint8_t*>pbuf
+		osd_sgio_submit_and_wait_python(self.handle, buf,
+		                                cdb_len, nodata, outlen,
+						inlen_alloc)
+		# XXX: get result tuple
 
 	def WaitResponse(self):
 		if self.handle < 0:
@@ -44,24 +57,70 @@ cdef class OSDDevice:
 			return None 
 		return ret
 
+cdef class Command:
+	cdef object osd, cdb
+	cdef int cdb_len
+	cdef object outdata
+	cdef size_t inlen_alloc
+	cdef size_t outlen
+
+	def __init__(self, osd, cdb, cdb_len, inlen=0, outlen=0, outdata=0):
+		self.osd = osd
+		self.cdb = cdb
+		self.cdb_len = cdb_len
+		self.inlen_alloc = inlen
+		self.outlen = outlen
+		self.outdata = None
+	def submit(self):
+		(self.indata, self.inlen, self.status, self.sense, \
+			self.sense_len) = \
+		self.osd.submit(self.cdb, self.cdb_len, self.outdata, self.outlen, \
+			self.inlen_alloc)
+
+
+cdef class DriveDescription:
+	cdef osd_drive_description *drives
+	cdef int num_drives
+
+	def __init__(self):
+		osd_get_drive_list(&self.drives, &self.num_drives)
+
+	def __del__(self):
+		osd_free_drive_list(self.drives, self.num_drives)
+
+	def __len__(self):
+		return self.num_drives
+
+	def __getitem__(self, key):
+		if type(key) != int:
+			raise KeyError
+		if key < 0 or key >= self.num_drives:
+			raise IndexError
+		# XXX: how to look at drives[1], e.g.?
+		return ( self.drives.targetname, self.drives.chardev )
+
+
 cdef class CDB:
 	cdef uint8_t buffer[256]
 
 	def __init__(self):
 		pass;
 
+	def get_buffer(self):
+		return buffer;
+
 	def GetBufferDump(self):
 		buf = ''
 		for i from 0 <= i < 32:
-			s = i*8
-			buf=buf+"%X %X %X %X"%(self.buffer[s], self.buffer[s+1], self.buffer[s+2], self.buffer[s+3])
-			buf=buf+"    %X %X %X %X"%(self.buffer[s+4], self.buffer[s+5], self.buffer[s+6],self.buffer[s+7])
-			buf=buf+"\n"
+			buf = buf + "%02x:" % (i*8)
+			for j from 0 <= j < 8:
+				buf = buf + " %02x" % (self.buffer[i*8+j])
+			buf = buf + "\n"
 		return buf
 
 	#########################################
 	## CDB command section
-	## Warning: Code may be exceddingly dull
+	## Warning: Code may be exceedingly dull
 	#########################################
 
 	def Append (self, pid, oid, len):

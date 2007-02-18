@@ -105,6 +105,22 @@ error_errno(const char *fmt, ...)
 }
 
 /*
+ * Errno with the message corresponding to this explict -errno value.
+ * It should be negative.
+ */
+void __attribute__((format(printf,2,3)))
+error_xerrno(int errnum, const char *fmt, ...)
+{
+    va_list ap;
+
+    fprintf(stderr, "%s: Error: ", progname);
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, ": %s.\n", strerror(-errnum));
+}
+
+/*
  * Error, fatal with the errno message.
  */
 void __attribute__((format(printf,1,2)))

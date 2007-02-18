@@ -61,5 +61,8 @@ int osd_retrieve_result(int fd, struct osd_command **command);
 int osd_sgio_submit_command(int fd, struct osd_command *command);
 int osd_sgio_wait_response(int fd, struct osd_command **command);
 int osd_sgio_submit_and_wait(int fd, struct osd_command *command);
+int osd_sgio_submit_and_wait_python(int fd, uint8_t *cdb, int cdb_len,
+                                    void *outdata, size_t outlen,
+				    size_t inlen_alloc);
 
 #endif

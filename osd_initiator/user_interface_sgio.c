@@ -70,7 +70,7 @@ int create_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_u
 	return 0;
 }
 
-int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char buf[], uint64_t offset)
+int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset)
 {
 	int ret;
 	struct osd_command command;

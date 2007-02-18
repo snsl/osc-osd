@@ -346,7 +346,7 @@ void set_cdb_get_attr_page(uint8_t *cdb, uint32_t page, uint32_t len,
 {
 	cdb[11] = (cdb[11] & ~(3 << 4)) | (2 << 4);
 	set_htonl(&cdb[52], page);
-	set_htonl(&cdb[56], len);
-	set_htonl(&cdb[60], retrieved_offset);
+	set_htonl(&cdb[56], retrieved_offset);
+	set_htonl(&cdb[60], len);
 }
 

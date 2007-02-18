@@ -1,18 +1,19 @@
 #
 # Wrapper classes around osd initiator library.
 #
+
 cimport libosdpython
 
 cdef class OSDDevice:
 	cdef int handle
 
-	def __init__(self, path):
+	def open(self, path):
 		self.handle = dev_osd_open(path)
 		if self.handle < 0:
 			print "No open!"
 			raise Exception 
 	
-	def __del__(self):
+	def close(self):
 		if self.handle >= 0:
 			dev_osd_close(self.handle)
 			self.handle = -1

@@ -336,3 +336,17 @@ int set_cdb_osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
         set_htonll(&cdb[44], offset);
         return 0;
 }
+
+
+/*
+ * Attribute list get/set functions.
+ */
+void set_cdb_get_attr_page(uint8_t *cdb, uint32_t page, uint32_t len,
+                           uint32_t retrieved_offset)
+{
+	cdb[11] = (cdb[11] & ~(3 << 4)) | (2 << 4);
+	set_htonl(&cdb[52], page);
+	set_htonl(&cdb[56], len);
+	set_htonl(&cdb[60], retrieved_offset);
+}
+

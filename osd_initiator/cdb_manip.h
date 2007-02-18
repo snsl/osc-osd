@@ -42,4 +42,7 @@ int set_cdb_osd_set_master_key(uint8_t *cdb, int dh_step, uint64_t key,
 int set_cdb_osd_set_member_attributes(uint8_t *cdb, uint64_t pid, uint64_t cid);
 int set_cdb_osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
               uint64_t offset);
+
+void set_cdb_get_attr_page(uint8_t *cdb, uint32_t page, uint32_t len,
+                           uint32_t retrieved_offset);
 #endif

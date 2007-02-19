@@ -45,4 +45,7 @@ int set_cdb_osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
 
 void set_cdb_get_attr_page(uint8_t *cdb, uint32_t page, uint32_t len,
                            uint32_t retrieved_offset);
+void set_cdb_get_attr_list(uint8_t *cdb, uint32_t list_len,
+                           uint32_t list_offset, uint32_t alloc_len,
+                           uint32_t retrieved_offset);
 #endif

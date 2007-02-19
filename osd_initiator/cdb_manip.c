@@ -350,3 +350,17 @@ void set_cdb_get_attr_page(uint8_t *cdb, uint32_t page, uint32_t len,
 	set_htonl(&cdb[60], len);
 }
 
+/*
+ * Attribute list get/set functions.
+ */
+void set_cdb_get_attr_list(uint8_t *cdb, uint32_t list_len,
+                           uint32_t list_offset, uint32_t alloc_len,
+                           uint32_t retrieved_offset)
+{
+	cdb[11] = cdb[11] | (3 << 4);
+	set_htonl(&cdb[52], list_len);
+	set_htonl(&cdb[56], list_offset);
+	set_htonl(&cdb[60], alloc_len);
+	set_htonl(&cdb[64], retrieved_offset);
+}
+

@@ -159,7 +159,7 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 	if (command->outlen) {
 		if (command->inlen_alloc) {
 			error("%s: bidirectional not supported", __func__);
-			return 1;
+			return -EINVAL;
 		} else {
 			buf = (void *)(uintptr_t)command->outdata;
 			len = command->outlen;

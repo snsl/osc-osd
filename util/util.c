@@ -291,3 +291,38 @@ void set_htons_le(uint8_t *x, uint16_t val)
 	      (val & (uint16_t) 0xff00U) >> 8; 
 }
 
+/*
+ * Offset fields for attribute lists are floating point-ish.  Smallest
+ * possible offset (other than 0) is 2^8 == 256.
+ */
+uint64_t ntohoffset_le(uint8_t *d)
+{
+	const uint32_t mask = 0xf0000000UL;
+	uint32_t base;
+	uint8_t exponent;
+	uint64_t x;
+
+	base = ntohl_le(d);
+	exponent = (base & mask) >> 28;
+
+	x = (uint64_t) (base & ~mask) << (exponent + 8);
+	return x;
+}
+
+void set_htonoffset_le(uint8_t *x, uint64_t val)
+{
+	const uint32_t mask = 0xf0000000UL;
+	uint32_t base;
+	uint8_t exponent;
+
+	exponent = 0;
+	val >>= 8;
+	while (val > ~mask) {
+		++exponent;
+		val >>= 1;
+	}
+	base = val;
+	base |= (uint32_t) exponent << 28;
+	set_htonl_le(x, base);
+}
+

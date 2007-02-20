@@ -25,17 +25,17 @@ enum data_direction {
  *   [o] = return from library to caller
  */
 struct osd_command {
-	uint8_t cdb[OSD_CDB_SIZE];   /* [i] maximum length CDB */
-	int cdb_len;        /* [i] actual len of valid bytes */
-	const void *outdata;/* [i] data for command, goes out to target */
-	size_t outlen;      /* [i] length */
-	void *indata;       /* [o] results from command, returned from target */
-	size_t inlen_alloc; /* [i] allocated size for command results */
-	size_t inlen;       /* [o] actual size returned */
-	uint8_t status;     /* [o] scsi status */
-	uint8_t sense[OSD_MAX_SENSE]; /* [o] sense errors */
-	int sense_len;      /* [o] number of bytes in sense */
-/* maybe..	uint64_t tag; */      /* [x] ignored, for convenient tracking */
+	uint8_t cdb[OSD_CDB_SIZE];	/* [i] maximum length CDB */
+	int cdb_len;        		/* [i] actual len of valid bytes */
+	const void *outdata; 		/* [i] data for command, goes out to target */
+	size_t outlen;      		/* [i] length */
+	void *indata;   		/* [o] results from command, returned from target */
+	size_t inlen_alloc;		/* [i] allocated size for command results */
+	size_t inlen;      	 	/* [o] actual size returned */
+	uint8_t status;     		/* [o] scsi status */
+	uint8_t sense[OSD_MAX_SENSE];	/* [o] sense errors */
+	int sense_len;      		/* [o] number of bytes in sense */
+/* maybe..	uint64_t tag; */      	/* [x] ignored, for convenient tracking */
 };
 
 /*

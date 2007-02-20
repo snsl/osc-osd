@@ -15,7 +15,7 @@
 
 #include "kernel_interface.h"
 
-/*Functions for user codes to manipulate the character device*/
+/* Functions for user codes to manipulate the character device */
 int dev_osd_open(const char *dev)
 {
 	int interface_fd = open(dev, O_RDWR);
@@ -236,7 +236,6 @@ int osd_sgio_wait_response(int fd, struct osd_command **out_command)
 	command->status = sg.status;
 	command->sense_len = sg.sb_len_wr;
 #endif
-	
 
 	*out_command = command;
 

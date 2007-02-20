@@ -19,18 +19,21 @@
 #include "diskinfo.h"
 #include "cdb_manip.h"
 
+static const int INQUIRY_CDB_LEN = 6;
+static const int INQUIRY_RSP_LEN = 80;
+
 int inquiry_sgio(int fd)
 {
 	int ret;
-	uint8_t inquiry_rsp[80];
+	uint8_t inquiry_rsp[INQUIRY_RSP_LEN];
 	struct osd_command command;
 
-	info("*** inquiry ***");
+	info("****** INQUIRY ******");
 	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
 
 	memset(&command, 0, sizeof(command));
 	cdb_build_inquiry(command.cdb, sizeof(inquiry_rsp));
-	command.cdb_len = 6;
+	command.cdb_len = INQUIRY_CDB_LEN;
 	command.indata = inquiry_rsp;
 	command.inlen_alloc = sizeof(inquiry_rsp);
 
@@ -52,7 +55,7 @@ int create_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_u
 	int ret;
 	struct osd_command command;
 
-	info("*** create ***");
+	info("****** CREATE OBJECT ******");
 
 	memset(&command, 0, sizeof(command));
 	set_cdb_osd_create(command.cdb, pid, requested_oid, num_user_objects);
@@ -70,20 +73,19 @@ int create_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_u
 	return 0;
 }
 
-int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset)
+int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
 {
-	int ret;
-	struct osd_command command;
+        int ret;
+        struct osd_command command;
 
-	info("*** write ***");
+	info("****** REMOVE OBJECT ******");
 
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_write(command.cdb, pid, oid, strlen(buf) + 1, offset);
-	command.cdb_len = OSD_CDB_SIZE;
-	command.outdata = buf;
-	command.outlen = strlen(buf) + 1;
+        set_cdb_osd_remove(command.cdb, pid, requested_oid);
+        command.cdb_len = OSD_CDB_SIZE;
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
+
 	if (ret) {
 		error("%s: submit failed", __func__);
 		return ret;
@@ -91,8 +93,41 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
 
 	printf("%s: status %u sense len %u inlen %zu\n", __func__,
 	       command.status, command.sense_len, command.inlen);
-	printf("%s: wrote: %s", __func__, buf);
 
+        return 0;
+}
+
+
+int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset)
+{
+	int ret;
+	struct osd_command command;
+	
+	info("****** WRITE ******");
+
+	if (buf)
+	{
+		/* printf("%s: PID: %u OID: %u Data: %s ", __func__, pid, oid, buf); */
+
+ 		memset(&command, 0, sizeof(command));
+		set_cdb_osd_write(command.cdb, pid, oid, strlen(buf) + 1, offset);
+		command.cdb_len = OSD_CDB_SIZE;
+		command.outdata = buf;
+		command.outlen = strlen(buf) + 1;
+
+		ret = osd_sgio_submit_and_wait(fd, &command);
+		if (ret) {
+			error("%s: submit failed", __func__);
+			return ret;
+		}
+	
+		printf("%s: status %u sense len %u inlen %zu\n", __func__,
+		       command.status, command.sense_len, command.inlen);
+	}
+	else
+	{
+		error("%s: no data sent", __func__); 
+	}
 	return 0;
 }
 
@@ -102,7 +137,8 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 	uint8_t buf[100];
 	struct osd_command command;
 
-	info("*** read ***");
+	info("****** READ ******");
+	/* printf("%s: PID: %u OID: %u \n", __func__, pid, oid); */
 
 	memset(&command, 0, sizeof(command));
 	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), offset);
@@ -113,6 +149,7 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 	buf[0] = '\0';
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
+
 	if (ret) {
 		error("%s: submit failed", __func__);
 		return ret;
@@ -120,10 +157,60 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 
 	printf("%s: status %u sense len %u inlen %zu\n", __func__,
 	       command.status, command.sense_len, command.inlen);
+	/*
 	printf("%s: hexdump of read data\n", __func__);
-	hexdump(buf, command.inlen);
-	if (command.inlen > 0)
-	    printf("%s: read back: %s", __func__, buf);
+	hexdump(buf, command.inlen); 
+	*/
+	(command.inlen && command.indata) > 0 ? printf("%s: read back: %s", __func__, buf) : printf("%s: nothing read back", __func__);
 
 	return 0;
 }
+
+int format_osd_sgio(int fd, int capacity)
+{
+        int ret;
+        struct osd_command command;
+
+        info("****** FORMAT ******"); 
+
+	memset(&command, 0, sizeof(command));
+        set_cdb_osd_format_osd(command.cdb, capacity);
+        command.cdb_len = OSD_CDB_SIZE;
+
+	ret = osd_sgio_submit_and_wait(fd, &command);	
+	
+	if (ret) {
+		error("%s: submit failed", __func__);
+		return ret;
+	}
+
+	printf("%s: status %u sense len %u inlen %zu\n", __func__,
+	       command.status, command.sense_len, command.inlen);
+
+        return 0;
+}
+
+int flush_osd_sgio(int fd, int flush_scope)
+{
+        int ret;
+        struct osd_command command;
+
+        info("****** FLUSH ******"); 
+
+	memset(&command, 0, sizeof(command));
+        set_cdb_osd_flush_osd(command.cdb, flush_scope);   
+        command.cdb_len = OSD_CDB_SIZE;
+	
+	ret = osd_sgio_submit_and_wait(fd, &command);
+
+	if (ret) {
+		error("%s: submit failed", __func__);
+		return ret;
+	}
+
+	printf("%s: status %u sense len %u inlen %zu\n", __func__,
+	       command.status, command.sense_len, command.inlen);
+
+        return 0; 
+}
+

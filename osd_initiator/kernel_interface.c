@@ -34,9 +34,9 @@ int dev_osd_wait_response(int fd, struct suo_response *devresp)
 
 	ret = read(fd, devresp, sizeof(struct suo_response));
 	if (ret < 0)
-		error_errno("%s: read response", __func__);
+		osd_error_errno("%s: read response", __func__);
 	if (ret != sizeof(struct suo_response))
-		error("%s: got %d bytes, expecting response %zu bytes",
+		osd_error("%s: got %d bytes, expecting response %zu bytes",
 		      __func__, ret, sizeof(struct suo_response));
 	
 	return 0;
@@ -78,7 +78,7 @@ void dev_show_sense(uint8_t *sense, int len)
 	uint64_t pid, oid;
 	const char *keystr = "(unknown)";
 
-	/* hexdump(sense, len); */
+	/* osd_hexdump(sense, len); */
 	if (len < 8) {
 		printf("%s: sense length too short\n", __func__);
 		return;
@@ -158,7 +158,7 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 #else
 	if (command->outlen) {
 		if (command->inlen_alloc) {
-			error("%s: bidirectional not supported", __func__);
+			osd_error("%s: bidirectional not supported", __func__);
 			return -EINVAL;
 		} else {
 			buf = (void *)(uintptr_t)command->outdata;
@@ -183,11 +183,11 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 #endif
 	ret = write(fd, &sg, sizeof(sg));
 	if (ret < 0) {
-		error_errno("%s: write", __func__);
+		osd_error_errno("%s: write", __func__);
 		return -errno;
 	}
 	if (ret != sizeof(sg)) {
-		error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
+		osd_error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
 		return -EIO;
 	}
 	return 0;
@@ -205,11 +205,11 @@ int osd_sgio_wait_response(int fd, struct osd_command **out_command)
 
 	ret = read(fd, &sg, sizeof(sg));
 	if (ret < 0) {
-		error_errno("%s: read", __func__);
+		osd_error_errno("%s: read", __func__);
 		return -errno;
 	}
 	if (ret != sizeof(sg)) {
-		error("%s: short read, %d not %zu", __func__, ret, sizeof(sg));
+		osd_error("%s: short read, %d not %zu", __func__, ret, sizeof(sg));
 		return 1;
 	}
 
@@ -249,17 +249,17 @@ int osd_sgio_submit_and_wait(int fd, struct osd_command *command)
 
 	ret = osd_sgio_submit_command(fd, command);
 	if (ret) {
-		error("%s: submit failed", __func__);
+		osd_error("%s: submit failed", __func__);
 		return ret;
 	}
 
 	ret = osd_sgio_wait_response(fd, &cmp);
 	if (ret) {
-		error("%s: wait_response failed", __func__);
+		osd_error("%s: wait_response failed", __func__);
 		return ret;
 	}
 	if (cmp != command) {
-		error("%s: wait_response returned %p, expecting %p", __func__,
+		osd_error("%s: wait_response returned %p, expecting %p", __func__,
 		      cmp, command);
 		return 1;
 	}
@@ -304,12 +304,12 @@ int osd_submit_command(int fd, struct osd_command *command)
 	req.out_data_buf = (uint64_t) (uintptr_t) command->outdata;
 	req.in_data_len = (uint32_t) command->inlen;
 	req.in_data_buf = (uint64_t) (uintptr_t) command->indata;
-	info("%s: cdb[0] %02x len %d inbuf %p len %zu outbuf %p len %zu",
+	osd_info("%s: cdb[0] %02x len %d inbuf %p len %zu outbuf %p len %zu",
 	     __func__, command->cdb[0], command->cdb_len, command->indata, 
 	    command->inlen, command->outdata, command->outlen);
 	ret = write(fd, &req, sizeof(req));
 	if (ret < 0)
-		error_errno("%s: write suo request", __func__);
+		osd_error_errno("%s: write suo request", __func__);
 	return ret;
 }
 

@@ -23,10 +23,10 @@ int main(int argc, char *argv[])
 	int ret;
 	int len;
 		
-	set_progname(argc, argv); 
+	osd_set_progname(argc, argv); 
 	fd = dev_osd_open("/dev/sua");
 	if (fd < 0) {
-		error_errno("%s: open /dev/sua", __func__);
+		osd_error_errno("%s: open /dev/sua", __func__);
 		return 1;
 	}
 

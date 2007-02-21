@@ -20,7 +20,7 @@ const char *progname = "(pre-main)";
  * Set the program name, first statement of code usually.
  */
 void
-set_progname(int argc __unused, char *const argv[])
+osd_set_progname(int argc __unused, char *const argv[])
 {
     const char *cp;
 
@@ -33,7 +33,7 @@ set_progname(int argc __unused, char *const argv[])
  * Debugging.
  */
 void __attribute__((format(printf,1,2)))
-info(const char *fmt, ...)
+osd_info(const char *fmt, ...)
 {
     va_list ap;
 
@@ -48,7 +48,7 @@ info(const char *fmt, ...)
  * XXX: later add first parameter "level".
  */
 void __attribute__((format(printf,1,2)))
-debug(const char *fmt, ...)
+osd_debug(const char *fmt, ...)
 {
     va_list ap;
 
@@ -63,7 +63,7 @@ debug(const char *fmt, ...)
  * Warning, non-fatal.
  */
 void __attribute__((format(printf,1,2)))
-warning(const char *fmt, ...)
+osd_warning(const char *fmt, ...)
 {
     va_list ap;
 
@@ -78,7 +78,7 @@ warning(const char *fmt, ...)
  * Error.
  */
 void __attribute__((format(printf,1,2)))
-error(const char *fmt, ...)
+osd_error(const char *fmt, ...)
 {
     va_list ap;
 
@@ -93,7 +93,7 @@ error(const char *fmt, ...)
  * Error with the errno message.
  */
 void __attribute__((format(printf,1,2)))
-error_errno(const char *fmt, ...)
+osd_error_errno(const char *fmt, ...)
 {
     va_list ap;
 
@@ -109,7 +109,7 @@ error_errno(const char *fmt, ...)
  * It should be negative.
  */
 void __attribute__((format(printf,2,3)))
-error_xerrno(int errnum, const char *fmt, ...)
+osd_error_xerrno(int errnum, const char *fmt, ...)
 {
     va_list ap;
 
@@ -124,7 +124,7 @@ error_xerrno(int errnum, const char *fmt, ...)
  * Error, fatal with the errno message.
  */
 void __attribute__((format(printf,1,2)))
-error_fatal(const char *fmt, ...)
+osd_error_fatal(const char *fmt, ...)
 {
     va_list ap;
 
@@ -145,11 +145,11 @@ Malloc(size_t n)
     void *x = NULL;
 
     if (n == 0)
-	error("%s: called on zero bytes", __func__);
+	osd_error("%s: called on zero bytes", __func__);
     else {
 	x = malloc(n);
 	if (!x)
-	    error("%s: couldn't get %lu bytes", __func__, (unsigned long) n);
+	    osd_error("%s: couldn't get %lu bytes", __func__, (unsigned long) n);
     }
     return x;
 }
@@ -163,11 +163,11 @@ Calloc(size_t nmemb, size_t n)
     void *x = NULL;
 
     if (n == 0)
-	error("%s: called on zero bytes", __func__);
+	osd_error("%s: called on zero bytes", __func__);
     else {
 	x = calloc(nmemb, n);
 	if (!x)
-	    error("%s: couldn't get %zu bytes", __func__, nmemb * n);
+	    osd_error("%s: couldn't get %zu bytes", __func__, nmemb * n);
     }
     return x;
 }
@@ -176,7 +176,7 @@ Calloc(size_t nmemb, size_t n)
  * For reading from a pipe, can't always get the full buf in one chunk.
  */
 ssize_t
-saferead(int fd, void *buf, size_t num)
+osd_saferead(int fd, void *buf, size_t num)
 {
     int i, offset = 0;
     int total = num;
@@ -184,10 +184,10 @@ saferead(int fd, void *buf, size_t num)
     while (num > 0) {
 	i = read(fd, (char *)buf + offset, num);
 	if (i < 0)
-	    error_errno("%s: read %zu bytes", __func__, num);
+	    osd_error_errno("%s: read %zu bytes", __func__, num);
 	if (i == 0) {
 	    if (offset == 0) return 0;  /* end of file on a block boundary */
-	    error("%s: EOF, only %d of %d bytes", __func__, offset, total);
+	    osd_error("%s: EOF, only %d of %d bytes", __func__, offset, total);
 	}
 	num -= i;
 	offset += i;
@@ -196,7 +196,7 @@ saferead(int fd, void *buf, size_t num)
 }
 
 ssize_t
-safewrite(int fd, const void *buf, size_t num)
+osd_safewrite(int fd, const void *buf, size_t num)
 {
     int i, offset = 0;
     int total = num;
@@ -204,9 +204,9 @@ safewrite(int fd, const void *buf, size_t num)
     while (num > 0) {
 	i = write(fd, (const char *)buf + offset, num);
 	if (i < 0)
-	    error_errno("%s: write %zu bytes", __func__, num);
+	    osd_error_errno("%s: write %zu bytes", __func__, num);
 	if (i == 0)
-	    error("%s: EOF, only %d of %d bytes", __func__, offset, total);
+	    osd_error("%s: EOF, only %d of %d bytes", __func__, offset, total);
 	num -= i;
 	offset += i;
     }
@@ -216,7 +216,7 @@ safewrite(int fd, const void *buf, size_t num)
 /*
  * Debugging.
  */
-void hexdump(const uint8_t *d, size_t len)
+void osd_hexdump(const uint8_t *d, size_t len)
 {
 	size_t offset = 0;
 

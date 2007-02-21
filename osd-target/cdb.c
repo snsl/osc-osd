@@ -40,7 +40,7 @@ static int verify_enough_input_data(struct command *command, uint64_t cdblen)
 	int ret = 0;
 
 	if (cdblen != command->inlen) {
-		error("%s: supplied data %llu but cdb says %llu\n",
+		osd_error("%s: supplied data %llu but cdb says %llu\n",
 		      __func__, llu(command->inlen), llu(cdblen));
 		ret = osd_error_bad_cdb(command->sense);
 	}
@@ -474,7 +474,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	if (command.outlen) {
 		command.outdata = malloc(command.outlen);
 		if (!command.outdata) {
-			error("%s: malloc %llu failed", __func__,
+			osd_error("%s: malloc %llu failed", __func__,
 			      llu(command.outlen));
 			command.senselen = sense_header_build(command.sense,
 				MAX_SENSE_LEN, OSD_SSK_HARDWARE_ERROR,
@@ -521,7 +521,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	}
 
 	if (ret < 0) {
-		error("%s: ret should never be negative here", __func__);
+		osd_error("%s: ret should never be negative here", __func__);
 		ret = 0;
 	} else if (ret == 0) {
 		ret = SAM_STAT_GOOD;

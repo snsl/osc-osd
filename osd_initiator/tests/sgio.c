@@ -33,15 +33,15 @@ int main(int argc, char *argv[])
 	int fd, ret, num_drives, i;
 	struct osd_drive_description *drives;
 
-	set_progname(argc, argv); 
+	osd_set_progname(argc, argv); 
 
 	ret = osd_get_drive_list(&drives, &num_drives);
 	if (ret < 0) {
-		error("%s: get drive error", __func__);
+		osd_error("%s: get drive error", __func__);
 		return 1;
 	}
 	if (num_drives == 0) {
-		error("%s: no drives", __func__);
+		osd_error("%s: no drives", __func__);
 		return 1;
 	}
 	
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 		       drives[i].targetname);
 		fd = open(drives[i].chardev, O_RDWR);
 		if (fd < 0) {
-			error_errno("%s: open %s", __func__, drives[i].chardev);
+			osd_error_errno("%s: open %s", __func__, drives[i].chardev);
 			return 1;
 		}
 

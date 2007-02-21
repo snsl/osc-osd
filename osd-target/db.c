@@ -29,13 +29,13 @@ int db_open(const char *path, struct osd_device *osd)
 	ret = stat(path, &sb);
 	if (ret == 0) {
 		if (!S_ISREG(sb.st_mode)) {
-			error("%s: path %s not a regular file", __func__, path);
+			osd_error("%s: path %s not a regular file", __func__, path);
 			ret = 1;
 			goto out;
 		}
 	} else {
 		if (errno != ENOENT) {
-			error("%s: stat path %s", __func__, path);
+			osd_error("%s: stat path %s", __func__, path);
 			goto out;
 		}
 
@@ -45,7 +45,7 @@ int db_open(const char *path, struct osd_device *osd)
 
 	ret = sqlite3_open(path, &(osd->db));
 	if (ret != SQLITE_OK) {
-		error("%s: open db %s", __func__, path);
+		osd_error("%s: open db %s", __func__, path);
 		goto out;
 	}
 

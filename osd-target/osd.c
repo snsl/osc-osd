@@ -108,20 +108,20 @@ static int create_dir(const char *dirname)
 	ret = stat(dirname, &sb);
 	if (ret == 0) {
 		if (!S_ISDIR(sb.st_mode)) {
-			error("%s: dirname %s not a directory", __func__, 
+			osd_error("%s: dirname %s not a directory", __func__, 
 			      dirname);
 			return -ENOTDIR;
 		}
 	} else {
 		if (errno != ENOENT) {
-			error("%s: stat dirname %s", __func__, dirname);
+			osd_error("%s: stat dirname %s", __func__, dirname);
 			return -ENOTDIR;
 		}
 
 		/* create dir*/
 		ret = mkdir(dirname, 0777);
 		if (ret < 0) {
-			error("%s: create dirname %s", __func__, dirname);
+			osd_error("%s: create dirname %s", __func__, dirname);
 			return ret;
 		}
 	}
@@ -323,7 +323,7 @@ int osd_close(struct osd_device *osd)
 	
 	ret = db_close(osd);
 	if (ret != 0)
-		error("%s: db_close", __func__);
+		osd_error("%s: db_close", __func__);
 	free(osd->root);
 	return ret;
 }
@@ -335,7 +335,7 @@ int osd_error_unimplemented(uint16_t action, uint8_t *sense)
 {
 	int ret;
 
-	debug(__func__);
+	osd_debug(__func__);
 	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0);
 	return ret;
 }
@@ -344,7 +344,7 @@ int osd_error_bad_cdb(uint8_t *sense)
 {
 	int ret;
 
-	debug(__func__);
+	osd_debug(__func__);
 	/* should probably add what part of the cdb was bad */
 	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0);
 	return ret;
@@ -358,7 +358,7 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 {
 	int ret;
 
-	debug(__func__);
+	osd_debug(__func__);
 	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, pid, oid);
 	return ret;
 }
@@ -397,7 +397,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	uint64_t i = 0;
 	uint64_t oid = 0;
 
-	debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
+	osd_debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
 	      llu(requested_oid), num);
 
 	if (pid == 0 || pid < USEROBJECT_PID_LB) 	
@@ -469,7 +469,7 @@ int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 			 uint64_t requested_oid, uint64_t len, uint64_t offset,
 			 const uint8_t *data, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -477,7 +477,7 @@ int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 int osd_create_collection(struct osd_device *osd, uint64_t pid,
 			  uint64_t requested_cid, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -487,7 +487,7 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 	int ret = 0;
 	uint64_t pid = 0;
 
-	debug("%s: pid %llu", __func__, llu(requested_pid));
+	osd_debug("%s: pid %llu", __func__, llu(requested_pid));
 
 	if (requested_pid != 0 && requested_pid < PARTITION_PID_LB) 
 		goto out_cdb_err;
@@ -527,7 +527,7 @@ out_hw_err:
 int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	      int flush_scope, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -535,14 +535,14 @@ int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                          int flush_scope, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
 
 int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -550,7 +550,7 @@ int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense)
 int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
                         uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -564,46 +564,46 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 	char path[MAXNAMELEN];
 	struct stat sb;
 	
-	debug("%s: capacity %llu MB", __func__, llu(capacity >> 20));
+	osd_debug("%s: capacity %llu MB", __func__, llu(capacity >> 20));
 
 	root = strdup(osd->root); 
 	
 	sprintf(path, "%s/%s", root, dbname);
 	if(stat(path, &sb) != 0) {
-		error_errno("%s: DB does not exist, creating it", __func__);
+		osd_error_errno("%s: DB does not exist, creating it", __func__);
 		goto create;
 	}
 	
 	ret = db_close(osd); 
 	if (ret) {
-		error("%s: DB close failed, ret %d", __func__, ret);
+		osd_error("%s: DB close failed, ret %d", __func__, ret);
 		goto out_sense;
 	}
 	
 	ret = unlink(path);
 	if (ret) {
-		error_errno("%s: unlink db %s", __func__, path);
+		osd_error_errno("%s: unlink db %s", __func__, path);
 		goto out_sense;
 	}
 	
 	sprintf(path, "%s/%s", root, stranded);
 	ret = empty_dir(path);
 	if (ret) {
-		error("%s: empty_dir %s failed", __func__, path);
+		osd_error("%s: empty_dir %s failed", __func__, path);
 		goto out_sense;
 	}
 
 	sprintf(path, "%s/%s", root, dfiles);
 	ret = empty_dir(path);
 	if (ret) {
-		error("%s: empty_dir %s failed", __func__, path);
+		osd_error("%s: empty_dir %s failed", __func__, path);
 		goto out_sense;
 	}
 	
 create:
 	ret = osd_open(root, osd); /* will create files/dirs under root */
 	if (ret != 0) {
-		error("%s: osd_open %s failed", __func__, root);
+		osd_error("%s: osd_open %s failed", __func__, root);
 		goto out_sense;
 	}
 	memset(&osd->ccap, 0, sizeof(osd->ccap)); /* reset ccap */
@@ -631,7 +631,7 @@ int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint8_t obj_type = 0;
 
-	debug("%s: get attr for (%llu, %llu)", __func__, llu(pid), llu(oid));
+	osd_debug("%s: get attr for (%llu, %llu)", __func__, llu(pid), llu(oid));
 	
 	if (outbuf == NULL || sense == NULL)
 		goto out_param_list;
@@ -694,7 +694,7 @@ out_cdb_err:
 int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -703,7 +703,7 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *outdata,
 	     uint64_t *outlen, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -713,7 +713,7 @@ int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 			uint64_t initial_oid,  uint8_t *outdata,
 			uint64_t *outlen, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -721,7 +721,7 @@ int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      uint32_t query_len, uint64_t alloc_len, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -740,7 +740,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	int ret, fd;
 	char path[MAXNAMELEN];
 
-	debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
+	osd_debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
 	      llu(pid), llu(oid), llu(len), llu(offset));
 	
 	if (osd == NULL || osd->root == NULL || outdata == NULL || 
@@ -798,7 +798,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	char path[MAXNAMELEN];
 	
-	debug("%s: removing userobject pid %llu oid %llu", __func__,
+	osd_debug("%s: removing userobject pid %llu oid %llu", __func__,
 	      llu(pid), llu(oid));
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
@@ -836,7 +836,7 @@ out_hw_err:
 int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                           uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -844,7 +844,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -853,7 +853,7 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 {
 	int ret = 0;
 
-	debug("%s: pid %llu", __func__, llu(pid));
+	osd_debug("%s: pid %llu", __func__, llu(pid));
 
 	if (pid == 0)
 		goto out_cdb_err;
@@ -906,7 +906,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint8_t obj_type = 0;
 
-	debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid), 
+	osd_debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid), 
 	      llu(oid));
 
 	if (obj_ispresent(osd->db, pid, oid) == 0) /* object not present! */
@@ -980,7 +980,7 @@ out_cdb_err:
 int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
 		uint64_t key, uint8_t seed[20], uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -989,7 +989,7 @@ int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
                        uint32_t param_len, uint32_t alloc_len,
 		       uint8_t *outdata, uint64_t *outlen, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -997,7 +997,7 @@ int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
 int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
-	debug(__func__);
+	osd_debug(__func__);
 	return 0;
 }
 
@@ -1019,7 +1019,7 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	int fd = 0;
 	char path[MAXNAMELEN];
 
-	debug("%s: pid %llu oid %llu len %llu offset %llu data %p", __func__,
+	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p", __func__,
 	      llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
 
 	if (osd == NULL || osd->root == NULL || dinbuf == NULL)

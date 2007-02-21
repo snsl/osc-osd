@@ -2,7 +2,7 @@
 
 import sys
 from libosdpython import *
-from command import *
+#from command import *
 
 drives = DriveDescription()
 print "num_drives", len(drives)

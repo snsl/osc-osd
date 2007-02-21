@@ -86,7 +86,7 @@ int attr_delete_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		pid, oid, page, number);
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
-		error("%s: sqlite3_exec : %s", __func__, err);
+		osd_error("%s: sqlite3_exec : %s", __func__, err);
 		sqlite3_free(err);
 	}
 
@@ -106,7 +106,7 @@ int attr_delete_all(sqlite3 *db, uint64_t pid, uint64_t oid)
 		pid, oid);
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
-		error("%s: sqlite3_exec : %s", __func__, err);
+		osd_error("%s: sqlite3_exec : %s", __func__, err);
 		sqlite3_free(err);
 	}
 
@@ -192,7 +192,7 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	outlen = 0;
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		if (found) {
-			error("%s: attr (%llu %llu %u %u) found twice",
+			osd_error("%s: attr (%llu %llu %u %u) found twice",
 			      __func__, llu(pid), llu(oid), page, number);
 			ret = -EIO;
 			goto out_finalize;
@@ -210,7 +210,7 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		ret = -EIO;
 		goto out_finalize;
 	} else if (found == 0) {
-		error("%s: attr (%llu %llu %u %u) not found", __func__,
+		osd_error("%s: attr (%llu %llu %u %u) not found", __func__,
 		      llu(pid), llu(oid), page, number);
 		ret = -EEXIST;
 		goto out_finalize;
@@ -293,7 +293,7 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		error_sql(db, "%s: sqlite3_step", __func__);
 		goto out_finalize;
 	} else if (found == 0) {
-		error("%s: attr (%llu %llu %u ) not found", __func__,
+		osd_error("%s: attr (%llu %llu %u ) not found", __func__,
 		      llu(pid), llu(oid), page);
 		goto out_finalize;
 	}

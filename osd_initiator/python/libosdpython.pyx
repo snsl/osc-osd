@@ -98,7 +98,7 @@ cdef class DriveDescription:
 		if key < 0 or key >= self.num_drives:
 			raise IndexError
 		# XXX: how to look at drives[1], e.g.?
-		return ( self.drives.targetname, self.drives.chardev )
+		return ( self.drives[key].targetname, self.drives[key].chardev )
 
 
 cdef class CDB:

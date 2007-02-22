@@ -124,8 +124,35 @@ int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
 
 int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t requested_oid, const char *buf, uint64_t offset)
 {
-	create_osd_sgio(fd, pid, requested_oid, 1);
-	write_osd_sgio(fd, pid, requested_oid, buf, offset);	
+	int ret;
+	struct osd_command command;
+	
+	osd_info("****** CREATE / WRITE ******");
+	osd_info("PID: %u OID: %u BUF: %s", (uint)pid, (uint)requested_oid, buf);
+
+	if (buf) {
+		memset(&command, 0, sizeof(command));
+		set_cdb_osd_create_and_write(command.cdb, pid, requested_oid, strlen(buf) + 1, offset);
+		command.cdb_len = OSD_CDB_SIZE;
+		command.outdata = buf;
+		command.outlen = strlen(buf) + 1;
+	
+		ret = osd_sgio_submit_and_wait(fd, &command);
+		if (ret) {
+			osd_error("%s: submit failed", __func__);
+			return ret;
+		}
+		
+		if (command.status != 0)
+			osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+				command.status, command.sense_len, command.inlen);
+		else
+			osd_info("Object created, BUF written");
+	}
+	else
+		osd_error("%s: no data sent", __func__);
+
+	printf("\n");
 	return 0;
 }
 

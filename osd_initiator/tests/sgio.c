@@ -61,7 +61,7 @@ int main(int argc, char *argv[])
 		sleep(2);
 
 		
-#if 1		/* Basic read / write seems to work */
+#if 0		/* Basic read / write seems to work */
 		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ+2);
 		remove_osd_sgio(fd, PID, OID+1);
 
@@ -75,6 +75,10 @@ int main(int argc, char *argv[])
 #endif
 #if 1		/* Testing stuff */
 
+		create_osd_and_write_sgio(fd, PID, OID, WRITEDATA, OFFSET);
+		//create_osd_sgio(fd, PID, OID, NUM_USER_OBJ);
+		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
+		read_osd_sgio(fd, PID, OID, OFFSET);
 #endif
 		close(fd);
 	}

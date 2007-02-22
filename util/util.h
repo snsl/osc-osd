@@ -30,10 +30,10 @@ void osd_hexdump(const uint8_t *d, size_t len);
 #endif
 
 /* endian covertors */
-uint16_t ntohs_le(uint8_t *d);
-uint32_t ntohl_le(uint8_t *d);
-uint64_t ntohll_le(uint8_t *d);
-uint64_t ntohoffset_le(uint8_t *d);
+uint16_t ntohs_le(const uint8_t *d);
+uint32_t ntohl_le(const uint8_t *d);
+uint64_t ntohll_le(const uint8_t *d);
+uint64_t ntohoffset_le(const uint8_t *d);
 void set_htons_le(uint8_t *x, uint16_t val);
 void set_htonl_le(uint8_t *x, uint32_t val);
 void set_htonll_le(uint8_t *x, uint64_t val);

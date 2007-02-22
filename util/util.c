@@ -247,22 +247,22 @@ static uint32_t swab32(uint32_t d)
  * Things are not aligned in the current osd2r00, but they probably
  * will be soon.  Assume 4-byte alignment though.
  */
-uint64_t ntohll_le(uint8_t *d)
+uint64_t ntohll_le(const uint8_t *d)
 {
-	uint32_t d0 = swab32(*(uint32_t *) d);
-	uint32_t d1 = swab32(*(uint32_t *) (d+4));
+	uint32_t d0 = swab32(*(const uint32_t *) d);
+	uint32_t d1 = swab32(*(const uint32_t *) (d+4));
 
 	return (uint64_t) d0 << 32 | d1;
 }
 
-uint32_t ntohl_le(uint8_t *d)
+uint32_t ntohl_le(const uint8_t *d)
 {
-	return swab32(*(uint32_t *) d);
+	return swab32(*(const uint32_t *) d);
 }
 
-uint16_t ntohs_le(uint8_t *d)
+uint16_t ntohs_le(const uint8_t *d)
 {
-	uint16_t x = *(uint16_t *) d;
+	uint16_t x = *(const uint16_t *) d;
 
 	return (x & (uint16_t) 0x00ffU) << 8 |
 	       (x & (uint16_t) 0xff00U) >> 8;
@@ -295,7 +295,7 @@ void set_htons_le(uint8_t *x, uint16_t val)
  * Offset fields for attribute lists are floating point-ish.  Smallest
  * possible offset (other than 0) is 2^8 == 256.
  */
-uint64_t ntohoffset_le(uint8_t *d)
+uint64_t ntohoffset_le(const uint8_t *d)
 {
 	const uint32_t mask = 0xf0000000UL;
 	uint32_t base;

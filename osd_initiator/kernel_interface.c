@@ -226,12 +226,8 @@ int osd_sgio_wait_response(int fd, struct osd_command **out_command)
 */	
 	command = sg.usr_ptr;
 
-	/* command->inlen_alloc === sg.resid, so the following command
-	   never gets a chance to execute the way it was--the data
-	   was never displayed as 0 was assigned to command->inlen   */
 	if (command->inlen_alloc)
-		/* command->inlen = command->inlen_alloc - sg.resid; */
-		command->inlen = sg.resid;
+		command->inlen = command->inlen_alloc - sg.resid;
 
 	command->status = sg.status;
 	command->sense_len = sg.sb_len_wr;

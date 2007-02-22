@@ -8,6 +8,7 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
 int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset);
 int format_osd_sgio(int fd, int capacity);
 int flush_osd_sgio(int fd, int flush_scope);
+int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset);
 
 
 #endif

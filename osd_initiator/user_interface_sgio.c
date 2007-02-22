@@ -43,35 +43,54 @@ int inquiry_sgio(int fd)
 		return ret;
 	}
 
-	printf("%s: status %u sense len %u inlen %zu\n", __func__,
-	       command.status, command.sense_len, command.inlen);
+	if (command.status !=0) 
+		osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+		       command.status, command.sense_len, command.inlen);
+	else
+		osd_info("Inquiry successful");
 	osd_hexdump(inquiry_rsp, command.inlen);
 
+	printf("\n");
 	return 0;
 }
 
 int create_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_objects)
 {
+	int i;
 	int ret;
 	struct osd_command command;
 
 	osd_info("****** CREATE OBJECT ******");
+	osd_info("Creating %u objects", num_user_objects);
 
-	memset(&command, 0, sizeof(command));
-	set_cdb_osd_create(command.cdb, pid, requested_oid, num_user_objects);
-	command.cdb_len = OSD_CDB_SIZE;
+	for (i=0; i < num_user_objects; i++) {
+		osd_info("PID: %u OID: %u OBJ: %u/%u", 
+			(uint)pid, (uint)requested_oid + i, i+1, num_user_objects);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
-	if (ret) {
-		osd_error("%s: submit failed", __func__);
-		return ret;
+		memset(&command, 0, sizeof(command));
+
+		/* Create user objects one at a time */ 
+		set_cdb_osd_create(command.cdb, pid, requested_oid + i, 1);
+		command.cdb_len = OSD_CDB_SIZE;
+
+		ret = osd_sgio_submit_and_wait(fd, &command);
+		if (ret) {
+			osd_error("%s: submit failed", __func__);
+			return ret;
+		}
+
+		if (command.status != 0)
+			osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+	       			command.status, command.sense_len, command.inlen);
+		else
+			osd_info("Object successfully created");
+	
 	}
-
-	printf("%s: status %u sense len %u inlen %zu\n", __func__,
-	       command.status, command.sense_len, command.inlen);
-
+	printf("\n");
 	return 0;
 }
+
+
 
 int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
 {
@@ -79,6 +98,7 @@ int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
         struct osd_command command;
 
 	osd_info("****** REMOVE OBJECT ******");
+	osd_info("PID: %u OID: %u", (uint)pid, (uint)requested_oid);
 
 	memset(&command, 0, sizeof(command));
         set_cdb_osd_remove(command.cdb, pid, requested_oid);
@@ -91,12 +111,23 @@ int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
 		return ret;
 	}
 
-	printf("%s: status %u sense len %u inlen %zu\n", __func__,
-	       command.status, command.sense_len, command.inlen);
+	if (command.status != 0)
+		osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+	      		 command.status, command.sense_len, command.inlen);
+	else
+		osd_info("Object successfully removed");
 
+	printf("\n");
         return 0;
 }
 
+
+int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t requested_oid, const char *buf, uint64_t offset)
+{
+	create_osd_sgio(fd, pid, requested_oid, 1);
+	write_osd_sgio(fd, pid, requested_oid, buf, offset);	
+	return 0;
+}
 
 int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset)
 {
@@ -104,11 +135,9 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
 	struct osd_command command;
 	
 	osd_info("****** WRITE ******");
+	osd_info("PID: %u OID: %u BUF: %s", (uint)pid, (uint)oid, buf);
 
-	if (buf)
-	{
-		/* printf("%s: PID: %u OID: %u Data: %s ", __func__, pid, oid, buf); */
-
+	if (buf) {
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_write(command.cdb, pid, oid, strlen(buf) + 1, offset);
 		command.cdb_len = OSD_CDB_SIZE;
@@ -121,13 +150,16 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
 			return ret;
 		}
 	
-		printf("%s: status %u sense len %u inlen %zu\n", __func__,
-		       command.status, command.sense_len, command.inlen);
+		if (command.status != 0)
+			osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+		      		 command.status, command.sense_len, command.inlen);
+		else
+			osd_info("BUF successfully written");
 	}
-	else
-	{
+	else 
 		osd_error("%s: no data sent", __func__); 
-	}
+
+	printf("\n");
 	return 0;
 }
 
@@ -138,7 +170,7 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 	struct osd_command command;
 
 	osd_info("****** READ ******");
-	/* printf("%s: PID: %u OID: %u \n", __func__, pid, oid); */
+	osd_info("PID: %u OID: %u EMPTY BUF: %s", (uint)pid, (uint)oid, buf);
 
 	memset(&command, 0, sizeof(command));
 	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), offset);
@@ -155,14 +187,15 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 		return ret;
 	}
 
-	printf("%s: status %u sense len %u inlen %zu\n", __func__,
-	       command.status, command.sense_len, command.inlen);
-	/*
-	printf("%s: hexdump of read data\n", __func__);
-	osd_hexdump(buf, command.inlen); 
-	*/
-	(command.inlen && command.indata) > 0 ? printf("%s: read back: %s", __func__, buf) : printf("%s: nothing read back", __func__);
+	if (command.status != 0)
+		osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+	       		command.status, command.sense_len, command.inlen);
+ 	else if (command.inlen > 0) 
+		osd_info("BUF successfully read. BUF: %s", buf);
+	else
+		osd_info("Nothing read. Attempt successful");
 
+	printf("\n");
 	return 0;
 }
 
@@ -172,6 +205,7 @@ int format_osd_sgio(int fd, int capacity)
         struct osd_command command;
 
         osd_info("****** FORMAT ******"); 
+	osd_info("Capacity: %i", capacity);
 
 	memset(&command, 0, sizeof(command));
         set_cdb_osd_format_osd(command.cdb, capacity);
@@ -184,9 +218,13 @@ int format_osd_sgio(int fd, int capacity)
 		return ret;
 	}
 
-	printf("%s: status %u sense len %u inlen %zu\n", __func__,
-	       command.status, command.sense_len, command.inlen);
+	if (command.status != 0) 
+		osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+		       command.status, command.sense_len, command.inlen);
+	else 
+		osd_info("Format successful");
 
+	printf("\n");
         return 0;
 }
 
@@ -208,9 +246,13 @@ int flush_osd_sgio(int fd, int flush_scope)
 		return ret;
 	}
 
-	printf("%s: status %u sense len %u inlen %zu\n", __func__,
-	       command.status, command.sense_len, command.inlen);
+	if (command.status != 0) 
+		osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
+		       command.status, command.sense_len, command.inlen);
+	else
+		osd_info("Flush successful");
 
+	printf("\n");
         return 0; 
 }
 

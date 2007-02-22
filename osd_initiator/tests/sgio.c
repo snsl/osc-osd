@@ -25,8 +25,8 @@ static const uint16_t NUM_USER_OBJ = 1;
 static const uint64_t OFFSET = 0;
 static const int FLUSH_SCOPE = 2; /* Flush everything */
 static const int OBJ_CAPACITY = 1<<30; /* 1 GB */
-static const char WRITEDATA[] = "Write some data.\n";
-static const char WRITEDATA2[] = "Test #2\n";
+static const char WRITEDATA[] = "Write some data";
+static const char WRITEDATA2[] = "Test #2";
 
 int main(int argc, char *argv[])
 {
@@ -58,15 +58,24 @@ int main(int argc, char *argv[])
 		inquiry_sgio(fd);
 		flush_osd_sgio(fd, FLUSH_SCOPE);
 		format_osd_sgio(fd, OBJ_CAPACITY); 
-		
-		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ);
 		sleep(2);
+
+		
+#if 1		/* Basic read / write seems to work */
+		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ+2);
+		remove_osd_sgio(fd, PID, OID+1);
 
 		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
 		read_osd_sgio(fd, PID, OID, OFFSET);
-		write_osd_sgio(fd, PID, OID, WRITEDATA2, OFFSET);
+		write_osd_sgio(fd, PID, OID+2, WRITEDATA2, OFFSET);
+		read_osd_sgio(fd, PID, OID+2, OFFSET);
+	
 		read_osd_sgio(fd, PID, OID, OFFSET);
 
+#endif
+#if 1		/* Testing stuff */
+
+#endif
 		close(fd);
 	}
 

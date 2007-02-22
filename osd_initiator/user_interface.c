@@ -201,6 +201,7 @@ int inquiry_osd(int fd)
 	if(err != 0)
 		return err;
 	if(resp.sense_buffer_len){
+
 		dev_show_sense(resp.sense_buffer, resp.sense_buffer_len);
 		err = -1; 
 	}

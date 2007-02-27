@@ -2,45 +2,24 @@
  * Talk to the kernel module.
  */
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <scsi/sg.h>
-
-#include <stdint.h>
 #include <sys/types.h>
 
+#ifdef USE_BSG
+typedef  int32_t __s32;
+typedef uint32_t __u32;
+typedef uint64_t __u64;
+#include <linux/bsg.h>
+#else
+#include <scsi/sg.h>
+#endif
+
 #include "util/util.h"
-
 #include "kernel_interface.h"
-
-/* Functions for user codes to manipulate the character device */
-int dev_osd_open(const char *dev)
-{
-	int interface_fd = open(dev, O_RDWR);
-	return interface_fd;
-}
-
-void dev_osd_close(int fd)
-{
-	close(fd);
-}
-
-/* blocking */
-int dev_osd_wait_response(int fd, struct suo_response *devresp)
-{
-	int ret;
-
-	ret = read(fd, devresp, sizeof(struct suo_response));
-	if (ret < 0)
-		osd_error_errno("%s: read response", __func__);
-	if (ret != sizeof(struct suo_response))
-		osd_error("%s: got %d bytes, expecting response %zu bytes",
-		      __func__, ret, sizeof(struct suo_response));
-	
-	return 0;
-}
 
 /* description of the sense key values */
 static const char *const snstext[] = {
@@ -71,7 +50,7 @@ static const char *const snstext[] = {
  * the strings from linux/drivers/scsi/constants.c someday.  In a separate
  * file.
  */
-void dev_show_sense(uint8_t *sense, int len)
+void osd_show_sense(uint8_t *sense, int len)
 {
 	uint8_t code, key, asc, ascq, additional_len;
 	uint8_t *info;
@@ -117,13 +96,6 @@ void dev_show_sense(uint8_t *sense, int len)
 	oid = ntohll(&info[16]);
 	printf("%s: offending pid 0x%016lx oid 0x%016lx\n", __func__, pid, oid);
 }
-
-#ifdef USE_BSG
-typedef  int32_t __s32;
-typedef uint32_t __u32;
-typedef uint64_t __u64;
-#include <linux/bsg.h>
-#endif
 
 int osd_sgio_submit_command(int fd, struct osd_command *command)
 {
@@ -262,6 +234,10 @@ int osd_sgio_submit_and_wait(int fd, struct osd_command *command)
 	return 0;
 }
 
+/*
+ * Experimental, pending we figure out how to get python to talk
+ * to these other functions.
+ */
 int osd_sgio_submit_and_wait_python(int fd, uint8_t *cdb, int cdb_len,
                                     void *outdata, size_t outlen,
 				    size_t inlen_alloc)
@@ -275,37 +251,6 @@ int osd_sgio_submit_and_wait_python(int fd, uint8_t *cdb, int cdb_len,
 	command.outlen = outlen;
 	command.inlen_alloc = inlen_alloc;
 	ret = osd_sgio_submit_and_wait(fd, &command);
-	return ret;
-}
-
-
-int osd_submit_command(int fd, struct osd_command *command)
-{
-	struct suo_req req;
-	int ret;
-	enum data_direction dir = DMA_NONE;
-
-	if (command->outlen) {
-		if (command->inlen)
-			dir = DMA_BIDIRECTIONAL;
-		else
-			dir = DMA_TO_DEVICE;
-	} else if (command->inlen) {
-		dir = DMA_FROM_DEVICE;
-	}
-	req.data_direction = dir;
-	req.cdb_len = command->cdb_len;
-	req.cdb_buf = (uint64_t) (uintptr_t) command->cdb;
-	req.out_data_len = (uint32_t) command->outlen;
-	req.out_data_buf = (uint64_t) (uintptr_t) command->outdata;
-	req.in_data_len = (uint32_t) command->inlen;
-	req.in_data_buf = (uint64_t) (uintptr_t) command->indata;
-	osd_info("%s: cdb[0] %02x len %d inbuf %p len %zu outbuf %p len %zu",
-	     __func__, command->cdb[0], command->cdb_len, command->indata, 
-	    command->inlen, command->outdata, command->outlen);
-	ret = write(fd, &req, sizeof(req));
-	if (ret < 0)
-		osd_error_errno("%s: write suo request", __func__);
 	return ret;
 }
 

@@ -3,18 +3,14 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <dirent.h>
 
 #include "util/util.h"
-
 #include "kernel_interface.h"
 #include "diskinfo.h"
-#include "kernel/suo_ioctl.h"
-
 
 char *osd_get_drive_serial(int fd)
 {

@@ -24,8 +24,6 @@ static const int INQUIRY_RSP_LEN = 80;
 
 static int check_response(int ret, struct osd_command command, uint8_t buf[])
 {
-	command.sense_len = sizeof(command.sense);
-
 	if (ret) {
 		osd_error("%s: submit failed", __func__);
 		return ret;
@@ -79,7 +77,6 @@ int query_sgio(int fd, uint64_t pid, uint64_t cid, const char *query)
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_query(command.cdb, pid, cid, strlen(query), sizeof(buf));
 		command.cdb_len = OSD_CDB_SIZE;
-		command.sense_len = sizeof(command.sense);
 		command.outdata = query;
 		command.outlen = strlen(query) + 1;
 		command.indata = buf;

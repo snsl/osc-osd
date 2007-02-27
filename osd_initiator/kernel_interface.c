@@ -142,7 +142,7 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 	sg.guard = 'Q';
 	sg.request_len = command->cdb_len;
 	sg.request = (uint64_t) (uintptr_t) command->cdb;
-	sg.max_response_len = command->sense_len;
+	sg.max_response_len = sizeof(command->sense);
 	sg.response = (uint64_t) (uintptr_t) command->sense;
 
 	if (command->outlen) {
@@ -173,7 +173,7 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 	sg.interface_id = 'S';
 	sg.dxfer_direction = dir;
 	sg.cmd_len = command->cdb_len;
-	sg.mx_sb_len = command->sense_len;
+	sg.mx_sb_len = sizeof(command->sense);
 	sg.dxfer_len = len;
 	sg.dxferp = buf;
 	sg.cmdp = command->cdb;

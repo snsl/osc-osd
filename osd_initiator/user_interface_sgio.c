@@ -54,6 +54,7 @@ int inquiry_sgio(int fd)
 	command.cdb_len = INQUIRY_CDB_LEN;
 	command.indata = inquiry_rsp;
 	command.inlen_alloc = sizeof(inquiry_rsp);
+	command.sense_len = sizeof(command.sense);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -77,7 +78,8 @@ int query_sgio(int fd, uint64_t pid, uint64_t cid, const char *query)
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_query(command.cdb, pid, cid, strlen(query)+1, sizeof(buf));
 		command.cdb_len = OSD_CDB_SIZE;
-		command.outdata = query;
+		command.sense_len = sizeof(command.sense);
+		command.outdata = (void *)(uintptr_t) query;
 		command.outlen = strlen(query) + 1;
 		command.indata = buf;
 		command.inlen_alloc = sizeof(buf);
@@ -108,6 +110,7 @@ int create_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_u
 		/* Create user objects one at a time */ 
 		set_cdb_osd_create(command.cdb, pid, requested_oid + i, 1);
 		command.cdb_len = OSD_CDB_SIZE;
+		command.sense_len = sizeof(command.sense);
 
 		ret = osd_sgio_submit_and_wait(fd, &command);
 		check_response(ret, command, NULL);
@@ -128,6 +131,7 @@ int create_partition_sgio(int fd, uint64_t requested_pid)
 
 	set_cdb_osd_create_partition(command.cdb, requested_pid);
 	command.cdb_len = OSD_CDB_SIZE;
+	command.sense_len = sizeof(command.sense);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -163,6 +167,7 @@ int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
 	memset(&command, 0, sizeof(command));
         set_cdb_osd_remove(command.cdb, pid, requested_oid);
         command.cdb_len = OSD_CDB_SIZE;
+	command.sense_len = sizeof(command.sense);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -236,7 +241,8 @@ int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t requested_oid, cons
 		memset(&command, 0, sizeof(command));
 		set_cdb_osd_create_and_write(command.cdb, pid, requested_oid, strlen(buf) + 1, offset);
 		command.cdb_len = OSD_CDB_SIZE;
-		command.outdata = buf;
+		command.sense_len = sizeof(command.sense);
+		command.outdata = (void *)(uintptr_t) buf;
 		command.outlen = strlen(buf) + 1;
 	
 		ret = osd_sgio_submit_and_wait(fd, &command);
@@ -260,7 +266,8 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_write(command.cdb, pid, oid, strlen(buf) + 1, offset);
 		command.cdb_len = OSD_CDB_SIZE;
-		command.outdata = buf;
+		command.sense_len = sizeof(command.sense);
+		command.outdata = (void *)(uintptr_t) buf;
 		command.outlen = strlen(buf) + 1;
 
 		ret = osd_sgio_submit_and_wait(fd, &command);
@@ -284,6 +291,7 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 	memset(&command, 0, sizeof(command));
 	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), offset);
 	command.cdb_len = OSD_CDB_SIZE;
+	command.sense_len = sizeof(command.sense);
 	command.indata = buf;
 	command.inlen_alloc = sizeof(buf);
 
@@ -306,6 +314,7 @@ int format_osd_sgio(int fd, int capacity)
 	memset(&command, 0, sizeof(command));
         set_cdb_osd_format_osd(command.cdb, capacity);
         command.cdb_len = OSD_CDB_SIZE;
+	command.sense_len = sizeof(command.sense);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);	
 	check_response(ret, command, NULL);
@@ -323,6 +332,7 @@ int flush_osd_sgio(int fd, int flush_scope)
 	memset(&command, 0, sizeof(command));
         set_cdb_osd_flush_osd(command.cdb, flush_scope);   
         command.cdb_len = OSD_CDB_SIZE;
+	command.sense_len = sizeof(command.sense);
 	
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -424,7 +434,7 @@ int set_attributes_sgio(int fd, uint64_t pid, uint64_t oid, const char *attr)
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_set_attributes(command.cdb, pid, oid);
 		command.cdb_len = OSD_CDB_SIZE;
-		command.outdata = attr;
+		command.outdata = (void *)(uintptr_t) attr;
 		command.outlen = strlen(attr) + 1;
 
 		ret = osd_sgio_submit_and_wait(fd, &command);
@@ -448,7 +458,7 @@ int set_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid, const char *a
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_set_member_attributes(command.cdb, pid, cid);
 		command.cdb_len = OSD_CDB_SIZE;
-		command.outdata = attr;
+		command.outdata = (void *)(uintptr_t) attr;
 		command.outlen = strlen(attr) + 1;
 
 		ret = osd_sgio_submit_and_wait(fd, &command);

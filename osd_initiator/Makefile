@@ -2,8 +2,8 @@
 # OSD initiator library
 #
 
-SRC := kernel_interface.c user_interface.c user_interface_sgio.c diskinfo.c cdb_manip.c
-INC := kernel_interface.h user_interface.h user_interface_sgio.h diskinfo.h cdb_manip.h
+SRC := kernel_interface.c user_interface_sgio.c diskinfo.c cdb_manip.c
+INC := kernel_interface.h user_interface_sgio.h diskinfo.h cdb_manip.h
 OBJ := $(SRC:.c=.o)
 LIB := libosd.a
 
@@ -17,7 +17,7 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
 
 # experimental bsg, do not use yet
-#CFLAGS += -DUSE_BSG -I/lib/modules/$(shell uname -r)/build/include/
+CFLAGS += -DUSE_BSG -I/lib/modules/2.6.20-bidi/build/include/
 
 all:: $(LIB) $(OBJ)
 

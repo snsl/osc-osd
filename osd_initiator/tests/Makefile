@@ -2,7 +2,7 @@
 # OSD initiator tests
 #
 
-PROGSRC := basic_write.c sgio.c
+PROGSRC := sgio.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
 LIB := ../libosd.a ../../util/libosdutil.a

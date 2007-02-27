@@ -21,12 +21,16 @@
 
 static const uint64_t PID = 0x10000LLU;
 static const uint64_t OID = 0x10003LLU;
+static const uint64_t CID = 0x10006LLU;
+static const uint32_t LIST_ID = 0x10009LLU;
+static const uint64_t PAGE = 0; 
 static const uint16_t NUM_USER_OBJ = 1;
 static const uint64_t OFFSET = 0;
 static const int FLUSH_SCOPE = 2; /* Flush everything */
 static const int OBJ_CAPACITY = 1<<30; /* 1 GB */
 static const char WRITEDATA[] = "Write some data";
 static const char WRITEDATA2[] = "Test #2";
+static const char WRITEDATA3[] = "write data 3";
 
 int main(int argc, char *argv[])
 {
@@ -74,11 +78,14 @@ int main(int argc, char *argv[])
 
 #endif
 #if 1		/* Testing stuff */
-
-		create_osd_and_write_sgio(fd, PID, OID, WRITEDATA, OFFSET);
-		//create_osd_sgio(fd, PID, OID, NUM_USER_OBJ);
+		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ+3);
 		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
-		read_osd_sgio(fd, PID, OID, OFFSET);
+		write_osd_sgio(fd, PID, OID+1, WRITEDATA2, OFFSET);
+		write_osd_sgio(fd, PID, OID+2, WRITEDATA3, OFFSET);
+		get_attributes_sgio(fd, PID, OID);
+		object_list_sgio(fd, PID, LIST_ID, OID);
+		read_osd_sgio(fd, PID, OID+1, OFFSET);
+		get_attribute_page_sgio(fd, PAGE, OFFSET);
 #endif
 		close(fd);
 	}

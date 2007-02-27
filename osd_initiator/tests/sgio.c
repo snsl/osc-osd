@@ -93,7 +93,7 @@ static int osd_command_build_attr_list(struct osd_command *command,
 	return -ENOMEM;
 
     /* Set the CDB bits to point appropriately. */
-    set_cdb_get_attr_list(command->cdb, list_lkn, list_offset, alloc_len,
+    set_cdb_get_attr_list(command->cdb, list_len, list_offset, alloc_len,
                           retrieved_offset);
 
     return 0;
@@ -205,7 +205,7 @@ int main(int argc, char *argv[])
 		 * Clean the slate and make one partition.
 		 */
 		format_osd_sgio(fd, OBJ_CAPACITY); 
-//		create_partition_sgio(fd, PID);
+		create_partition_sgio(fd, PID);
 
 
 #if 0           /* These are all supposed to fail, for various reasons. */

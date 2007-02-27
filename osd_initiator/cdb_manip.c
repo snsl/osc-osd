@@ -262,7 +262,6 @@ int set_cdb_osd_remove_collection(uint8_t *cdb, uint64_t pid, uint64_t cid)
 
 int set_cdb_osd_remove_member_objects(uint8_t *cdb, uint64_t pid, uint64_t cid) /*section in spec?*/
 {
-        osd_debug(__func__);
         set_action(cdb, OSD_REMOVE_MEMBER_OBJECTS);
         set_htonll(&cdb[16], pid);
         set_htonll(&cdb[24], cid);

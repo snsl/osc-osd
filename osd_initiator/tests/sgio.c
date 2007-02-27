@@ -20,8 +20,8 @@
 #include "cdb_manip.h"
 
 static const uint64_t PID = 0x10000LLU;
-static const uint64_t OID = 0x10003LLU;
-static const uint64_t CID = 0x10006LLU;
+static const uint64_t OID = 0x10000LLU;
+static const uint64_t CID = 0x10000LLU;
 static const uint32_t LIST_ID = 0x10009LLU;
 static const uint64_t PAGE = 0; 
 static const uint16_t NUM_USER_OBJ = 1;
@@ -31,12 +31,6 @@ static const int OBJ_CAPACITY = 1<<30; /* 1 GB */
 static const char WRITEDATA[] = "Write some data";
 static const char WRITEDATA2[] = "Test #2";
 static const char WRITEDATA3[] = "write data 3";
-
-struct attribute_id {
-	uint32_t page;
-	uint32_t number;
-	uint16_t len;
-};
 
 static int osd_command_get_attributes(struct osd_command *command,
                                       uint64_t pid, uint64_t oid)
@@ -99,7 +93,7 @@ static int osd_command_build_attr_list(struct osd_command *command,
 	return -ENOMEM;
 
     /* Set the CDB bits to point appropriately. */
-    set_cdb_get_attr_list(command->cdb, list_len, list_offset, alloc_len,
+    set_cdb_get_attr_list(command->cdb, list_lkn, list_offset, alloc_len,
                           retrieved_offset);
 
     return 0;
@@ -211,7 +205,7 @@ int main(int argc, char *argv[])
 		 * Clean the slate and make one partition.
 		 */
 		format_osd_sgio(fd, OBJ_CAPACITY); 
-		create_partition_sgio(fd, PID);
+//		create_partition_sgio(fd, PID);
 
 
 #if 0           /* These are all supposed to fail, for various reasons. */
@@ -220,7 +214,7 @@ int main(int argc, char *argv[])
 #endif
 
 		
-#if 0		/* Basic read / write seems to work */
+#if 1		/* Basic read / write seems to work */
 		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ+2);
 		remove_osd_sgio(fd, PID, OID+1);
 
@@ -238,7 +232,7 @@ int main(int argc, char *argv[])
 #endif
 
 
-#if 1		/* Testing stuff */
+#if 0		/* Testing stuff */
 		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ+3);
 		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
 		write_osd_sgio(fd, PID, OID+1, WRITEDATA2, OFFSET);

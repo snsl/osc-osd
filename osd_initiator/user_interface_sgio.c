@@ -79,7 +79,7 @@ int query_sgio(int fd, uint64_t pid, uint64_t cid, const char *query)
 		set_cdb_osd_query(command.cdb, pid, cid, strlen(query)+1, sizeof(buf));
 		command.cdb_len = OSD_CDB_SIZE;
 		command.sense_len = sizeof(command.sense);
-		command.outdata = (void *)(uintptr_t) query;
+		command.outdata = query;
 		command.outlen = strlen(query) + 1;
 		command.indata = buf;
 		command.inlen_alloc = sizeof(buf);
@@ -242,7 +242,7 @@ int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t requested_oid, cons
 		set_cdb_osd_create_and_write(command.cdb, pid, requested_oid, strlen(buf) + 1, offset);
 		command.cdb_len = OSD_CDB_SIZE;
 		command.sense_len = sizeof(command.sense);
-		command.outdata = (void *)(uintptr_t) buf;
+		command.outdata = buf;
 		command.outlen = strlen(buf) + 1;
 	
 		ret = osd_sgio_submit_and_wait(fd, &command);
@@ -267,7 +267,7 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
 		set_cdb_osd_write(command.cdb, pid, oid, strlen(buf) + 1, offset);
 		command.cdb_len = OSD_CDB_SIZE;
 		command.sense_len = sizeof(command.sense);
-		command.outdata = (void *)(uintptr_t) buf;
+		command.outdata = buf;
 		command.outlen = strlen(buf) + 1;
 
 		ret = osd_sgio_submit_and_wait(fd, &command);
@@ -434,7 +434,7 @@ int set_attributes_sgio(int fd, uint64_t pid, uint64_t oid, const char *attr)
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_set_attributes(command.cdb, pid, oid);
 		command.cdb_len = OSD_CDB_SIZE;
-		command.outdata = (void *)(uintptr_t) attr;
+		command.outdata = attr;
 		command.outlen = strlen(attr) + 1;
 
 		ret = osd_sgio_submit_and_wait(fd, &command);
@@ -458,7 +458,7 @@ int set_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid, const char *a
  		memset(&command, 0, sizeof(command));
 		set_cdb_osd_set_member_attributes(command.cdb, pid, cid);
 		command.cdb_len = OSD_CDB_SIZE;
-		command.outdata = (void *)(uintptr_t) attr;
+		command.outdata = attr;
 		command.outlen = strlen(attr) + 1;
 
 		ret = osd_sgio_submit_and_wait(fd, &command);

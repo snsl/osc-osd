@@ -2,8 +2,10 @@
 # OSD initiator library
 #
 
-SRC := kernel_interface.c user_interface_sgio.c diskinfo.c cdb_manip.c sense.c
-INC := kernel_interface.h user_interface_sgio.h diskinfo.h cdb_manip.h sense.h
+SRC := kernel_interface.c user_interface_sgio.c diskinfo.c cdb_manip.c sense.c \
+	pvfs_iface.c
+INC := kernel_interface.h user_interface_sgio.h diskinfo.h cdb_manip.h sense.h \
+	pvfs_iface.h
 OBJ := $(SRC:.c=.o)
 LIB := libosd.a
 

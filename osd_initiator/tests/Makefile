@@ -2,7 +2,7 @@
 # OSD initiator tests
 #
 
-PROGSRC := sgio.c
+PROGSRC := sgio.c pvfs_iface_test.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
 LIB := ../libosd.a ../../util/libosdutil.a

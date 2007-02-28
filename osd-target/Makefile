@@ -14,7 +14,7 @@ OSDTARGETLIB := libosd.a
 
 STGTLIB := ../stgt/libstgt.a
 UTILLIB := ../util/libosdutil.a
-LIBS := -lcrypto -lsqlite3 -laio
+LIBS := -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common
 
 CC := gcc
 CPP_M := -MM

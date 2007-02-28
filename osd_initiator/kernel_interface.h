@@ -22,7 +22,6 @@ struct osd_command {
 	int sense_len;      		/* [o] number of bytes in sense */
 };
 
-void osd_show_sense(uint8_t *sense, int len);
 int osd_sgio_submit_command(int fd, struct osd_command *command);
 int osd_sgio_wait_response(int fd, struct osd_command **command);
 int osd_sgio_submit_and_wait(int fd, struct osd_command *command);

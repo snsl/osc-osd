@@ -21,7 +21,7 @@
 #define PVFS_OSD_PID 0x10003ULL
 static const int OBJ_CAPACITY = 1<<30; /* 1 GB */
 
-struct gen_osd_cmd opaque_handle;
+
 int drive_id;
 struct gen_osd_drive_list drive_list;
 
@@ -44,18 +44,14 @@ void init(void)
 
 	printf("Found %d Drives Now open a drive\n", ret);
 	drive_id = 0;  /*First drive*/
+
 	ret = gen_osd_open_drive(&drive_list, drive_id);
 	if (ret != 0){
 		printf("Unable to open drive\n");
 		exit(1);
 	}
 
-	printf("Drive opened making active\n");
-	ret = gen_osd_select_drive(&drive_list, &opaque_handle, drive_id);
-	if (ret != 0){
-		printf("Unable to select drive\n");
-		exit(1);
-	}
+
 
 }
 
@@ -64,23 +60,32 @@ void format(void)
 	struct format_attrs format;
 	int ret;
 	struct cmd_result res;
+	struct gen_osd_cmd cmd;
+
+
+	printf("Setting FD (could set cmd.current_drive directly ie PVFS)\n");
+	ret = gen_osd_select_drive(&drive_list, &cmd, drive_id);
+	if (ret != 0){
+		printf("Unable to select drive\n");
+		exit(1);
+	}
 
 	printf("Formatting active disk\n");
 	format.capacity = OBJ_CAPACITY;
 	printf(".....Set format command\n");
-	ret = cmd_set(&opaque_handle, FORMAT, &format);
+	ret = cmd_set(&cmd, FORMAT, &format);
 	if (ret != 0){
 		printf("Couldn't set format command\n");
 		exit(1);
 	}
 	printf(".....Submit the command\n");
-	ret = cmd_submit(&opaque_handle);
+	ret = cmd_submit(&cmd);
 	if (ret != 0){
 		printf("Submit command failed\n");
 		exit(1);
 	}
 	printf(".....Get the status of the command\n");
-	ret = cmd_get_res(&opaque_handle, &res);
+	ret = cmd_get_res(&cmd, &res);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
@@ -119,82 +124,82 @@ void create_partition(void)
 	struct partition_attrs partition;
 	struct cmd_result res;
 	struct cmd_result res2;
+	struct gen_osd_cmd cmd;
+	struct gen_osd_cmd cmd2;
+	int fd;  /*just as an example*/
 
-	printf("Partitioning active disk - SHOULD FAIL\n");
+	printf("Setting FD for cmd non-PVFS way\n");
+	ret = gen_osd_select_drive(&drive_list, &cmd, drive_id);
+	if (ret != 0){
+		printf("Unable to select drive\n");
+		exit(1);
+	}
+
+	fd = cmd.current_drive;
+	printf("Setting FD for cmd 2 in PVFS way\n");
+	cmd2.current_drive = fd;
+
+
 	partition.pid = 2;
-
-	printf(".....Set format command\n");
-	ret = cmd_set(&opaque_handle, CREATE_PART, &partition);
+	printf("Create Partition command that should fail\n");
+	ret = cmd_set(&cmd, CREATE_PART, &partition);
 	if (ret != 0){
 		printf("Couldn't set create partition command\n");
 		exit(1);
 	}
 
-	printf(".....Submit the command\n");
-	ret = cmd_submit(&opaque_handle);
-	if (ret != 0){
-		printf("Submit command failed\n");
-		exit(1);
-	}
-
-	printf("Partitioning active disk\n");
 	partition.pid = PVFS_OSD_PID;
-
-	printf(".....Set format command\n");
-	ret = cmd_set(&opaque_handle, CREATE_PART, &partition);
+	printf("Create Partition command that should work\n");
+	ret = cmd_set(&cmd2, CREATE_PART, &partition);
 	if (ret != 0){
 		printf("Couldn't set create partition command\n");
 		exit(1);
 	}
 
-	printf(".....Submit the command\n");
-	ret = cmd_submit(&opaque_handle);
+	printf("Submit the commands\n");
+	ret = cmd_submit(&cmd);
+	if (ret != 0){
+		printf("Submit command failed\n");
+		exit(1);
+	}
+	ret = cmd_submit(&cmd2);
 	if (ret != 0){
 		printf("Submit command failed\n");
 		exit(1);
 	}
 
-	printf(".....Get the status of the command\n");
-	ret = cmd_get_res(&opaque_handle, &res);
+	printf("Get the status of the commands\n\n");
+
+	ret = cmd_get_res(&cmd, &res);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
 	}
-
 	if(res.sense_len == 0){
 		printf("No Sense data found when there should have been!\n");
 		exit(1);
 	}
-
-
 	if(res.command_status == 0){
 		printf("Command did not FAIL when it should!\n");
 		exit(1);
 	}
 	printf(".....Response len is %d\n", (int) res.resp_len);
 	printf(".....%s\n", (char *) res.resp_data);
+	printf("Command failed as expected\n");
 
-	printf(".....Command failed as expected\n");
-
-
-
-	printf(".....Get the status of the command\n");
-	ret = cmd_get_res(&opaque_handle, &res2);
+	ret = cmd_get_res(&cmd2, &res2);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
 	}
-
 	if((res2.sense_len != 0) || (res2.command_status != 0)){
 		printf("Sense data found means error!\n");
 		cmd_show_error(&res2);
 		exit(1);
 	}
-
-	printf(".....Response len is %d\n", (int) res2.resp_len);
+	printf("\n.....Response len is %d\n", (int) res2.resp_len);
 	printf(".....%s\n", (char *) res2.resp_data);
-
-	printf(".....Command worked successfully\n");
+	printf("Command worked successfully\n\n");
 	cmd_free_res(&res2);
 
 	printf("Problem with the first command was:\n");

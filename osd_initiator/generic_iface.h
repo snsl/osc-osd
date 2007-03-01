@@ -16,11 +16,14 @@
 #  define gen_osd_debug(lvl,fmt,...) do { } while (0)
 #endif
 
-struct gen_osd {
+struct gen_osd_cmd {
 	struct osd_command osd_cmd;
+	int current_drive;
+};
+
+struct gen_osd_drive_list {
 	struct osd_drive_description *drives;
 	int fd_array[MAX_DRIVES];
-	int current_drive;
 };
 
 struct partition_attrs {
@@ -45,15 +48,16 @@ typedef enum{
 
 }osd_cmd_val;
 
-int gen_osd_init_drives(struct gen_osd *shared);
-int gen_osd_open_drive(struct gen_osd *shared, int index);
-int gen_osd_select_drive(struct gen_osd *shared, int index);
-int gen_osd_close_drive(struct gen_osd *shared, int index);
+int gen_osd_init_drives(struct gen_osd_drive_list *drive_list);
+int gen_osd_open_drive(struct gen_osd_drive_list *drive_list, int index);
+int gen_osd_select_drive(struct gen_osd_drive_list *drive_list,
+			struct gen_osd_cmd *shared, int index);
+int gen_osd_close_drive(struct gen_osd_drive_list *drive_list, int index);
 
-int cmd_set(struct gen_osd *shared, osd_cmd_val cmd, void *attrs);
+int cmd_set(struct gen_osd_cmd *shared, osd_cmd_val cmd, void *attrs);
 int cmd_modify(void);
-int cmd_submit(struct gen_osd *shared);
-int cmd_get_res(struct gen_osd *shared, struct cmd_result *res);
+int cmd_submit(struct gen_osd_cmd *shared);
+int cmd_get_res(struct gen_osd_cmd *shared, struct cmd_result *res);
 
 inline void cmd_free_res(struct cmd_result *res);
 void cmd_show_error(struct cmd_result *res);

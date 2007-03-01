@@ -19,17 +19,16 @@
 #include "generic_iface.h"
 
 
-int gen_osd_init_drives(struct gen_osd *shared)
+int gen_osd_init_drives(struct gen_osd_drive_list *drive_list)
 {
 
 	int ret, num_drives, i;
 
 	for (i=0; i<MAX_DRIVES; i++){
-		shared->fd_array[i] = -1;
+		drive_list->fd_array[i] = -1;
 	}
-	shared->current_drive = 0;
 
-	ret = osd_get_drive_list(&(shared->drives), &num_drives);
+	ret = osd_get_drive_list(&(drive_list->drives), &num_drives);
 	if (ret < 0) {
 		osd_error("%s: get drive error", __func__);
 		return 0;
@@ -44,48 +43,49 @@ int gen_osd_init_drives(struct gen_osd *shared)
 	return num_drives;
 }
 
-int gen_osd_open_drive(struct gen_osd *shared, int index)
+int gen_osd_open_drive(struct gen_osd_drive_list *drive_list, int index)
 {
 	/*XXX Bug in osd_get_drive_list sometimes gibberish gets printed here
 	need to chase this down*/
-	gen_osd_debug(5, "Drive: %s, Name: %s", shared->drives[index].chardev,
-				shared->drives[index].targetname);
+	gen_osd_debug(5, "Drive: %s, Name: %s", drive_list->drives[index].chardev,
+				drive_list->drives[index].targetname);
 
-	shared->fd_array[index] = open(shared->drives[index].chardev, O_RDWR);
-	if (shared->fd_array[index] < 0) {
+	drive_list->fd_array[index] = open(drive_list->drives[index].chardev, O_RDWR);
+	if (drive_list->fd_array[index] < 0) {
 		osd_error_errno("%s: open %s", __func__,
-					shared->drives[index].chardev);
+					drive_list->drives[index].chardev);
 		return -1;
 	}
 
 	return 0;
 }
 
-int gen_osd_close_drive(struct gen_osd *shared, int index)
+int gen_osd_close_drive(struct gen_osd_drive_list *drive_list, int index)
 {
 
-	if(shared->fd_array[index] < 0){
+	if(drive_list->fd_array[index] < 0){
 		osd_error("%s: Invalid Drive", __func__);
 		return -1;
 	}
 
-	return close(shared->fd_array[index]);
+	return close(drive_list->fd_array[index]);
 }
 
-int gen_osd_select_drive(struct gen_osd *shared, int index)
+int gen_osd_select_drive(struct gen_osd_drive_list *drive_list,
+			struct gen_osd_cmd *shared, int index)
 {
-	if(shared->fd_array[index] < 0){
+	if(drive_list->fd_array[index] < 0){
 		osd_error("%s: Drive is invalid", __func__);
 		return -1;
 	}
 
-	shared->current_drive = index;
+	shared->current_drive = drive_list->fd_array[index];
 
 	return 0;
 }
 
 /*sets the command up in the CDB*/
-int cmd_set(struct gen_osd *shared, osd_cmd_val cmd, void *attrs)
+int cmd_set(struct gen_osd_cmd *shared, osd_cmd_val cmd, void *attrs)
 {
 	/*Trusting codes not to pass in something nasty in attrs*/
 	struct partition_attrs *part;
@@ -122,34 +122,32 @@ int cmd_modify(void)
 }
 
 /*need to be able to submit the command*/
-int cmd_submit(struct gen_osd *shared)
+int cmd_submit(struct gen_osd_cmd *shared)
 {
 
 
-	if(shared->fd_array[shared->current_drive] < 0){
+	if(shared->current_drive < 0){
 		osd_error("%s: Invalid drive selected", __func__);
 		return -1;
 	}
 
 	/*func name is not really apropriate buy why duplicate code*/
-	return osd_sgio_submit_command(shared->fd_array[shared->current_drive],
-				&(shared->osd_cmd));
+	return osd_sgio_submit_command(shared->current_drive, &(shared->osd_cmd));
 }
 
 /*after submitting command need to get result back at some point*/
-int cmd_get_res(struct gen_osd *shared, struct cmd_result *res)
+int cmd_get_res(struct gen_osd_cmd *shared, struct cmd_result *res)
 {
 	int ret;
 	struct osd_command *cmp;
 
-	if(shared->fd_array[shared->current_drive] < 0){
+	if(shared->current_drive < 0){
 		osd_error("%s: Invalid drive selected", __func__);
 		return -1;
 	}
 
 	/*not duplicating code*/
-	ret = osd_sgio_wait_response(shared->fd_array[shared->current_drive],
-				&cmp);
+	ret = osd_sgio_wait_response(shared->current_drive,&cmp);
 	if (ret) {
 		osd_error("%s: wait_response failed", __func__);
 		return ret;

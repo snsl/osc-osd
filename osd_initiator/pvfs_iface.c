@@ -7,11 +7,15 @@
 #include <fcntl.h>
 #include <sys/types.h>
 
+#include <scsi/scsi.h>
+#include <scsi/sg.h>
+
 #include "util/util.h"
 #include "kernel_interface.h"
 #include "user_interface_sgio.h"
 #include "diskinfo.h"
 #include "cdb_manip.h"
+#include "sense.h"
 #include "pvfs_iface.h"
 
 
@@ -94,7 +98,6 @@ int cmd_set(struct pvfs_osd *shared, osd_cmd_val cmd, void *attrs)
 		pvfs_osd_debug(5, "Create partition");
 		part = attrs;
 		shared->osd_cmd.cdb_len = OSD_CDB_SIZE;
-		shared->osd_cmd.sense_len = OSD_MAX_SENSE;
 		set_cdb_osd_create_partition(shared->osd_cmd.cdb, part->pid);
 		break;
 	case FORMAT:
@@ -175,4 +178,10 @@ int cmd_get_res(struct pvfs_osd *shared, struct cmd_result *res)
 inline void cmd_free_res(struct cmd_result *res)
 {
 	free(res->resp_data);  /*free is a void fun so nothing to return*/
+}
+
+void cmd_show_error(struct cmd_result *res)
+{
+	printf("Stuff in %s will print the result of the sense data and cmd status\n", __func__);
+
 }

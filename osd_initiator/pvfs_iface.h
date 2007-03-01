@@ -10,7 +10,7 @@
 #define pvfs_osd_debug(lvl,fmt,args...) \
     do { \
 	if (lvl <= pvs_osd_iface_debug) \
-	    printf("pvs_osd_iface_debug DEBUG: " fmt "\n", ##args);\
+	    printf("DEBUG: " fmt "\n", ##args);\
     } while (0)
 #else
 #  define pvfs_osd_debug(lvl,fmt,...) do { } while (0)
@@ -56,5 +56,5 @@ int cmd_submit(struct pvfs_osd *shared);
 int cmd_get_res(struct pvfs_osd *shared, struct cmd_result *res);
 
 inline void cmd_free_res(struct cmd_result *res);
-
+void cmd_show_error(struct cmd_result *res);
 #endif

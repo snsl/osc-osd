@@ -3,15 +3,12 @@
  */
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <stdint.h>
 #include <fcntl.h>
 #include <sys/types.h>
-
-#include <scsi/scsi.h>
-#include <scsi/sg.h>
 
 #include "util/util.h"
 #include "kernel_interface.h"
@@ -172,6 +169,32 @@ static int bidi_test(int fd)
 	return 0;
 }
 
+static void iovec_test(int fd)
+{
+	struct osd_command command;
+	const char buf1[] = "Start of the data.";
+	const char buf2[] = "  And some more data.";
+	struct bsg_iovec vec[2];
+	size_t tot_len;
+	int ret;
+
+	vec[0].iov_base = (uint64_t)(uintptr_t) buf1;
+	vec[0].iov_len = sizeof(buf1);
+	vec[1].iov_base = (uint64_t)(uintptr_t) buf2;
+	vec[1].iov_len = sizeof(buf2);
+	tot_len = sizeof(buf1) + sizeof(buf2);
+	memset(&command, 0, sizeof(command));
+	set_cdb_osd_write(command.cdb, PID, OID, tot_len, 0);
+	command.cdb_len = OSD_CDB_SIZE;
+	command.outlen = tot_len;
+	command.outdata = vec;
+	command.iov_outlen = 2;
+
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret)
+		osd_error("%s: submit_and_wait failed", __func__);
+}
+
 int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
@@ -225,6 +248,10 @@ int main(int argc, char *argv[])
 	
 		read_osd_sgio(fd, PID, OID, OFFSET);
 
+#endif
+
+#if 0           /* Testing iovec list. */
+		iovec_test(fd);
 #endif
 
 #if 0           /* Testing bidirectional operations. */

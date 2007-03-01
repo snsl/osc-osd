@@ -10,9 +10,6 @@
 #include <fcntl.h>
 #include <sys/types.h>
 
-#include <scsi/scsi.h>
-#include <scsi/sg.h>
-
 #include "util/util.h"
 #include "kernel_interface.h"
 #include "user_interface_sgio.h"

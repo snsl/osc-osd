@@ -17,7 +17,6 @@ cdef extern from "Python.h":
 #include "../../kernel/suo_ioctl.h"
 #include "../cdb_manip.h"
 #include "../kernel_interface.h"
-#include "../user_interface.h"
 #include "../user_interface_sgio.h"
 #include "../diskinfo.h"
 

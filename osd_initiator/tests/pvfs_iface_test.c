@@ -27,6 +27,7 @@ int main(void)
 	struct partition_attrs partition;
 	struct format_attrs format;
 	struct pvfs_osd opaque_handle;
+	struct cmd_result res;
 	int drive_id;
 
 	printf("Initialization\n");
@@ -66,13 +67,26 @@ int main(void)
 		return -1;
 	}
 	printf(".....Get the status of the command\n");
-	ret = cmd_get_res(&opaque_handle);
+	ret = cmd_get_res(&opaque_handle, &res);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		return -1;
 	}
 
-	printf("Need to be able to check the status of the command still\n");
+	if(res.sense_len != 0){
+		printf("Sense data found!\n");
+		return -1;
+	}
+
+	if(res.command_status != 0){
+		printf("Command FAILED!\n");
+		return -1;
+	}
+	printf(".....Response len is %d\n", (int) res.resp_len);
+	printf(".....%s\n", (char *) res.resp_data);
+
+
+
 
 
 	//~ partition.pid = PVFS_OSD_PID;

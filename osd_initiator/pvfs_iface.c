@@ -137,7 +137,7 @@ int cmd_submit(struct pvfs_osd *shared)
 }
 
 /*after submitting command need to get result back at some point*/
-int cmd_get_res(struct pvfs_osd *shared)
+int cmd_get_res(struct pvfs_osd *shared, struct cmd_result *res)
 {
 	int ret;
 	struct osd_command *cmp;
@@ -147,7 +147,7 @@ int cmd_get_res(struct pvfs_osd *shared)
 		return -1;
 	}
 
-
+	/*not duplicating code*/
 	ret = osd_sgio_wait_response(shared->fd_array[shared->current_drive],
 				&cmp);
 	if (ret) {
@@ -157,41 +157,25 @@ int cmd_get_res(struct pvfs_osd *shared)
 	if (cmp != &(shared->osd_cmd)) {
 		osd_error("%s: wait_response returned %p, expecting %p", __func__,
 		      cmp, &(shared->osd_cmd));
-		return 1;
+		return -1;
 	}
 
+	res->sense_len = cmp->sense_len;
+	res->command_status = cmp->status;
+	res->resp_len = cmp->inlen;
+
+	/*copy the sense data because its small but just keep pointer to
+	actual returned data, idea is to be able to post multiple osd commands
+	then get the results back so need to remember where the data is because
+	in the set_cmd fun we obliterate anything in there, since could
+	be fairly big don't want to memcpy*/
+	memcpy(res->sense_data, cmp->sense, OSD_MAX_SENSE);
+	res->resp_data = cmp->indata;
 
 	return 0;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+inline void cmd_free_res(struct cmd_result *res)
+{
+	free(res->resp_data);  /*free is a void fun so nothing to return*/
+}

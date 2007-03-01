@@ -31,6 +31,14 @@ struct format_attrs {
 	uint32_t capacity;
 };
 
+struct cmd_result {
+	uint32_t 	sense_len;
+	uint8_t 	command_status;
+	size_t 		resp_len;
+	uint8_t 	sense_data[OSD_MAX_SENSE];
+	void 		*resp_data;
+};
+
 typedef enum{
 	CREATE_PART = 1,
 	FORMAT,
@@ -41,9 +49,12 @@ int pvfs_osd_init_drives(struct pvfs_osd *shared);
 int pvfs_osd_open_drive(struct pvfs_osd *shared, int index);
 int pvfs_osd_select_drive(struct pvfs_osd *shared, int index);
 int pvfs_osd_close_drive(struct pvfs_osd *shared, int index);
+
 int cmd_set(struct pvfs_osd *shared, osd_cmd_val cmd, void *attrs);
 int cmd_modify(void);
 int cmd_submit(struct pvfs_osd *shared);
-int cmd_get_res(struct pvfs_osd *shared);
+int cmd_get_res(struct pvfs_osd *shared, struct cmd_result *res);
+
+inline void cmd_free_res(struct cmd_result *res);
 
 #endif

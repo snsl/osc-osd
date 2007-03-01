@@ -16,10 +16,10 @@
 #include "diskinfo.h"
 #include "cdb_manip.h"
 #include "sense.h"
-#include "pvfs_iface.h"
+#include "generic_iface.h"
 
 
-int pvfs_osd_init_drives(struct pvfs_osd *shared)
+int gen_osd_init_drives(struct gen_osd *shared)
 {
 
 	int ret, num_drives, i;
@@ -44,11 +44,11 @@ int pvfs_osd_init_drives(struct pvfs_osd *shared)
 	return num_drives;
 }
 
-int pvfs_osd_open_drive(struct pvfs_osd *shared, int index)
+int gen_osd_open_drive(struct gen_osd *shared, int index)
 {
 	/*XXX Bug in osd_get_drive_list sometimes gibberish gets printed here
 	need to chase this down*/
-	pvfs_osd_debug(5, "Drive: %s, Name: %s", shared->drives[index].chardev,
+	gen_osd_debug(5, "Drive: %s, Name: %s", shared->drives[index].chardev,
 				shared->drives[index].targetname);
 
 	shared->fd_array[index] = open(shared->drives[index].chardev, O_RDWR);
@@ -61,7 +61,7 @@ int pvfs_osd_open_drive(struct pvfs_osd *shared, int index)
 	return 0;
 }
 
-int pvfs_osd_close_drive(struct pvfs_osd *shared, int index)
+int gen_osd_close_drive(struct gen_osd *shared, int index)
 {
 
 	if(shared->fd_array[index] < 0){
@@ -72,7 +72,7 @@ int pvfs_osd_close_drive(struct pvfs_osd *shared, int index)
 	return close(shared->fd_array[index]);
 }
 
-int pvfs_osd_select_drive(struct pvfs_osd *shared, int index)
+int gen_osd_select_drive(struct gen_osd *shared, int index)
 {
 	if(shared->fd_array[index] < 0){
 		osd_error("%s: Drive is invalid", __func__);
@@ -85,7 +85,7 @@ int pvfs_osd_select_drive(struct pvfs_osd *shared, int index)
 }
 
 /*sets the command up in the CDB*/
-int cmd_set(struct pvfs_osd *shared, osd_cmd_val cmd, void *attrs)
+int cmd_set(struct gen_osd *shared, osd_cmd_val cmd, void *attrs)
 {
 	/*Trusting codes not to pass in something nasty in attrs*/
 	struct partition_attrs *part;
@@ -95,13 +95,13 @@ int cmd_set(struct pvfs_osd *shared, osd_cmd_val cmd, void *attrs)
 
 	switch (cmd) {
 	case CREATE_PART:
-		pvfs_osd_debug(5, "Create partition");
+		gen_osd_debug(5, "Create partition");
 		part = attrs;
 		shared->osd_cmd.cdb_len = OSD_CDB_SIZE;
 		set_cdb_osd_create_partition(shared->osd_cmd.cdb, part->pid);
 		break;
 	case FORMAT:
-		pvfs_osd_debug(5, "Format");
+		gen_osd_debug(5, "Format");
 		format = attrs;
 		shared->osd_cmd.cdb_len = OSD_CDB_SIZE;
 		set_cdb_osd_format_osd(shared->osd_cmd.cdb, format->capacity);
@@ -122,7 +122,7 @@ int cmd_modify(void)
 }
 
 /*need to be able to submit the command*/
-int cmd_submit(struct pvfs_osd *shared)
+int cmd_submit(struct gen_osd *shared)
 {
 
 
@@ -137,7 +137,7 @@ int cmd_submit(struct pvfs_osd *shared)
 }
 
 /*after submitting command need to get result back at some point*/
-int cmd_get_res(struct pvfs_osd *shared, struct cmd_result *res)
+int cmd_get_res(struct gen_osd *shared, struct cmd_result *res)
 {
 	int ret;
 	struct osd_command *cmp;

@@ -3,9 +3,9 @@
 #
 
 SRC := kernel_interface.c user_interface_sgio.c diskinfo.c cdb_manip.c sense.c \
-	pvfs_iface.c
+	generic_iface.c
 INC := kernel_interface.h user_interface_sgio.h diskinfo.h cdb_manip.h sense.h \
-	pvfs_iface.h
+	generic_iface.h
 OBJ := $(SRC:.c=.o)
 LIB := libosd.a
 

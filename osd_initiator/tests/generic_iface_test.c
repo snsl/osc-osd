@@ -16,12 +16,12 @@
 #include "diskinfo.h"
 #include "cdb_manip.h"
 
-#include "pvfs_iface.h"
+#include "generic_iface.h"
 
 #define PVFS_OSD_PID 0x10003ULL
 static const int OBJ_CAPACITY = 1<<30; /* 1 GB */
 
-struct pvfs_osd opaque_handle;
+struct gen_osd opaque_handle;
 int drive_id;
 
 
@@ -34,7 +34,7 @@ void init(void)
 {
 	int ret;
 	printf("Initialization\n");
-	ret = pvfs_osd_init_drives(&opaque_handle);
+	ret = gen_osd_init_drives(&opaque_handle);
 	if (ret == 0){
 		printf("Can't init drives\n");
 		exit(1);
@@ -42,14 +42,14 @@ void init(void)
 
 	printf("Found %d Drives Now open a drive\n", ret);
 	drive_id = 0;  /*First drive*/
-	ret = pvfs_osd_open_drive(&opaque_handle, drive_id);
+	ret = gen_osd_open_drive(&opaque_handle, drive_id);
 	if (ret != 0){
 		printf("Unable to open drive\n");
 		exit(1);
 	}
 
 	printf("Drive opened making active\n");
-	ret = pvfs_osd_select_drive(&opaque_handle, drive_id);
+	ret = gen_osd_select_drive(&opaque_handle, drive_id);
 	if (ret != 0){
 		printf("Unable to select drive\n");
 		exit(1);
@@ -104,7 +104,7 @@ void fini(void)
 {
 	int ret;
 	printf("Close the drive\n");
-	ret = pvfs_osd_close_drive(&opaque_handle, drive_id);
+	ret = gen_osd_close_drive(&opaque_handle, drive_id);
 	if (ret != 0){
 		printf("Unable to close drive\n");
 		exit(1);

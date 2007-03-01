@@ -1,22 +1,22 @@
-#ifndef pvfs_iface_hdr
-#define pvfs_iface_hdr
+#ifndef generic_iface_hdr
+#define generic_iface_hdr
 
 
 #define MAX_DRIVES 100
 
 
 #if 1
-#define pvs_osd_iface_debug 10
-#define pvfs_osd_debug(lvl,fmt,args...) \
+#define gen_osd_iface_debug 10
+#define gen_osd_debug(lvl,fmt,args...) \
     do { \
-	if (lvl <= pvs_osd_iface_debug) \
+	if (lvl <= gen_osd_iface_debug) \
 	    printf("DEBUG: " fmt "\n", ##args);\
     } while (0)
 #else
-#  define pvfs_osd_debug(lvl,fmt,...) do { } while (0)
+#  define gen_osd_debug(lvl,fmt,...) do { } while (0)
 #endif
 
-struct pvfs_osd {
+struct gen_osd {
 	struct osd_command osd_cmd;
 	struct osd_drive_description *drives;
 	int fd_array[MAX_DRIVES];
@@ -45,15 +45,15 @@ typedef enum{
 
 }osd_cmd_val;
 
-int pvfs_osd_init_drives(struct pvfs_osd *shared);
-int pvfs_osd_open_drive(struct pvfs_osd *shared, int index);
-int pvfs_osd_select_drive(struct pvfs_osd *shared, int index);
-int pvfs_osd_close_drive(struct pvfs_osd *shared, int index);
+int gen_osd_init_drives(struct gen_osd *shared);
+int gen_osd_open_drive(struct gen_osd *shared, int index);
+int gen_osd_select_drive(struct gen_osd *shared, int index);
+int gen_osd_close_drive(struct gen_osd *shared, int index);
 
-int cmd_set(struct pvfs_osd *shared, osd_cmd_val cmd, void *attrs);
+int cmd_set(struct gen_osd *shared, osd_cmd_val cmd, void *attrs);
 int cmd_modify(void);
-int cmd_submit(struct pvfs_osd *shared);
-int cmd_get_res(struct pvfs_osd *shared, struct cmd_result *res);
+int cmd_submit(struct gen_osd *shared);
+int cmd_get_res(struct gen_osd *shared, struct cmd_result *res);
 
 inline void cmd_free_res(struct cmd_result *res);
 void cmd_show_error(struct cmd_result *res);

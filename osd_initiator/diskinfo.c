@@ -48,7 +48,6 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	char buf[512];
 	char *chardev, *serial;
 
-#ifdef USE_BSG
 	/*
 	 * Walk through /dev/bsg/ to find available devices.  Could look
 	 * through /sys/class/bsg, but would have to create each device
@@ -56,10 +55,6 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	 * in /dev anyway.
 	 */
 	DIR *toplevel = opendir("/dev/bsg");
-#else
-	/* Walk along sysfs looking for the drives */
-	DIR *toplevel = opendir("/sys/class/scsi_generic");
-#endif
 	if (!toplevel)
 		goto out;
 
@@ -78,15 +73,9 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	while ((entry = readdir(toplevel))) {
 		int type;
 
-#ifdef USE_BSG
 		snprintf(buf, sizeof(buf),
 		         "/sys/class/scsi_device/%s/device/type",
 		         entry->d_name);
-#else
-		snprintf(buf, sizeof(buf),
-		         "/sys/class/scsi_generic/%s/device/type",
-		         entry->d_name);
-#endif
 		fd = open(buf, O_RDONLY);
 		if (fd < 0)
 			continue;
@@ -99,11 +88,7 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 		if (type != 17)  /* TYPE_OSD */
 			continue;
 
-#ifdef USE_BSG
 		sprintf(buf, "/dev/bsg/%s", entry->d_name);
-#else
-		sprintf(buf, "/dev/%s", entry->d_name);
-#endif
 
 		fd = open(buf, O_RDWR);
 		if (fd <= 0)

@@ -90,27 +90,62 @@ int cmd_set(struct gen_osd_cmd *shared, osd_cmd_val cmd, void *attrs)
 	/*Trusting codes not to pass in something nasty in attrs*/
 	struct partition_attrs *part;
 	struct format_attrs *format;
+	struct object_attrs *object;
+	struct io_attrs *write, *read;
 
 	memset(&(shared->osd_cmd), 0, sizeof(shared->osd_cmd));
+	shared->osd_cmd.cdb_len = OSD_CDB_SIZE;
 
 	switch (cmd) {
 	case CREATE_PART:
-		gen_osd_debug(5, "Create partition");
 		part = attrs;
-		shared->osd_cmd.cdb_len = OSD_CDB_SIZE;
-		set_cdb_osd_create_partition(shared->osd_cmd.cdb, part->pid);
-		break;
+		gen_osd_debug(5, "%s: Create partition %ld", __func__, part->pid);
+		return set_cdb_osd_create_partition(shared->osd_cmd.cdb, part->pid);
 	case FORMAT:
-		gen_osd_debug(5, "Format");
 		format = attrs;
-		shared->osd_cmd.cdb_len = OSD_CDB_SIZE;
-		set_cdb_osd_format_osd(shared->osd_cmd.cdb, format->capacity);
-		break;
+		gen_osd_debug(5, "%s: Format", __func__);
+		return set_cdb_osd_format_osd(shared->osd_cmd.cdb, format->capacity);
+	case CREATE_OBJECT:
+		object = attrs;
+		/*TODO: Need to take in args for setting attributes*/
+		if(object->count > 0)
+			gen_osd_debug(5, "%s: Creating %d objects in partition %ld",
+					__func__, object->count, object->pid);
+		else
+			gen_osd_debug(5, "%s: Create Object %ld.%ld",
+					__func__, object->pid, object->oid);
+		return set_cdb_osd_create(shared->osd_cmd.cdb, object->pid,
+					object->oid, object->count);
+	case REMOVE_OBJECT:
+		object = attrs;
+		gen_osd_debug(5, "%s: Remove Object %ld.%ld",
+					__func__, object->pid, object->oid);
+		return set_cdb_osd_remove(shared->osd_cmd.cdb, object->pid,
+				object->oid);
+	case WRITE:
+		write = attrs;
+		gen_osd_debug(5, "%s: Writing %ld bytes to offset %ld of %ld.%ld",
+				__func__, write->len, write->offset, write->pid,
+				write->oid );
+		shared->osd_cmd.outdata = write->write_buf;
+		shared->osd_cmd.outlen	= write->len;
+		return set_cdb_osd_write(shared->osd_cmd.cdb, write->pid,
+					write->oid, write->len, write->offset);
+	case READ:
+		read = attrs;
+		gen_osd_debug(5, "%s: Reading %ld bytes at offset %ld of %ld.%ld",
+				__func__, read->len, read->offset, read->pid,
+				read->oid );
+		shared->osd_cmd.outdata = read->read_buf;
+		shared->osd_cmd.outlen	= read->len;
+		return set_cdb_osd_read(shared->osd_cmd.cdb, read->pid,
+					read->oid, read->len, read->offset);
+
+
 	default:
 		return -EINVAL;
 	}
 
-	return 0;
 }
 
 
@@ -178,8 +213,9 @@ inline void cmd_free_res(struct cmd_result *res)
 	free(res->resp_data);  /*free is a void fun so nothing to return*/
 }
 
-void cmd_show_error(struct cmd_result *res)
+inline void cmd_show_error(struct cmd_result *res)
 {
-	printf("Stuff in %s will print the result of the sense data and cmd status\n", __func__);
+	osd_show_sense(res->sense_data, res->sense_len);
+	//~ osd_show_scsi_code(res->command_status);  /*implement this in sense.c since all funcs in there are static*/
 
 }

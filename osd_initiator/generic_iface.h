@@ -34,6 +34,21 @@ struct format_attrs {
 	uint32_t capacity;
 };
 
+struct object_attrs {
+	uint64_t oid;
+	uint64_t pid;
+	uint16_t count;
+};
+
+struct io_attrs {
+	uint64_t oid;
+	uint64_t pid;
+	size_t   len;
+	uint64_t offset;
+	void *write_buf;
+	void *read_buf;
+};
+
 struct cmd_result {
 	uint32_t 	sense_len;
 	uint8_t 	command_status;
@@ -45,7 +60,10 @@ struct cmd_result {
 typedef enum{
 	CREATE_PART = 1,
 	FORMAT,
-
+	CREATE_OBJECT,
+	REMOVE_OBJECT,
+	WRITE,
+	READ,
 }osd_cmd_val;
 
 int gen_osd_init_drives(struct gen_osd_drive_list *drive_list);
@@ -60,5 +78,5 @@ int cmd_submit(struct gen_osd_cmd *shared);
 int cmd_get_res(struct gen_osd_cmd *shared, struct cmd_result *res);
 
 inline void cmd_free_res(struct cmd_result *res);
-void cmd_show_error(struct cmd_result *res);
+inline void cmd_show_error(struct cmd_result *res);
 #endif

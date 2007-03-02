@@ -36,16 +36,12 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 	if (command->outlen) {
 		sg.dout_xfer_len = command->outlen;
 		sg.dout_xferp = (uint64_t) (uintptr_t) command->outdata;
-#ifdef BSG_TESTING_IOVEC
 		sg.dout_iovec_count = command->iov_outlen;
-#endif
 	}
 	if (command->inlen_alloc) {
 		sg.din_xfer_len = command->inlen_alloc;
 		sg.din_xferp = (uint64_t) (uintptr_t) command->indata;
-#ifdef BSG_TESTING_IOVEC
 		sg.din_iovec_count = command->iov_inlen;
-#endif
 	}
 	sg.timeout = 3000;
 	sg.usr_ptr = (uint64_t) (uintptr_t) command;

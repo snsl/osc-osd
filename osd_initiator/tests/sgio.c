@@ -97,7 +97,7 @@ static int osd_command_build_attr_list(struct osd_command *command,
 }
 
 
-static int bidi_test(int fd)
+static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 {
 	int ret;
 	struct osd_command command;
@@ -109,7 +109,8 @@ static int bidi_test(int fd)
 	};
 	uint8_t *p;
 
-	ret = osd_command_get_attributes(&command, PID, OID);
+	osd_info(__func__);
+	ret = osd_command_get_attributes(&command, pid, oid);
 	if (ret) {
 		osd_error_xerrno(ret, "%s: get_attributes failed", __func__);
 		return 1;
@@ -163,36 +164,104 @@ static int bidi_test(int fd)
 	}
 
 	logical_length = ntohll(&p[14]);
-	printf("%s: logical length 0x%016llx\n", __func__, llu(logical_length));
+	printf("%s: logical length 0x%016llx\n\n", __func__,
+	       llu(logical_length));
 	free(command.indata);
 	free((void *)(uintptr_t) command.outdata);
 	return 0;
 }
 
-static void iovec_test(int fd)
+static void iovec_write_test(int fd, uint64_t pid, uint64_t oid)
 {
 	struct osd_command command;
-	const char buf1[] = "Start of the data.";
-	const char buf2[] = "  And some more data.";
+	const char buf1[] = "If iovec_write_test works,";
+	const char buf2[] = " you will see this sentence.";
+	char bufout[200];
 	struct bsg_iovec vec[2];
 	size_t tot_len;
 	int ret;
 
+	osd_info(__func__);
 	vec[0].iov_base = (uint64_t)(uintptr_t) buf1;
-	vec[0].iov_len = sizeof(buf1);
+	vec[0].iov_len = sizeof(buf1)-1;
 	vec[1].iov_base = (uint64_t)(uintptr_t) buf2;
 	vec[1].iov_len = sizeof(buf2);
-	tot_len = sizeof(buf1) + sizeof(buf2);
+	tot_len = sizeof(buf1)-1 + sizeof(buf2);
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_write(command.cdb, PID, OID, tot_len, 0);
+	set_cdb_osd_write(command.cdb, pid, oid, tot_len, 0);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.outlen = tot_len;
 	command.outdata = vec;
 	command.iov_outlen = 2;
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret) {
+		osd_error("%s: submit_and_wait failed", __func__);
+		return;
+	}
+	printf("%s: seemed to work\n", __func__);
+
+	/* read it back, non-iov */
+	memset(&command, 0, sizeof(command));
+	memset(bufout, 0, sizeof(bufout));
+	set_cdb_osd_read(command.cdb, pid, oid, sizeof(bufout), 0);
+	command.cdb_len = OSD_CDB_SIZE;
+	command.inlen_alloc = sizeof(bufout);
+	command.indata = bufout;
+
+	ret = osd_sgio_submit_and_wait(fd, &command);
 	if (ret)
 		osd_error("%s: submit_and_wait failed", __func__);
+	printf("%s: read some bytes (%lu): %s\n\n", __func__,
+	       command.inlen, bufout);
+}
+
+static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
+{
+	struct osd_command command;
+	const char bufout[] = "A big line of data for iovec_read_test to get.";
+	char buf1[21];
+	char buf2[100];
+	struct bsg_iovec vec[2];
+	size_t tot_len;
+	int ret;
+
+	/* write it, non-iov */
+	osd_info(__func__);
+	memset(&command, 0, sizeof(command));
+	set_cdb_osd_write(command.cdb, pid, oid, sizeof(bufout), 0);
+	command.cdb_len = OSD_CDB_SIZE;
+	command.outlen = sizeof(bufout);
+	command.outdata = bufout;
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret) {
+		osd_error("%s: submit_and_wait failed", __func__);
+		return;
+	}
+
+	memset(buf1, 0, sizeof(buf1));
+	memset(buf2, 0, sizeof(buf2));
+	vec[0].iov_base = (uint64_t)(uintptr_t) buf1;
+	vec[0].iov_len = sizeof(buf1)-1;
+	vec[1].iov_base = (uint64_t)(uintptr_t) buf2;
+	vec[1].iov_len = sizeof(buf2);
+	tot_len = sizeof(buf1)-1 + sizeof(buf2);
+	memset(&command, 0, sizeof(command));
+	set_cdb_osd_read(command.cdb, pid, oid, tot_len, 0);
+	command.cdb_len = OSD_CDB_SIZE;
+	command.inlen_alloc = tot_len;
+	command.indata = vec;
+	command.iov_inlen = 2;
+
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	if (ret) {
+		osd_error("%s: submit_and_wait failed", __func__);
+		return;
+	}
+
+	buf1[sizeof(buf1)-1] = '\0';  /* terminate partial string */
+	printf("%s: read some bytes (%lu): %s + %s\n\n", __func__,
+	       command.inlen, buf1, buf2);
 }
 
 int main(int argc, char *argv[])
@@ -225,13 +294,14 @@ int main(int argc, char *argv[])
 		inquiry_sgio(fd);
 
 		/*
-		 * Clean the slate and make one partition.
+		 * Clean the slate and make one partition.  Nothing works
+		 * without a partition to put things into.
 		 */
 		format_osd_sgio(fd, OBJ_CAPACITY); 
 		create_partition_sgio(fd, PID);
 
 
-#if 0           /* These are all supposed to fail, for various reasons. */
+#if 1           /* These are all supposed to fail, for various reasons. */
 		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
 		flush_osd_sgio(fd, FLUSH_SCOPE);
 #endif
@@ -250,12 +320,21 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if 0           /* Testing iovec list. */
-		iovec_test(fd);
+#if 1           /* Testing iovec list. */
+		create_osd_sgio(fd, PID, OID+3, 1);
+		create_osd_sgio(fd, PID, OID+4, 1);
+
+		iovec_write_test(fd, PID, OID+3);
+		iovec_read_test(fd, PID, OID+4);
+
+		remove_osd_sgio(fd, PID, OID+3);
+		remove_osd_sgio(fd, PID, OID+4);
 #endif
 
-#if 0           /* Testing bidirectional operations. */
-		bidi_test(fd);
+#if 1           /* Testing bidirectional operations. */
+		create_osd_sgio(fd, PID, OID+5, 1);
+		bidi_test(fd, PID, OID+5);
+		remove_osd_sgio(fd, PID, OID+5);
 #endif
 
 

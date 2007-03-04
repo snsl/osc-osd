@@ -49,3 +49,5 @@ void set_htonoffset_le(uint8_t *x, uint64_t val);
 #define set_htonll     set_htonll_le
 #define set_htonoffset set_htonoffset_le
 
+#define __unused __attribute__((unused))
+

@@ -16,9 +16,9 @@ COPTS := -g -fPIC
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \
 	-Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
+CFLAGS := $(COPTS) $(CWARN) -I..
 CFLAGS += -I/usr/src/kernel/linux/include
-#CFLAGS += -I/usr/src/kernel/pw/include -DTESTING_IOVEC
+#CFLAGS += -I/usr/src/kernel/pw/include
 
 all:: $(LIB) $(OBJ)
 

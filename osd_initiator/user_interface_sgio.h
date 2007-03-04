@@ -5,6 +5,7 @@ struct attribute_id {
         uint32_t page;
         uint32_t number;
         uint16_t len;
+	void *tag;
 };
 
 /* Queries */
@@ -37,5 +38,11 @@ int set_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid, const struct 
 /* List */
 int object_list_sgio(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid);
 int collection_list_sgio(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid);
+
+int osd_command_attr_build(struct osd_command *command,
+                           struct attribute_id *attrs, int num);
+uint8_t *osd_command_attr_resolve(struct osd_command *command,
+                                  struct attribute_id *attrs, int num,
+			          int index);
 
 #endif

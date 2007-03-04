@@ -46,7 +46,7 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	struct dirent *entry;
 	int count = 0, fd;
 	char buf[512];
-	char *chardev, *serial;
+	char *serial;
 
 	/*
 	 * Walk through /dev/bsg/ to find available devices.  Could look
@@ -115,7 +115,6 @@ out:
 
 void osd_free_drive_list(struct osd_drive_description *drives, int num_drives)
 {
-	struct osd_drive_description *iter;
 	int i;
 
 	for (i=0; i<num_drives; i++) {

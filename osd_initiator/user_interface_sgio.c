@@ -528,3 +528,118 @@ int collection_list_sgio(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, u
 
 	return 0;
 }
+
+/*
+ * Assume an empty command with no data, no retrieved offset, etc.
+ * Build an attributes list, including allocating in and out space,
+ * and alter the CDB.
+ */
+int osd_command_attr_build(struct osd_command *command,
+                           struct attribute_id *attrs, int num)
+{
+    const uint32_t list_offset = 0, retrieved_offset = 0;
+    uint32_t list_len, alloc_len;
+    uint8_t *attr_list;
+    int i;
+
+    /* must fit in 2-byte list length field */
+    if (num * 8 >= (1 << 16))
+	return -EOVERFLOW;
+
+    /*
+     * Build the list that requests the attributes
+     */
+    list_len = 4 + num * 8;
+    command->outlen = list_len;
+    attr_list = malloc(command->inlen_alloc);
+    if (!attr_list)
+    	return -ENOMEM;
+    command->outdata = attr_list;
+
+    attr_list[0] = 0x1;  /* list type: retrieve attributes */
+    attr_list[1] = 0;
+    set_htons(&attr_list[2], num*8);
+    for (i=0; i<num; i++) {
+	set_htonl(&attr_list[4 + i*8 + 0], attrs[i].page);
+	set_htonl(&attr_list[4 + i*8 + 4], attrs[i].number);
+    }
+
+    /*
+     * Allocate space for where they will end up when returned.  Apparently
+     * no padding here, just squeezed together exactly, with a 10-byte
+     * header on each one.  Whole thing is preceded by the usual 4-byte
+     * Table 126 list header.
+     */
+    alloc_len = 4;
+    for (i=0; i<num; i++)
+	alloc_len += 10 + attrs[i].len;
+
+    command->inlen_alloc = alloc_len;
+    command->indata = malloc(command->inlen_alloc);
+    if (!command->indata)
+	return -ENOMEM;
+
+    /* Set the CDB bits to point appropriately. */
+    set_cdb_get_attr_list(command->cdb, list_len, list_offset, alloc_len,
+                          retrieved_offset);
+
+    return 0;
+}
+
+/*
+ * Return a pointer to the returned attribute data.  Maybe do verify as
+ * a separate test and have this just be quick.
+ */
+uint8_t *osd_command_attr_resolve(struct osd_command *command,
+                                  struct attribute_id *attrs, int num,
+			          int index)
+{
+	uint32_t list_len;
+	uint8_t *p;
+	int i;
+
+	p = command->indata;
+	list_len = 4;
+	for (i=0; i<num; i++)
+		list_len += 10 + attrs[i].len;
+
+	if (command->inlen != list_len) {
+		osd_error("%s: expecting %u bytes, got %zu, [0] = %02x",
+		          __func__, list_len, command->inlen, p[0]);
+		return NULL;
+	}
+	if ((p[0] & 0xf) != 0x9) {
+		osd_error("%s: expecting list type 9, got 0x%x", __func__,
+		          p[0] & 0xf);
+		return NULL;
+	}
+	if (ntohs(&p[2]) != command->inlen - 4) {
+		osd_error("%s: expecting list length %zu, got %u", __func__,
+		          command->inlen - 4, ntohs(&p[2]));
+		return NULL;
+	}
+
+	p += 4;
+	for (i=0; i<num; i++) {
+		if (ntohl(&p[0]) != attrs[i].page) {
+			osd_error("%s: expecting page %x, got %x", __func__,
+				  attrs[i].page, ntohl(&p[0]));
+			return NULL;
+		}
+		if (ntohl(&p[4]) != attrs[i].number) {
+			osd_error("%s: expecting number %x, got %x", __func__,
+				  attrs[i].page, ntohl(&p[4]));
+			return NULL;
+		}
+		if (ntohs(&p[8]) != attrs[i].len) {
+			osd_error("%s: expecting length %u, got %u", __func__,
+				  attrs[i].len, ntohs(&p[8]));
+			return NULL;
+		}
+	    	if (i == index)
+			return &p[10];
+	}
+	osd_error("%s: attribute %d out of range", __func__, index);
+	return NULL;
+}
+

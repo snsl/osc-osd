@@ -20,7 +20,7 @@
 
 /* cdb initialization / manipulation functions */
 
-void cdb_build_inquiry(uint8_t *cdb, uint8_t outlen)
+void cdb_build_inquiry(uint8_t *cdb, uint8_t outlen __unused)
 {
 	memset(cdb, 0, 6);
 	cdb[0] = INQUIRY;
@@ -203,13 +203,13 @@ int set_cdb_osd_list_collection(uint8_t *cdb, uint64_t pid, uint64_t cid,  /*sec
         return 0;
 }
 
-int set_cdb_osd_perform_scsi_command(uint8_t *cdb)
+int set_cdb_osd_perform_scsi_command(uint8_t *cdb __unused)
 {
         osd_error("%s: unimplemented", __func__);
         return 1;
 }
 
-int set_cdb_osd_perform_task_mgmt_func(uint8_t *cdb)
+int set_cdb_osd_perform_task_mgmt_func(uint8_t *cdb __unused)
 {
         osd_error("%s: unimplemented", __func__);
         return 1;
@@ -339,6 +339,7 @@ int set_cdb_osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
 
 /*
  * Attribute list get/set functions.
+ * XXX: the offsets here should be of weird offset type.
  */
 void set_cdb_get_attr_page(uint8_t *cdb, uint32_t page, uint32_t len,
                            uint32_t retrieved_offset)

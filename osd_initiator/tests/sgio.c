@@ -39,64 +39,6 @@ static int osd_command_get_attributes(struct osd_command *command,
 	return 0;
 }
 
-/*
- * Assume an empty command with no data, no retrieved offset, etc.
- * Build an attributes list, including allocating in and out space,
- * and alter the CDB.
- */
-static int osd_command_build_attr_list(struct osd_command *command,
-                                       struct attribute_id *attrs, int num)
-{
-    const uint32_t list_offset = 0, retrieved_offset = 0;
-    uint32_t list_len, alloc_len;
-    uint8_t *attr_list;
-    int i;
-
-    /* must fit in 2-byte list length field */
-    if (num * 8 >= (1 << 16))
-	return -EOVERFLOW;
-
-    /*
-     * Build the list that requests the attributes
-     */
-    list_len = 4 + num * 8;
-    command->outlen = list_len;
-    attr_list = malloc(command->inlen_alloc);
-    if (!attr_list)
-    	return -ENOMEM;
-    command->outdata = attr_list;
-
-    attr_list[0] = 0x1;  /* list type: retrieve attributes */
-    attr_list[1] = 0;
-    set_htons(&attr_list[2], num*8);
-    for (i=0; i<num; i++) {
-	set_htonl(&attr_list[4 + i*8 + 0], attrs[i].page);
-	set_htonl(&attr_list[4 + i*8 + 4], attrs[i].number);
-    }
-
-    /*
-     * Allocate space for where they will end up when returned.  Apparently
-     * no padding here, just squeezed together exactly, with a 10-byte
-     * header on each one.  Whole thing is preceded by the usual 4-byte
-     * Table 126 list header.
-     */
-    alloc_len = 4;
-    for (i=0; i<num; i++)
-	alloc_len += 10 + attrs[i].len;
-
-    command->inlen_alloc = alloc_len;
-    command->indata = malloc(command->inlen_alloc);
-    if (!command->indata)
-	return -ENOMEM;
-
-    /* Set the CDB bits to point appropriately. */
-    set_cdb_get_attr_list(command->cdb, list_len, list_offset, alloc_len,
-                          retrieved_offset);
-
-    return 0;
-}
-
-
 static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 {
 	int ret;
@@ -115,9 +57,9 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 		osd_error_xerrno(ret, "%s: get_attributes failed", __func__);
 		return 1;
 	}
-	ret = osd_command_build_attr_list(&command, &id, 1);
+	ret = osd_command_attr_build(&command, &id, 1);
 	if (ret) {
-		osd_error_xerrno(ret, "%s: build_attr_list failed", __func__);
+		osd_error_xerrno(ret, "%s: attr_build failed", __func__);
 		return 1;
 	}
 	memset(command.indata, 0xaa, command.inlen_alloc);
@@ -130,40 +72,10 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 	       command.status, command.sense_len, command.inlen);
 
 	/* verify retrieved list */
-	p = command.indata;
 	osd_hexdump(command.indata, command.inlen_alloc);
-	if (command.inlen != 4 + 10u + id.len) {
-		osd_error("%s: expecting %u bytes, got %zu, [0] = %02x",
-		          __func__, 4 + 10u + id.len, command.inlen, p[0]);
-		return 1;
-	}
-	if ((p[0] & 0xf) != 0x9) {
-		osd_error("%s: expecting list type 9, got 0x%x", __func__,
-		          p[0] & 0xf);
-		return 1;
-	}
-	if (ntohs(&p[2]) != command.inlen - 4) {
-		osd_error("%s: expecting list length %zu, got %u", __func__,
-		          command.inlen - 4, ntohs(&p[2]));
-		return 1;
-	}
-	if (ntohl(&p[4]) != id.page) {
-		osd_error("%s: expecting page %x, got %x", __func__,
-		          id.page, ntohl(&p[4]));
-		return 1;
-	}
-	if (ntohl(&p[8]) != id.number) {
-		osd_error("%s: expecting number %x, got %x", __func__,
-		          id.page, ntohl(&p[8]));
-		return 1;
-	}
-	if (ntohs(&p[12]) != id.len) {
-		osd_error("%s: expecting length %u, got %u", __func__,
-		          id.len, ntohs(&p[12]));
-		return 1;
-	}
+	p = osd_command_attr_resolve(&command, &id, 1, 0);
 
-	logical_length = ntohll(&p[14]);
+	logical_length = ntohll(p);
 	printf("%s: logical length 0x%016llx\n\n", __func__,
 	       llu(logical_length));
 	free(command.indata);

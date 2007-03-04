@@ -12,6 +12,7 @@
  */
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include <sys/types.h>
 #include "util/util.h"
 #include "sense.h"
@@ -25,6 +26,7 @@
 #define SERVICE_ACTION_OUT_16 0x9f
 #define VARIABLE_LENGTH_CMD 0x7f
 
+#if 0
 static const char *scsi_status_string(unsigned char scsi_status)
 {
 	const char *ccp;
@@ -45,6 +47,7 @@ static const char *scsi_status_string(unsigned char scsi_status)
 	}
 	return ccp;
 }
+#endif
 
 /* description of the sense key values */
 static const char *const snstext[] = {
@@ -73,7 +76,7 @@ static const char *sense_key_string(unsigned char key)
 {
 	if (key <= 0xE)
 		return snstext[key];
-	return "Unknown sense key";
+	return NULL;
 }
 
 struct error_info {
@@ -806,71 +809,135 @@ static const char *asc_ascq_string(unsigned char asc, unsigned char ascq)
 		    additional2[i].code2_min >= ascq &&
 		    additional2[i].code2_max <= ascq)
 			return additional2[i].fmt;
-	return "Unknown asc/ascq";
+	return NULL;
+}
+
+/*
+ * Additional sense descriptors, see 4.14.2.1 page 62 and thereabouts.
+ */
+static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
+                                  int addl_len)
+{
+	int pos = *ppos;
+	int len = 0;
+
+	if (info[0] == 0x6) {
+		uint64_t pid, oid;
+		if (info[1]+2 != 32) {
+			pos += sprintf(s+pos, "invalid info length %d\n",
+				       info[1]);
+			goto out;
+		}
+		if (addl_len < 32) {
+			pos += sprintf(s+pos,
+			               "insufficient senselen %d for info\n",
+				       addl_len);
+			goto out;
+		}
+		len = 32;
+		/* ignore not_init and completed funcs */
+		pid = ntohll(&info[16]);
+		oid = ntohll(&info[24]);
+		pos += sprintf(s+pos, "Offending pid 0x%016lx oid 0x%016lx\n",
+			       pid, oid);
+	}
+
+	if (info[0] == 0x8) {
+		int i;
+		if (addl_len < info[1]+1) {
+			pos += sprintf(s+pos,
+			               "insufficient senselen %d for attr %d\n",
+				       addl_len, info[1]+1);
+			goto out;
+		}
+		if ((info[1]+1-4) % 8 != 0) {
+			pos += sprintf(s+pos, "info len %d not 4 + N * 8\n",
+				       info[1]+1);
+			goto out;
+		}
+		len = info[1]+1;
+		for (i=0; i<len; i+=8) {
+			uint32_t page = ntohl(&info[i*8+0]);
+			uint32_t number = ntohl(&info[i*8+4]);
+			pos += sprintf(s+pos, "Offending attribute"
+			               " page 0x%08x number 0x%08x\n",
+				       page, number);
+		}
+	}
+
+	/* consider adding attribute identification */
+out:
+	*ppos = pos;
+	return len;
 }
 
 /*
  * Possibly debugging support.  Parse and print out interesting bits of the
- * sense (i.e. error) message returned from the target.
+ * sense (i.e. error) message returned from the target.  Returned in a new
+ * string.
  *
  * OSD sense is always descriptor format.
- *
- * Maybe convert this to print into a string rather than stdout.
  */
-void osd_show_sense(const uint8_t *sense, int len)
+char *osd_show_sense(const uint8_t *sense, int len)
 {
 	uint8_t code, key, asc, ascq, additional_len;
 	int deferred;
-	uint64_t pid, oid;
 	const char *keystr, *ascstr;
 	const uint8_t *info;
+	char s[1024];
+	int pos;
 
 	if (len < 8) {
-		printf("%s: sense length too short\n", __func__);
-		return;
+		sprintf(s, "sense length too short\n");
+		goto out;
 	}
 	code = sense[0];
 	if ((code & 0x72) != 0x72) {
-		printf("%s: code 0x%02x not expected 0x72 or 0x73\n",
-		       __func__, code);
-		return;
+		sprintf(s, "code 0x%02x not expected 0x72 or 0x73\n", code);
+		goto out;
 	}
 	deferred = code & 1;
 	key = sense[1];
 	asc = sense[2];
 	ascq = sense[3];
 
+	pos = 0;
+	if (deferred)
+		pos += sprintf(s+pos, "[deferred] ");
+
 	keystr = sense_key_string(key);
+	if (keystr)
+		pos += sprintf(s+pos, "%s: ", keystr);
+	else
+		pos += sprintf(s+pos, "Unknown sense key 0x%02x: ", key);
+
 	ascstr = asc_ascq_string(asc, ascq);
-	printf("%s: %skey 0x%02x %s asc 0x%02x ascq 0x%02x %s\n", __func__,
-	       deferred ? "[deferred] ":"", key, keystr, asc, ascq, ascstr);
+	if (ascstr)
+	    pos += sprintf(s+pos, "%s\n", ascstr);
+	else
+	    pos += sprintf(s+pos, "Unknown asc/ascq\n");
 
 	additional_len = sense[7];
 	if (additional_len < 32) {
-		printf("%s: additional len %d not enough for OSD info\n",
-		       __func__, additional_len);
-		return;
+		sprintf(s+pos, "additional len %d not enough for OSD info\n",
+		       	additional_len);
+		goto out;
 	}
 
-	/* see 4.14.2.1 page 62 */
 	info = sense + 8;
-	if (info[0] != 0x6) {
-		printf("%s: unexpected data descriptor type 0x%02x\n",
-		       __func__, info[0]);
-		return;
+	while (additional_len > 0) {
+		int len = sense_parse_descriptor(s, &pos, info, additional_len);
+		if (len == 0)
+			break;
+		info += len;
+		additional_len -= len;
 	}
-	if (info[1] != 0x1e) {
-		printf("%s: invalid info length 0x%02x\n", __func__, info[1]);
-		return;
-	}
-	/* ignore not_init and completed funcs */
-	pid = ntohll(&info[16]);
-	oid = ntohll(&info[24]);
-	printf("%s: offending pid 0x%016lx oid 0x%016lx\n", __func__, pid, oid);
 
-	if (additional_len > 32)
-		printf("%s: other sense descriptors not shown\n", __func__);
+	if (additional_len > 0)
+		sprintf(s+pos, "Descriptor type 0x%02x len %d not shown.\n",
+		        info[0], additional_len);
 
-	/* consider adding attribute identification */
+out:
+	return strdup(s);
 }
 

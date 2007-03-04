@@ -13,8 +13,6 @@
 #include "osd_initiator/osd_cmds.h"
 #include "osd_initiator/sense.h"
 
-#define __unused __attribute__((unused))
-
 /*
  * OSDDrive type.
  */

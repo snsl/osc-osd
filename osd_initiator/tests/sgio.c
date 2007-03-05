@@ -12,9 +12,9 @@
 
 #include "util/util.h"
 #include "kernel_interface.h"
-#include "user_interface_sgio.h"
 #include "diskinfo.h"
 #include "cdb_manip.h"
+#include "user_interface_sgio.h"
 
 static const uint64_t PID = 0x10000LLU;
 static const uint64_t OID = 0x10000LLU;
@@ -29,16 +29,6 @@ static const char WRITEDATA[] = "Write some data";
 static const char WRITEDATA2[] = "Test #2";
 static const char WRITEDATA3[] = "write data 3";
 
-static int osd_command_get_attributes(struct osd_command *command,
-                                      uint64_t pid, uint64_t oid)
-{
-	memset(command, 0, sizeof(*command));
-	set_cdb_osd_get_attributes(command->cdb, pid, oid);
-	command->cdb_len = OSD_CDB_SIZE;
-	command->sense_len = OSD_MAX_SENSE;
-	return 0;
-}
-
 static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 {
 	int ret;
@@ -52,7 +42,7 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 	uint8_t *p;
 
 	osd_info(__func__);
-	ret = osd_command_get_attributes(&command, pid, oid);
+	ret = osd_command_set_get_attributes(&command, pid, oid);
 	if (ret) {
 		osd_error_xerrno(ret, "%s: get_attributes failed", __func__);
 		return 1;
@@ -104,7 +94,7 @@ static void iovec_write_test(int fd, uint64_t pid, uint64_t oid)
 	vec[1].iov_len = sizeof(buf2);
 	tot_len = sizeof(buf1)-1 + sizeof(buf2);
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_write(command.cdb, pid, oid, tot_len, 0);
+	osd_command_set_write(&command, pid, oid, tot_len, 0);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.outlen = tot_len;
 	command.outdata = vec;
@@ -120,7 +110,7 @@ static void iovec_write_test(int fd, uint64_t pid, uint64_t oid)
 	/* read it back, non-iov */
 	memset(&command, 0, sizeof(command));
 	memset(bufout, 0, sizeof(bufout));
-	set_cdb_osd_read(command.cdb, pid, oid, sizeof(bufout), 0);
+	osd_command_set_read(&command, pid, oid, sizeof(bufout), 0);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.inlen_alloc = sizeof(bufout);
 	command.indata = bufout;
@@ -145,7 +135,7 @@ static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
 	/* write it, non-iov */
 	osd_info(__func__);
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_write(command.cdb, pid, oid, sizeof(bufout), 0);
+	osd_command_set_write(&command, pid, oid, sizeof(bufout), 0);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.outlen = sizeof(bufout);
 	command.outdata = bufout;
@@ -163,7 +153,7 @@ static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
 	vec[1].iov_len = sizeof(buf2);
 	tot_len = sizeof(buf1)-1 + sizeof(buf2);
 	memset(&command, 0, sizeof(command));
-	set_cdb_osd_read(command.cdb, pid, oid, tot_len, 0);
+	osd_command_set_read(&command, pid, oid, tot_len, 0);
 	command.cdb_len = OSD_CDB_SIZE;
 	command.inlen_alloc = tot_len;
 	command.indata = vec;
@@ -207,62 +197,62 @@ int main(int argc, char *argv[])
 			return 1;
 		}
 
-		inquiry_sgio(fd);
+		inquiry(fd);
 
 		/*
 		 * Clean the slate and make one partition.  Nothing works
 		 * without a partition to put things into.
 		 */
-		format_osd_sgio(fd, OBJ_CAPACITY); 
-		create_partition_sgio(fd, PID);
+		format_osd(fd, OBJ_CAPACITY); 
+		create_partition(fd, PID);
 
 
 #if 1           /* These are all supposed to fail, for various reasons. */
-		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
-		flush_osd_sgio(fd, FLUSH_SCOPE);
+		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
+		flush_osd(fd, FLUSH_SCOPE);
 #endif
 
 		
 #if 1		/* Basic read / write seems to work */
-		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ+2);
-		remove_osd_sgio(fd, PID, OID+1);
+		create_osd(fd, PID, OID, NUM_USER_OBJ+2);
+		remove_osd(fd, PID, OID+1);
 
-		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
-		read_osd_sgio(fd, PID, OID, OFFSET);
-		write_osd_sgio(fd, PID, OID+2, WRITEDATA2, OFFSET);
-		read_osd_sgio(fd, PID, OID+2, OFFSET);
+		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
+		read_osd(fd, PID, OID, OFFSET);
+		write_osd(fd, PID, OID+2, WRITEDATA2, OFFSET);
+		read_osd(fd, PID, OID+2, OFFSET);
 	
-		read_osd_sgio(fd, PID, OID, OFFSET);
+		read_osd(fd, PID, OID, OFFSET);
 
 #endif
 
 #if 1           /* Testing iovec list. */
-		create_osd_sgio(fd, PID, OID+3, 1);
-		create_osd_sgio(fd, PID, OID+4, 1);
+		create_osd(fd, PID, OID+3, 1);
+		create_osd(fd, PID, OID+4, 1);
 
 		iovec_write_test(fd, PID, OID+3);
 		iovec_read_test(fd, PID, OID+4);
 
-		remove_osd_sgio(fd, PID, OID+3);
-		remove_osd_sgio(fd, PID, OID+4);
+		remove_osd(fd, PID, OID+3);
+		remove_osd(fd, PID, OID+4);
 #endif
 
 #if 1           /* Testing bidirectional operations. */
-		create_osd_sgio(fd, PID, OID+5, 1);
+		create_osd(fd, PID, OID+5, 1);
 		bidi_test(fd, PID, OID+5);
-		remove_osd_sgio(fd, PID, OID+5);
+		remove_osd(fd, PID, OID+5);
 #endif
 
 
 #if 0		/* Testing stuff */
-		create_osd_sgio(fd, PID, OID, NUM_USER_OBJ+3);
-		write_osd_sgio(fd, PID, OID, WRITEDATA, OFFSET);
-		write_osd_sgio(fd, PID, OID+1, WRITEDATA2, OFFSET);
-		write_osd_sgio(fd, PID, OID+2, WRITEDATA3, OFFSET);
-		get_attributes_sgio(fd, PID, OID);
-		object_list_sgio(fd, PID, LIST_ID, OID);
-		read_osd_sgio(fd, PID, OID+1, OFFSET);
-		get_attribute_page_sgio(fd, PAGE, OFFSET);
+		create_osd(fd, PID, OID, NUM_USER_OBJ+3);
+		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
+		write_osd(fd, PID, OID+1, WRITEDATA2, OFFSET);
+		write_osd(fd, PID, OID+2, WRITEDATA3, OFFSET);
+		get_attributes(fd, PID, OID);
+		object_list(fd, PID, LIST_ID, OID);
+		read_osd(fd, PID, OID+1, OFFSET);
+		get_attribute_page(fd, PAGE, OFFSET);
 #endif
 		close(fd);
 	}

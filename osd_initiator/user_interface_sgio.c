@@ -12,12 +12,9 @@
 
 #include "util/util.h"
 #include "kernel_interface.h"
+#include "cdb_manip.h"
 #include "user_interface_sgio.h"
 #include "diskinfo.h"
-#include "cdb_manip.h"
-
-static const int INQUIRY_CDB_LEN = 6;
-static const int INQUIRY_RSP_LEN = 80;
 
 static int check_response(int ret, struct osd_command command, uint8_t buf[])
 {
@@ -37,8 +34,9 @@ static int check_response(int ret, struct osd_command command, uint8_t buf[])
 	return 0;
 }
 
-int inquiry_sgio(int fd)
+int inquiry(int fd)
 {
+	const int INQUIRY_RSP_LEN = 80;
 	int ret;
 	uint8_t inquiry_rsp[INQUIRY_RSP_LEN];
 	struct osd_command command;
@@ -46,9 +44,7 @@ int inquiry_sgio(int fd)
 	osd_info("****** INQUIRY ******");
 
 	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
-	memset(&command, 0, sizeof(command));
-	cdb_build_inquiry(command.cdb, sizeof(inquiry_rsp));
-	command.cdb_len = INQUIRY_CDB_LEN;
+	osd_command_set_inquiry(&command, sizeof(inquiry_rsp));
 	command.indata = inquiry_rsp;
 	command.inlen_alloc = sizeof(inquiry_rsp);
 
@@ -61,7 +57,7 @@ int inquiry_sgio(int fd)
 	return 0;
 }
 
-int query_sgio(int fd, uint64_t pid, uint64_t cid, const char *query)
+int query(int fd, uint64_t pid, uint64_t cid, const char *query)
 {
 	int ret;
 	uint8_t buf[100] = "";
@@ -71,9 +67,7 @@ int query_sgio(int fd, uint64_t pid, uint64_t cid, const char *query)
 	osd_info("PID: %u CID: %u QUERY: %s", (uint)pid, (uint)cid, query);
 
 	if (query) {
- 		memset(&command, 0, sizeof(command));
-		set_cdb_osd_query(command.cdb, pid, cid, strlen(query), sizeof(buf));
-		command.cdb_len = OSD_CDB_SIZE;
+		osd_command_set_query(&command, pid, cid, strlen(query), sizeof(buf));
 		command.outdata = query;
 		command.outlen = strlen(query) + 1;
 		command.indata = buf;
@@ -88,32 +82,26 @@ int query_sgio(int fd, uint64_t pid, uint64_t cid, const char *query)
 	return 0;
 }
  
-int create_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_objects)
+int create_osd(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_objects)
 {
-	int ret, i;
+	int ret;
 	struct osd_command command;
 
 	osd_info("****** CREATE OBJECT ******");
 	osd_info("Creating %u objects", (uint)num_user_objects);
 
-	for (i=0; i < num_user_objects; i++) {
-		osd_info("PID: %u OID: %u OBJ: %u/%u", 
-			(uint)pid, (uint)requested_oid + i, i+1, num_user_objects);
+	osd_info("PID: %u OID: %u OBJ: %uu", 
+		(uint)pid, (uint)requested_oid, num_user_objects);
 
-		memset(&command, 0, sizeof(command));
+	/* Create user objects one at a time */ 
+	osd_command_set_create(&command, pid, requested_oid, num_user_objects);
 
-		/* Create user objects one at a time */ 
-		set_cdb_osd_create(command.cdb, pid, requested_oid+i, 1);
-		command.cdb_len = OSD_CDB_SIZE;
-
-		ret = osd_sgio_submit_and_wait(fd, &command);
-		check_response(ret, command, NULL);
-	}
-
+	ret = osd_sgio_submit_and_wait(fd, &command);
+	check_response(ret, command, NULL);
 	return 0;
 }
 
-int create_partition_sgio(int fd, uint64_t requested_pid)
+int create_partition(int fd, uint64_t requested_pid)
 {
 	int ret;
 	struct osd_command command;
@@ -121,10 +109,8 @@ int create_partition_sgio(int fd, uint64_t requested_pid)
 	osd_info("****** CREATE PARTITION ******");
 	osd_info("PID: %u", (uint)requested_pid);
 
-	memset(&command, 0, sizeof(command));
 
-	set_cdb_osd_create_partition(command.cdb, requested_pid);
-	command.cdb_len = OSD_CDB_SIZE;
+	osd_command_set_create_partition(&command, requested_pid);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -132,7 +118,7 @@ int create_partition_sgio(int fd, uint64_t requested_pid)
 	return 0;
 }
 
-int create_collection_sgio(int fd, uint64_t pid, uint64_t requested_cid)
+int create_collection(int fd, uint64_t pid, uint64_t requested_cid)
 {
 	int ret;
 	struct osd_command command;
@@ -140,16 +126,14 @@ int create_collection_sgio(int fd, uint64_t pid, uint64_t requested_cid)
 	osd_info("****** CREATE COLLECTION ******");
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)requested_cid);
 
-	memset(&command, 0, sizeof(command));
-	set_cdb_osd_create_collection(command.cdb, pid, requested_cid);
-	command.cdb_len = OSD_CDB_SIZE;
+	osd_command_set_create_collection(&command, pid, requested_cid);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 	return 0;
 }
 
-int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
+int remove_osd(int fd, uint64_t pid, uint64_t requested_oid)
 {
         int ret;
         struct osd_command command;
@@ -157,9 +141,7 @@ int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
 	osd_info("****** REMOVE OBJECT ******");
 	osd_info("PID: %u OID: %u", (uint)pid, (uint)requested_oid);
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_remove(command.cdb, pid, requested_oid);
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_remove(&command, pid, requested_oid);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -167,7 +149,7 @@ int remove_osd_sgio(int fd, uint64_t pid, uint64_t requested_oid)
         return 0;
 }
 
-int remove_partition_sgio(int fd, uint64_t pid)
+int remove_partition(int fd, uint64_t pid)
 {
         int ret;
         struct osd_command command;
@@ -175,9 +157,7 @@ int remove_partition_sgio(int fd, uint64_t pid)
 	osd_info("****** REMOVE PARTITION ******");
 	osd_info("PID: %u", (uint)pid);
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_remove_partition(command.cdb, pid);
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_remove_partition(&command, pid);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -185,7 +165,7 @@ int remove_partition_sgio(int fd, uint64_t pid)
         return 0;
 }
 
-int remove_collection_sgio(int fd, uint64_t pid, uint64_t cid)
+int remove_collection(int fd, uint64_t pid, uint64_t cid)
 {
         int ret;
         struct osd_command command;
@@ -193,9 +173,7 @@ int remove_collection_sgio(int fd, uint64_t pid, uint64_t cid)
 	osd_info("****** REMOVE COLLECTION ******");
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_remove_collection(command.cdb, pid, cid);
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_remove_collection(&command, pid, cid);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -203,7 +181,7 @@ int remove_collection_sgio(int fd, uint64_t pid, uint64_t cid)
         return 0;
 }
 
-int remove_member_objects_sgio(int fd, uint64_t pid, uint64_t cid)
+int remove_member_objects(int fd, uint64_t pid, uint64_t cid)
 {
         int ret;
         struct osd_command command;
@@ -211,9 +189,7 @@ int remove_member_objects_sgio(int fd, uint64_t pid, uint64_t cid)
 	osd_info("****** REMOVE MEMBER OBJECTS ******");
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_remove_member_objects(command.cdb, pid, cid);
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_remove_member_objects(&command, pid, cid);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -221,7 +197,7 @@ int remove_member_objects_sgio(int fd, uint64_t pid, uint64_t cid)
         return 0;
 }
 
-int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t requested_oid, const char *buf, uint64_t offset)
+int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const char *buf, uint64_t offset)
 {
 	int ret;
 	struct osd_command command;
@@ -230,9 +206,7 @@ int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t requested_oid, cons
 	osd_info("PID: %u OID: %u BUF: %s", (uint)pid, (uint)requested_oid, buf);
 
 	if (buf) {
-		memset(&command, 0, sizeof(command));
-		set_cdb_osd_create_and_write(command.cdb, pid, requested_oid, strlen(buf) + 1, offset);
-		command.cdb_len = OSD_CDB_SIZE;
+		osd_command_set_create_and_write(&command, pid, requested_oid, strlen(buf) + 1, offset);
 		command.outdata = buf;
 		command.outlen = strlen(buf) + 1;
 	
@@ -245,7 +219,7 @@ int create_osd_and_write_sgio(int fd, uint64_t pid, uint64_t requested_oid, cons
 	return 0;
 }
 
-int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset)
+int write_osd(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset)
 {
 	int ret;
 	struct osd_command command;
@@ -254,9 +228,7 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
 	osd_info("PID: %u OID: %u BUF: %s", (uint)pid, (uint)oid, buf);
 
 	if (buf) {
- 		memset(&command, 0, sizeof(command));
-		set_cdb_osd_write(command.cdb, pid, oid, strlen(buf) + 1, offset);
-		command.cdb_len = OSD_CDB_SIZE;
+		osd_command_set_write(&command, pid, oid, strlen(buf) + 1, offset);
 		command.outdata = buf;
 		command.outlen = strlen(buf) + 1;
 
@@ -269,7 +241,7 @@ int write_osd_sgio(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t
 	return 0;
 }
 
-int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
+int read_osd(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 {
 	int ret;
 	uint8_t buf[100] = "";
@@ -278,9 +250,7 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 	osd_info("****** READ ******");
 	osd_info("PID: %u OID: %u EMPTY BUF: <<%s>>", (uint)pid, (uint)oid, buf);
 
-	memset(&command, 0, sizeof(command));
-	set_cdb_osd_read(command.cdb, pid, oid, sizeof(buf), offset);
-	command.cdb_len = OSD_CDB_SIZE;
+	osd_command_set_read(&command, pid, oid, sizeof(buf), offset);
 	command.indata = buf;
 	command.inlen_alloc = sizeof(buf);
 
@@ -292,17 +262,15 @@ int read_osd_sgio(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 	return 0;
 }
 
-int format_osd_sgio(int fd, int capacity)
+int format_osd(int fd, int capacity)
 {
         int ret;
         struct osd_command command;
 
-        osd_info("****** FORMAT ******"); 
+        osd_info("****** FORMAT OSD ******"); 
 	osd_info("Capacity: %i", capacity);
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_format_osd(command.cdb, capacity);
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_format_osd(&command, capacity);
 
 	ret = osd_sgio_submit_and_wait(fd, &command);	
 	check_response(ret, command, NULL);
@@ -310,16 +278,14 @@ int format_osd_sgio(int fd, int capacity)
         return 0;
 }
 
-int flush_osd_sgio(int fd, int flush_scope)
+int flush_osd(int fd, int flush_scope)
 {
         int ret;
         struct osd_command command;
 
-        osd_info("****** FLUSH OBJECT ******"); 
+        osd_info("****** FLUSH OSD ******"); 
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_flush_osd(command.cdb, flush_scope);   
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_flush_osd(&command, flush_scope);   
 	
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -327,7 +293,7 @@ int flush_osd_sgio(int fd, int flush_scope)
         return 0; 
 }
 
-int flush_partition_sgio(int fd, uint64_t pid, int flush_scope)
+int flush_partition(int fd, uint64_t pid, int flush_scope)
 {
         int ret;
         struct osd_command command;
@@ -335,9 +301,7 @@ int flush_partition_sgio(int fd, uint64_t pid, int flush_scope)
         osd_info("****** FLUSH PARTITION ******"); 
 	osd_info("PID: %u", (uint)pid);
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_flush_partition(command.cdb, pid, flush_scope);   
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_flush_partition(&command, pid, flush_scope);   
 	
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -345,7 +309,7 @@ int flush_partition_sgio(int fd, uint64_t pid, int flush_scope)
         return 0; 
 }
 
-int flush_collection_sgio(int fd, uint64_t pid, uint64_t cid, int flush_scope)
+int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope)
 {
         int ret;
         struct osd_command command;
@@ -353,9 +317,7 @@ int flush_collection_sgio(int fd, uint64_t pid, uint64_t cid, int flush_scope)
         osd_info("****** FLUSH COLLECTION ******"); 
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
-	memset(&command, 0, sizeof(command));
-        set_cdb_osd_flush_collection(command.cdb, pid, cid, flush_scope);   
-        command.cdb_len = OSD_CDB_SIZE;
+        osd_command_set_flush_collection(&command, pid, cid, flush_scope);   
 	
 	ret = osd_sgio_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
@@ -363,7 +325,7 @@ int flush_collection_sgio(int fd, uint64_t pid, uint64_t cid, int flush_scope)
         return 0; 
 }
 
-int get_attributes_sgio(int fd, uint64_t pid, uint64_t oid)
+int get_attributes(int fd, uint64_t pid, uint64_t oid)
 {
 	int ret;
 	uint8_t buf[100] = "";
@@ -372,9 +334,7 @@ int get_attributes_sgio(int fd, uint64_t pid, uint64_t oid)
 	osd_info("****** GET ATTRIBUTES ******");
 	osd_info("PID: %u OID: %u EMPTY BUF: <<%s>>", (uint)pid, (uint)oid, buf);
 
-	memset(&command, 0, sizeof(command));
-	set_cdb_osd_get_attributes(command.cdb, pid, oid);
-	command.cdb_len = OSD_CDB_SIZE;
+	osd_command_set_get_attributes(&command, pid, oid);
 	command.indata = buf;
 	command.inlen_alloc = sizeof(buf);
 
@@ -386,30 +346,7 @@ int get_attributes_sgio(int fd, uint64_t pid, uint64_t oid)
 	return 0;
 }
 
-int get_attribute_page_sgio(int fd, uint64_t page, uint64_t offset)
-{
-	int ret;
-	uint8_t buf[100] = "";
-	struct osd_command command;
-
-	osd_info("****** GET ATTRIBUTE PAGE ******");
-	osd_info("PAGE: %u EMPTY BUF: <<%s>>", (uint)page, buf);
-
-	memset(&command, 0, sizeof(command));
-	set_cdb_get_attr_page(command.cdb, page, sizeof(buf), offset);
-	command.cdb_len = OSD_CDB_SIZE;
-	command.indata = buf;
-	command.inlen_alloc = sizeof(buf);
-
-	buf[0] = '\0';
-
-	ret = osd_sgio_submit_and_wait(fd, &command);
-	check_response(ret, command, buf);
-
-	return 0;
-}
-
-int set_attributes_sgio(int fd, uint64_t pid, uint64_t oid, const struct attribute_id *attrs)
+int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_id *attrs)
 {
 	int ret;
 	struct osd_command command;
@@ -418,9 +355,7 @@ int set_attributes_sgio(int fd, uint64_t pid, uint64_t oid, const struct attribu
 	osd_info("PID: %u OID: %u", (uint)pid, (uint)oid);
 
 	if (attrs) {
- 		memset(&command, 0, sizeof(command));
-		set_cdb_osd_set_attributes(command.cdb, pid, oid);
-		command.cdb_len = OSD_CDB_SIZE;
+		osd_command_set_set_attributes(&command, pid, oid);
 		command.outdata = attrs;
 		command.outlen = sizeof(attrs); 
 
@@ -433,7 +368,7 @@ int set_attributes_sgio(int fd, uint64_t pid, uint64_t oid, const struct attribu
 	return 0;
 }
 
-int set_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid, const struct attribute_id *attrs)
+int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attribute_id *attrs)
 {
 	int ret;
 	struct osd_command command;
@@ -442,9 +377,7 @@ int set_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid, const struct 
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
 	if (attrs) {
- 		memset(&command, 0, sizeof(command));
-		set_cdb_osd_set_member_attributes(command.cdb, pid, cid);
-		command.cdb_len = OSD_CDB_SIZE;
+		osd_command_set_set_member_attributes(&command, pid, cid);
 		command.outdata = attrs;
 		command.outlen = sizeof(attrs); 
 
@@ -457,7 +390,7 @@ int set_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid, const struct 
 	return 0;
 }
 
-int get_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid)
+int get_member_attributes(int fd, uint64_t pid, uint64_t cid)
 {
 	int ret;
 	uint8_t buf[100] = "";
@@ -466,9 +399,7 @@ int get_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid)
 	osd_info("****** GET MEMBER ATTRIBUTES ******");
 	osd_info("PID: %u CID: %u EMPTY BUF: <<%s>>", (uint)pid, (uint)cid, buf);
 
-	memset(&command, 0, sizeof(command));
-	set_cdb_osd_get_member_attributes(command.cdb, pid, cid);
-	command.cdb_len = OSD_CDB_SIZE;
+	osd_command_set_get_member_attributes(&command, pid, cid);
 	command.indata = buf;
 	command.inlen_alloc = sizeof(buf);
 
@@ -481,19 +412,17 @@ int get_member_attributes_sgio(int fd, uint64_t pid, uint64_t cid)
 }
 
 /* List */
-int object_list_sgio(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid)
+int object_list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid)
 {
 	int ret;
 	uint8_t buf[100] = "";
 	struct osd_command command;
 
-	osd_info("****** OBJECT LIST ******");
+	osd_info("****** LIST ******");
 	osd_info("PID: %u LIST_ID: %u INITIAL_OID: %u EMPTY BUF: <<%s>>", 
 		(uint)pid, (uint)list_id, (uint)initial_oid, buf);
 
-	memset(&command, 0, sizeof(command));
-	set_cdb_osd_list(command.cdb, pid, list_id, sizeof(buf), initial_oid);
-	command.cdb_len = OSD_CDB_SIZE;
+	osd_command_set_list(&command, pid, list_id, sizeof(buf), initial_oid);
 	command.indata = buf;
 	command.inlen_alloc = sizeof(buf);
 	
@@ -505,19 +434,17 @@ int object_list_sgio(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oi
 	return 0;
 }
 
-int collection_list_sgio(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid)
+int collection_list(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid)
 {
 	int ret;
 	uint8_t buf[100] = "";
 	struct osd_command command;
 
-	osd_info("****** COLLECTION LIST ******");
+	osd_info("****** LIST COLLECTION ******");
 	osd_info("PID: %u CID: %u LIST_ID: %u INITIAL_OID: %u EMPTY BUF: <<%s>>", 
 		(uint)pid, (uint)cid, (uint)list_id, (uint)initial_oid, buf);
 
-	memset(&command, 0, sizeof(command));
-	set_cdb_osd_list_collection(command.cdb, pid, cid, list_id, sizeof(buf), initial_oid);
-	command.cdb_len = OSD_CDB_SIZE;
+	osd_command_set_list_collection(&command, pid, cid, list_id, sizeof(buf), initial_oid);
 	command.indata = buf;
 	command.inlen_alloc = sizeof(buf);
 	
@@ -527,120 +454,5 @@ int collection_list_sgio(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, u
 	check_response(ret, command, buf);
 
 	return 0;
-}
-
-/*
- * Assume an empty command with no data, no retrieved offset, etc.
- * Build an attributes list, including allocating in and out space,
- * and alter the CDB.
- */
-int osd_command_attr_build(struct osd_command *command,
-                           struct attribute_id *attrs, int num)
-{
-    const uint32_t list_offset = 0, retrieved_offset = 0;
-    uint32_t list_len, alloc_len;
-    uint8_t *attr_list;
-    int i;
-
-    /* must fit in 2-byte list length field */
-    if (num * 8 >= (1 << 16))
-	return -EOVERFLOW;
-
-    /*
-     * Build the list that requests the attributes
-     */
-    list_len = 8 + num * 8;
-    command->outlen = list_len;
-    attr_list = malloc(command->inlen_alloc);
-    if (!attr_list)
-    	return -ENOMEM;
-    command->outdata = attr_list;
-
-    attr_list[0] = 0x1;  /* list type: retrieve attributes */
-    attr_list[1] = 0;
-    attr_list[2] = 0;
-    attr_list[3] = 0;
-    set_htonl(&attr_list[4], num*8);
-    for (i=0; i<num; i++) {
-	set_htonl(&attr_list[8 + i*8 + 0], attrs[i].page);
-	set_htonl(&attr_list[8 + i*8 + 4], attrs[i].number);
-    }
-
-    /*
-     * Allocate space for where they will end up when returned.  Entries
-     * are padded to 8 bytes.
-     */
-    alloc_len = 8;
-    for (i=0; i<num; i++)
-	alloc_len += (10 + attrs[i].len + 7) & ~7;
-
-    command->inlen_alloc = alloc_len;
-    command->indata = malloc(command->inlen_alloc);
-    if (!command->indata)
-	return -ENOMEM;
-
-    /* Set the CDB bits to point appropriately. */
-    set_cdb_get_attr_list(command->cdb, list_len, list_offset, alloc_len,
-                          retrieved_offset);
-
-    return 0;
-}
-
-/*
- * Return a pointer to the returned attribute data.  Maybe do verify as
- * a separate test and have this just be quick.
- */
-uint8_t *osd_command_attr_resolve(struct osd_command *command,
-                                  struct attribute_id *attrs, int num,
-			          int index)
-{
-	uint32_t list_len;
-	uint8_t *p;
-	int i;
-
-	p = command->indata;
-	list_len = 8;
-	for (i=0; i<num; i++)
-		list_len += (10 + attrs[i].len + 7) & ~7;
-
-	if (command->inlen != list_len) {
-		osd_error("%s: expecting %u bytes, got %zu, [0] = %02x",
-		          __func__, list_len, command->inlen, p[0]);
-		return NULL;
-	}
-	if ((p[0] & 0xf) != 0x9) {
-		osd_error("%s: expecting list type 9, got 0x%x", __func__,
-		          p[0] & 0xf);
-		return NULL;
-	}
-	if (ntohl(&p[4]) != command->inlen - 8) {
-		osd_error("%s: expecting list length %zu, got %u", __func__,
-		          command->inlen - 8, ntohl(&p[4]));
-		return NULL;
-	}
-
-	p += 8;
-	for (i=0; i<num; i++) {
-		if (ntohl(&p[0]) != attrs[i].page) {
-			osd_error("%s: expecting page %x, got %x", __func__,
-				  attrs[i].page, ntohl(&p[0]));
-			return NULL;
-		}
-		if (ntohl(&p[4]) != attrs[i].number) {
-			osd_error("%s: expecting number %x, got %x", __func__,
-				  attrs[i].page, ntohl(&p[4]));
-			return NULL;
-		}
-		if (ntohs(&p[8]) != attrs[i].len) {
-			osd_error("%s: expecting length %u, got %u", __func__,
-				  attrs[i].len, ntohs(&p[8]));
-			return NULL;
-		}
-	    	if (i == index)
-			return &p[10];
-		p += (10 + attrs[i].len + 7) & ~7;
-	}
-	osd_error("%s: attribute %d out of range", __func__, index);
-	return NULL;
 }
 

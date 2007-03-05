@@ -12,9 +12,9 @@
 
 #include "util/util.h"
 #include "kernel_interface.h"
+#include "cdb_manip.h"
 #include "user_interface_sgio.h"
 #include "diskinfo.h"
-#include "cdb_manip.h"
 
 #include "generic_iface.h"
 
@@ -33,7 +33,7 @@ char *buf2;
 void init(void);
 void format(void);
 void fini(void);
-void create_partition(void);
+void test_create_partition(void);
 void create_objects(void);
 void remove_objects(void);
 void write_objects(void);
@@ -125,7 +125,7 @@ void fini(void)
 	}
 }
 
-void create_partition(void)
+void test_create_partition(void)
 {
 	int ret;
 	struct gen_osd_cmd cmd;
@@ -430,7 +430,7 @@ int main(void)
 
 	format();
 
-	create_partition();
+	test_create_partition();
 
 	create_objects();
 

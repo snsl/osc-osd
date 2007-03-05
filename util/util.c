@@ -175,7 +175,7 @@ Calloc(size_t nmemb, size_t n)
 /*
  * For reading from a pipe, can't always get the full buf in one chunk.
  */
-ssize_t
+size_t
 osd_saferead(int fd, void *buf, size_t num)
 {
     int i, offset = 0;
@@ -195,7 +195,7 @@ osd_saferead(int fd, void *buf, size_t num)
     return total;
 }
 
-ssize_t
+size_t
 osd_safewrite(int fd, const void *buf, size_t num)
 {
     int i, offset = 0;
@@ -288,7 +288,7 @@ void set_htons_le(uint8_t *x, uint16_t val)
 	uint16_t *xh = (uint16_t *) x;
 
 	*xh = (val & (uint16_t) 0x00ffU) << 8 |
-	      (val & (uint16_t) 0xff00U) >> 8; 
+	      (val & (uint16_t) 0xff00U) >> 8;
 }
 
 /*

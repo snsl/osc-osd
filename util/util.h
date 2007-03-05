@@ -15,8 +15,8 @@ void osd_error_xerrno(int errnum, const char *fmt, ...) __attribute__((format(pr
 void osd_error_fatal(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void *Malloc(size_t n) __attribute__((malloc));
 void *Calloc(size_t nmemb, size_t n) __attribute__((malloc));
-ssize_t osd_saferead(int fd, void *buf, size_t num);
-ssize_t osd_safewrite(int fd, const void *buf, size_t num);
+size_t osd_saferead(int fd, void *buf, size_t num);
+size_t osd_safewrite(int fd, const void *buf, size_t num);
 void osd_hexdump(const uint8_t *d, size_t len);
 
 #define ARRAY_SIZE(x) (int)(sizeof(x) / sizeof((x)[0]))

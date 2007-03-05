@@ -254,6 +254,23 @@ int main(int argc, char *argv[])
 		read_osd(fd, PID, OID+1, OFFSET);
 		get_attribute_page(fd, PAGE, OFFSET);
 #endif
+
+#if 0		/* getattr tests */
+		uint64_t oid;
+		uint8_t attr_tmp_buf[1024];
+		struct attribute_id get_oid_attr = {
+			.op = GET_ATTRIBUTE,
+			.page = ATTR_PAGE_CURRENT_COMMAND,
+			.number = ATTR_NUMBER_CURRENT_COMMAND_OID,
+			.buf = &oid,
+			.len = sizeof(oid),
+		}
+		osd_command_create(&command, PID, 0, 3);
+		osd_command_modify_attrs(&command, &get_oid_attr, 1,
+					 attr_tmp_buf);
+		run_command(fd, &command, "create 3 anonymous");
+		printf("created 3 object ids from 0x%llx\n", llu(oid));
+#endif
 		close(fd);
 	}
 

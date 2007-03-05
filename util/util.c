@@ -19,14 +19,13 @@ const char *progname = "(pre-main)";
 /*
  * Set the program name, first statement of code usually.
  */
-void
-osd_set_progname(int argc __unused, char *const argv[])
+void osd_set_progname(int argc __unused, char *const argv[])
 {
-    const char *cp;
+	const char *cp;
 
-    for (cp=progname=argv[0]; *cp; cp++)
-	if (*cp == '/')
-	    progname = cp+1;
+	for (cp=progname=argv[0]; *cp; cp++)
+		if (*cp == '/')
+			progname = cp+1;
 }
 
 /*
@@ -35,13 +34,13 @@ osd_set_progname(int argc __unused, char *const argv[])
 void __attribute__((format(printf,1,2)))
 osd_info(const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "%s: ", progname);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, ".\n");
+	fprintf(stderr, "%s: ", progname);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, ".\n");
 }
 
 /*
@@ -50,13 +49,13 @@ osd_info(const char *fmt, ...)
 void __attribute__((format(printf,1,2)))
 osd_debug(const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "%s: ", progname);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, ".\n");
+	fprintf(stderr, "%s: ", progname);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, ".\n");
 }
 
 /*
@@ -65,13 +64,13 @@ osd_debug(const char *fmt, ...)
 void __attribute__((format(printf,1,2)))
 osd_warning(const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "%s: Warning: ", progname);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, ".\n");
+	fprintf(stderr, "%s: Warning: ", progname);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, ".\n");
 }
 
 /*
@@ -80,13 +79,13 @@ osd_warning(const char *fmt, ...)
 void __attribute__((format(printf,1,2)))
 osd_error(const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "%s: Error: ", progname);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, ".\n");
+	fprintf(stderr, "%s: Error: ", progname);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, ".\n");
 }
 
 /*
@@ -95,13 +94,13 @@ osd_error(const char *fmt, ...)
 void __attribute__((format(printf,1,2)))
 osd_error_errno(const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "%s: Error: ", progname);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, ": %s.\n", strerror(errno));
+	fprintf(stderr, "%s: Error: ", progname);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, ": %s.\n", strerror(errno));
 }
 
 /*
@@ -111,13 +110,13 @@ osd_error_errno(const char *fmt, ...)
 void __attribute__((format(printf,2,3)))
 osd_error_xerrno(int errnum, const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "%s: Error: ", progname);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, ": %s.\n", strerror(-errnum));
+	fprintf(stderr, "%s: Error: ", progname);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, ": %s.\n", strerror(-errnum));
 }
 
 /*
@@ -126,14 +125,14 @@ osd_error_xerrno(int errnum, const char *fmt, ...)
 void __attribute__((format(printf,1,2)))
 osd_error_fatal(const char *fmt, ...)
 {
-    va_list ap;
+	va_list ap;
 
-    fprintf(stderr, "%s: Error: ", progname);
-    va_start(ap, fmt);
-    vfprintf(stderr, fmt, ap);
-    va_end(ap);
-    fprintf(stderr, ": %s.\n", strerror(errno));
-    exit(1);
+	fprintf(stderr, "%s: Error: ", progname);
+	va_start(ap, fmt);
+	vfprintf(stderr, fmt, ap);
+	va_end(ap);
+	fprintf(stderr, ": %s.\n", strerror(errno));
+	exit(1);
 }
 
 /*
@@ -142,16 +141,17 @@ osd_error_fatal(const char *fmt, ...)
 void * __attribute__((malloc))
 Malloc(size_t n)
 {
-    void *x = NULL;
+	void *x = NULL;
 
-    if (n == 0)
-	osd_error("%s: called on zero bytes", __func__);
-    else {
-	x = malloc(n);
-	if (!x)
-	    osd_error("%s: couldn't get %lu bytes", __func__, (unsigned long) n);
-    }
-    return x;
+	if (n == 0) {
+		osd_error("%s: called on zero bytes", __func__);
+	} else {
+		x = malloc(n);
+		if (!x)
+			osd_error("%s: couldn't get %lu bytes", __func__, 
+				  (unsigned long) n);
+	}
+	return x;
 }
 
 /*
@@ -160,57 +160,58 @@ Malloc(size_t n)
 void * __attribute__((malloc))
 Calloc(size_t nmemb, size_t n)
 {
-    void *x = NULL;
+	void *x = NULL;
 
-    if (n == 0)
-	osd_error("%s: called on zero bytes", __func__);
-    else {
-	x = calloc(nmemb, n);
-	if (!x)
-	    osd_error("%s: couldn't get %zu bytes", __func__, nmemb * n);
-    }
-    return x;
+	if (n == 0)
+		osd_error("%s: called on zero bytes", __func__);
+	else {
+		x = calloc(nmemb, n);
+		if (!x)
+			osd_error("%s: couldn't get %zu bytes", __func__, nmemb * n);
+	}
+	return x;
 }
 
 /*
  * For reading from a pipe, can't always get the full buf in one chunk.
  */
-size_t
-osd_saferead(int fd, void *buf, size_t num)
+size_t osd_saferead(int fd, void *buf, size_t num)
 {
-    int i, offset = 0;
-    int total = num;
+	int i, offset = 0;
+	int total = num;
 
-    while (num > 0) {
-	i = read(fd, (char *)buf + offset, num);
-	if (i < 0)
-	    osd_error_errno("%s: read %zu bytes", __func__, num);
-	if (i == 0) {
-	    if (offset == 0) return 0;  /* end of file on a block boundary */
-	    osd_error("%s: EOF, only %d of %d bytes", __func__, offset, total);
+	while (num > 0) {
+		i = read(fd, (char *)buf + offset, num);
+		if (i < 0)
+			osd_error_errno("%s: read %zu bytes", __func__, num);
+		if (i == 0) {
+			if (offset == 0) 
+				return 0; /* end of file on a block boundary */
+			osd_error("%s: EOF, only %d of %d bytes", __func__, 
+				  offset, total);
+		}
+		num -= i;
+		offset += i;
 	}
-	num -= i;
-	offset += i;
-    }
-    return total;
+	return total;
 }
 
-size_t
-osd_safewrite(int fd, const void *buf, size_t num)
+size_t osd_safewrite(int fd, const void *buf, size_t num)
 {
-    int i, offset = 0;
-    int total = num;
+	int i, offset = 0;
+	int total = num;
 
-    while (num > 0) {
-	i = write(fd, (const char *)buf + offset, num);
-	if (i < 0)
-	    osd_error_errno("%s: write %zu bytes", __func__, num);
-	if (i == 0)
-	    osd_error("%s: EOF, only %d of %d bytes", __func__, offset, total);
-	num -= i;
-	offset += i;
-    }
-    return total;
+	while (num > 0) {
+		i = write(fd, (const char *)buf + offset, num);
+		if (i < 0)
+			osd_error_errno("%s: write %zu bytes", __func__, num);
+		if (i == 0)
+			osd_error("%s: EOF, only %d of %d bytes", __func__,
+				  offset, total);
+		num -= i;
+		offset += i;
+	}
+	return total;
 }
 
 /*
@@ -238,9 +239,9 @@ void osd_hexdump(const uint8_t *d, size_t len)
 static uint32_t swab32(uint32_t d)
 {
 	return  (d & (uint32_t) 0x000000ffUL) << 24 |
-	        (d & (uint32_t) 0x0000ff00UL) << 8  |
-	        (d & (uint32_t) 0x00ff0000UL) >> 8  |
-	        (d & (uint32_t) 0xff000000UL) >> 24;
+		(d & (uint32_t) 0x0000ff00UL) << 8  |
+		(d & (uint32_t) 0x00ff0000UL) >> 8  |
+		(d & (uint32_t) 0xff000000UL) >> 24;
 }
 
 /*
@@ -265,7 +266,7 @@ uint16_t ntohs_le(const uint8_t *d)
 	uint16_t x = *(const uint16_t *) d;
 
 	return (x & (uint16_t) 0x00ffU) << 8 |
-	       (x & (uint16_t) 0xff00U) >> 8;
+		(x & (uint16_t) 0xff00U) >> 8;
 }
 
 void set_htonll_le(uint8_t *x, uint64_t val)
@@ -288,7 +289,7 @@ void set_htons_le(uint8_t *x, uint16_t val)
 	uint16_t *xh = (uint16_t *) x;
 
 	*xh = (val & (uint16_t) 0x00ffU) << 8 |
-	      (val & (uint16_t) 0xff00U) >> 8;
+		(val & (uint16_t) 0xff00U) >> 8;
 }
 
 /*

@@ -4,6 +4,11 @@
  * Copyright (C) 2000-7 Pete Wyckoff <pw@osc.edu>
  * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
  */
+#ifndef __UTIL_H
+#define __UTIL_H
+
+#include <stdlib.h>
+
 extern const char *progname;
 void osd_set_progname(int argc, char *const argv[]);
 void osd_info(const char *fmt, ...) __attribute__((format(printf,1,2)));
@@ -51,3 +56,4 @@ void set_htonoffset_le(uint8_t *x, uint64_t val);
 
 #define __unused __attribute__((unused))
 
+#endif /* __UTIL_H */

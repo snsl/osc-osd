@@ -1304,7 +1304,11 @@ int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
 	return osd_error_unimplemented(0, sense);
 }
 
-
+/*
+ * returns:
+ * ==0: OSD_OK on success
+ *  >0: error, sense set approprirately
+ */
 int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 {
 	int ret = 0;

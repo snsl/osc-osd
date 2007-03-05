@@ -198,8 +198,8 @@ enum {
 };
 
 enum {
-	GETPAGE_SETVALUE = 0x10,
-	GETLIST_SETLIST = 0x11
+	GETPAGE_SETVALUE = 0x2,
+	GETLIST_SETLIST = 0x3 
 };
 
 enum {

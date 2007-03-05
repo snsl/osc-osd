@@ -80,7 +80,7 @@ void format(void)
 
 	printf("Formatting active disk\n");
 	printf(".....Set format command\n");
-	ret = gen_osd_set_format(&(cmd.command), OBJ_CAPACITY);
+	ret = osd_command_set_format_osd(&(cmd.command), OBJ_CAPACITY);
 	if (ret != 0){
 		printf("Couldn't set format command\n");
 		exit(1);
@@ -145,14 +145,14 @@ void test_create_partition(void)
 	cmd2.current_drive = osd_fd;
 
 	printf("Create Partition command that should fail\n");
-	ret = gen_osd_set_create_partition(&(cmd.command), 2);
+	ret = osd_command_set_create_partition(&(cmd.command), 2);
 	if (ret != 0){
 		printf("Couldn't set create partition command\n");
 		exit(1);
 	}
 
 	printf("Create Partition command that should work\n");
-	ret = gen_osd_set_create_partition(&(cmd2.command), PVFS_OSD_PID);
+	ret = osd_command_set_create_partition(&(cmd2.command), PVFS_OSD_PID);
 	if (ret != 0){
 		printf("Couldn't set create partition command\n");
 		exit(1);
@@ -224,7 +224,7 @@ void create_objects(void)
 	}
 
 	printf("Create the command\n");
-	ret = gen_osd_set_create_object(&(cmd.command), PVFS_OSD_PID, 0, count);
+	ret = osd_command_set_create(&(cmd.command), PVFS_OSD_PID, 0, count);
 	if (ret != 0 ){
 		printf("Unable to set command\n");
 		exit(1);
@@ -279,7 +279,7 @@ void remove_objects(void)
 		oid+=1;
 
 		printf("Create the command\n");
-		ret = gen_osd_set_remove_object(&(cmd.command), pid, oid);
+		ret = osd_command_set_remove(&(cmd.command), pid, oid);
 		if (ret != 0 ){
 			printf("Unable to set command\n");
 			exit(1);

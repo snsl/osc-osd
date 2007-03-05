@@ -88,15 +88,6 @@ int gen_osd_select_drive(struct gen_osd_drive_list *drive_list,
 }
 
 
-
-
-/*sometimes need to modify the command*/
-int gen_osd_cmd_modify(void)
-{
-
-	return 0;
-}
-
 /*need to be able to submit the command*/
 int gen_osd_cmd_submit(int fd, struct osd_command *command)
 {
@@ -151,45 +142,10 @@ struct osd_command *gen_osd_cmd_get_res(int fd)
 }
 
 
-inline void gen_osd_cmd_show_error(struct osd_command *cmd)
+void gen_osd_cmd_show_error(struct osd_command *cmd)
 {
-	osd_show_sense(cmd->sense, cmd->sense_len);
-	//~ osd_show_scsi_code(res->command_status);  /*implement this in sense.c since all funcs in there are static*/
-
-}
-
-int gen_osd_set_format(struct osd_command *cmd, uint64_t capacity)
-{
-	gen_osd_debug(5, "%s: Formating device %ld bytes", __func__, capacity);
-	return osd_command_set_format_osd(cmd, capacity);
-}
-
-int gen_osd_set_create_partition(struct osd_command *cmd, uint64_t pid){
-
-	gen_osd_debug(5, "%s: Create partition %ld", __func__, pid);
-	return osd_command_set_create_partition(cmd, pid);
-}
-
-int gen_osd_set_create_object(struct osd_command *cmd, uint64_t pid,
-			uint64_t oid, uint16_t count)
-{
-	if (count > 0)
-		gen_osd_debug(5, "%s: Creating %d objects in partition %ld",
-					__func__, count, pid);
-	else
-		gen_osd_debug(5, "%s: Create Object %ld.%ld",
-					__func__, pid, oid);
-
-	return osd_command_set_create(cmd, pid, oid, count);
-
-}
-
-int gen_osd_set_remove_object(struct osd_command *cmd, uint64_t pid,
-			uint64_t oid)
-{
-	gen_osd_debug(5, "%s: Remove Object %ld.%ld", __func__, pid, oid);
-	return osd_command_set_remove(cmd, pid, oid);
-
+	if (cmd->status == 2)
+		fputs(osd_show_sense(cmd->sense, cmd->sense_len), stderr);
 }
 
 int gen_osd_write_object(struct osd_command *cmd, uint64_t pid, uint64_t oid,

@@ -74,6 +74,10 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 	/* verify retrieved list */
 	osd_hexdump(command.indata, command.inlen_alloc);
 	p = osd_command_attr_resolve(&command, &id, 1, 0);
+	if (p == NULL) {
+		printf("\n");
+		return 1;
+	}
 
 	logical_length = ntohll(p);
 	printf("%s: logical length 0x%016llx\n\n", __func__,

@@ -17,7 +17,7 @@
 #endif
 
 struct gen_osd_cmd {
-	struct osd_command osd_cmd;
+	struct osd_command command;
 	int current_drive;
 };
 
@@ -26,57 +26,44 @@ struct gen_osd_drive_list {
 	int fd_array[MAX_DRIVES];
 };
 
-struct partition_attrs {
-	uint64_t pid;
-};
-
-struct format_attrs {
-	uint32_t capacity;
-};
-
-struct object_attrs {
-	uint64_t oid;
-	uint64_t pid;
-	uint16_t count;
-};
-
-struct io_attrs {
-	uint64_t oid;
-	uint64_t pid;
-	size_t   len;
-	uint64_t offset;
-	void *write_buf;
-	void *read_buf;
-};
-
-struct cmd_result {
-	uint32_t 	sense_len;
-	uint8_t 	command_status;
-	size_t 		resp_len;
-	uint8_t 	sense_data[OSD_MAX_SENSE];
-	void 		*resp_data;
-};
-
-typedef enum{
-	CREATE_PART = 1,
-	FORMAT,
-	CREATE_OBJECT,
-	REMOVE_OBJECT,
-	WRITE,
-	READ,
-}osd_cmd_val;
-
+/*Functions to help deal with opening devices - not used by pvfs*/
 int gen_osd_init_drives(struct gen_osd_drive_list *drive_list);
 int gen_osd_open_drive(struct gen_osd_drive_list *drive_list, int index);
 int gen_osd_select_drive(struct gen_osd_drive_list *drive_list,
 			struct gen_osd_cmd *shared, int index);
 int gen_osd_close_drive(struct gen_osd_drive_list *drive_list, int index);
 
-int cmd_set(struct gen_osd_cmd *shared, osd_cmd_val cmd, void *attrs);
-int cmd_modify(void);
-int cmd_submit(struct gen_osd_cmd *shared);
-int cmd_get_res(struct gen_osd_cmd *shared, struct cmd_result *res);
 
-inline void cmd_free_res(struct cmd_result *res);
-inline void cmd_show_error(struct cmd_result *res);
+/*Function used to submit commands - used by test codes and pvfs*/
+int gen_osd_cmd_submit(int fd, struct osd_command *cmd);
+
+
+/*Functions used to build commands - used by both test codes and pvfs*/
+int gen_osd_set_format(struct osd_command *cmd, uint64_t capacity);
+int gen_osd_set_create_partition(struct osd_command *cmd, uint64_t pid);
+int gen_osd_set_create_object(struct osd_command *cmd, uint64_t pid,
+			uint64_t oid, uint16_t count);
+int gen_osd_set_remove_object(struct osd_command *cmd, uint64_t pid,
+			uint64_t oid);
+int gen_osd_write_object(struct osd_command *cmd, uint64_t pid, uint64_t oid,
+			void *buf, size_t count, size_t offset);
+int gen_osd_read_object(struct osd_command *cmd, uint64_t pid, uint64_t oid,
+			void *buf, size_t count, size_t offset);
+
+/*!!! LOTS MORE OF THESE SORTS OF FUNCTIONS GO HERE*/
+
+
+
+/*Functions to get result - test codes use first one pvfs uses second one*/
+int gen_osd_cmd_getcheck_res(int fd, struct osd_command *cmd);
+struct osd_command *gen_osd_cmd_get_res(int fd);
+
+
+/*Functions to print error messages*/
+inline void gen_osd_cmd_show_error(struct osd_command *cmd);
+
+
+/*Not implemented yet*/
+int gen_osd_cmd_modify(void);
+
 #endif

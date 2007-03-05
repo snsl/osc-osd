@@ -1,5 +1,5 @@
-#ifndef _KERNEL_INTERFACE_H
-#define _KERNEL_INTERFACE_H
+#ifndef _DEVICE_H
+#define _DEVICE_H
 
 #define OSD_CDB_SIZE 200
 #define OSD_MAX_SENSE 252
@@ -37,4 +37,4 @@ int osd_submit_command(int fd, struct osd_command *command);
 int osd_wait_response(int fd, struct osd_command **command);
 int osd_submit_and_wait(int fd, struct osd_command *command);
 
-#endif  /* _KERNEL_INTERFACE_H */
+#endif  /* _DEVICE_H */

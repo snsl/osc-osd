@@ -19,7 +19,7 @@ typedef uint64_t __u64;
 #include <linux/bsg.h>
 
 #include "util/util.h"
-#include "kernel_interface.h"
+#include "device.h"
 
 int osd_submit_command(int fd, struct osd_command *command)
 {

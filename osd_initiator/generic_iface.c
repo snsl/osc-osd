@@ -11,10 +11,10 @@
 #include <scsi/sg.h>
 
 #include "util/util.h"
-#include "kernel_interface.h"
-#include "cdb_manip.h"
-#include "user_interface_sgio.h"
-#include "diskinfo.h"
+#include "device.h"
+#include "command.h"
+#include "sync.h"
+#include "drivelist.h"
 #include "sense.h"
 #include "generic_iface.h"
 

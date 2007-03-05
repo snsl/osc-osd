@@ -1,5 +1,5 @@
-#ifndef _USER_INTERFACE_SGIO_H
-#define _USER_INTERFACE_SGIO_H
+#ifndef _SYNC_H
+#define _SYNC_H
 
 /*
  * These functions do everything:  build, submit, wait response.

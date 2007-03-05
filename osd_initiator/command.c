@@ -10,7 +10,7 @@
 
 #include "util/util.h"
 
-#include "cdb_manip.h"
+#include "command.h"
 #include "osd_cmds.h"
 
 #define OSD_CDB_SIZE 200

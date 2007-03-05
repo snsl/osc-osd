@@ -11,10 +11,10 @@
 #include <sys/types.h>
 
 #include "util/util.h"
-#include "kernel_interface.h"
-#include "cdb_manip.h"
-#include "user_interface_sgio.h"
-#include "diskinfo.h"
+#include "device.h"
+#include "command.h"
+#include "sync.h"
+#include "drivelist.h"
 
 static int check_response(int ret, struct osd_command command, uint8_t buf[])
 {

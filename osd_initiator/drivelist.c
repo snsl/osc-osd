@@ -9,8 +9,8 @@
 #include <dirent.h>
 
 #include "util/util.h"
-#include "kernel_interface.h"
-#include "diskinfo.h"
+#include "device.h"
+#include "drivelist.h"
 
 char *osd_get_drive_serial(int fd)
 {

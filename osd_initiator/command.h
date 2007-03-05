@@ -1,7 +1,7 @@
-#ifndef _CDB_MANIP_H
-#define _CDB_MANIP_H
+#ifndef _COMMAND_H
+#define _COMMAND_H
 
-#include "kernel_interface.h"
+#include "device.h"
 
 struct attribute_id {
         uint32_t page;

@@ -1,5 +1,5 @@
-#ifndef _DISKINFO_H
-#define _DISKINFO_H
+#ifndef _DRIVELIST_H
+#define _DRIVELIST_H
 
 struct osd_drive_description {
     char *targetname;

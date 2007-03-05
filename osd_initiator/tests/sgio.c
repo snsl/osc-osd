@@ -11,10 +11,10 @@
 #include <sys/types.h>
 
 #include "util/util.h"
-#include "kernel_interface.h"
-#include "diskinfo.h"
-#include "cdb_manip.h"
-#include "user_interface_sgio.h"
+#include "device.h"
+#include "drivelist.h"
+#include "command.h"
+#include "sync.h"
 
 static const uint64_t PID = 0x10000LLU;
 static const uint64_t OID = 0x10000LLU;

@@ -2,10 +2,8 @@
 # OSD initiator library
 #
 
-SRC := kernel_interface.c user_interface_sgio.c diskinfo.c cdb_manip.c sense.c \
-       generic_iface.c
-INC := kernel_interface.h user_interface_sgio.h diskinfo.h cdb_manip.h sense.h \
-       generic_iface.h
+SRC := device.c sync.c drivelist.c command.c sense.c generic_iface.c
+INC := device.h sync.h drivelist.h command.h sense.h generic_iface.h
 OBJ := $(SRC:.c=.o)
 LIB := libosd.a
 

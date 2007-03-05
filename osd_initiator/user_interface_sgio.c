@@ -48,7 +48,7 @@ int inquiry(int fd)
 	command.indata = inquiry_rsp;
 	command.inlen_alloc = sizeof(inquiry_rsp);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
 	osd_hexdump(inquiry_rsp, command.inlen);
@@ -73,7 +73,7 @@ int query(int fd, uint64_t pid, uint64_t cid, const char *query)
 		command.indata = buf;
 		command.inlen_alloc = sizeof(buf);
 
-		ret = osd_sgio_submit_and_wait(fd, &command);
+		ret = osd_submit_and_wait(fd, &command);
 		check_response(ret, command, buf);
 	}
 	else 
@@ -96,7 +96,7 @@ int create_osd(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_o
 	/* Create user objects one at a time */ 
 	osd_command_set_create(&command, pid, requested_oid, num_user_objects);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 	return 0;
 }
@@ -112,7 +112,7 @@ int create_partition(int fd, uint64_t requested_pid)
 
 	osd_command_set_create_partition(&command, requested_pid);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
 	return 0;
@@ -128,7 +128,7 @@ int create_collection(int fd, uint64_t pid, uint64_t requested_cid)
 
 	osd_command_set_create_collection(&command, pid, requested_cid);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 	return 0;
 }
@@ -143,7 +143,7 @@ int remove_osd(int fd, uint64_t pid, uint64_t requested_oid)
 
         osd_command_set_remove(&command, pid, requested_oid);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
         return 0;
@@ -159,7 +159,7 @@ int remove_partition(int fd, uint64_t pid)
 
         osd_command_set_remove_partition(&command, pid);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
         return 0;
@@ -175,7 +175,7 @@ int remove_collection(int fd, uint64_t pid, uint64_t cid)
 
         osd_command_set_remove_collection(&command, pid, cid);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
         return 0;
@@ -191,7 +191,7 @@ int remove_member_objects(int fd, uint64_t pid, uint64_t cid)
 
         osd_command_set_remove_member_objects(&command, pid, cid);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
         return 0;
@@ -210,7 +210,7 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const cha
 		command.outdata = buf;
 		command.outlen = strlen(buf) + 1;
 	
-		ret = osd_sgio_submit_and_wait(fd, &command);
+		ret = osd_submit_and_wait(fd, &command);
 		check_response(ret, command, NULL);
 	}
 	else
@@ -232,7 +232,7 @@ int write_osd(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offs
 		command.outdata = buf;
 		command.outlen = strlen(buf) + 1;
 
-		ret = osd_sgio_submit_and_wait(fd, &command);
+		ret = osd_submit_and_wait(fd, &command);
 		check_response(ret, command, NULL);
 	}
 	else 
@@ -256,7 +256,7 @@ int read_osd(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 
 	buf[0] = '\0';
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, buf);
 
 	return 0;
@@ -272,7 +272,7 @@ int format_osd(int fd, int capacity)
 
         osd_command_set_format_osd(&command, capacity);
 
-	ret = osd_sgio_submit_and_wait(fd, &command);	
+	ret = osd_submit_and_wait(fd, &command);	
 	check_response(ret, command, NULL);
 	
         return 0;
@@ -287,7 +287,7 @@ int flush_osd(int fd, int flush_scope)
 
         osd_command_set_flush_osd(&command, flush_scope);   
 	
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
         return 0; 
@@ -303,7 +303,7 @@ int flush_partition(int fd, uint64_t pid, int flush_scope)
 
         osd_command_set_flush_partition(&command, pid, flush_scope);   
 	
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
         return 0; 
@@ -319,7 +319,7 @@ int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope)
 
         osd_command_set_flush_collection(&command, pid, cid, flush_scope);   
 	
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, NULL);
 
         return 0; 
@@ -340,7 +340,7 @@ int get_attributes(int fd, uint64_t pid, uint64_t oid)
 
 	buf[0] = '\0';
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, buf);
 
 	return 0;
@@ -359,7 +359,7 @@ int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_id
 		command.outdata = attrs;
 		command.outlen = sizeof(attrs); 
 
-		ret = osd_sgio_submit_and_wait(fd, &command);
+		ret = osd_submit_and_wait(fd, &command);
 		check_response(ret, command, NULL);
 	}
 	else 
@@ -381,7 +381,7 @@ int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attri
 		command.outdata = attrs;
 		command.outlen = sizeof(attrs); 
 
-		ret = osd_sgio_submit_and_wait(fd, &command);
+		ret = osd_submit_and_wait(fd, &command);
 		check_response(ret, command, NULL);
 	}
 	else 
@@ -405,7 +405,7 @@ int get_member_attributes(int fd, uint64_t pid, uint64_t cid)
 
 	buf[0] = '\0';
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, buf);
 
 	return 0;
@@ -428,7 +428,7 @@ int object_list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid)
 	
 	buf[0] = '\0';
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, buf);
 
 	return 0;
@@ -450,7 +450,7 @@ int collection_list(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64
 	
 	buf[0] = '\0';
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	check_response(ret, command, buf);
 
 	return 0;

@@ -53,7 +53,7 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 		return 1;
 	}
 	memset(command.indata, 0xaa, command.inlen_alloc);
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	if (ret) {
 		osd_error_xerrno(ret, "%s: submit failed", __func__);
 		return 1;
@@ -100,7 +100,7 @@ static void iovec_write_test(int fd, uint64_t pid, uint64_t oid)
 	command.outdata = vec;
 	command.iov_outlen = 2;
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	if (ret) {
 		osd_error("%s: submit_and_wait failed", __func__);
 		return;
@@ -115,7 +115,7 @@ static void iovec_write_test(int fd, uint64_t pid, uint64_t oid)
 	command.inlen_alloc = sizeof(bufout);
 	command.indata = bufout;
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	if (ret)
 		osd_error("%s: submit_and_wait failed", __func__);
 	printf("%s: read some bytes (%lu): %s\n\n", __func__,
@@ -139,7 +139,7 @@ static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
 	command.cdb_len = OSD_CDB_SIZE;
 	command.outlen = sizeof(bufout);
 	command.outdata = bufout;
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	if (ret) {
 		osd_error("%s: submit_and_wait failed", __func__);
 		return;
@@ -159,7 +159,7 @@ static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
 	command.indata = vec;
 	command.iov_inlen = 2;
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	if (ret) {
 		osd_error("%s: submit_and_wait failed", __func__);
 		return;

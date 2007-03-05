@@ -21,7 +21,7 @@ typedef uint64_t __u64;
 #include "util/util.h"
 #include "kernel_interface.h"
 
-int osd_sgio_submit_command(int fd, struct osd_command *command)
+int osd_submit_command(int fd, struct osd_command *command)
 {
 	int ret;
 	struct sg_io_v4 sg;
@@ -57,7 +57,7 @@ int osd_sgio_submit_command(int fd, struct osd_command *command)
 	return 0;
 }
 
-int osd_sgio_wait_response(int fd, struct osd_command **out_command)
+int osd_wait_response(int fd, struct osd_command **out_command)
 {
 	struct sg_io_v4 sg;
 	struct osd_command *command;
@@ -85,18 +85,18 @@ int osd_sgio_wait_response(int fd, struct osd_command **out_command)
 	return 0;
 }
 
-int osd_sgio_submit_and_wait(int fd, struct osd_command *command)
+int osd_submit_and_wait(int fd, struct osd_command *command)
 {
 	int ret;
 	struct osd_command *cmp;
 
-	ret = osd_sgio_submit_command(fd, command);
+	ret = osd_submit_command(fd, command);
 	if (ret) {
 		osd_error("%s: submit failed", __func__);
 		return ret;
 	}
 
-	ret = osd_sgio_wait_response(fd, &cmp);
+	ret = osd_wait_response(fd, &cmp);
 	if (ret) {
 		osd_error("%s: wait_response failed", __func__);
 		return ret;
@@ -107,25 +107,5 @@ int osd_sgio_submit_and_wait(int fd, struct osd_command *command)
 		return 1;
 	}
 	return 0;
-}
-
-/*
- * Experimental, pending we figure out how to get python to talk
- * to these other functions.
- */
-int osd_sgio_submit_and_wait_python(int fd, uint8_t *cdb, int cdb_len,
-                                    void *outdata, size_t outlen,
-				    size_t inlen_alloc)
-{
-	int ret;
-	struct osd_command command;
-
-	memcpy(command.cdb, cdb, cdb_len);
-	command.cdb_len = cdb_len;
-	command.outdata = outdata;
-	command.outlen = outlen;
-	command.inlen_alloc = inlen_alloc;
-	ret = osd_sgio_submit_and_wait(fd, &command);
-	return ret;
 }
 

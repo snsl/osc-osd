@@ -106,7 +106,7 @@ int gen_osd_cmd_submit(int fd, struct osd_command *command)
 		return -1;
 	}
 
-	return osd_sgio_submit_command(fd, command);
+	return osd_submit_command(fd, command);
 }
 
 /*after submitting command need to get result back at some point*/
@@ -120,7 +120,7 @@ int gen_osd_cmd_getcheck_res(int fd, struct osd_command *command)
 		return -1;
 	}
 
-	ret = osd_sgio_wait_response(fd,&cmp);
+	ret = osd_wait_response(fd,&cmp);
 	if (ret) {
 		osd_error("%s: wait_response failed", __func__);
 		return ret;
@@ -141,7 +141,7 @@ struct osd_command *gen_osd_cmd_get_res(int fd)
 	int ret;
 	struct osd_command *out_cmd;
 
-	ret = osd_sgio_wait_response(fd, &out_cmd);
+	ret = osd_wait_response(fd, &out_cmd);
 	if(ret){
 		osd_error("%s: wait_response failed", __func__);
 		return NULL;

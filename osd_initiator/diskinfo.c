@@ -31,7 +31,7 @@ char *osd_get_drive_serial(int fd)
 	command.indata = buf;
 	command.inlen_alloc = 512;
 
-	ret = osd_sgio_submit_and_wait(fd, &command);
+	ret = osd_submit_and_wait(fd, &command);
 	if (ret) {
 		printf("Submit failed!\n");
 		return NULL;

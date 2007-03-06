@@ -29,7 +29,7 @@ static void varlen_cdb_init(struct osd_command *command, uint16_t action)
 	command->cdb[7] = OSD_CDB_SIZE - 8;
         command->cdb[8] = (action & 0xff00U) >> 8;
         command->cdb[9] = (action & 0x00ffU);
-	command->cdb[11] = 2 << 4;  /* a default, even if no attrs */
+	command->cdb[11] = 3 << 4;  /* default to list, but empty list lens */
 	/* Update timestamps based on action 5.2.8 */
 	command->cdb[12] = TIMESTAMP_OFF;
 }

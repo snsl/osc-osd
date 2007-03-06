@@ -16,16 +16,16 @@
 #include "sync.h"
 #include "drivelist.h"
 
-static int check_response(int ret, struct osd_command command, uint8_t buf[])
+static int check_response(int ret, struct osd_command *command, uint8_t buf[])
 {
 	if (ret) {
 		osd_error("%s: submit failed", __func__);
 		return ret;
 	}	
-	if (command.status != 0)
+	if (command->status != 0)
 		osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
-			command.status, command.sense_len, command.inlen);
-	else if (command.inlen > 0)
+			  command->status, command->sense_len, command->inlen);
+	else if (command->inlen > 0)
 		osd_info("Successfully performed task. BUF: <<%s>>", buf);
 	else 
 		osd_info("Successfully performed task");
@@ -49,7 +49,7 @@ int inquiry(int fd)
 	command.inlen_alloc = sizeof(inquiry_rsp);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
 	osd_hexdump(inquiry_rsp, command.inlen);
 
@@ -74,7 +74,7 @@ int query(int fd, uint64_t pid, uint64_t cid, const char *query)
 		command.inlen_alloc = sizeof(buf);
 
 		ret = osd_submit_and_wait(fd, &command);
-		check_response(ret, command, buf);
+		check_response(ret, &command, buf);
 	}
 	else 
 		osd_error("%s: no query sent", __func__); 
@@ -97,7 +97,7 @@ int create_osd(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_o
 	osd_command_set_create(&command, pid, requested_oid, num_user_objects);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 	return 0;
 }
 
@@ -113,7 +113,7 @@ int create_partition(int fd, uint64_t requested_pid)
 	osd_command_set_create_partition(&command, requested_pid);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
 	return 0;
 }
@@ -129,7 +129,7 @@ int create_collection(int fd, uint64_t pid, uint64_t requested_cid)
 	osd_command_set_create_collection(&command, pid, requested_cid);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 	return 0;
 }
 
@@ -144,7 +144,7 @@ int remove_osd(int fd, uint64_t pid, uint64_t requested_oid)
         osd_command_set_remove(&command, pid, requested_oid);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
         return 0;
 }
@@ -160,7 +160,7 @@ int remove_partition(int fd, uint64_t pid)
         osd_command_set_remove_partition(&command, pid);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
         return 0;
 }
@@ -176,7 +176,7 @@ int remove_collection(int fd, uint64_t pid, uint64_t cid)
         osd_command_set_remove_collection(&command, pid, cid);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
         return 0;
 }
@@ -192,7 +192,7 @@ int remove_member_objects(int fd, uint64_t pid, uint64_t cid)
         osd_command_set_remove_member_objects(&command, pid, cid);
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
         return 0;
 }
@@ -211,7 +211,7 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const cha
 		command.outlen = strlen(buf) + 1;
 	
 		ret = osd_submit_and_wait(fd, &command);
-		check_response(ret, command, NULL);
+		check_response(ret, &command, NULL);
 	}
 	else
 		osd_error("%s: no data sent", __func__);
@@ -233,7 +233,7 @@ int write_osd(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offs
 		command.outlen = strlen(buf) + 1;
 
 		ret = osd_submit_and_wait(fd, &command);
-		check_response(ret, command, NULL);
+		check_response(ret, &command, NULL);
 	}
 	else 
 		osd_error("%s: no data sent", __func__); 
@@ -257,7 +257,7 @@ int read_osd(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 	buf[0] = '\0';
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, buf);
+	check_response(ret, &command, buf);
 
 	return 0;
 }
@@ -273,7 +273,7 @@ int format_osd(int fd, int capacity)
         osd_command_set_format_osd(&command, capacity);
 
 	ret = osd_submit_and_wait(fd, &command);	
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 	
         return 0;
 }
@@ -288,7 +288,7 @@ int flush_osd(int fd, int flush_scope)
         osd_command_set_flush_osd(&command, flush_scope);   
 	
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
         return 0; 
 }
@@ -304,7 +304,7 @@ int flush_partition(int fd, uint64_t pid, int flush_scope)
         osd_command_set_flush_partition(&command, pid, flush_scope);   
 	
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
         return 0; 
 }
@@ -320,7 +320,7 @@ int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope)
         osd_command_set_flush_collection(&command, pid, cid, flush_scope);   
 	
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, NULL);
+	check_response(ret, &command, NULL);
 
         return 0; 
 }
@@ -341,7 +341,7 @@ int get_attributes(int fd, uint64_t pid, uint64_t oid)
 	buf[0] = '\0';
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, buf);
+	check_response(ret, &command, buf);
 
 	return 0;
 }
@@ -360,7 +360,7 @@ int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_id
 		command.outlen = sizeof(attrs); 
 
 		ret = osd_submit_and_wait(fd, &command);
-		check_response(ret, command, NULL);
+		check_response(ret, &command, NULL);
 	}
 	else 
 		osd_error("%s: no attributes sent", __func__); 
@@ -382,7 +382,7 @@ int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attri
 		command.outlen = sizeof(attrs); 
 
 		ret = osd_submit_and_wait(fd, &command);
-		check_response(ret, command, NULL);
+		check_response(ret, &command, NULL);
 	}
 	else 
 		osd_error("%s: no attributes sent", __func__); 
@@ -406,7 +406,7 @@ int get_member_attributes(int fd, uint64_t pid, uint64_t cid)
 	buf[0] = '\0';
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, buf);
+	check_response(ret, &command, buf);
 
 	return 0;
 }
@@ -429,7 +429,7 @@ int object_list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid)
 	buf[0] = '\0';
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, buf);
+	check_response(ret, &command, buf);
 
 	return 0;
 }
@@ -451,7 +451,7 @@ int collection_list(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64
 	buf[0] = '\0';
 
 	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, command, buf);
+	check_response(ret, &command, buf);
 
 	return 0;
 }

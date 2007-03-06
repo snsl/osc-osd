@@ -74,42 +74,22 @@ int gen_osd_close_drive(struct gen_osd_drive_list *drive_list, int index)
 }
 
 
-int gen_osd_select_drive(struct gen_osd_drive_list *drive_list,
-			struct gen_osd_cmd *shared, int index)
+int gen_osd_select_drive(struct gen_osd_drive_list *drive_list, int index)
 {
 	if(drive_list->fd_array[index] < 0){
 		osd_error("%s: Drive is invalid", __func__);
 		return -1;
 	}
 
-	shared->current_drive = drive_list->fd_array[index];
-
-	return 0;
+	return drive_list->fd_array[index];
 }
 
-
-/*need to be able to submit the command*/
-int gen_osd_cmd_submit(int fd, struct osd_command *command)
-{
-
-	if (fd < 0) {
-		osd_error("%s: Invalid drive selected", __func__);
-		return -1;
-	}
-
-	return osd_submit_command(fd, command);
-}
 
 /*after submitting command need to get result back at some point*/
 int gen_osd_cmd_getcheck_res(int fd, struct osd_command *command)
 {
 	int ret;
 	struct osd_command *cmp;
-
-	if (fd < 0) {
-		osd_error("%s: Invalid drive selected", __func__);
-		return -1;
-	}
 
 	ret = osd_wait_response(fd,&cmp);
 	if (ret) {
@@ -126,52 +106,3 @@ int gen_osd_cmd_getcheck_res(int fd, struct osd_command *command)
 	return 0;
 }
 
-
-struct osd_command *gen_osd_cmd_get_res(int fd)
-{
-	int ret;
-	struct osd_command *out_cmd;
-
-	ret = osd_wait_response(fd, &out_cmd);
-	if(ret){
-		osd_error("%s: wait_response failed", __func__);
-		return NULL;
-	}
-
-	return out_cmd;
-}
-
-
-void gen_osd_cmd_show_error(struct osd_command *cmd)
-{
-	if (cmd->status == 2)
-		fputs(osd_show_sense(cmd->sense, cmd->sense_len), stderr);
-}
-
-int gen_osd_write_object(struct osd_command *cmd, uint64_t pid, uint64_t oid,
-			void *buf, size_t count, size_t offset)
-{
-	int ret;
-
-	gen_osd_debug(5, "%s: Writing %ld bytes to offset %ld of %ld.%ld",
-			 __func__, count, offset, pid, oid );
-
-	ret = osd_command_set_write(cmd, pid, oid, count, offset);
-	cmd->outdata = buf;
-	cmd->outlen = count;
-	return ret;
-}
-
-int gen_osd_read_object(struct osd_command *cmd, uint64_t pid, uint64_t oid,
-			void *buf, size_t count, size_t offset)
-{
-	int ret;
-
-	gen_osd_debug(5, "%s: Reading %ld bytes at offset %ld of %ld.%ld",
-			 __func__, count, offset, pid, oid );
-
-	ret = osd_command_set_read(cmd, pid, oid, count, offset);
-	cmd->outdata = buf;
-	cmd->outlen = count;
-	return ret;
-}

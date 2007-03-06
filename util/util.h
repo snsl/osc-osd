@@ -43,6 +43,7 @@ void set_htons_le(uint8_t *x, uint16_t val);
 void set_htonl_le(uint8_t *x, uint32_t val);
 void set_htonll_le(uint8_t *x, uint64_t val);
 void set_htonoffset_le(uint8_t *x, uint64_t val);
+uint64_t next_offset(uint64_t start);
 
 /* some day deal with the big-endian versions */
 #define     ntohs      ntohs_le

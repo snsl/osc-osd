@@ -310,20 +310,103 @@ uint64_t ntohoffset_le(const uint8_t *d)
 	return x;
 }
 
+/*
+ * This assumes that val is already rounded.  Else it loses bits as
+ * it converts, effectively truncating.  These generally try to use
+ * the smallest possible exponent to accommodate the value.
+ */
 void set_htonoffset_le(uint8_t *x, uint64_t val)
 {
-	const uint32_t mask = 0xf0000000UL;
+	const uint64_t max_mantissa = 0x0fffffffULL;
+	uint64_t start = val;
 	uint32_t base;
 	uint8_t exponent;
 
 	exponent = 0;
 	val >>= 8;
-	while (val > ~mask) {
+	while (val > max_mantissa) {
 		++exponent;
 		val >>= 1;
+	}
+	if (exponent > 15) {
+		osd_error("%s: offset 0x%llx too big for format", __func__,
+		          llu(start));
+		memset(x, 0, 4);
+		return;
 	}
 	base = val;
 	base |= (uint32_t) exponent << 28;
 	set_htonl_le(x, base);
 }
 
+/*
+ * Find the next legal offset >= start.
+ */
+uint64_t next_offset(uint64_t start)
+{
+	const uint64_t max_mantissa = 0x0fffffffULL;
+	uint64_t val;
+	uint8_t exponent;
+
+	exponent = 8;
+	val = start;
+	val >>= exponent;
+	while (val > max_mantissa) {
+		++exponent;
+		val >>= 1;
+	}
+recheck:
+	if (exponent > 23) {
+		osd_error("%s: offset 0x%llx too big for format", __func__,
+		          llu(start));
+		return 0;
+	}
+
+	/*
+	 * Now we have found floor(val * 2^exponent) for start, but this
+	 * could be less than start.
+	 */
+	if (val << exponent < start) {
+		val += 1;
+		if (val & ~max_mantissa) {
+			/* roll to the next exponent */
+			++exponent;
+			val >>= 1;
+			goto recheck;
+		}
+	}
+	return val << exponent;
+}
+
+#ifdef TEST_NEXT_OFFSET
+int main(void)
+{
+	struct {
+		uint64_t start;
+		uint64_t want;
+	} v[] = {
+		{ 0x0000000000000000ULL, 0x0000000000000000ULL },
+		{ 0x0000000000000001ULL, 0x0000000000000100ULL },
+		{ 0x0000000000000101ULL, 0x0000000000000200ULL },
+		{ 0x0000000fffffff00ULL, 0x0000000fffffff00ULL },
+		{ 0x0000000fffffff01ULL, 0x0000001000000000ULL },
+		{ 0x0000000000800001ULL, 0x0000000000800100ULL },
+		{ 0x0007ffffff800000ULL, 0x0007ffffff800000ULL },
+		{ 0x0007ffffff800001ULL, 0x0000000000000000ULL }, /* too big */
+		{ 0xffffffffffffffffULL, 0x0000000000000000ULL }, /* too big */
+	};
+	int i;
+
+	for (i=0; i<ARRAY_SIZE(v); i++) {
+		char x[4];
+		uint64_t out, conv;
+		out = next_offset(v[i].start);
+		set_htonoffset_le(x, out);
+		conv = ntohoffset_le(x);
+		printf("%016llx -> %016llx %016llx %016llx %s\n", v[i].start,
+		       v[i].want, out, conv,
+		       (out == v[i].want && out == conv) ? "ok" : "BAD");
+	}
+	return 0;
+}
+#endif

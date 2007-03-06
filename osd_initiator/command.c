@@ -1,21 +1,12 @@
-#include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
-#include <scsi/sg.h>
-
 #include <stdint.h>
-#include <sys/types.h>
 
 #include "util/util.h"
-
 #include "command.h"
 #include "osd_cmds.h"
 
-#define OSD_CDB_SIZE 200
 #define VARLEN_CDB 0x7f
-#define TIMESTAMP_ON 0x0
 #define TIMESTAMP_OFF 0x7f
 
 /* cdb initialization / manipulation functions */

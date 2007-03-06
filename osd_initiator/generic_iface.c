@@ -1,23 +1,13 @@
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <errno.h>
 #include <stdint.h>
 #include <fcntl.h>
-#include <sys/types.h>
-
-#include <scsi/scsi.h>
-#include <scsi/sg.h>
 
 #include "util/util.h"
-#include "device.h"
 #include "command.h"
-#include "sync.h"
+#include "device.h"
 #include "drivelist.h"
-#include "sense.h"
 #include "generic_iface.h"
-
 
 int gen_osd_init_drives(struct gen_osd_drive_list *drive_list)
 {

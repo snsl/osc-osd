@@ -2,18 +2,15 @@
  * Test the use of the existing SG_IO interface to transport OSD commands.
  */
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <sys/types.h>
 
 #include "util/util.h"
+#include "command.h"
 #include "device.h"
 #include "drivelist.h"
-#include "command.h"
 #include "sync.h"
 
 static const uint64_t PID = 0x10000LLU;

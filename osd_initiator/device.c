@@ -1,13 +1,14 @@
 /*
  * Talk to the kernel module.
  */
-#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <sys/types.h>
+
+#include "util/util.h"
+#include "command.h"
+#include "device.h"
 
 /*
  * Include kernel header directly (bad).  Need to define some kernel
@@ -17,9 +18,6 @@ typedef  int32_t __s32;
 typedef uint32_t __u32;
 typedef uint64_t __u64;
 #include <linux/bsg.h>
-
-#include "util/util.h"
-#include "device.h"
 
 int osd_submit_command(int fd, struct osd_command *command)
 {

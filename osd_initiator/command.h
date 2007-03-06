@@ -4,11 +4,13 @@
 #define OSD_CDB_SIZE 200
 #define OSD_MAX_SENSE 252
 
-struct attribute_id {
+struct attribute_list {
+	enum { ATTR_GET, ATTR_GET_PAGE, ATTR_GET_MULTI, ATTR_SET } type;
         uint32_t page;
         uint32_t number;
-        uint16_t len;
-	void *tag;
+	void *val;
+	uint16_t len;
+        uint16_t outlen;  /* 0 -> empty or not exist, 0xffff -> overflow */
 };
 
 /*
@@ -38,6 +40,7 @@ struct osd_command {
 	uint8_t status;     		/* [o] scsi status */
 	uint8_t sense[OSD_MAX_SENSE];	/* [o] sense errors */
 	int sense_len;      		/* [o] number of bytes in sense */
+	void *attr_malloc;              /* [x] internal use only */
 };
 
 int osd_command_set_inquiry(struct osd_command *command, uint8_t outlen);
@@ -134,10 +137,9 @@ void set_cdb_get_attr_list(struct osd_command *command, uint32_t list_len,
                            uint32_t retrieved_offset);
 
 int osd_command_attr_build(struct osd_command *command,
-                           struct attribute_id *attrs, int num);
+                           struct attribute_list *attrs, int num);
 
-uint8_t *osd_command_attr_resolve(struct osd_command *command,
-                                  struct attribute_id *attrs, int num,
-			          int index);
+int osd_command_attr_resolve(struct osd_command *command,
+			     struct attribute_list *attrs, int num);
 
 #endif

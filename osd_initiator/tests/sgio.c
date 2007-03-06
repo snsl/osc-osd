@@ -31,28 +31,31 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 	int ret;
 	struct osd_command command;
 	uint64_t logical_length;
-	struct attribute_id id = {
+	struct attribute_list id = {
 	    .page = 0x1,
 	    .number = 0x82,  /* logical length (not used capacity) */
+	    .val = &logical_length,
 	    .len = sizeof(uint64_t),
 	};
-	uint8_t *p;
 
 	osd_info(__func__);
 	ret = osd_command_set_get_attributes(&command, pid, oid);
 	if (ret) {
 		osd_error_xerrno(ret, "%s: get_attributes failed", __func__);
+		printf("\n");
 		return 1;
 	}
 	ret = osd_command_attr_build(&command, &id, 1);
 	if (ret) {
 		osd_error_xerrno(ret, "%s: attr_build failed", __func__);
+		printf("\n");
 		return 1;
 	}
 	memset(command.indata, 0xaa, command.inlen_alloc);
 	ret = osd_submit_and_wait(fd, &command);
 	if (ret) {
 		osd_error_xerrno(ret, "%s: submit failed", __func__);
+		printf("\n");
 		return 1;
 	}
 	printf("%s: status %u sense len %u inlen %zu\n", __func__,
@@ -60,17 +63,15 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 
 	/* verify retrieved list */
 	osd_hexdump(command.indata, command.inlen_alloc);
-	p = osd_command_attr_resolve(&command, &id, 1, 0);
-	if (p == NULL) {
+	ret = osd_command_attr_resolve(&command, &id, 1);
+	if (ret) {
+		osd_error("%s: attr_resolve failed", __func__);
 		printf("\n");
 		return 1;
 	}
 
-	logical_length = ntohll(p);
 	printf("%s: logical length 0x%016llx\n\n", __func__,
-	       llu(logical_length));
-	free(command.indata);
-	free((void *)(uintptr_t) command.outdata);
+	       llu(ntohll((void *) &logical_length)));
 	return 0;
 }
 
@@ -167,6 +168,87 @@ static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
 	       command.inlen, buf1, buf2);
 }
 
+static void attr_test(int fd, uint64_t pid, uint64_t oid)
+{
+	int i, ret;
+	uint64_t len;
+	uint8_t ts[6];  /* odd 6-byte timestamp */
+	const char data[] = "Some data.\n";
+	/* const char attr_data[] = "An attribute.\n"; */
+	struct osd_command command;
+
+	struct attribute_list attr[] = {
+		{
+			.type = ATTR_GET,
+			.page = 0x1,  /* user info page */
+			.number = 0x82,  /* logical length */
+			.val = &len,
+			.len = sizeof(uint64_t),
+		},
+		{
+			.type = ATTR_GET,
+			.page = 0x3,  /* user timestamp page */
+			.number = 0x1,  /* ctitme */
+			.val = &ts,
+			.len = 6,
+		},
+#if 0
+		{
+			.type = ATTR_SET,
+			.page = 0x92,
+			.number = 0x4,
+			.val = attr_data,
+			.len = sizeof(attr_data),
+		},
+		{
+			.type = ATTR_GET_PAGE,
+			.page = 0x3,  /* user timestamp page */
+			.number = 0x1,  /* ctitme */
+			.val = &ts,
+			.len = 6,
+		},
+#endif
+	};
+
+	/* so length will be interesting */
+	write_osd(fd, pid, oid, data, sizeof(data));
+
+	len = -1;
+	memset(ts, 0xaa, 6);
+
+	ret = osd_command_set_get_attributes(&command, pid, oid);
+	if (ret) {
+		osd_error("%s: set_get_attributes failed", __func__);
+		printf("\n");
+		return;
+	}
+	ret = osd_command_attr_build(&command, attr, ARRAY_SIZE(attr));
+	if (ret) {
+		osd_error("%s: attr_build failed", __func__);
+		printf("\n");
+		return;
+	}
+	ret = osd_submit_and_wait(fd, &command);
+	if (ret) {
+		osd_error("%s: submit_and_wait failed", __func__);
+		printf("\n");
+		return;
+	}
+	ret = osd_command_attr_resolve(&command, attr, ARRAY_SIZE(attr));
+	if (ret) {
+		osd_error("%s: attr_resolve failed", __func__);
+		printf("\n");
+		return;
+	}
+	for (i=0; i<ARRAY_SIZE(attr); i++) {
+		if (attr[i].len != attr[i].outlen)
+			osd_error("%s: attr %d short: %u not %u", __func__,
+				  i, attr[i].outlen, attr[i].len);
+	}
+	printf("%s: len %016llx ts %02x%02x%02x%02x%02x%02x\n\n",
+	       __func__, llu(len), ts[0], ts[1], ts[2], ts[3], ts[4], ts[5]);
+}
+
 int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
@@ -240,6 +322,12 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+5);
 #endif
 
+#if 1           /* Testing attribute API */
+		create_osd(fd, PID, OID+6, 1);
+		attr_test(fd, PID, OID+6);
+		remove_osd(fd, PID, OID+6);
+#endif
+
 
 #if 0		/* Testing stuff */
 		create_osd(fd, PID, OID, NUM_USER_OBJ+3);
@@ -252,22 +340,6 @@ int main(int argc, char *argv[])
 		get_attribute_page(fd, PAGE, OFFSET);
 #endif
 
-#if 0		/* getattr tests */
-		uint64_t oid;
-		uint8_t attr_tmp_buf[1024];
-		struct attribute_id get_oid_attr = {
-			.op = GET_ATTRIBUTE,
-			.page = ATTR_PAGE_CURRENT_COMMAND,
-			.number = ATTR_NUMBER_CURRENT_COMMAND_OID,
-			.buf = &oid,
-			.len = sizeof(oid),
-		}
-		osd_command_create(&command, PID, 0, 3);
-		osd_command_modify_attrs(&command, &get_oid_attr, 1,
-					 attr_tmp_buf);
-		run_command(fd, &command, "create 3 anonymous");
-		printf("created 3 object ids from 0x%llx\n", llu(oid));
-#endif
 		close(fd);
 	}
 

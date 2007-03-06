@@ -315,7 +315,7 @@ int get_attributes(int fd, uint64_t pid, uint64_t oid)
 	return 0;
 }
 
-int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_id *attrs)
+int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_list *attrs)
 {
 	int ret;
 	struct osd_command command;
@@ -336,7 +336,7 @@ int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_id
 	return 0;
 }
 
-int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attribute_id *attrs)
+int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attribute_list *attrs)
 {
 	int ret;
 	struct osd_command command;

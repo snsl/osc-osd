@@ -8,18 +8,19 @@ OBJ := $(SRC:.c=.o)
 LIB := pyosd.so
 
 # external libraries being wrapped for python
+INCDIR := -I/usr/include/python2.4 -I../..
 OSDLIBS := ../libosd.a ../../util/libosdutil.a
 
 # usual definitions
 CC := gcc
-CPP_M := -MM -MT $(GENPXD)
+CPP_M := -MM
 LD := $(CC)
 COPTS := -g -fPIC
 CWARN := -Wall -W -Wno-missing-field-initializers \
          -Wpointer-arith -Wcast-align -Wcast-qual \
 	 -Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \
 	 -Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I/usr/include/python2.4 -I../..
+CFLAGS := $(COPTS) $(CWARN) $(INCDIR)
 
 all:: $(LIB)
 
@@ -34,14 +35,14 @@ ifeq (,$(filter clean distclean dist,$(MAKECMDGOALS)))
 endif
 all:: .depend
 .depend: $(INC) Makefile
-	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > .depend
+	$(CC) $(CPP_M) $(INCDIR) $(SRC) > .depend
 
 clean:
 	rm -f $(LIB) $(OBJ)
 	rm -f .depend tags
 
 tags: FORCE
-	ctags $(SRC) $(INC)
+	ctags $(SRC)
 
 FORCE:;
 

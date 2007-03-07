@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #
 # test program for python interface
 #
@@ -20,6 +21,7 @@ pyosd.set_progname(sys.argv[0])
 # find and show all the drives
 drives = pyosd.OSDDriveList()
 if len(drives) < 1:
+	print >>sys.stderr, "No drives."
 	sys.exit(1)
 
 print "Available drives:"
@@ -38,7 +40,9 @@ command.set_inquiry()
 dev.submit_and_wait(command)
 print "inquiry status", command.status
 print "inquiry indata (%d):" % command.inlen
-print hexdump(command.indata, command.inlen),
+if command.inlen:
+	print hexdump(command.indata, command.inlen),
+# XXX: how to free indata on command?
 
 # format
 print "format"
@@ -72,18 +76,39 @@ if command.status:
 ccap_page = 0xfffffffe
 ccap_number_oid = 4
 
+uiap_page = 0x0
+uiap_number_len = 0x82
+
 # create any oid, ask for result
 print "create any object"
 command = pyosd.OSDCommand()
 command.set_create(pid)
-command.attr_get(ccap_page, ccap_number_oid, type(0L))
+attr = pyosd.OSDAttr(pyosd.ATTR_GET, ccap_page, ccap_number_oid, 8)
+command.attr_build(attr)
 dev.submit_and_wait(command)
 print "status", command.status
 if command.status:
 	print command.show_sense(),
 else:
-	created_oid = command.attr[0]
-	print "created oid", created_oid
+	command.attr_resolve(attr)
+	print "created oid", pyosd.ntohll(attr.val)
+
+# two attrs
+print "getattr"
+command = pyosd.OSDCommand()
+command.set_get_attributes(pid, oid)
+attr = [ pyosd.OSDAttr(pyosd.ATTR_GET, ccap_page, ccap_number_oid, 8), \
+         pyosd.OSDAttr(pyosd.ATTR_GET, uiap_page, uiap_number_len, 8) ]
+command.attr_build(attr)
+dev.submit_and_wait(command)
+print "status", command.status
+if command.status:
+	print command.show_sense(),
+else:
+	command.attr_resolve(attr)
+	verify_oid = pyosd.ntohll(attr[0].val)
+	len = pyosd.ntohll(attr[1].val)
+	print "verify oid", oid, "has len", len
 
 dev.close()
 

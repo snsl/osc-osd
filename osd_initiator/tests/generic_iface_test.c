@@ -1,58 +1,54 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 #include "util/util.h"
 #include "command.h"
 #include "device.h"
+#include "drivelist.h"
 #include "sense.h"
-#include "generic_iface.h"
 
 #define PVFS_OSD_PID 0x10003ULL
 #define FIRST_OID  0x10000LLU;
 
-static const int OBJ_CAPACITY = 1<<30; /* 1 GB */
-
-static int drive_id;
-static struct gen_osd_drive_list drive_list;
+static int fd;
 static char *buf;
 static char *buf2;
-
 
 static void init(void)
 {
 	int ret;
+	struct osd_drive_description *drive_list;
+	int num_drives;
 
 	printf("Initialization\n");
-	ret = gen_osd_init_drives(&drive_list);
-	if (ret == 0){
-		printf("Can't init drives\n");
+	ret = osd_get_drive_list(&drive_list, &num_drives);
+	if (ret < 0) {
+		osd_error_errno("%s: get drive list", __func__);
+		exit(1);
+	}
+	if (num_drives == 0) {
+		osd_error("%s: No drives found: %d", __func__, num_drives);
 		exit(1);
 	}
 
-	printf("Found %d Drives Now open a drive\n", ret);
-	drive_id = 0;  /*First drive*/
-
-	ret = gen_osd_open_drive(&drive_list, drive_id);
-	if (ret != 0){
-		printf("Unable to open drive\n");
+	printf("Found %d Drives Now open drive #0\n", num_drives);
+	fd = open(drive_list[0].chardev, O_RDWR);
+	if (fd < 0) {
+		osd_error_errno("%s: open %s", __func__, drive_list[0].chardev);
 		exit(1);
 	}
 }
 
 static void format(void)
 {
-	int ret, fd;
+	int ret;
 	struct osd_command command;
+	const int OBJ_CAPACITY = 1<<30;  /* 1 GB */
 
 	printf("BEGINNING FORMAT TEST\n");
-
-	printf("Setting FD\n");
-	fd = gen_osd_select_drive(&drive_list, drive_id);
-	if (fd < 0){
-		printf("Unable to select drive\n");
-		exit(1);
-	}
 
 	printf("Formatting active disk\n");
 	printf(".....Set format command\n");
@@ -68,7 +64,7 @@ static void format(void)
 		exit(1);
 	}
 	printf(".....Get the status of the command\n");
-	ret = gen_osd_cmd_getcheck_res(fd, &command);
+	ret = osd_wait_this_response(fd, &command);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
@@ -93,28 +89,22 @@ static void format(void)
 static void fini(void)
 {
 	int ret;
+
 	printf("Close the drive\n");
-	ret = gen_osd_close_drive(&drive_list, drive_id);
-	if (ret != 0){
-		printf("Unable to close drive\n");
+	ret = close(fd);
+	if (ret) {
+		osd_error_errno("%s: close drive", __func__);
 		exit(1);
 	}
 }
 
 static void test_create_partition(void)
 {
-	int ret, fd;
+	int ret;
 	struct osd_command command;
 	struct osd_command command2;
 
 	printf("BEGIN CREATE PARTITION\n");
-
-	printf("Setting FD for cmd non-PVFS way\n");
-	fd = gen_osd_select_drive(&drive_list, drive_id);
-	if (fd < 0){
-		printf("Unable to select drive\n");
-		exit(1);
-	}
 
 	printf("Create Partition command that should fail\n");
 	ret = osd_command_set_create_partition(&command, 2);
@@ -144,7 +134,7 @@ static void test_create_partition(void)
 
 	printf("Get the status of the commands\n\n");
 
-	ret = gen_osd_cmd_getcheck_res(fd, &command);
+	ret = osd_wait_this_response(fd, &command);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
@@ -161,7 +151,7 @@ static void test_create_partition(void)
 	printf(".....%s\n", (char *) command.indata);
 	printf("Command failed as expected\n");
 
-	ret = gen_osd_cmd_getcheck_res(fd, &command2);
+	ret = osd_wait_this_response(fd, &command2);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
@@ -184,17 +174,11 @@ static void test_create_partition(void)
 
 static void create_objects(void)
 {
-	int ret, fd;
+	int ret;
 	struct osd_command command;
 	uint16_t count = 10;
 
 	printf("BEGIN CREATE OBJECT TEST\n");
-
-	fd = gen_osd_select_drive(&drive_list, drive_id);
-	if (fd < 0){
-		printf("Unable to select drive\n");
-		exit(1);
-	}
 
 	printf("Create the command\n");
 	ret = osd_command_set_create(&command, PVFS_OSD_PID, 0, count);
@@ -210,7 +194,7 @@ static void create_objects(void)
 		exit(1);
 	}
 
-	ret = gen_osd_cmd_getcheck_res(fd, &command);
+	ret = osd_wait_this_response(fd, &command);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
@@ -232,16 +216,10 @@ static void remove_objects(void)
 	/*Since create object with get attributes not implemented yet
 	just assume we know the first object ID which we do do here*/
 
-	int ret, fd;
+	int ret;
 	struct osd_command command;
 	int i;
 	uint64_t oid, pid;
-
-	fd = gen_osd_select_drive(&drive_list, drive_id);
-	if (fd < 0){
-		printf("Unable to select drive\n");
-		exit(1);
-	}
 
 	oid = FIRST_OID;
 	oid++;
@@ -263,7 +241,7 @@ static void remove_objects(void)
 			exit(1);
 		}
 
-		ret = gen_osd_cmd_getcheck_res(fd, &command);
+		ret = osd_wait_this_response(fd, &command);
 		if (ret != 0) {
 			printf("Unable to get result\n");
 			exit(1);
@@ -282,18 +260,12 @@ static void remove_objects(void)
 
 static void write_objects(void)
 {
-	int ret, fd;
+	int ret;
 	struct osd_command command;
 	int i;
 	uint64_t oid, pid;
 	size_t len;
 	size_t offset;
-
-	fd = gen_osd_select_drive(&drive_list, drive_id);
-	if (fd < 0){
-		printf("Unable to select drive\n");
-		exit(1);
-	}
 
 	buf = malloc(1024);
 	for(i=0; i<1024; i++){
@@ -321,7 +293,7 @@ static void write_objects(void)
 		exit(1);
 	}
 
-	ret = gen_osd_cmd_getcheck_res(fd, &command);
+	ret = osd_wait_this_response(fd, &command);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);
@@ -338,17 +310,11 @@ static void write_objects(void)
 
 static void read_objects(void)
 {
-	int ret, fd;
+	int ret;
 	struct osd_command command;
 	int i;
 	uint64_t oid, pid;
 	size_t len, offset;
-
-	fd = gen_osd_select_drive(&drive_list, drive_id);
-	if (fd < 0){
-		printf("Unable to select drive\n");
-		exit(1);
-	}
 
 	buf2 = malloc(1024);
 
@@ -373,7 +339,7 @@ static void read_objects(void)
 		exit(1);
 	}
 
-	ret = gen_osd_cmd_getcheck_res(fd, &command);
+	ret = osd_wait_this_response(fd, &command);
 	if (ret != 0) {
 		printf("Unable to get result\n");
 		exit(1);

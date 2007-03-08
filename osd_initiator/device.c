@@ -69,7 +69,7 @@ int osd_wait_response(int fd, struct osd_command **out_command)
 	if (ret != sizeof(sg)) {
 		osd_error("%s: short read, %d not %zu", __func__, ret,
 		          sizeof(sg));
-		return 1;
+		return -EPIPE;
 	}
 
 	command = (void *) sg.usr_ptr;
@@ -81,6 +81,25 @@ int osd_wait_response(int fd, struct osd_command **out_command)
 	*out_command = command;
 
 	return 0;
+}
+
+/*
+ * osd_wait_response, plus verify that the command retrieved was the
+ * one we expected, or error.
+ */
+int osd_wait_this_response(int fd, struct osd_command *command)
+{
+	int ret;
+	struct osd_command *cmp;
+
+	ret = osd_wait_response(fd, &cmp);
+	if (ret == 0) {
+		if (cmp != command) {
+			osd_error("%s: wrong command returned", __func__);
+			ret = -EIO;
+		}
+	}
+	return ret;
 }
 
 int osd_submit_and_wait(int fd, struct osd_command *command)

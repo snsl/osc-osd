@@ -150,7 +150,7 @@ else:
 # two set attrs
 print "read back two setattr (and one undefined)"
 command = pyosd.OSDCommand()
-command.set_set_attributes(pid, oid)
+command.set_get_attributes(pid, oid)
 attr = [ pyosd.OSDAttr(pyosd.ATTR_GET, 0x10201, 18, 40), \
          pyosd.OSDAttr(pyosd.ATTR_GET, 0x10000, 12, 40), \
 	 pyosd.OSDAttr(pyosd.ATTR_GET, 0x10999, 14, 40) ]

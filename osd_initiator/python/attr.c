@@ -13,42 +13,68 @@ static int pyosd_attr_init(PyObject *self, PyObject *args,
 			   PyObject *keywords __unused)
 {
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
+	struct attribute_list *attr = &py_attr->attr;
 	int attr_type;
 	unsigned int page, number, len;
+	PyObject *val = NULL;
 
-	if (!PyArg_ParseTuple(args, "iIII:submit_and_wait", &attr_type, &page,
-			      &number, &len))
+	if (!PyArg_ParseTuple(args, "iIII|S:init", &attr_type, &page,
+			      &number, &len, &val))
 		return -1;
-	py_attr->attr.type = attr_type;
-	py_attr->attr.page = page;
-	py_attr->attr.number = number;
-	py_attr->attr.len = len;
+	attr->type = attr_type;
+	attr->page = page;
+	attr->number = number;
+	attr->len = len;
+	if (val) {
+		if (attr_type != ATTR_SET) {
+		    PyErr_SetString(PyExc_RuntimeError,
+		    		    "value can only be given for ATTR_SET");
+		    return -1;
+		}
+		Py_IncRef(val);
+		py_attr->val = val;
+		attr->val = PyString_AsString(val);  /* pointer into val */
+	} else {
+		if (attr_type == ATTR_SET) {
+			PyErr_SetString(PyExc_RuntimeError,
+					"value must be given for ATTR_SET");
+			return -1;
+		}
+		attr->val = PyMem_Malloc(attr->len);  /* for output data */
+	}
     	return 0;
 }
 
 /*
- * Destructor.  Free val members of attributes.
+ * Destructor.  Free val member if it was created for a get, or drop
+ * its ref if it was passed in for a set.
  */
 static void pyosd_attr_dealloc(PyObject *self)
 {
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	struct attribute_list *attr = &py_attr->attr;
-	int i, numattr = py_attr->numattr;
 
-	for (i=0; i<numattr; i++)
-		if (attr[i].type == ATTR_GET || attr[i].type == ATTR_GET_PAGE
-		 || attr[i].type == ATTR_GET_MULTI)
-			PyMem_Free(attr[i].val);
+	if (attr->type == ATTR_GET || attr->type == ATTR_GET_PAGE
+	 || attr->type == ATTR_GET_MULTI)
+		PyMem_Free(attr->val);    /* output data */
+
+	if (attr->type == ATTR_SET)
+		Py_DecRef(py_attr->val);  /* ref on input data */
 }
 
 /*
- * Return val.
+ * Return val.  Should keep a ref to the command to check if it is done.
  */
 static PyObject *pyosd_attr_get_val(PyObject *self, void *closure __unused)
 {
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	const struct attribute_list *attr = &py_attr->attr;
 
+	if (!(attr->type == ATTR_GET || attr->type == ATTR_GET_PAGE
+	   || attr->type == ATTR_GET_MULTI)) {
+		PyErr_SetString(PyExc_RuntimeError, 
+				"only GET values can be retrieved");
+	}
 	if (attr->outlen == 0 || attr->outlen == 0xffff)
 		return Py_BuildValue("");
 

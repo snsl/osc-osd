@@ -107,7 +107,7 @@ if command.status:
 	print command.show_sense(),
 
 # two attrs
-print "getattr"
+print "two getattr"
 command = pyosd.OSDCommand()
 command.set_get_attributes(pid, oid)
 attr = [ pyosd.OSDAttr(pyosd.ATTR_GET, ccap_page, ccap_number_oid, 8), \
@@ -132,6 +132,37 @@ if command.status:
 	print command.show_sense(),
 else:
 	print "read:", command.indata
+
+# two set attrs
+print "two setattr"
+command = pyosd.OSDCommand()
+command.set_set_attributes(pid, oid)
+attr = [ pyosd.OSDAttr(pyosd.ATTR_SET, 0x10000, 12, 9, "testattr1"), \
+         pyosd.OSDAttr(pyosd.ATTR_SET, 0x10201, 18, 9, "testattr2") ]
+command.attr_build(attr)
+dev.submit_and_wait(command)
+if command.status:
+	print "status", command.status
+	print command.show_sense(),
+else:
+	print "attrs set"
+
+# two set attrs
+print "read back two setattr (and one undefined)"
+command = pyosd.OSDCommand()
+command.set_set_attributes(pid, oid)
+attr = [ pyosd.OSDAttr(pyosd.ATTR_GET, 0x10201, 18, 40), \
+         pyosd.OSDAttr(pyosd.ATTR_GET, 0x10000, 12, 40), \
+	 pyosd.OSDAttr(pyosd.ATTR_GET, 0x10999, 14, 40) ]
+command.attr_build(attr)
+dev.submit_and_wait(command)
+if command.status:
+	print "status", command.status
+	print command.show_sense(),
+else:
+	command.attr_resolve(attr)
+	print "got attrs", attr[0].val, "and", attr[1].val, "and", \
+	      attr[2].val
 
 dev.close()
 

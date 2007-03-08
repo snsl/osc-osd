@@ -9,7 +9,7 @@
 #include "pyosd.h"
 
 /*
- * Clear everything.
+ * Clear everything.  Command will be cleared by a set function.
  */
 static int pyosd_command_init(PyObject *self, PyObject *args __unused,
 			      PyObject *keywords __unused)
@@ -18,6 +18,9 @@ static int pyosd_command_init(PyObject *self, PyObject *args __unused,
 
 	py_command->set = 0;
 	py_command->complete = 0;
+	py_command->py_attr = NULL;
+	py_command->attr = NULL;
+	py_command->numattr = 0;
 	return 0;
 }
 
@@ -26,6 +29,11 @@ static void pyosd_command_dealloc(PyObject *self)
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 
+	if (py_command->attr) {
+		/* free up space allocated by attr_build */
+		osd_command_attr_resolve(command, py_command->attr,
+					 py_command->numattr);
+	}
 	PyMem_Free(command->indata);
 	PyMem_Free((void *)(uintptr_t) command->outdata);
 }
@@ -70,6 +78,11 @@ static PyObject *pyosd_command_show_sense(PyObject *self, PyObject *args)
 	return o;
 }
 
+/*
+ * Called once to linearize the list of attributes (or single).  This
+ * hangs on the command and will be used at resolve time to return
+ * the values.
+ */
 static struct attribute_list *attr_flatten(PyObject *o, int *numattr)
 {
 	struct pyosd_attr *py_attr;
@@ -118,18 +131,18 @@ out:
 }
 
 /*
- * Move the allocated and filled value buffers into the OSDAttr types.
- * The memory is managed by python and will be freed in the dealloc
- * function.  Object type has already been verified by the flatten function.
+ * The outlen was changed in the flattened array during resolve.  Copy
+ * that back into the original OSDAttr.  The return GET data is already
+ * there as the flat val buffers point into space allocated during OSDAttr
+ * init.
  */
-static void attr_copy_vals(PyObject *o, struct attribute_list *attr,
-			   int numattr)
+static void attr_copy_outlens(PyObject *o, struct attribute_list *attr,
+			      int numattr)
 {
 	struct pyosd_attr *py_attr;
 
 	if (PyObject_TypeCheck(o, &pyosd_attr_type)) {
 		py_attr = (struct pyosd_attr *) o;
-		py_attr->attr.val = attr[0].val;
 		py_attr->attr.outlen = attr[0].outlen;
 	}
 
@@ -137,23 +150,20 @@ static void attr_copy_vals(PyObject *o, struct attribute_list *attr,
 		int i;
 		for (i=0; i<numattr; i++) {
 			py_attr = (struct pyosd_attr *) PyList_GetItem(o, i);
-			py_attr->attr.val = attr[i].val;
 			py_attr->attr.outlen = attr[i].outlen;
 		}
 	}
 }
 
 /*
- * Attributes.  Valid argument to this function is OSDAttr or flat
- * list of OSDAttr.
+ * Attributes.  Valid argument to this function is OSDAttr or list of OSDAttr.
  */
 static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 	PyObject *o;
-	struct attribute_list *attr;
-	int ret, numattr;
+	int ret;
 
 	if (!PyArg_ParseTuple(args, "O:attr_build", &o))
 		return NULL;
@@ -166,21 +176,34 @@ static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, "command already complete");
 		return NULL;
 	}
+	if (py_command->attr) {
+		PyErr_SetString(PyExc_RuntimeError, "attributes already built");
+		return NULL;
+	}
 
 	/*
-	 * Pull attrs into a single flat allocated list.
+	 * Pull attrs into a single flat allocated list and keep it around
+	 * for resolve to write back into.
 	 */
-	attr = attr_flatten(o, &numattr);
-	if (!attr)
+	py_command->attr = attr_flatten(o, &py_command->numattr);
+	if (!py_command->attr)
 		return NULL;
 
-	ret = osd_command_attr_build(command, attr, numattr);
+	/*
+	 * Remember the list of attributes, but do not take a reference
+	 * on it.  User must pass it in again later.
+	 */
+	py_command->py_attr = o;
+
+	/*
+	 * Copies values out of attr but does not need to hold onto it.
+	 */
+	ret = osd_command_attr_build(command, py_command->attr,
+				     py_command->numattr);
 	if (ret) {
 		PyErr_SetString(PyExc_RuntimeError, "attr_build failed");
 		return NULL;
 	}
-
-	PyMem_Free(attr);
 
 	return Py_BuildValue("");
 }
@@ -190,16 +213,15 @@ static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
  * used.  Could hide this in the run, but want to keep the python and
  * C APIs similar.
  *
- * We could also keep the attr with the command so there is no need
- * to pass it in again at resolve time.
+ * The attr list is kept with the command, but we force user to pass
+ * it in again to keep the API similar to C.
  */
 static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 	PyObject *o;
-	struct attribute_list *attr;
-	int i, ret, numattr;
+	int ret;
 
 	if (!PyArg_ParseTuple(args, "O:attr_resolve", &o))
 		return NULL;
@@ -212,36 +234,34 @@ static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, "command not complete");
 		return NULL;
 	}
-
-	/*
-	 * Pull attrs into a single flat allocated list.
-	 */
-	attr = attr_flatten(o, &numattr);
-	if (!attr)
+	if (py_command->attr == NULL) {
+		PyErr_SetString(PyExc_RuntimeError,
+			"attr_build was not called");
 		return NULL;
+	}
 
 	/*
-	 * Allocate space for returned values.
+	 * Just verify he passed in the same thing as to build.
 	 */
-	for (i=0; i<numattr; i++)
-		if (attr[i].type == ATTR_GET || attr[i].type == ATTR_GET_PAGE
-		 || attr[i].type == ATTR_GET_MULTI) {
-			attr[i].val = PyMem_Malloc(attr[i].len);
-			if (!attr[i].val)
-				return PyErr_NoMemory();
-		}
+	if (py_command->py_attr != o) {
+		PyErr_SetString(PyExc_RuntimeError,
+			"attr_build was called with different args");
+		return NULL;
+	}
 
-	ret = osd_command_attr_resolve(command, attr, numattr);
+	ret = osd_command_attr_resolve(command, py_command->attr,
+				       py_command->numattr);
 	if (ret) {
 		PyErr_SetString(PyExc_RuntimeError, "attr_resolve failed");
 		return NULL;
 	}
 
 	/*
-	 * Copy results back out into py_attr.
+	 * Copy outlens back out into py_attr then drop the temp array.
 	 */
-	attr_copy_vals(o, attr, numattr);
-	PyMem_Free(attr);
+	attr_copy_outlens(o, py_command->attr, py_command->numattr);
+	PyMem_Free(py_command->attr);
+	py_command->attr = NULL;
 
 	return Py_BuildValue("");
 }

@@ -26,3 +26,6 @@ extern PyTypeObject pyosd_device_type;
 extern PyTypeObject pyosd_drive_type;
 extern PyTypeObject pyosd_drivelist_type;
 
+/* exporting this to python */
+PyMODINIT_FUNC initpyosd(void);
+

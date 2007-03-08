@@ -18,7 +18,7 @@ static int pyosd_command_init(PyObject *self, PyObject *args __unused,
 
 	py_command->set = 0;
 	py_command->complete = 0;
-    	return 0;
+	return 0;
 }
 
 static void pyosd_command_dealloc(PyObject *self)
@@ -27,20 +27,20 @@ static void pyosd_command_dealloc(PyObject *self)
 	struct osd_command *command = &py_command->command;
 
 	if (command->indata) {
-	    	if (command->iov_inlen) {
-		    	struct bsg_iovec *iov = command->indata;
+		if (command->iov_inlen) {
+			struct bsg_iovec *iov = command->indata;
 			int i;
-		    	for (i=0; i<command->iov_inlen; i++)
-			    	PyMem_Free((void *) iov[i].iov_base);
+			for (i=0; i<command->iov_inlen; i++)
+				PyMem_Free((void *) iov[i].iov_base);
 		} else
 			PyMem_Free(command->indata);
 	}
 	if (command->outdata) {
-	    	if (command->iov_outlen) {
-		    	const struct bsg_iovec *iov = command->outdata;
+		if (command->iov_outlen) {
+			const struct bsg_iovec *iov = command->outdata;
 			int i;
-		    	for (i=0; i<command->iov_outlen; i++)
-			    	PyMem_Free((void *) iov[i].iov_base);
+			for (i=0; i<command->iov_outlen; i++)
+				PyMem_Free((void *) iov[i].iov_base);
 		} else
 			PyMem_Free((void *)(uintptr_t) command->outdata);
 	}
@@ -57,8 +57,8 @@ static PyObject *pyosd_command_get_indata(PyObject *self,
 		return NULL;
 	}
 	if (command->indata)
-	    	return PyString_FromStringAndSize(command->indata,
-		                                         command->inlen);
+		return PyString_FromStringAndSize(command->indata,
+						  command->inlen);
 	return Py_BuildValue("");
 }
 
@@ -252,7 +252,7 @@ static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, "attr_resolve failed");
 		return NULL;
 	}
-	
+
 	/*
 	 * Copy results back out into py_attr.
 	 */
@@ -281,7 +281,7 @@ static PyObject *pyosd_command_set_inquiry(PyObject *self, PyObject *args)
 	osd_command_set_inquiry(command, 80);
 	command->indata = PyMem_Malloc(80);
 	if (command->indata == NULL)
-	    	return PyErr_NoMemory();
+		return PyErr_NoMemory();
 	command->inlen_alloc = 80;
 	return Py_BuildValue("");
 }
@@ -306,7 +306,7 @@ static PyObject *pyosd_command_set_create(PyObject *self, PyObject *args)
 	}
 
 	py_command->set = 1;
-        osd_command_set_create(command, pid, oid, 1);
+	osd_command_set_create(command, pid, oid, 1);
 	return Py_BuildValue("");
 }
 
@@ -339,7 +339,7 @@ static PyObject *pyosd_command_set_create_partition(PyObject *self,
 	}
 
 	py_command->set = 1;
-        osd_command_set_create_partition(command, pid);
+	osd_command_set_create_partition(command, pid);
 	return Py_BuildValue("");
 }
 
@@ -363,7 +363,7 @@ static PyObject *pyosd_command_set_flush_osd(PyObject *self, PyObject *args)
 }
 
 static PyObject *pyosd_command_set_flush_partition(PyObject *self,
-						    PyObject *args)
+						   PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
@@ -383,19 +383,31 @@ static PyObject *pyosd_command_set_format_osd(PyObject *self, PyObject *args)
 	}
 
 	py_command->set = 1;
-        osd_command_set_format_osd(command, capacity);
+	osd_command_set_format_osd(command, capacity);
 	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_get_attributes(PyObject *self,
-						    PyObject *args)
+						  PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, oid;
+
+	if (!PyArg_ParseTuple(args, "KK:set_get_attributes", &pid, &oid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_get_attributes(command, pid, oid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_get_member_attributes(PyObject *self,
-						    PyObject *args)
+							 PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
@@ -415,14 +427,14 @@ static PyObject *pyosd_command_set_list_collection(PyObject *self,
 }
 
 static PyObject *pyosd_command_set_perform_scsi_command(PyObject *self,
-						   PyObject *args)
+							PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
 static PyObject *pyosd_command_set_perform_task_mgmt_func(PyObject *self,
-						   PyObject *args)
+							  PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
@@ -454,49 +466,48 @@ static PyObject *pyosd_command_set_remove_collection(PyObject *self,
 }
 
 static PyObject *pyosd_command_set_remove_member_objects(PyObject *self,
-						     PyObject *args)
+							 PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
 static PyObject *pyosd_command_set_remove_partition(PyObject *self,
-						     PyObject *args)
+						    PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
 static PyObject *pyosd_command_set_set_attributes(PyObject *self,
-						     PyObject *args)
+						  PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
 static PyObject *pyosd_command_set_set_key(PyObject *self,
-						     PyObject *args)
+					   PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
 static PyObject *pyosd_command_set_set_master_key(PyObject *self,
-						     PyObject *args)
+						  PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
 static PyObject *pyosd_command_set_set_member_attributes(PyObject *self,
-						     PyObject *args)
+							 PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
-static PyObject *pyosd_command_set_write(PyObject *self,
-						     PyObject *args)
+static PyObject *pyosd_command_set_write(PyObject *self, PyObject *args)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
@@ -582,7 +593,7 @@ struct PyMemberDef pyosd_command_members[] = {
 
 /* more complex members with their own functions */
 struct PyGetSetDef pyosd_command_getset[] = {
-    	{ "indata", pyosd_command_get_indata, NULL, "returned data", NULL },
+	{ "indata", pyosd_command_get_indata, NULL, "returned data", NULL },
 };
 
 PyTypeObject pyosd_command_type = {
@@ -592,7 +603,7 @@ PyTypeObject pyosd_command_type = {
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_doc = "Python encapsulation of struct osd_command",
 	.tp_init = pyosd_command_init,
-        .tp_new = PyType_GenericNew,
+	.tp_new = PyType_GenericNew,
 	.tp_dealloc = pyosd_command_dealloc,
 	.tp_methods = pyosd_command_methods,
 	.tp_members = pyosd_command_members,

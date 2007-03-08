@@ -32,7 +32,9 @@ static PyObject *pyosd_ntohs(PyObject *self __unused, PyObject *args)
 	if (!PyArg_ParseTuple(args, "s#:ntohs", &s, &len))
 		return NULL;
 	if (len != 2) {
-		PyErr_SetString(PyExc_RuntimeError, "string must be len 2");
+		char s[1024];
+		sprintf(s, "string len must be 2, was %d", len);
+		PyErr_SetString(PyExc_RuntimeError, s);
 		return NULL;
 	}
 	return Py_BuildValue("H", ntohs(s));
@@ -46,7 +48,9 @@ static PyObject *pyosd_ntohl(PyObject *self __unused, PyObject *args)
 	if (!PyArg_ParseTuple(args, "s#:ntohl", &s, &len))
 		return NULL;
 	if (len != 4) {
-		PyErr_SetString(PyExc_RuntimeError, "string must be len 4");
+		char s[1024];
+		sprintf(s, "string len must be 4, was %d", len);
+		PyErr_SetString(PyExc_RuntimeError, s);
 		return NULL;
 	}
 	return Py_BuildValue("I", ntohl(s));
@@ -60,14 +64,16 @@ static PyObject *pyosd_ntohll(PyObject *self __unused, PyObject *args)
 	if (!PyArg_ParseTuple(args, "s#:ntohll", &s, &len))
 		return NULL;
 	if (len != 8) {
-		PyErr_SetString(PyExc_RuntimeError, "string must be len 8");
+		char s[1024];
+		sprintf(s, "string len must be 8, was %d", len);
+		PyErr_SetString(PyExc_RuntimeError, s);
 		return NULL;
 	}
 	return Py_BuildValue("K", ntohll(s));
 }
 
 /*
- * Class (not instance) method.
+ * Class (not instance) methods.
  */
 static PyMethodDef methods[] = {
 	{ "set_progname", pyosd_set_progname, METH_VARARGS,
@@ -95,6 +101,9 @@ static int ready_type(PyObject *module, PyTypeObject *type)
 	return 0;
 }
 
+/*
+ * Insert strings into the module dictionary.
+ */
 static int dict_insert(PyObject *d, const char *name, int val)
 {
         PyObject *v;
@@ -126,10 +135,6 @@ static int pyosd_trace(PyObject *self, struct _frame *frame, int what,
 	return 0;
 }
 #endif
-
-
-/* picked up by the python module loader; this avoids a compilation warning */
-PyMODINIT_FUNC initpyosd(void);
 
 PyMODINIT_FUNC initpyosd(void)
 {

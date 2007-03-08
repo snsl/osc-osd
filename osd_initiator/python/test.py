@@ -38,10 +38,13 @@ print "inquiry"
 command = pyosd.OSDCommand()
 command.set_inquiry()
 dev.submit_and_wait(command)
-print "inquiry status", command.status
-print "inquiry indata (%d):" % command.inlen
-if command.inlen:
-	print hexdump(command.indata, command.inlen),
+if command.status:
+	print "status", command.status
+	print command.show_sense(),
+else:
+	print "inquiry indata (%d):" % command.inlen
+	if command.inlen:
+		print hexdump(command.indata, command.inlen),
 # XXX: how to free indata on command?
 
 # format
@@ -49,7 +52,9 @@ print "format"
 command = pyosd.OSDCommand()
 command.set_format_osd(1 << 30)
 dev.submit_and_wait(command)
-print "status", command.status
+if command.status:
+	print "status", command.status
+	print command.show_sense(),
 
 pid = 0x10000
 
@@ -58,8 +63,8 @@ print "create partition"
 command = pyosd.OSDCommand()
 command.set_create_partition(pid)
 dev.submit_and_wait(command)
-print "status", command.status
 if command.status:
+	print "status", command.status
 	print command.show_sense(),
 
 oid = 0x10010
@@ -69,14 +74,14 @@ print "create particular object"
 command = pyosd.OSDCommand()
 command.set_create(pid, oid)
 dev.submit_and_wait(command)
-print "status", command.status
 if command.status:
+	print "status", command.status
 	print command.show_sense(),
 
 ccap_page = 0xfffffffe
 ccap_number_oid = 4
 
-uiap_page = 0x0
+uiap_page = 0x1
 uiap_number_len = 0x82
 
 # create any oid, ask for result
@@ -86,12 +91,22 @@ command.set_create(pid)
 attr = pyosd.OSDAttr(pyosd.ATTR_GET, ccap_page, ccap_number_oid, 8)
 command.attr_build(attr)
 dev.submit_and_wait(command)
-print "status", command.status
 if command.status:
+	print "status", command.status
 	print command.show_sense(),
 else:
 	command.attr_resolve(attr)
-	print "created oid", pyosd.ntohll(attr.val)
+	oid = pyosd.ntohll(attr.val)
+	print "created oid", oid
+
+# write it
+print "write that object"
+command = pyosd.OSDCommand()
+command.set_write(pid, oid, "Some pythonic data.")
+dev.submit_and_wait(command)
+if command.status:
+	print "status", command.status
+	print command.show_sense(),
 
 # two attrs
 print "getattr"
@@ -101,8 +116,8 @@ attr = [ pyosd.OSDAttr(pyosd.ATTR_GET, ccap_page, ccap_number_oid, 8), \
          pyosd.OSDAttr(pyosd.ATTR_GET, uiap_page, uiap_number_len, 8) ]
 command.attr_build(attr)
 dev.submit_and_wait(command)
-print "status", command.status
 if command.status:
+	print "status", command.status
 	print command.show_sense(),
 else:
 	command.attr_resolve(attr)

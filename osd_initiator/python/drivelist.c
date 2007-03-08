@@ -15,7 +15,6 @@ struct pyosd_drive {
 	PyObject *targetname;
 	PyObject *chardev;
 };
-PyTypeObject pyosd_drive_type;  /* forward decl */
 
 /*
  * OSDDriveList type.

@@ -14,7 +14,6 @@ def hexdump(s, len):
 		buf = buf + "\n"
 	return buf
 
-
 # for error reporting
 pyosd.set_progname(sys.argv[0])
 
@@ -45,7 +44,6 @@ else:
 	print "inquiry indata (%d):" % command.inlen
 	if command.inlen:
 		print hexdump(command.indata, command.inlen),
-# XXX: how to free indata on command?
 
 # format
 print "format"
@@ -102,7 +100,7 @@ else:
 # write it
 print "write that object"
 command = pyosd.OSDCommand()
-command.set_write(pid, oid, "Some pythonic data.")
+command.set_write(pid, oid, "Some data from python.")
 dev.submit_and_wait(command)
 if command.status:
 	print "status", command.status
@@ -124,6 +122,16 @@ else:
 	verify_oid = pyosd.ntohll(attr[0].val)
 	len = pyosd.ntohll(attr[1].val)
 	print "verify oid", oid, "has len", len
+
+# read it
+command = pyosd.OSDCommand()
+command.set_read(pid, oid, 1024)
+dev.submit_and_wait(command)
+if command.status:
+	print "status", command.status
+	print command.show_sense(),
+else:
+	print "read:", command.indata
 
 dev.close()
 

@@ -26,24 +26,8 @@ static void pyosd_command_dealloc(PyObject *self)
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 
-	if (command->indata) {
-		if (command->iov_inlen) {
-			struct bsg_iovec *iov = command->indata;
-			int i;
-			for (i=0; i<command->iov_inlen; i++)
-				PyMem_Free((void *) iov[i].iov_base);
-		} else
-			PyMem_Free(command->indata);
-	}
-	if (command->outdata) {
-		if (command->iov_outlen) {
-			const struct bsg_iovec *iov = command->outdata;
-			int i;
-			for (i=0; i<command->iov_outlen; i++)
-				PyMem_Free((void *) iov[i].iov_base);
-		} else
-			PyMem_Free((void *)(uintptr_t) command->outdata);
-	}
+	PyMem_Free(command->indata);
+	PyMem_Free((void *)(uintptr_t) command->outdata);
 }
 
 static PyObject *pyosd_command_get_indata(PyObject *self,
@@ -288,8 +272,26 @@ static PyObject *pyosd_command_set_inquiry(PyObject *self, PyObject *args)
 
 static PyObject *pyosd_command_set_append(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint8_t *buf;
+	uint64_t pid, oid, len;
+
+	if (!PyArg_ParseTuple(args, "KKs#:set_append", &pid, &oid, &buf, &len))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_append(command, pid, oid, len);
+	command->outdata = PyMem_Malloc(len);
+	if (!command->outdata)
+		return PyErr_NoMemory();
+	memcpy((void *)(uintptr_t) command->outdata, buf, len);
+	command->outlen = len;
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_create(PyObject *self, PyObject *args)
@@ -313,15 +315,47 @@ static PyObject *pyosd_command_set_create(PyObject *self, PyObject *args)
 static PyObject *pyosd_command_set_create_and_write(PyObject *self,
 						    PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint8_t *buf;
+	uint64_t pid, oid, len, offset = 0;
+
+	if (!PyArg_ParseTuple(args, "KKs#|K:set_create_and_write", &pid, &oid,
+			      &buf, &len, &offset))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_create_and_write(command, pid, oid, len, offset);
+	command->outdata = PyMem_Malloc(len);
+	if (!command->outdata)
+		return PyErr_NoMemory();
+	/* XXX: take a ref on buf rather than copying it */
+	memcpy((void *)(uintptr_t) command->outdata, buf, len);
+	command->outlen = len;
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_create_collection(PyObject *self,
 						     PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid = 0, cid = 0;
+
+	if (!PyArg_ParseTuple(args, "K|K:set_create_collection", &pid, &cid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_create_collection(command, pid, cid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_create_partition(PyObject *self,
@@ -345,28 +379,80 @@ static PyObject *pyosd_command_set_create_partition(PyObject *self,
 
 static PyObject *pyosd_command_set_flush(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, oid;
+	int scope;
+
+	if (!PyArg_ParseTuple(args, "KKi:set_flush", &pid, &oid, &scope))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_flush(command, pid, oid, scope);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_flush_collection(PyObject *self,
 						    PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, cid;
+	int scope;
+
+	if (!PyArg_ParseTuple(args, "KKi:set_flush_collection", &pid, &cid,
+			      &scope))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_flush_collection(command, pid, cid, scope);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_flush_osd(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	int scope;
+
+	if (!PyArg_ParseTuple(args, "i:set_flush_osd", &scope))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_flush_osd(command, scope);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_flush_partition(PyObject *self,
 						   PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid;
+	int scope;
+
+	if (!PyArg_ParseTuple(args, "KKi:set_flush_partition", &pid, &scope))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_flush_partition(command, pid, scope);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_format_osd(PyObject *self, PyObject *args)
@@ -409,32 +495,76 @@ static PyObject *pyosd_command_set_get_attributes(PyObject *self,
 static PyObject *pyosd_command_set_get_member_attributes(PyObject *self,
 							 PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, cid;
+
+	if (!PyArg_ParseTuple(args, "KK:set_get_member_attributes", &pid, &cid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_get_member_attributes(command, pid, cid);
+	return Py_BuildValue("");
 }
 
+/*
+ * XXX: This is likely the wrong interface for python.
+ */
 static PyObject *pyosd_command_set_list(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, alloc_len, initial_oid;
+	uint32_t list_id;
+
+	if (!PyArg_ParseTuple(args, "KIKK:set_list", &pid, &list_id, &alloc_len,
+			      &initial_oid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_list(command, pid, list_id, alloc_len, initial_oid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_list_collection(PyObject *self,
 						   PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, cid, alloc_len, initial_oid;
+	uint32_t list_id;
+
+	if (!PyArg_ParseTuple(args, "KIKK:set_list_collection", &pid, &cid,
+			      &list_id, &alloc_len, &initial_oid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_list_collection(command, pid, cid, list_id, alloc_len,
+					initial_oid);
+	return Py_BuildValue("");
 }
 
-static PyObject *pyosd_command_set_perform_scsi_command(PyObject *self,
-							PyObject *args)
+static PyObject *pyosd_command_set_perform_scsi_command(PyObject *self __unused,
+							PyObject *args __unused)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
-static PyObject *pyosd_command_set_perform_task_mgmt_func(PyObject *self,
-							  PyObject *args)
+static PyObject *pyosd_command_set_perform_task_mgmt_func(PyObject *self __unused,
+							  PyObject *args __unused)
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
@@ -442,75 +572,232 @@ static PyObject *pyosd_command_set_perform_task_mgmt_func(PyObject *self,
 
 static PyObject *pyosd_command_set_query(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, cid, alloc_len;
+	uint32_t query_len;
+
+	if (!PyArg_ParseTuple(args, "KKIK:set_query", &pid, &cid, &query_len,
+			      &alloc_len))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_query(command, pid, cid, query_len, alloc_len);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_read(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, oid, len, offset = 0;
+
+	if (!PyArg_ParseTuple(args, "KKK|K:set_read", &pid, &oid, &len,
+			      &offset))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_read(command, pid, oid, len, offset);
+	command->indata = PyMem_Malloc(len);
+	command->inlen_alloc = len;
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_remove(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, oid;
+
+	if (!PyArg_ParseTuple(args, "KK:set_remove", &pid, &oid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_remove(command, pid, oid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_remove_collection(PyObject *self,
 						     PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, cid;
+
+	if (!PyArg_ParseTuple(args, "KK:set_remove_collection", &pid, &cid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_remove_collection(command, pid, cid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_remove_member_objects(PyObject *self,
 							 PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, cid;
+
+	if (!PyArg_ParseTuple(args, "KK:set_remove_member_objects", &pid, &cid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_remove_member_objects(command, pid, cid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_remove_partition(PyObject *self,
 						    PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid;
+
+	if (!PyArg_ParseTuple(args, "K:set_remove_partition", &pid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_remove_partition(command, pid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_set_attributes(PyObject *self,
 						  PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, oid;
+
+	if (!PyArg_ParseTuple(args, "KK:set_set_attributes", &pid, &oid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_set_attributes(command, pid, oid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_set_key(PyObject *self,
 					   PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	int key_to_set;
+	uint64_t pid, key;
+	const uint8_t *seed;
+	int len;
+
+	if (!PyArg_ParseTuple(args, "iKKs#:set_set_key", &key_to_set, &pid,
+			      &key, &seed, &len))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	if (len != 20) {
+		PyErr_SetString(PyExc_RuntimeError, "key len should be 20");
+		return NULL;
+	}
+	osd_command_set_set_key(command, key_to_set, pid, key, seed);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_set_master_key(PyObject *self,
 						  PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	int dh_step;
+	uint64_t key;
+	uint32_t param_len, alloc_len;
+
+	if (!PyArg_ParseTuple(args, "iKII:set_set_master_key", &dh_step, &key,
+			      &param_len, &alloc_len))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_set_master_key(command, dh_step, key, param_len,
+				       alloc_len);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_set_member_attributes(PyObject *self,
 							 PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, cid;
+
+	if (!PyArg_ParseTuple(args, "KK:set_set_member_attributes", &pid, &cid))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_set_member_attributes(command, pid, cid);
+	return Py_BuildValue("");
 }
 
 static PyObject *pyosd_command_set_write(PyObject *self, PyObject *args)
 {
-	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
-	return NULL;
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint8_t *buf;
+	uint64_t pid, oid, len, offset = 0;
+
+	if (!PyArg_ParseTuple(args, "KKs#|K:set_write", &pid, &oid, &buf, &len,
+			      &offset))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_write(command, pid, oid, len, offset);
+	command->outdata = PyMem_Malloc(len);
+	if (!command->outdata)
+		return PyErr_NoMemory();
+	memcpy((void *)(uintptr_t) command->outdata, buf, len);
+	command->outlen = len;
+	return Py_BuildValue("");
 }
 
 /*

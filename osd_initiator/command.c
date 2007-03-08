@@ -46,7 +46,6 @@ int osd_command_set_inquiry(struct osd_command *command, uint8_t outlen)
 int osd_command_set_append(struct osd_command *command, uint64_t pid,
 			   uint64_t oid, uint64_t len)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_APPEND);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
@@ -58,7 +57,6 @@ int osd_command_set_append(struct osd_command *command, uint64_t pid,
 int osd_command_set_create(struct osd_command *command, uint64_t pid,
 			   uint64_t requested_oid, uint16_t num_user_objects)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_CREATE);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], requested_oid);
@@ -71,7 +69,6 @@ int osd_command_set_create_and_write(struct osd_command *command, uint64_t pid,
 				     uint64_t requested_oid, uint64_t len,
 				     uint64_t offset)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_CREATE_AND_WRITE);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], requested_oid);
@@ -84,7 +81,6 @@ int osd_command_set_create_and_write(struct osd_command *command, uint64_t pid,
 int osd_command_set_create_collection(struct osd_command *command,
 				      uint64_t pid, uint64_t requested_cid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_CREATE_COLLECTION);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], requested_cid);
@@ -94,7 +90,6 @@ int osd_command_set_create_collection(struct osd_command *command,
 int osd_command_set_create_partition(struct osd_command *command,
 				     uint64_t requested_pid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_CREATE_PARTITION);
         set_htonll(&command->cdb[16], requested_pid);
         return 0;
@@ -104,7 +99,6 @@ int osd_command_set_create_partition(struct osd_command *command,
 int osd_command_set_flush(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, int flush_scope)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_FLUSH);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
@@ -116,7 +110,6 @@ int osd_command_set_flush(struct osd_command *command, uint64_t pid,
 int osd_command_set_flush_collection(struct osd_command *command, uint64_t pid,
 				     uint64_t cid, int flush_scope)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_FLUSH_COLLECTION);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
@@ -127,7 +120,6 @@ int osd_command_set_flush_collection(struct osd_command *command, uint64_t pid,
 
 int osd_command_set_flush_osd(struct osd_command *command, int flush_scope)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_FLUSH_OSD);
         command->cdb[10] = (command->cdb[10] & ~0x3) | flush_scope;
         return 0;
@@ -137,7 +129,6 @@ int osd_command_set_flush_osd(struct osd_command *command, int flush_scope)
 int osd_command_set_flush_partition(struct osd_command *command, uint64_t pid,
 				    int flush_scope)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_FLUSH_PARTITION);
         set_htonll(&command->cdb[16], pid);
         command->cdb[10] = (command->cdb[10] & ~0x3) | flush_scope;
@@ -149,7 +140,6 @@ int osd_command_set_flush_partition(struct osd_command *command, uint64_t pid,
  */
 int osd_command_set_format_osd(struct osd_command *command, uint64_t capacity)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_FORMAT_OSD);
         set_htonll(&command->cdb[36], capacity);
         return 0;
@@ -159,7 +149,6 @@ int osd_command_set_format_osd(struct osd_command *command, uint64_t capacity)
 int osd_command_set_get_attributes(struct osd_command *command, uint64_t pid,
 				   uint64_t oid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_GET_ATTRIBUTES);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
@@ -170,7 +159,6 @@ int osd_command_set_get_attributes(struct osd_command *command, uint64_t pid,
 int osd_command_set_get_member_attributes(struct osd_command *command,
 					  uint64_t pid, uint64_t cid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_GET_MEMBER_ATTRIBUTES);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
@@ -182,7 +170,6 @@ int osd_command_set_list(struct osd_command *command, uint64_t pid,
 			 uint32_t list_id, uint64_t alloc_len,
 			 uint64_t initial_oid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_LIST);
         set_htonll(&command->cdb[16], pid);
         set_htonl(&command->cdb[32], list_id);
@@ -195,7 +182,6 @@ int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
 				    uint64_t cid, uint32_t list_id,
 				    uint64_t alloc_len, uint64_t initial_oid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_LIST_COLLECTION);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
@@ -220,7 +206,6 @@ int osd_command_set_perform_task_mgmt_func(struct osd_command *command __unused)
 int osd_command_set_query(struct osd_command *command, uint64_t pid,
 			  uint64_t cid, uint32_t query_len, uint64_t alloc_len)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_QUERY);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
@@ -232,7 +217,6 @@ int osd_command_set_query(struct osd_command *command, uint64_t pid,
 int osd_command_set_read(struct osd_command *command, uint64_t pid,
 			 uint64_t oid, uint64_t len, uint64_t offset)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_READ);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
@@ -245,7 +229,6 @@ int osd_command_set_read(struct osd_command *command, uint64_t pid,
 int osd_command_set_remove(struct osd_command *command, uint64_t pid,
 			   uint64_t oid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_REMOVE);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
@@ -256,7 +239,6 @@ int osd_command_set_remove(struct osd_command *command, uint64_t pid,
 int osd_command_set_remove_collection(struct osd_command *command,
 				      uint64_t pid, uint64_t cid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_REMOVE_COLLECTION);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
@@ -276,7 +258,6 @@ int osd_command_set_remove_member_objects(struct osd_command *command,
 
 int osd_command_set_remove_partition(struct osd_command *command, uint64_t pid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_REMOVE_PARTITION);
         set_htonll(&command->cdb[16], pid);
         return 0;
@@ -286,7 +267,6 @@ int osd_command_set_remove_partition(struct osd_command *command, uint64_t pid)
 int osd_command_set_set_attributes(struct osd_command *command, uint64_t pid,
 				   uint64_t oid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_SET_ATTRIBUTES);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
@@ -295,9 +275,8 @@ int osd_command_set_set_attributes(struct osd_command *command, uint64_t pid,
 
 
 int osd_command_set_set_key(struct osd_command *command, int key_to_set,
-			    uint64_t pid, uint64_t key, uint8_t seed[20])
+			    uint64_t pid, uint64_t key, const uint8_t seed[20])
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_SET_KEY);
         command->cdb[11] = (command->cdb[11] & ~0x3) | key_to_set;
         set_htonll(&command->cdb[16], pid);
@@ -311,7 +290,6 @@ int osd_command_set_set_master_key(struct osd_command *command, int dh_step,
 				   uint64_t key, uint32_t param_len,
 				   uint32_t alloc_len)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_SET_KEY);
         command->cdb[11] = (command->cdb[11] & ~0x3) | dh_step;
         set_htonll(&command->cdb[24], key);
@@ -324,7 +302,6 @@ int osd_command_set_set_master_key(struct osd_command *command, int dh_step,
 int osd_command_set_set_member_attributes(struct osd_command *command,
 					  uint64_t pid, uint64_t cid)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_SET_MEMBER_ATTRIBUTES);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
@@ -335,7 +312,6 @@ int osd_command_set_set_member_attributes(struct osd_command *command,
 int osd_command_set_write(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset)
 {
-        osd_debug(__func__);
         varlen_cdb_init(command, OSD_WRITE);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);

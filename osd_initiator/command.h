@@ -91,7 +91,7 @@ int osd_command_set_remove_partition(struct osd_command *command,
 int osd_command_set_set_attributes(struct osd_command *command, uint64_t pid,
 				   uint64_t oid);
 int osd_command_set_set_key(struct osd_command *command, int key_to_set,
-			    uint64_t pid, uint64_t key, uint8_t seed[20]);
+			    uint64_t pid, uint64_t key, const uint8_t seed[20]);
 int osd_command_set_set_master_key(struct osd_command *command, int dh_step,
 				   uint64_t key, uint32_t param_len,
 				   uint32_t alloc_len);

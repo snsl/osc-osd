@@ -360,7 +360,7 @@ int osd_command_attr_build(struct osd_command *command,
 	uint8_t *p;
 	int i;
 	int neediov;
-	uint64_t extra;
+	uint64_t extra_out, extra_in;
 
 	/*
 	 * These are values, in units of bytes (not offsets), in the
@@ -460,15 +460,11 @@ int osd_command_attr_build(struct osd_command *command,
 	}
 
 	/*
-	 * Calculate sizes of padding and attribute areas:
-	 * 	outdata:
-	 * 		padding between real outdata and getlist
-	 *	 	getlist
-	 *	 	padding between getlist and setlist
-	 *	 	setlist (including values)
-	 *	indata:
-	 *	 	padding between real indata and retrieved results area
-	 *	 	retrieved results area
+	 * Outdata:
+	 *	padding between real outdata and getlist
+	 *	getlist
+	 *	padding between getlist and setlist
+	 *	setlist (including values)
 	 */
 	end_outdata = command->outlen;
 	start_getlist = next_offset(end_outdata);
@@ -489,7 +485,14 @@ int osd_command_attr_build(struct osd_command *command,
 				 - (start_getlist + size_getlist);
 		size_setlist = 8 + setsize;  /* already rounded */
 	}
+	extra_out = size_pad_outdata + size_getlist
+		  + size_pad_getlist + size_setlist;
 
+	/*
+	 * Indata:
+	 *	padding between real indata and retrieved results area
+	 *	retrieved results area
+	 */
 	end_indata = command->inlen;
 	start_retrieved = next_offset(end_indata);
 	size_pad_indata = start_retrieved - end_indata;
@@ -501,6 +504,7 @@ int osd_command_attr_build(struct osd_command *command,
 		size_retrieved = getpagesize;  /* no rounding */
 	if (numgetmulti)
 		size_retrieved = 8 + getmultisize;  /* already scaled/rounded */
+	extra_in = size_pad_indata + size_retrieved;
 
 	/*
 	 * Allocate space for the getlist, setlist, retrieved areas.
@@ -508,16 +512,22 @@ int osd_command_attr_build(struct osd_command *command,
 	 * indata/outdata, and space for the new iovs.
 	 */
 	neediov = 0;
-	if (command->iov_outlen)
-		neediov += command->iov_outlen + 1;
-	if (command->iov_inlen)
-		neediov += command->iov_inlen + 1;
+	if (extra_out && command->outdata) {
+		if (command->iov_outlen == 0)
+			neediov += 2;
+		else
+			neediov += command->iov_outlen + 1;
+	}
+	if (extra_in && command->indata) {
+		if (command->iov_inlen == 0)
+			neediov += 2;
+		else
+			neediov += command->iov_inlen + 1;
+	}
 
 	command->attr_malloc = Malloc(sizeof(*header)
 				    + neediov * sizeof(*iov)
-				    + size_pad_outdata + size_getlist
-				    + size_pad_getlist + size_setlist
-				    + size_pad_indata + size_retrieved);
+				    + extra_out + extra_in);
 	if (!command->attr_malloc)
 		return 1;
 
@@ -582,7 +592,7 @@ int osd_command_attr_build(struct osd_command *command,
 	memset(p, 0x6b, size_pad_indata);
 	p += size_pad_indata;
 
-	/* Set it to something different, which will be overwritten. */
+	/* Set it to something different, for debugging */
 	header->retrieved_buf = p;
 	header->start_retrieved = start_retrieved;
 	memset(p, 0x7c, size_retrieved);
@@ -622,38 +632,53 @@ int osd_command_attr_build(struct osd_command *command,
 	header->orig_outdata = command->outdata;
 	header->orig_outlen = command->outlen;
 	header->orig_iov_outlen = command->iov_outlen;
-	extra = size_pad_outdata + size_getlist
-	      + size_pad_getlist + size_setlist;
-	if (extra) {
-		command->outlen += extra;
-		if (command->iov_outlen) {
-			memcpy(iov, command->outdata,
-			       command->iov_outlen * sizeof(*iov));
-			iov[command->iov_outlen].iov_base = (uintptr_t) p;
-			iov[command->iov_outlen].iov_len = extra;
-			++command->iov_outlen;
-			iov += command->iov_outlen;
-		} else
+	if (extra_out) {
+		if (command->outdata) {
+			if (command->iov_outlen == 0) {
+				iov->iov_base = (uintptr_t) command->outdata;
+				iov->iov_len = command->outlen;
+				++iov;
+				command->iov_outlen = 2;
+			} else {
+				memcpy(iov, command->outdata,
+				       command->iov_outlen * sizeof(*iov));
+				iov += command->iov_outlen;
+				++command->iov_outlen;
+			}
+			iov->iov_base = (uintptr_t) p;
+			iov->iov_len = extra_out;
+			++iov;
+		} else {
 			command->outdata = p;
+		}
+		command->outlen += extra_out;
 	}
 
-	p += extra;
+	p += extra_out;
 	header->orig_indata = command->indata;
 	header->orig_inlen_alloc = command->inlen_alloc;
 	header->orig_inlen = command->inlen;
 	header->orig_iov_inlen = command->iov_inlen;
-	extra = size_pad_indata + size_retrieved;
-	if (extra) {
-		command->inlen += extra;
-		command->inlen_alloc += extra;
-		if (command->iov_inlen) {
-			memcpy(iov, command->indata,
-			       command->iov_inlen * sizeof(*iov));
-			iov[command->iov_inlen].iov_base = (uintptr_t) p;
-			iov[command->iov_inlen].iov_len = extra;
-			++command->iov_inlen;
-		} else
+	if (extra_in) {
+		if (command->indata) {
+			if (command->iov_inlen == 0) {
+				iov->iov_base = (uintptr_t) command->indata;
+				iov->iov_len = command->inlen;
+				++iov;
+				command->iov_inlen = 2;
+			} else {
+				memcpy(iov, command->indata,
+				       command->iov_inlen * sizeof(*iov));
+				iov += command->iov_inlen;
+				++command->iov_inlen;
+			}
+			iov->iov_base = (uintptr_t) p;
+			iov->iov_len = extra_in;
+			++iov;
+		} else {
 			command->indata = p;
+		}
+		command->inlen_alloc += extra_in;
 	}
 
 	return 0;
@@ -758,7 +783,7 @@ int osd_command_attr_resolve(struct osd_command *command,
 		for (i=0; i<num; i++) {
 			if (!(attrs[i].type == ATTR_GET
 			   || attrs[i].type == ATTR_GET_MULTI))
-			   	continue;
+				continue;
 			if (attrs[i].page == page && attrs[i].number == number)
 				break;
 		}

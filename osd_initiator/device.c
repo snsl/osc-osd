@@ -105,7 +105,6 @@ int osd_wait_this_response(int fd, struct osd_command *command)
 int osd_submit_and_wait(int fd, struct osd_command *command)
 {
 	int ret;
-	struct osd_command *cmp;
 
 	ret = osd_submit_command(fd, command);
 	if (ret) {
@@ -113,15 +112,10 @@ int osd_submit_and_wait(int fd, struct osd_command *command)
 		return ret;
 	}
 
-	ret = osd_wait_this_response(fd, cmp);
+	ret = osd_wait_this_response(fd, command);
 	if (ret) {
 		osd_error("%s: wait_response failed", __func__);
 		return ret;
-	}
-	if (cmp != command) {
-		osd_error("%s: wait_response returned %p, expecting %p",
-		          __func__, cmp, command);
-		return 1;
 	}
 	return 0;
 }

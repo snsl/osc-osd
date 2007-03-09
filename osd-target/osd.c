@@ -19,36 +19,66 @@
 #include "osd-sense.h"
 #include "list-entry.h"
 
+struct incits_page_id {
+	const char root_dir_page[40];
+	const char root_info_page[40];
+	const char root_quota_page[40];
+	const char root_tmstmp_page[40];
+	const char root_policy_page[40];
+	const char part_dir_page[40];
+	const char part_info_page[40];
+	const char coll_dir_page[40];
+	const char coll_info_page[40];
+	const char user_dir_page[40];
+	const char user_info_page[40];
+	const char user_tmstmp_page[40];
+};
+
+static const struct incits_page_id incits = {
+	.root_dir_page = 	"INCITS  T10 Root Directory             ",
+        .root_info_page =       "INCITS  T10 Root Information           ",
+        .root_quota_page =      "INCITS  T10 Root Quotas                ",
+        .root_tmstmp_page =     "INCITS  T10 Root Timestamps            ",
+        .root_policy_page =     "INCITS  T10 Root Policy/Security       ",
+        .part_dir_page =        "INCITS  T10 Partition Directory        ",
+        .part_info_page =       "INCITS  T10 Partition Information      ",
+        .coll_dir_page =        "INCITS  T10 Collection Directory       ",
+        .coll_info_page =       "INCITS  T10 Collection Information     ",
+        .user_dir_page =        "INCITS  T10 User Object Directory      ",
+        .user_info_page =       "INCITS  T10 User Object Information    ",
+	.user_tmstmp_page =     "INCITS  T10 User Object Timestamps     ",
+};
+
+static struct init_attr root_info[] = {
+	{ROOT_PG + 0, 0, "INCITS  T10 Root Directory             "},
+	{ROOT_PG + 0, ROOT_PG + 1, "INCITS  T10 Root Information           "},
+	{ROOT_PG + 1, 0, "INCITS  T10 Root Information"},
+	{ROOT_PG + 1, 3, "\xf1\x81\x00\x0eOSC     OSDEMU"},
+	{ROOT_PG + 1, 4, "OSC"},
+	{ROOT_PG + 1, 5, "OSDEMU"},
+	{ROOT_PG + 1, 6, "9001"},
+	{ROOT_PG + 1, 7, "0"},
+	{ROOT_PG + 1, 8, "1"},
+	{ROOT_PG + 1, 9, "hostname"},
+	{ROOT_PG + 0, ROOT_PG + 2, "INCITS  T10 Root Quotas                "},
+	{ROOT_PG + 2, 0, "INCITS  T10 Root Quotas                "},
+	{ROOT_PG + 0, ROOT_PG + 3, "INCITS  T10 Root Timestamps            "},
+	{ROOT_PG + 3, 0, "INCITS  T10 Root Timestamps            "},
+	{ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Policy/Security       "},
+	{ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security       "}
+};
+
 static const char *dbname = "osd.db";
 static const char *dfiles = "dfiles";
 static const char *stranded = "stranded";
 
 extern const char osd_schema[];
 
-static struct init_attr root_info[] = {
-	{ ROOT_PG + 0, 0, "INCITS  T10 Root Directory" },
-	{ ROOT_PG + 0, ROOT_PG + 1, "INCITS  T10 Root Information" },
-	{ ROOT_PG + 1, 0, "INCITS  T10 Root Information" },
-	{ ROOT_PG + 1, 3, "\xf1\x81\x00\x0eOSC     OSDEMU" },
-	{ ROOT_PG + 1, 4, "OSC" },
-	{ ROOT_PG + 1, 5, "OSDEMU" },
-	{ ROOT_PG + 1, 6, "9001" },
-	{ ROOT_PG + 1, 7, "0" },
-	{ ROOT_PG + 1, 8, "1" },
-	{ ROOT_PG + 1, 9, "hostname" },
-	{ ROOT_PG + 0, ROOT_PG + 2, "INCITS  T10 Root Quotas" },
-	{ ROOT_PG + 2, 0, "INCITS  T10 Root Quotas" },
-	{ ROOT_PG + 0, ROOT_PG + 3, "INCITS  T10 Root Timestamps" },
-	{ ROOT_PG + 3, 0, "INCITS  T10 Root Timestamps" },
-	{ ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Policy/Security" },
-	{ ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security" },
-};
-
 static struct init_attr partition_info[] = {
-	{ PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory" },
-	{ PARTITION_PG + 0, PARTITION_PG + 1, 
-		"INCITS  T10 Partition Information" },
-	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
+	{PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory"},
+	{PARTITION_PG + 0, PARTITION_PG + 1, 
+	       "INCITS  T10 Partition Information"},
+	{PARTITION_PG + 1, 0, "INCITS  T10 Partition Information"},
 };
 
 static inline uint8_t get_obj_type(struct osd_device *osd,
@@ -454,7 +484,7 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
 		ret = le_multiobj_pack_attr(outbuf, outlen, oid,
-					    USER_TMSTMP_PG,number, len, val);
+					    USER_TMSTMP_PG, number, len, val);
 	else
 		ret = le_pack_attr(outbuf, outlen, USER_TMSTMP_PG, number, 
 				   len, val);
@@ -718,7 +748,6 @@ static inline void osd_remove_tmp_objects(struct osd_device *osd, uint64_t pid,
 	uint64_t j = 0;
 	for (j = start_oid; j < end_oid; j++)
 		osd_remove(osd, pid, j, sense); /* ignore ret */
-	obj_delete(osd->db, pid, end_oid); 
 }
 
 /*
@@ -766,19 +795,27 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	for (i = oid; i < (oid + numoid); i++) {
 		ret = obj_insert(osd->db, pid, i, USEROBJECT);
 		if (ret != 0) {
-			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
-					      OSD_ASC_INVALID_FIELD_IN_CDB, 
-					      pid, i);
-			return ret;
+			osd_remove_tmp_objects(osd, pid, oid, i, sense);
+			goto out_hw_err;
 		}
+
 		ret = osd_create_datafile(osd, pid, i);
 		if (ret != 0) {
-			/* delete previously created objects */
+			obj_delete(osd->db, pid, i);
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
-			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
-					      OSD_ASC_INVALID_FIELD_IN_CDB, 
-					      pid, i);
-			return ret;
+			goto out_hw_err;
+		}
+		ret = attr_set_attr(osd->db, pid, i, USER_TMSTMP_PG, 0,
+				    incits.user_tmstmp_page,
+				    sizeof(incits.user_tmstmp_page));
+				
+		if (ret != 0) {
+			char path[MAXNAMELEN];
+			get_dfile_name(path, osd->root, pid, i);
+			unlink(path);
+			obj_delete(osd->db, pid, i);
+			osd_remove_tmp_objects(osd, pid, oid, i, sense);
+			goto out_hw_err;
 		}
 	}
 

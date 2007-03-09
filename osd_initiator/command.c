@@ -608,7 +608,7 @@ int osd_command_attr_build(struct osd_command *command,
 	 */
 	if (use_getpage) {
 		/* page format */
-		command->cdb[11] = command->cdb[11] | (2 << 4);
+		command->cdb[11] = (command->cdb[11] & 0xCF) | (2 << 4);
 		for (i=0; i<num; i++) {
 			if (attrs[i].type == ATTR_GET_PAGE)
 				set_htonl(&command->cdb[52], attrs[i].page);

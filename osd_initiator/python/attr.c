@@ -15,32 +15,47 @@ static int pyosd_attr_init(PyObject *self, PyObject *args,
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	struct attribute_list *attr = &py_attr->attr;
 	int attr_type;
-	unsigned int page, number, len;
-	PyObject *val = NULL;
+	unsigned int page, number;
+	PyObject *val_or_len = NULL;
 
-	if (!PyArg_ParseTuple(args, "iIII|S:init", &attr_type, &page,
-			      &number, &len, &val))
+	if (!PyArg_ParseTuple(args, "iIIO:init", &attr_type, &page,
+			      &number, &val_or_len))
 		return -1;
 	attr->type = attr_type;
 	attr->page = page;
 	attr->number = number;
-	attr->len = len;
-	if (val) {
-		if (attr_type != ATTR_SET) {
-		    PyErr_SetString(PyExc_RuntimeError,
-		    		    "value can only be given for ATTR_SET");
-		    return -1;
-		}
-		Py_IncRef(val);
-		py_attr->val = val;
-		attr->val = PyString_AsString(val);  /* pointer into val */
-	} else {
-		if (attr_type == ATTR_SET) {
+	if (attr_type == ATTR_SET) {
+		/* memcpy now to avoid complexity with figuring out freeing */
+		if (PyString_Check(val_or_len)) {
+			attr->len = PyString_Size(val_or_len);
+			attr->val = PyMem_Malloc(attr->len);
+			memcpy(attr->val, PyString_AsString(val_or_len),
+			       attr->len);
+		} else if (PyInt_Check(val_or_len)) {
+			uint32_t x;
+			attr->len = 4;
+			attr->val = PyMem_Malloc(4);
+			x = PyInt_AsLong(val_or_len);
+			memcpy(attr->val, &x, attr->len);
+		} else if (PyLong_Check(val_or_len)) {
+			uint64_t x;
+			attr->len = 8;
+			attr->val = PyMem_Malloc(8);
+			x = PyLong_AsUnsignedLongLong(val_or_len);
+			memcpy(attr->val, &x, attr->len);
+		} else {
 			PyErr_SetString(PyExc_RuntimeError,
-					"value must be given for ATTR_SET");
+					"cannot linearize this type");
 			return -1;
 		}
-		attr->val = PyMem_Malloc(attr->len);  /* for output data */
+	} else {
+		if (!PyInt_Check(val_or_len)) {
+			PyErr_SetString(PyExc_RuntimeError,
+					"must provide expected length");
+			return -1;
+		}
+		attr->len = PyInt_AsLong(val_or_len);
+		attr->val = NULL;
 	}
     	return 0;
 }
@@ -54,12 +69,11 @@ static void pyosd_attr_dealloc(PyObject *self)
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	struct attribute_list *attr = &py_attr->attr;
 
-	if (attr->type == ATTR_GET || attr->type == ATTR_GET_PAGE
-	 || attr->type == ATTR_GET_MULTI)
-		PyMem_Free(attr->val);    /* output data */
-
-	if (attr->type == ATTR_SET)
-		Py_DecRef(py_attr->val);  /* ref on input data */
+	/*
+	 * If set, data was copied in constructor; if get, was copied
+	 * as part of resolve.
+	 */
+	PyMem_Free(attr->val);
 }
 
 /*
@@ -70,15 +84,20 @@ static PyObject *pyosd_attr_get_val(PyObject *self, void *closure __unused)
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	const struct attribute_list *attr = &py_attr->attr;
 
-	if (!(attr->type == ATTR_GET || attr->type == ATTR_GET_PAGE
-	   || attr->type == ATTR_GET_MULTI)) {
+	if (attr->type == ATTR_GET_MULTI) {
+		PyErr_SetString(PyExc_RuntimeError, "handle this case.");
+		return NULL;
+	} else if (attr->type == ATTR_GET || attr->type == ATTR_GET_PAGE) {
+		/* return None for 0xffff, but "" for 0 */
+		if (attr->outlen < 0xffff)
+			return Py_BuildValue("s#", attr->val, attr->outlen);
+		else
+			return Py_BuildValue("");
+	} else {
 		PyErr_SetString(PyExc_RuntimeError, 
 				"only GET values can be retrieved");
+		return NULL;
 	}
-	if (attr->outlen == 0 || attr->outlen == 0xffff)
-		return Py_BuildValue("");
-
-	return Py_BuildValue("s#", attr->val, attr->outlen);
 }
 
 struct PyGetSetDef pyosd_attr_getset[] = {

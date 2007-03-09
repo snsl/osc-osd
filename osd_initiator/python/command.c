@@ -18,9 +18,6 @@ static int pyosd_command_init(PyObject *self, PyObject *args __unused,
 
 	py_command->set = 0;
 	py_command->complete = 0;
-	py_command->py_attr = NULL;
-	py_command->attr = NULL;
-	py_command->numattr = 0;
 	return 0;
 }
 
@@ -29,11 +26,8 @@ static void pyosd_command_dealloc(PyObject *self)
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 
-	if (py_command->attr) {
-		/* free up space allocated by attr_build */
-		osd_command_attr_resolve(command, py_command->attr,
-					 py_command->numattr);
-	}
+	if (command->attr)
+		osd_command_attr_free(command);
 	PyMem_Free(command->indata);
 	PyMem_Free((void *)(uintptr_t) command->outdata);
 }
@@ -79,9 +73,7 @@ static PyObject *pyosd_command_show_sense(PyObject *self, PyObject *args)
 }
 
 /*
- * Called once to linearize the list of attributes (or single).  This
- * hangs on the command and will be used at resolve time to return
- * the values.
+ * Called once to linearize the list of attributes (or single).
  */
 static struct attribute_list *attr_flatten(PyObject *o, int *numattr)
 {
@@ -131,37 +123,14 @@ out:
 }
 
 /*
- * The outlen was changed in the flattened array during resolve.  Copy
- * that back into the original OSDAttr.  The return GET data is already
- * there as the flat val buffers point into space allocated during OSDAttr
- * init.
- */
-static void attr_copy_outlens(PyObject *o, struct attribute_list *attr,
-			      int numattr)
-{
-	struct pyosd_attr *py_attr;
-
-	if (PyObject_TypeCheck(o, &pyosd_attr_type)) {
-		py_attr = (struct pyosd_attr *) o;
-		py_attr->attr.outlen = attr[0].outlen;
-	}
-
-	if (PyList_Check(o)) {
-		int i;
-		for (i=0; i<numattr; i++) {
-			py_attr = (struct pyosd_attr *) PyList_GetItem(o, i);
-			py_attr->attr.outlen = attr[i].outlen;
-		}
-	}
-}
-
-/*
  * Attributes.  Valid argument to this function is OSDAttr or list of OSDAttr.
  */
 static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
+	struct attribute_list *attr;
+	int numattr;
 	PyObject *o;
 	int ret;
 
@@ -176,7 +145,7 @@ static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, "command already complete");
 		return NULL;
 	}
-	if (py_command->attr) {
+	if (command->attr) {
 		PyErr_SetString(PyExc_RuntimeError, "attributes already built");
 		return NULL;
 	}
@@ -185,27 +154,45 @@ static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
 	 * Pull attrs into a single flat allocated list and keep it around
 	 * for resolve to write back into.
 	 */
-	py_command->attr = attr_flatten(o, &py_command->numattr);
-	if (!py_command->attr)
+	attr = attr_flatten(o, &numattr);
+	if (!attr)
 		return NULL;
-
-	/*
-	 * Remember the list of attributes, but do not take a reference
-	 * on it.  User must pass it in again later.
-	 */
-	py_command->py_attr = o;
 
 	/*
 	 * Copies values out of attr but does not need to hold onto it.
 	 */
-	ret = osd_command_attr_build(command, py_command->attr,
-				     py_command->numattr);
+	ret = osd_command_attr_build(command, attr, numattr);
 	if (ret) {
 		PyErr_SetString(PyExc_RuntimeError, "attr_build failed");
 		return NULL;
 	}
 
 	return Py_BuildValue("");
+}
+
+static PyObject *attr_build_manual(struct attribute_list *cmdattr)
+{
+	PyObject *o;
+	struct pyosd_attr *py_attr;
+	struct attribute_list *attr;
+
+	o = pyosd_attr_type.tp_new(&pyosd_attr_type, NULL, NULL);
+	if (!o)
+		return PyErr_NoMemory();
+
+	py_attr = (struct pyosd_attr *) o;
+	attr = &py_attr->attr;
+	memcpy(attr, cmdattr, sizeof(*attr));
+
+	/* 0xffff means not found */
+	attr->val = NULL;
+	if (attr->outlen > 0 && attr->outlen < 0xffff) {
+		attr->val = PyMem_Malloc(attr->outlen);
+		if (!o)
+			return PyErr_NoMemory();
+		memcpy(attr->val, cmdattr->val, attr->outlen);
+	}
+	return o;
 }
 
 /*
@@ -223,7 +210,7 @@ static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 	PyObject *o;
 	int ret;
 
-	if (!PyArg_ParseTuple(args, "O:attr_resolve", &o))
+	if (!PyArg_ParseTuple(args, ":attr_resolve"))
 		return NULL;
 
 	if (!py_command->set) {
@@ -234,36 +221,34 @@ static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, "command not complete");
 		return NULL;
 	}
-	if (py_command->attr == NULL) {
+	if (command->attr == NULL) {
 		PyErr_SetString(PyExc_RuntimeError,
-			"attr_build was not called");
+				"attr_build was not called");
 		return NULL;
 	}
 
-	/*
-	 * Just verify he passed in the same thing as to build.
-	 */
-	if (py_command->py_attr != o) {
-		PyErr_SetString(PyExc_RuntimeError,
-			"attr_build was called with different args");
-		return NULL;
-	}
-
-	ret = osd_command_attr_resolve(command, py_command->attr,
-				       py_command->numattr);
+	ret = osd_command_attr_resolve(command);
 	if (ret) {
 		PyErr_SetString(PyExc_RuntimeError, "attr_resolve failed");
 		return NULL;
 	}
 
 	/*
-	 * Copy outlens back out into py_attr then drop the temp array.
+	 * Build new OSDAttr with output values.
 	 */
-	attr_copy_outlens(o, py_command->attr, py_command->numattr);
-	PyMem_Free(py_command->attr);
-	py_command->attr = NULL;
-
-	return Py_BuildValue("");
+	if (command->numattr == 0)
+		o = Py_BuildValue("");
+	else if (command->numattr == 1)
+		o = attr_build_manual(command->attr);
+	else {
+		int i;
+		o = PyList_New(command->numattr);
+		for (i=0; i<command->numattr; i++) {
+			PyObject *oi = attr_build_manual(&command->attr[i]);
+			PyList_SetItem(o, i, oi);
+		}
+	}
+	return o;
 }
 
 /*
@@ -886,7 +871,8 @@ struct PyMethodDef pyosd_command_methods[] = {
 	{ "attr_build", pyosd_command_attr_build, METH_VARARGS,
 		"Modify a command to get a particular attribute." },
 	{ "attr_resolve", pyosd_command_attr_resolve, METH_VARARGS,
-		"After command execution, process the retrieved attributes." },
+		"After command execution, process the retrieved attributes.\n"
+		"You must call this even if you are only using ATTR_SET." },
 	{ NULL }
 };
 

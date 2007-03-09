@@ -760,7 +760,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 	uint8_t *p;
 	uint64_t len;
 	uint32_t list_len;
-	int getmulti, i;
+	int numget, numgetmulti, i;
 	int ret = -EINVAL;
 	struct attribute_list *attr = command->attr;
 	int numattr = command->numattr;
@@ -776,7 +776,8 @@ int osd_command_attr_resolve(struct osd_command *command)
 	 * done properly at the start.  Also error out the outlens for
 	 * the non-getpage case to come later.
 	 */
-	getmulti = 0;
+	numget = 0;
+	numgetmulti = 0;
 	for (i=0; i<numattr; i++) {
 		if (attr[i].type == ATTR_GET_PAGE) {
 			attr[i].outlen = len;
@@ -786,12 +787,22 @@ int osd_command_attr_resolve(struct osd_command *command)
 			ret = 0;
 			goto unwind;
 		}
-		if (attr[i].type == ATTR_GET)
+		if (attr[i].type == ATTR_GET) {
 			attr[i].outlen = 0xffff;
+			++numget;
+	    	}
 		if (attr[i].type == ATTR_GET_MULTI) {
-			attr[i].val = &header->mr[getmulti];
-			++getmulti;
+			attr[i].val = &header->mr[numgetmulti];
+			++numgetmulti;
 		}
+	}
+
+	/*
+	 * No ATTR_GET to process, not an error.
+	 */
+	if (numget == 0 && numgetmulti == 0) {
+		ret = 0;
+		goto unwind;
 	}
 
 	/*
@@ -801,13 +812,13 @@ int osd_command_attr_resolve(struct osd_command *command)
 		goto unwind;
 
 	if ((p[0] & 0xf) == 0x9) {
-		if (getmulti) {
+		if (numgetmulti) {
 			osd_error("%s: got list type 9, expecting multi",
 				  __func__);
 			goto unwind;
 		}
 	} else if ((p[0] & 0xf) == 0xf) {
-		if (!getmulti) {
+		if (!numgetmulti) {
 			osd_error("%s: got list type f, not expecting multi",
 				  __func__);
 			goto unwind;
@@ -837,9 +848,9 @@ int osd_command_attr_resolve(struct osd_command *command)
 		uint16_t item_len, pad;
 		uint16_t avail_len;
 
-		if (len < 10u + 8 * !!getmulti)
+		if (len < 10u + 8 * !!numgetmulti)
 			break;
-		if (getmulti) {
+		if (numgetmulti) {
 			oid = ntohll(&p[0]);
 			p += 8;
 		}
@@ -848,14 +859,6 @@ int osd_command_attr_resolve(struct osd_command *command)
 		item_len = ntohs(&p[8]);
 		p += 10;
 		len -= 10;
-
-		if (item_len == 0xffff) {
-			osd_error("%s: page 0x%x number 0x%0x undefined",
-				  __func__, page, number);
-			p += 6;
-			len -= 6;
-			continue;
-		}
 
 		for (i=0; i<numattr; i++) {
 			if (!(attr[i].type == ATTR_GET
@@ -871,10 +874,13 @@ int osd_command_attr_resolve(struct osd_command *command)
 			goto unwind;
 		}
 
+		avail_len = item_len;
+		if (item_len == 0xffff)
+			avail_len = 0;   /* not found on target */
+
 		/*
 		 * Ran off the end of the allocated buffer?
 		 */
-		avail_len = item_len;
 		if (avail_len > len)
 			avail_len = len;
 
@@ -886,20 +892,22 @@ int osd_command_attr_resolve(struct osd_command *command)
 		if (avail_len > attr[i].len)
 			avail_len = attr[i].len;
 
-		if (avail_len > 0) {
-			if (attr[i].type == ATTR_GET_MULTI) {
-				struct attribute_get_multi_results *mr
-					= attr[i].val;
+		/* set it, even if len is zero */
+		if (attr[i].type == ATTR_GET_MULTI) {
+			struct attribute_get_multi_results *mr
+				= attr[i].val;
 
-				mr->oid[mr->numoid] = oid;
-				mr->val[mr->numoid] = p;
-				mr->outlen[mr->numoid] = avail_len;
-				++mr->numoid;
-			} else {
-				attr[i].val = p;
-				attr[i].outlen = avail_len;
-			}
+			mr->oid[mr->numoid] = oid;
+			mr->val[mr->numoid] = avail_len ? p : NULL;
+			mr->outlen[mr->numoid] = avail_len;
+			++mr->numoid;
+		} else {
+			attr[i].val = avail_len ? p : NULL;
+			attr[i].outlen = avail_len;
 		}
+
+		if (item_len == 0xffff)
+			item_len = 0;
 
 		pad = roundup8(10 + item_len) - (10 + item_len);
 		if (item_len + pad >= len)

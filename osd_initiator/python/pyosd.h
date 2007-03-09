@@ -7,8 +7,6 @@
 struct pyosd_attr {
 	PyObject_HEAD;
 	struct attribute_list attr;
-	PyObject *val;  /* for a set, this will be a string.  Consider
-			   understanding other types later.  */
 };
 
 /*
@@ -19,9 +17,6 @@ struct pyosd_command {
 	struct osd_command command;
 	int set;
 	int complete;
-	PyObject *py_attr;  /* (list of) OSDAttr, only for verification */
-	struct attribute_list *attr;  /* flattened attrs */
-	int numattr;
 };
 
 extern PyTypeObject pyosd_command_type;

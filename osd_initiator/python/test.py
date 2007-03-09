@@ -93,7 +93,7 @@ if command.status:
 	print "status", command.status
 	print command.show_sense(),
 else:
-	command.attr_resolve(attr)
+	attr = command.attr_resolve()
 	oid = pyosd.ntohll(attr.val)
 	print "created oid", oid
 
@@ -118,10 +118,10 @@ if command.status:
 	print "status", command.status
 	print command.show_sense(),
 else:
-	command.attr_resolve(attr)
+	attr = command.attr_resolve()
 	verify_oid = pyosd.ntohll(attr[0].val)
 	len = pyosd.ntohll(attr[1].val)
-	print "verify oid", oid, "has len", len
+	print "should be same oid:", oid, "has len", len
 
 # read it
 command = pyosd.OSDCommand()
@@ -137,14 +137,15 @@ else:
 print "two setattr"
 command = pyosd.OSDCommand()
 command.set_set_attributes(pid, oid)
-attr = [ pyosd.OSDAttr(pyosd.ATTR_SET, 0x10000, 12, 9, "testattr1"), \
-         pyosd.OSDAttr(pyosd.ATTR_SET, 0x10201, 18, 9, "testattr2") ]
+attr = [ pyosd.OSDAttr(pyosd.ATTR_SET, 0x10000, 12, "testattr1"), \
+         pyosd.OSDAttr(pyosd.ATTR_SET, 0x10201, 18, "testattr2") ]
 command.attr_build(attr)
 dev.submit_and_wait(command)
 if command.status:
 	print "status", command.status
 	print command.show_sense(),
 else:
+	command.attr_resolve()
 	print "attrs set"
 
 # two set attrs
@@ -160,7 +161,7 @@ if command.status:
 	print "status", command.status
 	print command.show_sense(),
 else:
-	command.attr_resolve(attr)
+	attr = command.attr_resolve()
 	print "got attrs", attr[0].val, "and", attr[1].val, "and", \
 	      attr[2].val
 

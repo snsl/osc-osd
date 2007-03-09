@@ -173,7 +173,7 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 	int i, ret;
 	uint64_t len;
 	uint8_t ts[6];  /* odd 6-byte timestamp */
-	const char data[] = "Some data.\n";
+	const char data[] = "Some data.";
 	/* const char attr_data[] = "An attribute.\n"; */
 	struct osd_command command;
 
@@ -286,17 +286,21 @@ int main(int argc, char *argv[])
 		create_partition(fd, PID);
 
 
-#if 1           /* These are all supposed to fail, for various reasons. */
+#if 0           /* These are all supposed to fail, for various reasons. */
 		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
 		flush_osd(fd, FLUSH_SCOPE);
 #endif
 
 		
 #if 1		/* Basic read / write seems to work */
-		create_osd(fd, PID, OID, NUM_USER_OBJ+2);
+		create_osd(fd, PID, OID, NUM_USER_OBJ);
+		create_osd(fd, PID, OID+1, NUM_USER_OBJ);
+		create_osd(fd, PID, OID+2, NUM_USER_OBJ);
 		remove_osd(fd, PID, OID+1);
 
 		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
+		read_osd(fd, PID, OID, OFFSET);
+		append_osd(fd, PID, OID, WRITEDATA2);
 		read_osd(fd, PID, OID, OFFSET);
 		write_osd(fd, PID, OID+2, WRITEDATA2, OFFSET);
 		read_osd(fd, PID, OID+2, OFFSET);
@@ -305,7 +309,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if 1           /* Testing iovec list. */
+#if 0           /* Testing iovec list. */
 		create_osd(fd, PID, OID+3, 1);
 		create_osd(fd, PID, OID+4, 1);
 
@@ -316,7 +320,7 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+4);
 #endif
 
-#if 1           /* Testing bidirectional operations. */
+#if 0           /* Testing bidirectional operations. */
 		create_osd(fd, PID, OID+5, 1);
 		bidi_test(fd, PID, OID+5);
 		remove_osd(fd, PID, OID+5);

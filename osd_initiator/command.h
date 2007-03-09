@@ -41,6 +41,7 @@ struct osd_command {
 	uint8_t sense[OSD_MAX_SENSE];	/* [o] sense errors */
 	int sense_len;			/* [o] number of bytes in sense */
 	void *attr_malloc;		/* [x] internal use only */
+	
 };
 
 int osd_command_set_test_unit_ready(struct osd_command *command);

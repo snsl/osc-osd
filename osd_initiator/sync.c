@@ -14,6 +14,7 @@
 #include "command.h"
 #include "device.h"
 #include "sync.h"
+#include "sense.h"
 
 static int check_response(int ret, struct osd_command *command, uint8_t buf[])
 {
@@ -21,13 +22,18 @@ static int check_response(int ret, struct osd_command *command, uint8_t buf[])
 		osd_error("%s: submit_and_wait failed", __func__);
 		return ret;
 	}	
-	if (command->status != 0)
-		osd_error("%s: status: %u sense len: %u inlen: %zu", __func__,
-			  command->status, command->sense_len, command->inlen);
-	else if (command->inlen > 0)
+	if ((command->status != 0) && (command->sense_len != 0)) {
+		osd_error("status: %u sense len: %u inlen: %zu", command->status,
+				command->sense_len, command->inlen);
+		osd_error("%s ", osd_show_sense(command->sense, command->sense_len));
+				
+	}
+	else if (command->inlen > 0) {
 		osd_info("Successfully performed task. BUF: <<%s>>", buf);
-	else 
+	}
+	else {
 		osd_info("Successfully performed task");
+	}
 
 	printf("\n");
 	return 0;
@@ -42,17 +48,26 @@ int inquiry(int fd)
 
 	osd_info("****** INQUIRY ******");
 
+	osd_info("....creating command");
 	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
 	osd_command_set_inquiry(&command, sizeof(inquiry_rsp));
+
+	osd_info("....building command");
 	command.indata = inquiry_rsp;
 	command.inlen_alloc = sizeof(inquiry_rsp);
 
-	ret = osd_submit_and_wait(fd, &command);
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, inquiry_rsp);
 
 	osd_hexdump(inquiry_rsp, command.inlen);
 
 	printf("\n");
+
 	return 0;
 }
 
@@ -65,18 +80,27 @@ int query(int fd, uint64_t pid, uint64_t cid, const char *query)
 	osd_info("****** QUERY ******");
 	osd_info("PID: %u CID: %u QUERY: %s", (uint)pid, (uint)cid, query);
 
-	if (query) {
-		osd_command_set_query(&command, pid, cid, strlen(query), sizeof(buf));
-		command.outdata = query;
-		command.outlen = strlen(query) + 1;
-		command.indata = buf;
-		command.inlen_alloc = sizeof(buf);
-
-		ret = osd_submit_and_wait(fd, &command);
-		check_response(ret, &command, buf);
+	if (!query) {
+		osd_error("%s: no query sent", __func__);
+		return 1;
 	}
-	else 
-		osd_error("%s: no query sent", __func__); 
+
+	osd_info("....creating command");
+	osd_command_set_query(&command, pid, cid, strlen(query), sizeof(buf));
+
+	osd_info("....building command");
+	command.outdata = query;
+	command.outlen = strlen(query) + 1;
+	command.indata = buf;
+	command.inlen_alloc = sizeof(buf);
+
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, buf);
 
 	return 0;
 }
@@ -91,9 +115,17 @@ int create_osd(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_o
 	osd_info("PID: %u OID: %u OBJ: %uu", 
 		(uint)pid, (uint)requested_oid, num_user_objects);
 
+	osd_info("....creating command");
 	osd_command_set_create(&command, pid, requested_oid, num_user_objects);
-	ret = osd_submit_and_wait(fd, &command);
+
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
@@ -105,9 +137,17 @@ int create_partition(int fd, uint64_t requested_pid)
 	osd_info("****** CREATE PARTITION ******");
 	osd_info("PID: %u", (uint)requested_pid);
 
+	osd_info("....creating command");
 	osd_command_set_create_partition(&command, requested_pid);
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
@@ -119,9 +159,17 @@ int create_collection(int fd, uint64_t pid, uint64_t requested_cid)
 	osd_info("****** CREATE COLLECTION ******");
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)requested_cid);
 
+	osd_info("....creating command");
 	osd_command_set_create_collection(&command, pid, requested_cid);
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
@@ -133,9 +181,17 @@ int remove_osd(int fd, uint64_t pid, uint64_t requested_oid)
 	osd_info("****** REMOVE OBJECT ******");
 	osd_info("PID: %u OID: %u", (uint)pid, (uint)requested_oid);
 
+	osd_info("....creating command");
 	osd_command_set_remove(&command, pid, requested_oid);
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
@@ -147,9 +203,17 @@ int remove_partition(int fd, uint64_t pid)
 	osd_info("****** REMOVE PARTITION ******");
 	osd_info("PID: %u", (uint)pid);
 
+	osd_info("....creating command");
 	osd_command_set_remove_partition(&command, pid);
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
@@ -161,9 +225,17 @@ int remove_collection(int fd, uint64_t pid, uint64_t cid)
 	osd_info("****** REMOVE COLLECTION ******");
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
+	osd_info("....creating command");
 	osd_command_set_remove_collection(&command, pid, cid);
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
@@ -175,15 +247,23 @@ int remove_member_objects(int fd, uint64_t pid, uint64_t cid)
 	osd_info("****** REMOVE MEMBER OBJECTS ******");
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
+	osd_info("....creating command");
 	osd_command_set_remove_member_objects(&command, pid, cid);
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
 int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const char *buf, uint64_t offset)
 {
-	int ret;
+	int ret, len = strlen(buf) + 1;
 	struct osd_command command;
 	
 	osd_info("****** CREATE / WRITE ******");
@@ -194,51 +274,111 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const cha
 		return 1;
 	}
 
-	osd_command_set_create_and_write(&command, pid, requested_oid,
-					 strlen(buf) + 1, offset);
+	osd_info("....creating command");
+	osd_command_set_create_and_write(&command, pid, requested_oid, len, offset);
+	
+	osd_info("....building command");
 	command.outdata = buf;
-	command.outlen = strlen(buf) + 1;
-	ret = osd_submit_and_wait(fd, &command);
+	command.outlen = len;
+
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
 int write_osd(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset)
 {
-	int ret;
+	int ret, len = strlen(buf) + 1;
 	struct osd_command command;
 	
 	osd_info("****** WRITE ******");
-	osd_info("PID: %u OID: %u BUF: %s", (uint)pid, (uint)oid, buf);
+	osd_info("PID: %u OID: %u BUF: <<%s>>", (uint)pid, (uint)oid, buf);
 
 	if (!buf) {
 		osd_error("%s: no data sent", __func__); 
 		return 1;
 	}
 
-	osd_command_set_write(&command, pid, oid, strlen(buf) + 1, offset);
+	osd_info("....creating command");
+	osd_command_set_write(&command, pid, oid, len, offset);
+	
+	osd_info("....building command");
 	command.outdata = buf;
-	command.outlen = strlen(buf) + 1;
-	ret = osd_submit_and_wait(fd, &command);
+	command.outlen = len;
+
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
+	return 0;
+}
+
+int append_osd(int fd, uint64_t pid, uint64_t oid, const char *buf)
+{
+	int ret, len = strlen(buf) + 1;
+	struct osd_command command;
+	
+	osd_info("****** APPEND ******");
+	osd_info("PID: %u OID: %u BUF: %s", (uint)pid, (uint)oid, buf);
+
+	if (!buf) {
+		osd_error("%s: no data sent", __func__);
+		return 1;
+	}
+
+	osd_info("....creating command");
+	osd_command_set_append(&command, pid, oid, len);
+	
+	osd_info("....building command");
+	command.outdata = buf;
+	command.outlen = len;
+
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
 int read_osd(int fd, uint64_t pid, uint64_t oid, uint64_t offset)
 {
-	int ret;
 	uint8_t buf[100] = "";
+	int ret, len = sizeof(buf);
 	struct osd_command command;
+	memset(buf, 0, len);
 
 	osd_info("****** READ ******");
 	osd_info("PID: %u OID: %u EMPTY BUF: <<%s>>", (uint)pid, (uint)oid, buf);
 
-	osd_command_set_read(&command, pid, oid, sizeof(buf), offset);
+	osd_info("....creating command");
+	osd_command_set_read(&command, pid, oid, len, offset);
+	
+	osd_info("....building command");
 	command.indata = buf;
-	command.inlen_alloc = sizeof(buf);
-	memset(buf, 0, sizeof(buf));
-	ret = osd_submit_and_wait(fd, &command);
+	command.inlen_alloc = len;
+
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
 	check_response(ret, &command, buf);
+
 	return 0;
 }
 
@@ -250,9 +390,17 @@ int format_osd(int fd, int capacity)
 	osd_info("****** FORMAT OSD ******"); 
 	osd_info("Capacity: %i", capacity);
 
+	osd_info("....creating command");
 	osd_command_set_format_osd(&command, capacity);
-	ret = osd_submit_and_wait(fd, &command);	
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0;
 }
 
@@ -263,9 +411,17 @@ int flush_osd(int fd, int flush_scope)
 
 	osd_info("****** FLUSH OSD ******"); 
 
+	osd_info("....creating command");
 	osd_command_set_flush_osd(&command, flush_scope);   
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0; 
 }
 
@@ -277,9 +433,17 @@ int flush_partition(int fd, uint64_t pid, int flush_scope)
 	osd_info("****** FLUSH PARTITION ******"); 
 	osd_info("PID: %u", (uint)pid);
 
+	osd_info("....creating command");
 	osd_command_set_flush_partition(&command, pid, flush_scope);   
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0; 
 }
 
@@ -291,12 +455,21 @@ int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope)
 	osd_info("****** FLUSH COLLECTION ******"); 
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
+	osd_info("....creating command");
 	osd_command_set_flush_collection(&command, pid, cid, flush_scope);   
-	ret = osd_submit_and_wait(fd, &command);
+	
+	osd_info("....submitting command");
+	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
+
+	osd_info("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
 	return 0; 
 }
 
+/* Attributes */
 int get_attributes(int fd, uint64_t pid, uint64_t oid)
 {
 	int ret;

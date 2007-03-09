@@ -16,6 +16,7 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t oid, const char *buf, ui
 /* Read/Write */
 int write_osd(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset);
 int read_osd(int fd, uint64_t pid, uint64_t oid, uint64_t offset);
+int append_osd(int fd, uint64_t pid, uint64_t oid, const char *buf);
 /* Remove */
 int remove_osd(int fd, uint64_t pid, uint64_t requested_oid);
 int remove_partition(int fd, uint64_t pid);

@@ -48,7 +48,7 @@ static void format(void)
 	struct osd_command command;
 	const int OBJ_CAPACITY = 1<<30;  /* 1 GB */
 
-	printf("BEGINNING FORMAT TEST\n");
+	printf("BEGIN FORMAT TEST\n");
 
 	printf("Formatting active disk\n");
 	printf(".....Set format command\n");
@@ -120,6 +120,7 @@ static void test_create_partition(void)
 		exit(1);
 	}
 
+
 	printf("Submit the commands\n");
 	ret = osd_submit_command(fd, &command);
 	if (ret != 0){
@@ -147,6 +148,7 @@ static void test_create_partition(void)
 		printf("Command did not FAIL when it should!\n");
 		exit(1);
 	}
+
 	printf(".....Response len is %d\n", (int) command.inlen);
 	printf(".....%s\n", (char *) command.indata);
 	printf("Command failed as expected\n");
@@ -216,6 +218,8 @@ static void remove_objects(void)
 	/*Since create object with get attributes not implemented yet
 	just assume we know the first object ID which we do do here*/
 
+	printf("BEGIN REMOVE OBJECTS TEST\n");
+
 	int ret;
 	struct osd_command command;
 	int i;
@@ -234,7 +238,7 @@ static void remove_objects(void)
 			exit(1);
 		}
 
-		printf("Submit the create obj command\n");
+		printf("Submit the remove obj command\n");
 		ret = osd_submit_command(fd, &command);
 		if (ret != 0){
 			printf("Submit command failed\n");
@@ -255,11 +259,13 @@ static void remove_objects(void)
 
 		printf("Just removed object %ld\n", oid);
 	}
+	printf("END REMOVE OBJECTS TEST\n");
 	printf("\n");
 }
 
 static void write_objects(void)
 {
+	printf("BEGIN WRITE OBJECTS TEST\n");
 	int ret;
 	struct osd_command command;
 	int i;
@@ -306,10 +312,12 @@ static void write_objects(void)
 	}
 
 
+	printf("END WRITE OBJECTS TEST\n");
 }
 
 static void read_objects(void)
 {
+	printf("BEGIN READ OBJECTS TEST\n");
 	int ret;
 	struct osd_command command;
 	int i;
@@ -360,6 +368,7 @@ static void read_objects(void)
 	}
 
 	printf("Buffers Check Out\n\n");
+	printf("END READ OBJECTS TEST\n");
 }
 
 int main(void)

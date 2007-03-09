@@ -934,7 +934,7 @@ char *osd_show_sense(const uint8_t *sense, int len)
 	}
 
 	if (additional_len > 0)
-		sprintf(s+pos, "Descriptor type 0x%02x len %d not shown.\n",
+		sprintf(s+pos, "Descriptor type 0x%02x len %d not shown",
 		        info[0], additional_len);
 
 out:

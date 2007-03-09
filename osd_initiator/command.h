@@ -43,6 +43,7 @@ struct osd_command {
 	void *attr_malloc;		/* [x] internal use only */
 };
 
+int osd_command_set_test_unit_ready(struct osd_command *command);
 int osd_command_set_inquiry(struct osd_command *command, uint8_t outlen);
 int osd_command_set_append(struct osd_command *command, uint64_t pid,
 			   uint64_t oid, uint64_t len);

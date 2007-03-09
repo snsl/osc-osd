@@ -28,11 +28,17 @@ static void varlen_cdb_init(struct osd_command *command, uint16_t action)
 /*
  * Non-varlen commands.
  */
+int osd_command_set_test_unit_ready(struct osd_command *command)
+{
+	memset(command, 0, sizeof(*command));
+	command->cdb_len = 6;
+	return 0;
+}
+
 int osd_command_set_inquiry(struct osd_command *command, uint8_t outlen)
 {
 	memset(command, 0, sizeof(*command));
 	command->cdb_len = 6;
-	memset(command->cdb, 0, 6);
 	command->cdb[0] = INQUIRY;
 	command->cdb[4] = outlen;
 	return 0;

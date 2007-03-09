@@ -67,36 +67,7 @@ for the maximum size response.  For a single buffer,
 	command->indata = buf;
 	command->inlen_alloc = len;
 
-After the command completes, check command->inlen to see the actual
-size of data returned.  For example, reading an object will only return
-the number of bytes in the object regardless of how much you ask for.
-
-The next step, after initializing the command and setting up the data
-pointers, is to attach any attributes.  This must be done after setting
-the data pointers as it will modify those fields in the command.  Make
-a single call to the attribute build function, passing it an array of
-structures that describe the attributes of interest.  For example,
-
-	uint64_t logical_len;
-	char owner[20];
-	const char data[] = "Some data.";
-	struct attribute_list attr[] = {
-		{ .type = ATTR_GET, .page = 0x82, .number = 1,
-		  .val = &logical_len, .len = 8 },
-		{ .type = ATTR_GET, .page = 0x10993, .number = 12,
-		  .val = owner, .len = 20 },
-		{ .type = ATTR_SET, .page = 0x10076, .number = 1,
-		  .val = data, .len = sizeof(data) },
-	};
-	osd_command_attr_build(command, attr, 3);
-
-For GET attributes, provide a pointer to where to put the data when
-the command executes.  For PUT attributes, provide the input data.
-The attribute structure and output data pointers must remain valid
-until the attributes are resolved, after execution.  The input data
-is copied during this build phase.  Internally a single allocation
-holds the various structures required by the OSD and will be freed
-during osd_command_attr_resolve.
+(Apply optional command attributes as described below.)
 
 Now, run the command using the device interface:
 
@@ -106,19 +77,84 @@ And wait for it to complete
 
 	osd_wait_this_response(fd, command);
 
+After the command completes, check command->status to make sure it
+executed properly.  Also look at command->inlen to see the actual
+size of data returned.  For example, reading an object will only return
+the number of bytes in the object regardless of how much you ask for.
+
+
+Command attributes
+------------------
+These are optional, and can be added to any command.  There are four
+different types of attributes that instruct the target to do something
+along with the command:
+
+    ATTR_GET - return a particular attribute
+    ATTR_SET - set a particular attribute to a given value
+    ATTR_GET_PAGE - return a pre-defined page structure
+    ATTR_GET_MULTI - only for multi-object CREATE command, does a
+    	ATTR_GET for each of the newly created objects, essentially
+
+Subject to various constraints, a mixture of GET and SET attributes
+can be added on the same command.
+
+After initializing a command and setting up the output and input data
+pointers, it is possible to build a list of attributes.  This must
+be done after the data pointers as those will be modified.  Only one
+call to build attributes can be done per command.  For example,
+
+	const char data[] = "Some data.";
+	struct attribute_list attr_proto[] = {
+		{ .type = ATTR_GET, .page = 0x82, .number = 1, .len = 8 },
+		{ .type = ATTR_GET, .page = 0x10993, .number = 12, .len = 20 },
+		{ .type = ATTR_SET, .page = 0x10076, .number = 1,
+		  .val = data, .len = sizeof(data) },
+	};
+	osd_command_attr_build(command, attr_proto, 3);
+
+For PUT attributes (only), provide the input data.  The attribute structure
+and the output data contents are copied as part of the build command, so
+they can be placed on the stack and forgotten immediately after the
+command.  Internally a single allocation holds the various structures
+required by the OSD and must be freed by a call to osd_command_attr_free.
+
+Now submit the command to the device and wait for it to finish as above.
+
 Before the data or the GET attributes can be accessed, a call to
-resolve the attributes must be made to move the resulting buffers
-around:
+resolve the attributes must be made to locate the output values.  This
+is only required if there are any ATTR_GET* attributes to process:
 
-	osd_command_attr_resolve(command, attr, 3)
+	osd_command_attr_resolve(command)
 
-Now it is safe to look at logical_len and owner, e.g.  But don't
-forget to do ntohll() on things that look like integers.  You can
-also check attr[1].outlen to see if the actual string is 20 bytes
-long.  It is also now safe to look at the data in command->indata.
+Now to look at a particular value, you can use the pointers that
+were placed into the attribute structure.  Do not expect to use the
+original attribute_list you passed in to build, but look at the one
+that was created for you in command->attr:
 
-It is not necessary to free anything other than the command and
-attribute structures, if you allocated them on the heap.
+	uint64_t logical_len = ntohl(command->attr[0].val);
+	int str_len = command->attr[1].outlen;
+	char *s = Malloc(str_len + 1);
+	memcpy(s, command->attr[1].val);
+	s[str_len] = '\0';
+
+Don't forget to do ntohll() on things that look like integers.  You can
+also check attr[1].outlen to see if the actual returned length is
+what was expected.
+
+Now is also now safe to look at the data in command->indata.  (If you
+only had ATTR_SET, command->indata is valid without calling attr_resolve.)
+
+Finally, it is necessary to free the internal command state for
+attributes:
+
+	osd_command_attr_free(command);
+
+One twist to the attribute story.  If you do an OSD CREATE command
+and ask for more than one object, you must use ATTR_GET_MULTI to
+request returned attributes.  The attr->val you get back, then, is not
+just a single value, but a pointer to a struct attribute_get_multi_results
+that contains lists of val, outlen, and the owning oid.  That is, there
+is one returned value for each new object created.
 
 
 Sense

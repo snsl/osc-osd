@@ -30,11 +30,9 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 {
 	int ret;
 	struct osd_command command;
-	uint64_t logical_length;
-	struct attribute_list id = {
+	struct attribute_list *attr, attr_proto = {
 	    .page = 0x1,
 	    .number = 0x82,  /* logical length (not used capacity) */
-	    .val = &logical_length,
 	    .len = sizeof(uint64_t),
 	};
 
@@ -45,7 +43,7 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 		printf("\n");
 		return 1;
 	}
-	ret = osd_command_attr_build(&command, &id, 1);
+	ret = osd_command_attr_build(&command, &attr_proto, 1);
 	if (ret) {
 		osd_error_xerrno(ret, "%s: attr_build failed", __func__);
 		printf("\n");
@@ -63,15 +61,22 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 
 	/* verify retrieved list */
 	osd_hexdump(command.indata, command.inlen_alloc);
-	ret = osd_command_attr_resolve(&command, &id, 1);
+	ret = osd_command_attr_resolve(&command);
 	if (ret) {
 		osd_error("%s: attr_resolve failed", __func__);
 		printf("\n");
 		return 1;
 	}
+	attr = command.attr;
+
+	if (attr->outlen != attr->len)
+		osd_error("%s: short attr outlen %d", __func__,
+		          attr->outlen);
 
 	printf("%s: logical length 0x%016llx\n\n", __func__,
-	       llu(ntohll((void *) &logical_length)));
+	       llu(ntohll(attr->val)));
+
+	osd_command_attr_free(&command);
 	return 0;
 }
 
@@ -172,24 +177,22 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 {
 	int i, ret;
 	uint64_t len;
-	uint8_t ts[6];  /* odd 6-byte timestamp */
+	uint8_t *ts;  /* odd 6-byte timestamp */
 	const char data[] = "Some data.";
 	/* const char attr_data[] = "An attribute.\n"; */
 	struct osd_command command;
 
-	struct attribute_list attr[] = {
+	struct attribute_list *attr, attr_proto[] = {
 		{
 			.type = ATTR_GET,
 			.page = 0x1,  /* user info page */
 			.number = 0x82,  /* logical length */
-			.val = &len,
 			.len = sizeof(uint64_t),
 		},
 		{
 			.type = ATTR_GET,
 			.page = 0x3,  /* user timestamp page */
 			.number = 0x1,  /* ctitme */
-			.val = &ts,
 			.len = 6,
 		},
 #if 0
@@ -213,16 +216,14 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 	/* so length will be interesting */
 	write_osd(fd, pid, oid, data, sizeof(data));
 
-	len = -1;
-	memset(ts, 0xaa, 6);
-
 	ret = osd_command_set_get_attributes(&command, pid, oid);
 	if (ret) {
 		osd_error("%s: set_get_attributes failed", __func__);
 		printf("\n");
 		return;
 	}
-	ret = osd_command_attr_build(&command, attr, ARRAY_SIZE(attr));
+	ret = osd_command_attr_build(&command, attr_proto,
+				     ARRAY_SIZE(attr_proto));
 	if (ret) {
 		osd_error("%s: attr_build failed", __func__);
 		printf("\n");
@@ -234,19 +235,23 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 		printf("\n");
 		return;
 	}
-	ret = osd_command_attr_resolve(&command, attr, ARRAY_SIZE(attr));
+	ret = osd_command_attr_resolve(&command);
 	if (ret) {
 		osd_error("%s: attr_resolve failed", __func__);
 		printf("\n");
 		return;
 	}
+	attr = command.attr;
 	for (i=0; i<ARRAY_SIZE(attr); i++) {
 		if (attr[i].len != attr[i].outlen)
 			osd_error("%s: attr %d short: %u not %u", __func__,
 				  i, attr[i].outlen, attr[i].len);
 	}
+	len = ntohll(attr[0].val);
+	ts = attr[1].val;
 	printf("%s: len %016llx ts %02x%02x%02x%02x%02x%02x\n\n",
 	       __func__, llu(len), ts[0], ts[1], ts[2], ts[3], ts[4], ts[5]);
+	osd_command_attr_free(&command);
 }
 
 int main(int argc, char *argv[])
@@ -309,7 +314,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if 0           /* Testing iovec list. */
+#if 1           /* Testing iovec list. */
 		create_osd(fd, PID, OID+3, 1);
 		create_osd(fd, PID, OID+4, 1);
 
@@ -320,8 +325,9 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+4);
 #endif
 
-#if 0           /* Testing bidirectional operations. */
+#if 1           /* Testing bidirectional operations. */
 		create_osd(fd, PID, OID+5, 1);
+		write_osd(fd, PID, OID+5, "sixty-seven", 12);
 		bidi_test(fd, PID, OID+5);
 		remove_osd(fd, PID, OID+5);
 #endif

@@ -340,8 +340,8 @@ struct attr_malloc_header {
 	int orig_iov_inlen;
 	uint8_t *retrieved_buf;
 	uint64_t start_retrieved;
-	/* optional new outiov and iniov appear next */
-	/* then buffer space as described below */
+	/* for convenience of resolve, points into the big buffer */
+	struct attribute_get_multi_results *mr;
 };
 
 /*
@@ -356,17 +356,19 @@ struct attr_malloc_header {
  * the results and free the temp buffers.
  */
 int osd_command_attr_build(struct osd_command *command,
-                           struct attribute_list *attrs, int num)
+                           const struct attribute_list *attr, int numattr)
 {
 	int use_getpage;
 	int numget, numgetpage, numgetmulti, numset;
 	uint32_t getsize, getpagesize, getmultisize, setsize;
+	uint32_t getmulti_num_objects;
 	struct attr_malloc_header *header;
-	struct bsg_iovec *iov;
 	uint8_t *p;
+	struct bsg_iovec *iov;
 	int i;
 	int neediov;
 	uint64_t extra_out, extra_in;
+	uint32_t getmulti_result_space;
 
 	/*
 	 * These are values, in units of bytes (not offsets), in the
@@ -388,7 +390,7 @@ int osd_command_attr_build(struct osd_command *command,
 	uint64_t start_retrieved;
 	uint64_t size_retrieved;
 
-	if (num == 0)
+	if (numattr == 0)
 		return 0;
 
 	/*
@@ -397,22 +399,22 @@ int osd_command_attr_build(struct osd_command *command,
 	 */
 	numget = numgetpage = numgetmulti = numset = 0;
 	getsize = getpagesize = getmultisize = setsize = 0;
-	for (i=0; i<num; i++) {
-		if (attrs[i].type == ATTR_GET) {
+	for (i=0; i<numattr; i++) {
+		if (attr[i].type == ATTR_GET) {
 			++numget;
-			getsize += roundup8(10 + attrs[i].len);
-		} else if (attrs[i].type == ATTR_GET_PAGE) {
+			getsize += roundup8(10 + attr[i].len);
+		} else if (attr[i].type == ATTR_GET_PAGE) {
 			++numgetpage;
-			getpagesize += attrs[i].len;  /* no round */
-		} else if (attrs[i].type == ATTR_GET_MULTI) {
+			getpagesize += attr[i].len;  /* no round */
+		} else if (attr[i].type == ATTR_GET_MULTI) {
 			++numgetmulti;
-			getmultisize += roundup8(18 + attrs[i].len);
-		} else if (attrs[i].type == ATTR_SET) {
+			getmultisize += roundup8(18 + attr[i].len);
+		} else if (attr[i].type == ATTR_SET) {
 			++numset;
-			setsize += roundup8(10 + attrs[i].len);
+			setsize += roundup8(10 + attr[i].len);
 		} else {
 			osd_error("%s: invalid attribute type %d", __func__,
-			          attrs[i].type);
+			          attr[i].type);
 			return -EINVAL;
 		}
 	}
@@ -444,7 +446,6 @@ int osd_command_attr_build(struct osd_command *command,
 		if (numgetmulti) {
 			uint16_t action = (command->cdb[8] << 8)
 			                 | command->cdb[9];
-			uint32_t num_user_objects = ntohs(&command->cdb[36]);
 			if (numget) {
 				osd_error(
 				"%s: no ATTR_GET allowed with ATTR_GET_MULTI",
@@ -457,7 +458,7 @@ int osd_command_attr_build(struct osd_command *command,
 					  __func__);
 				return -EINVAL;
 			}
-			getmultisize *= num_user_objects;
+			getmulti_num_objects = ntohs(&command->cdb[36]);
 		}
 		if (numget == 0 && numgetmulti == 0 && numset == 1)
 			use_getpage = 1;  /* simpler for a single set */
@@ -509,13 +510,28 @@ int osd_command_attr_build(struct osd_command *command,
 	if (numgetpage)
 		size_retrieved = getpagesize;  /* no rounding */
 	if (numgetmulti)
-		size_retrieved = 8 + getmultisize;  /* already scaled/rounded */
+		size_retrieved = 8 + getmultisize * getmulti_num_objects;
 	extra_in = size_pad_indata + size_retrieved;
 
 	/*
-	 * Allocate space for the getlist, setlist, retrieved areas.
-	 * Also include a header to remember the original iovs or
-	 * indata/outdata, and space for the new iovs.
+	 * Each ATTR_GET_MULTI will return an array of values, one for
+	 * each object.  Allocate space for that now, for use by
+	 * attr_resolve();
+	 */
+	getmulti_result_space = 0;
+	if (numgetmulti) {
+		struct attribute_get_multi_results *mr;
+		int one_space = sizeof(*mr)
+			+ getmulti_num_objects
+			* (sizeof(*mr->oid) + sizeof(*mr->val)
+			   + sizeof(*mr->outlen));
+		getmulti_result_space = numgetmulti * one_space;
+	}
+
+	/*
+	 * If we are building out or indata items, and user already
+	 * had some data there, build replacement iovecs to hold the
+	 * new list.
 	 */
 	neediov = 0;
 	if (extra_out && command->outdata) {
@@ -531,15 +547,58 @@ int osd_command_attr_build(struct osd_command *command,
 			neediov += command->iov_inlen + 1;
 	}
 
+	/*
+	 * Allocate space for the following things, in order:
+	 * 	header struct of original iov/data, etc.
+	 * 	attr array
+	 * 	get_multi results
+	 * 	out iovec
+	 * 	in iovec
+	 * 	outgoing getlist area
+	 * 	outgoing setlist area
+	 * 	incoming retrieved area
+	 */
 	command->attr_malloc = Malloc(sizeof(*header)
+				    + numattr * sizeof(*attr)
+				    + getmulti_result_space
 				    + neediov * sizeof(*iov)
 				    + extra_out + extra_in);
 	if (!command->attr_malloc)
 		return 1;
 
+	/* header holds original indata, iniovec, etc. */
 	header = command->attr_malloc;
-	iov = (void *) &header[1];
+
+	/* copy user's passed-in attribute structure for use by resolve */
+	command->attr = (void *) &header[1];
+	memcpy(command->attr, attr, numattr * sizeof(*attr));
+	command->numattr = numattr;
+
+	/* for ATTR_GET_MULTI results */
+	header->mr = (void *) &command->attr[numattr];
+
+	/* space for replacement out and in iovecs */
+	iov = (void *) ((uint8_t *) header->mr + getmulti_result_space);
+
+	/* outgoing pad, getlist, pad, setlist; incoming pad, retrieval areas */
 	p = (uint8_t *) &iov[neediov];
+
+	/*
+	 * Initialize get multi result space.
+	 */
+	if (getmulti_result_space) {
+		struct attribute_get_multi_results *mr = header->mr;
+		uint8_t *q = (void *) &mr[numgetmulti];
+		for (i=0; i<numgetmulti; i++) {
+			mr[i].numoid = 0;
+			mr[i].oid = (void *) q;
+			q += getmulti_num_objects * sizeof(*mr[i].oid);
+			mr[i].val = (void *) q;
+			q += getmulti_num_objects * sizeof(*mr[i].val);
+			mr[i].outlen = (void *) q;
+			q += getmulti_num_objects * sizeof(*mr[i].outlen);
+		}
+	}
 
 	/* set pad spaces to known pattern, for debugging */
 	memset(p, 0x6b, size_pad_outdata);
@@ -550,12 +609,12 @@ int osd_command_attr_build(struct osd_command *command,
 	 */
 	if (numget || numgetmulti) {
 		uint8_t *q = p + 8;
-		for (i=0; i<num; i++) {
-			if (!(attrs[i].type == ATTR_GET_MULTI
-			   || attrs[i].type == ATTR_GET))
+		for (i=0; i<numattr; i++) {
+			if (!(attr[i].type == ATTR_GET_MULTI
+			   || attr[i].type == ATTR_GET))
 				continue;
-			set_htonl(&q[0], attrs[i].page);
-			set_htonl(&q[4], attrs[i].number);
+			set_htonl(&q[0], attr[i].page);
+			set_htonl(&q[4], attr[i].number);
 			q += 8;
 		}
 		p[0] = 0x1;
@@ -572,15 +631,15 @@ int osd_command_attr_build(struct osd_command *command,
 	 */
 	if (numset && !use_getpage) {
 		uint8_t *q = p + 8;
-		for (i=0; i<num; i++) {
+		for (i=0; i<numattr; i++) {
 			int len;
-			if (attrs[i].type != ATTR_SET)
+			if (attr[i].type != ATTR_SET)
 				continue;
-			set_htonl(&q[0], attrs[i].page);
-			set_htonl(&q[4], attrs[i].number);
-			set_htons(&q[8], attrs[i].len);
-			memcpy(&q[10], attrs[i].val, attrs[i].len);
-			len = 10 + attrs[i].len;
+			set_htonl(&q[0], attr[i].page);
+			set_htonl(&q[4], attr[i].number);
+			set_htons(&q[8], attr[i].len);
+			memcpy(&q[10], attr[i].val, attr[i].len);
+			len = 10 + attr[i].len;
 			q += len;
 			while (len & 7) {
 				*q++ = 0;
@@ -608,13 +667,13 @@ int osd_command_attr_build(struct osd_command *command,
 	 */
 	if (use_getpage) {
 		/* page format */
-		command->cdb[11] = (command->cdb[11] & 0xCF) | (2 << 4);
-		for (i=0; i<num; i++) {
-			if (attrs[i].type == ATTR_GET_PAGE)
-				set_htonl(&command->cdb[52], attrs[i].page);
-			if (attrs[i].type == ATTR_SET) {
-				set_htonl(&command->cdb[64], attrs[i].page);
-				set_htonl(&command->cdb[68], attrs[i].number);
+		command->cdb[11] = (command->cdb[11] & ~(3 << 4)) | (2 << 4);
+		for (i=0; i<numattr; i++) {
+			if (attr[i].type == ATTR_GET_PAGE)
+				set_htonl(&command->cdb[52], attr[i].page);
+			if (attr[i].type == ATTR_SET) {
+				set_htonl(&command->cdb[64], attr[i].page);
+				set_htonl(&command->cdb[68], attr[i].number);
 			}
 		}
 		set_htonl(&command->cdb[56], size_retrieved);
@@ -691,13 +750,11 @@ int osd_command_attr_build(struct osd_command *command,
 }
 
 /*
- * Must be called once after a command involving attributes.  Puts output
- * data from GET into the right locations and frees data structures.
- * Returns 0 if all okay.  Assumes that target returns something reasonable,
- * e.g. not multiple copies of the same attribute.
+ * Must be called once after a command involving attributes.  Figures out
+ * where GET output data landed and sets .val pointers and .outlen
+ * appropriately.  Returns 0 if all okay.
  */
-int osd_command_attr_resolve(struct osd_command *command,
-			     struct attribute_list *attrs, int num)
+int osd_command_attr_resolve(struct osd_command *command)
 {
 	struct attr_malloc_header *header = command->attr_malloc;
 	uint8_t *p;
@@ -705,6 +762,8 @@ int osd_command_attr_resolve(struct osd_command *command,
 	uint32_t list_len;
 	int getmulti, i;
 	int ret = -EINVAL;
+	struct attribute_list *attr = command->attr;
+	int numattr = command->numattr;
 
 	if (command->inlen < header->start_retrieved)
 		goto unwind;
@@ -717,18 +776,22 @@ int osd_command_attr_resolve(struct osd_command *command,
 	 * done properly at the start.  Also error out the outlens for
 	 * the non-getpage case to come later.
 	 */
-	for (i=0; i<num; i++) {
-		if (attrs[i].type == ATTR_GET_PAGE) {
-			attrs[i].outlen = len;
-			if (attrs[i].outlen > attrs[i].len)
-				attrs[i].outlen = attrs[i].len;
-			memcpy(attrs[i].val, p, attrs[i].outlen);
+	getmulti = 0;
+	for (i=0; i<numattr; i++) {
+		if (attr[i].type == ATTR_GET_PAGE) {
+			attr[i].outlen = len;
+			if (attr[i].outlen > attr[i].len)
+				attr[i].outlen = attr[i].len;
+			attr[i].val = p;
 			ret = 0;
 			goto unwind;
 		}
-		if (attrs[i].type == ATTR_GET
-		 || attrs[i].type == ATTR_GET_MULTI)
-			attrs[i].outlen = 0xffff;
+		if (attr[i].type == ATTR_GET)
+			attr[i].outlen = 0xffff;
+		if (attr[i].type == ATTR_GET_MULTI) {
+			attr[i].val = &header->mr[getmulti];
+			++getmulti;
+		}
 	}
 
 	/*
@@ -738,9 +801,17 @@ int osd_command_attr_resolve(struct osd_command *command,
 		goto unwind;
 
 	if ((p[0] & 0xf) == 0x9) {
-		getmulti = 0;
+		if (getmulti) {
+			osd_error("%s: got list type 9, expecting multi",
+				  __func__);
+			goto unwind;
+		}
 	} else if ((p[0] & 0xf) == 0xf) {
-		getmulti = 1;
+		if (!getmulti) {
+			osd_error("%s: got list type f, not expecting multi",
+				  __func__);
+			goto unwind;
+		}
 	} else {
 		osd_error("%s: expecting list type 9 or f, got 0x%x",
 			  __func__, p[0] & 0xf);
@@ -766,7 +837,7 @@ int osd_command_attr_resolve(struct osd_command *command,
 		uint16_t item_len, pad;
 		uint16_t avail_len;
 
-		if (len < 10u + 8 * getmulti)
+		if (len < 10u + 8 * !!getmulti)
 			break;
 		if (getmulti) {
 			oid = ntohll(&p[0]);
@@ -786,53 +857,48 @@ int osd_command_attr_resolve(struct osd_command *command,
 			continue;
 		}
 
-		for (i=0; i<num; i++) {
-			if (!(attrs[i].type == ATTR_GET
-			   || attrs[i].type == ATTR_GET_MULTI))
+		for (i=0; i<numattr; i++) {
+			if (!(attr[i].type == ATTR_GET
+			   || attr[i].type == ATTR_GET_MULTI))
 				continue;
-			if (attrs[i].page == page && attrs[i].number == number)
+			if (attr[i].page == page && attr[i].number == number)
 				break;
 		}
 
-		if (i == num) {
+		if (i == numattr) {
 			osd_error("%s: page %x number %x not requested",
 				  __func__, page, number);
 			goto unwind;
 		}
 
+		/*
+		 * Ran off the end of the allocated buffer?
+		 */
 		avail_len = item_len;
 		if (avail_len > len)
 			avail_len = len;
 
-		if (attrs[i].type == ATTR_GET_MULTI) {
-			uint16_t tocopy = item_len;
-			uint16_t curoff = attrs[i].outlen;
+		/*
+		 * This can happen for a list of gets since the target does
+		 * not know the requested size of each one, just return what
+		 * we can.
+		 */
+		if (avail_len > attr[i].len)
+			avail_len = attr[i].len;
 
-			if (curoff == 0xffff)
-				curoff = 0;  /* first one */
+		if (avail_len > 0) {
+			if (attr[i].type == ATTR_GET_MULTI) {
+				struct attribute_get_multi_results *mr
+					= attr[i].val;
 
-			/* append to the list of output values, but do
-			 * not copy in partial values */
-			if (curoff + item_len > attrs[i].len)
-				tocopy = 0;
-			if (item_len > avail_len)
-				tocopy = 0;
-			if (tocopy) {
-				memcpy((uint8_t *) attrs[i].val
-				       + attrs[i].outlen, p, tocopy);
-				attrs[i].outlen = curoff + tocopy;
+				mr->oid[mr->numoid] = oid;
+				mr->val[mr->numoid] = p;
+				mr->outlen[mr->numoid] = avail_len;
+				++mr->numoid;
+			} else {
+				attr[i].val = p;
+				attr[i].outlen = avail_len;
 			}
-		} else {
-			uint16_t tocopy = avail_len;
-
-			/* This can happen for a list of gets since the target
-			 * does not know the requested size of each one, just
-			 * return what we can. */
-			if (tocopy > attrs[i].len)
-				tocopy = attrs[i].len;
-
-			memcpy(attrs[i].val, p, tocopy);
-			attrs[i].outlen = tocopy;
 		}
 
 		pad = roundup8(10 + item_len) - (10 + item_len);
@@ -853,7 +919,11 @@ unwind:
 	command->iov_inlen = header->orig_iov_inlen;
 	if (command->inlen > header->orig_inlen)
 		command->inlen = header->orig_inlen;
-	free(header);
 	return ret;
+}
+
+void osd_command_attr_free(struct osd_command *command)
+{
+	free(command->attr_malloc);
 }
 

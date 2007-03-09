@@ -14,6 +14,17 @@ struct attribute_list {
 };
 
 /*
+ * In the case of ATTR_GET_MULTI, each returned attr->val will point to
+ * one of these.  Look inside it to find the values for each oid.
+ */
+struct attribute_get_multi_results {
+	int numoid;
+	uint64_t *oid;      /* arrays for each oid:  val, outlen */
+	const void **val;
+	uint16_t *outlen;
+};
+
+/*
  * This is copied from a kernel header to avoid including it.
  */
 struct bsg_iovec {
@@ -40,6 +51,8 @@ struct osd_command {
 	uint8_t status;			/* [o] scsi status */
 	uint8_t sense[OSD_MAX_SENSE];	/* [o] sense errors */
 	int sense_len;			/* [o] number of bytes in sense */
+	struct attribute_list *attr;    /* [o] after attr_resolve() */
+	int numattr;                    /* [o] */
 	void *attr_malloc;		/* [x] internal use only */
 	
 };
@@ -102,8 +115,8 @@ int osd_command_set_set_member_attributes(struct osd_command *command,
 int osd_command_set_write(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
 int osd_command_attr_build(struct osd_command *command,
-			   struct attribute_list *attrs, int num);
-int osd_command_attr_resolve(struct osd_command *command,
-			     struct attribute_list *attrs, int num);
+			   const struct attribute_list *const attrs, int num);
+int osd_command_attr_resolve(struct osd_command *command);
+void osd_command_attr_free(struct osd_command *command);
 
 #endif

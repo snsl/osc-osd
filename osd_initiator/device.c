@@ -113,7 +113,7 @@ int osd_submit_and_wait(int fd, struct osd_command *command)
 		return ret;
 	}
 
-	ret = osd_wait_response(fd, &cmp);
+	ret = osd_wait_this_response(fd, cmp);
 	if (ret) {
 		osd_error("%s: wait_response failed", __func__);
 		return ret;

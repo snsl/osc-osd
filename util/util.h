@@ -58,6 +58,8 @@ uint64_t next_offset(uint64_t start);
 #define __unused __attribute__((unused))
 
 /* round up an integer to the next multiple of 8 */
+#ifndef roundup8
 #define roundup8(x) (((x) + 7) & ~7)
+#endif
 
 #endif /* __UTIL_H */

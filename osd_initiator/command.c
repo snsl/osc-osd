@@ -367,6 +367,7 @@ int osd_command_attr_build(struct osd_command *command,
 	struct bsg_iovec *iov;
 	int i;
 	int neediov;
+	int setattr_index;
 	uint64_t extra_out, extra_in;
 	uint32_t getmulti_result_space;
 
@@ -399,6 +400,7 @@ int osd_command_attr_build(struct osd_command *command,
 	 */
 	numget = numgetpage = numgetmulti = numset = 0;
 	getsize = getpagesize = getmultisize = setsize = 0;
+	setattr_index = -1;
 	for (i=0; i<numattr; i++) {
 		if (attr[i].type == ATTR_GET) {
 			++numget;
@@ -411,6 +413,7 @@ int osd_command_attr_build(struct osd_command *command,
 			getmultisize += roundup8(18 + attr[i].len);
 		} else if (attr[i].type == ATTR_SET) {
 			++numset;
+			setattr_index = i;
 			setsize += roundup8(10 + attr[i].len);
 		} else {
 			osd_error("%s: invalid attribute type %d", __func__,
@@ -460,10 +463,15 @@ int osd_command_attr_build(struct osd_command *command,
 			}
 			getmulti_num_objects = ntohs(&command->cdb[36]);
 		}
+		use_getpage = 0;
 		if (numget == 0 && numgetmulti == 0 && numset == 1)
-			use_getpage = 1;  /* simpler for a single set */
-		else
-			use_getpage = 0;  /* build list(s) */
+			/*
+			 * For a single set, prefer simpler page format,
+			 * except if page-to-set is zero, which is a noop
+			 * in this format.
+			 */
+			if (attr[setattr_index].page != 0)
+				use_getpage = 1;
 	}
 
 	/*
@@ -486,11 +494,16 @@ int osd_command_attr_build(struct osd_command *command,
 	start_setlist = 0;
 	size_pad_getlist = 0;
 	size_setlist = 0;
-	if (numset && !use_getpage) {
+	if (numset) {
 		start_setlist = next_offset(start_getlist + size_getlist);
 		size_pad_getlist = start_setlist
 				 - (start_getlist + size_getlist);
-		size_setlist = 8 + setsize;  /* already rounded */
+		if (use_getpage) {
+			/* no list format around the value */
+			size_setlist = attr[setattr_index].len;
+		} else {
+			size_setlist = 8 + setsize;  /* already rounded */
+		}
 	}
 	extra_out = size_pad_outdata + size_getlist
 		  + size_pad_getlist + size_setlist;
@@ -627,28 +640,33 @@ int osd_command_attr_build(struct osd_command *command,
 	p += size_pad_getlist;
 
 	/*
-	 * Build the setlist.
+	 * Build the setlist, or copy in the single value to set.
 	 */
-	if (numset && !use_getpage) {
-		uint8_t *q = p + 8;
-		for (i=0; i<numattr; i++) {
-			int len;
-			if (attr[i].type != ATTR_SET)
-				continue;
-			set_htonl(&q[0], attr[i].page);
-			set_htonl(&q[4], attr[i].number);
-			set_htons(&q[8], attr[i].len);
-			memcpy(&q[10], attr[i].val, attr[i].len);
-			len = 10 + attr[i].len;
-			q += len;
-			while (len & 7) {
-				*q++ = 0;
-				++len;
+	if (numset) {
+		if (use_getpage) {
+			memcpy(p, attr[setattr_index].val,
+			       attr[setattr_index].len);
+		} else {
+			uint8_t *q = p + 8;
+			for (i=0; i<numattr; i++) {
+				int len;
+				if (attr[i].type != ATTR_SET)
+					continue;
+				set_htonl(&q[0], attr[i].page);
+				set_htonl(&q[4], attr[i].number);
+				set_htons(&q[8], attr[i].len);
+				memcpy(&q[10], attr[i].val, attr[i].len);
+				len = 10 + attr[i].len;
+				q += len;
+				while (len & 7) {
+					*q++ = 0;
+					++len;
+				}
 			}
+			p[0] = 0x9;
+			p[1] = p[2] = p[3] = 0;
+			set_htonl(&p[4], setsize);
 		}
-		p[0] = 0x9;
-		p[1] = p[2] = p[3] = 0;
-		set_htonl(&p[4], setsize);
 		p += size_setlist;
 	}
 	/* no padding at the end of the setlist */

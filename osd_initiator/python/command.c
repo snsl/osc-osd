@@ -809,8 +809,9 @@ static PyObject *pyosd_command_set_write(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
-	uint8_t *buf;
-	uint64_t pid, oid, len, offset = 0;
+	const char *buf;
+	int len;
+	uint64_t pid, oid, offset = 0;
 
 	if (!PyArg_ParseTuple(args, "KKs#|K:set_write", &pid, &oid, &buf, &len,
 			      &offset))

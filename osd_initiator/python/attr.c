@@ -9,6 +9,10 @@
 
 /*
  * Constructor function.
+ *    GET      page number       expected_len
+ *    GETPAGE  page expected_len
+ *    GETMULTI page number       expected_len_each
+ *    SET      page number       val
  */
 static int pyosd_attr_init(PyObject *self, PyObject *args,
 			   PyObject *keywords __unused)
@@ -16,33 +20,50 @@ static int pyosd_attr_init(PyObject *self, PyObject *args,
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	struct attribute_list *attr = &py_attr->attr;
 	int attr_type;
-	unsigned int page, number;
-	PyObject *val_or_len = NULL;
+	unsigned int page, number = 0, len = 0;
+	PyObject *val = NULL;
 
-	if (!PyArg_ParseTuple(args, "iIIO:init", &attr_type, &page,
-			      &number, &val_or_len))
+	if (!PyArg_ParseTuple(args, "iO|OO:init", &attr_type, &val, &val, &val))
 		return -1;
+
+	if (attr_type == ATTR_GET || attr_type == ATTR_GET_MULTI) {
+		if (!PyArg_ParseTuple(args, "iIII:init", &attr_type, &page,
+				      &number, &len))
+			return -1;
+	} else if (attr_type == ATTR_GET_PAGE) {
+		if (!PyArg_ParseTuple(args, "iII:init", &attr_type, &page,
+				      &len))
+			return -1;
+	} else if (attr_type == ATTR_SET) {
+		if (!PyArg_ParseTuple(args, "iIIO:init", &attr_type, &page,
+				      &number, &val))
+			return -1;
+	} else {
+		PyErr_Format(PyExc_TypeError, "type %d unknown", attr_type);
+		return -1;
+	}
+
 	attr->type = attr_type;
 	attr->page = page;
 	attr->number = number;
 	if (attr_type == ATTR_SET) {
 		/* memcpy now to avoid complexity with figuring out freeing */
-		if (PyString_Check(val_or_len)) {
-			attr->len = PyString_Size(val_or_len);
+		if (PyString_Check(val)) {
+			attr->len = PyString_Size(val);
 			attr->val = PyMem_Malloc(attr->len);
-			memcpy(attr->val, PyString_AsString(val_or_len),
+			memcpy(attr->val, PyString_AsString(val),
 			       attr->len);
-		} else if (PyInt_Check(val_or_len)) {
+		} else if (PyInt_Check(val)) {
 			uint32_t x;
 			attr->len = 4;
 			attr->val = PyMem_Malloc(4);
-			x = PyInt_AsLong(val_or_len);
+			x = PyInt_AsLong(val);
 			memcpy(attr->val, &x, attr->len);
-		} else if (PyLong_Check(val_or_len)) {
+		} else if (PyLong_Check(val)) {
 			uint64_t x;
 			attr->len = 8;
 			attr->val = PyMem_Malloc(8);
-			x = PyLong_AsUnsignedLongLong(val_or_len);
+			x = PyLong_AsUnsignedLongLong(val);
 			memcpy(attr->val, &x, attr->len);
 		} else {
 			PyErr_SetString(PyExc_RuntimeError,
@@ -50,13 +71,8 @@ static int pyosd_attr_init(PyObject *self, PyObject *args,
 			return -1;
 		}
 	} else {
-		if (!PyInt_Check(val_or_len)) {
-			PyErr_SetString(PyExc_RuntimeError,
-					"must provide expected length");
-			return -1;
-		}
-		attr->len = PyInt_AsLong(val_or_len);
 		attr->val = NULL;
+		attr->len = len;
 	}
     	return 0;
 }
@@ -75,6 +91,31 @@ static void pyosd_attr_dealloc(PyObject *self)
 	 * as part of resolve.
 	 */
 	PyMem_Free(attr->val);
+}
+
+/*
+ * Pretty-print object.
+ */
+static PyObject *pyosd_attr_print(PyObject *self)
+{
+	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
+	const struct attribute_list *attr = &py_attr->attr;
+	const char *type = NULL;
+	PyObject *o;
+
+	if (attr->type == ATTR_GET)
+		type = "ATTR_GET";
+	else if (attr->type == ATTR_GET_PAGE)
+		type = "ATTR_GET_PAGE";
+	else if (attr->type == ATTR_GET_MULTI)
+		type = "ATTR_GET_MULTI";
+	else if (attr->type == ATTR_SET)
+		type = "ATTR_GET_SET";
+	o = PyString_FromFormat(
+		"type %s page 0x%x number 0x%x len %d outlen %d",
+				type, attr->page, attr->number, attr->len,
+				attr->outlen);
+	return o;
 }
 
 /*
@@ -123,5 +164,6 @@ PyTypeObject pyosd_attr_type = {
         .tp_new = PyType_GenericNew,
 	.tp_getset = pyosd_attr_getset,
 	.tp_members = pyosd_attr_members,
+	.tp_str = pyosd_attr_print,
 };
 

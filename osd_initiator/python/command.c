@@ -66,7 +66,7 @@ static PyObject *pyosd_command_show_sense(PyObject *self, PyObject *args)
 		return Py_BuildValue("s", "No sense");
 	if (command->status != 2)
 		return Py_BuildValue("s", "Unknown status code");
-	s = osd_show_sense(command->sense, command->sense_len);
+	s = osd_sense_as_string(command->sense, command->sense_len);
 	o = Py_BuildValue("s", s);
 	free(s);
 	return o;

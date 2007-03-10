@@ -25,7 +25,7 @@ static int check_response(int ret, struct osd_command *command, uint8_t buf[])
 	if ((command->status != 0) && (command->sense_len != 0)) {
 		osd_error("status: %u sense len: %u inlen: %zu", command->status,
 				command->sense_len, command->inlen);
-		osd_error("%s ", osd_show_sense(command->sense, command->sense_len));
+		osd_error("%s ", osd_sense_as_string(command->sense, command->sense_len));
 				
 	}
 	else if (command->inlen > 0) {

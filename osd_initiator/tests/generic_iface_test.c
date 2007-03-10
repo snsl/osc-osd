@@ -160,7 +160,7 @@ static void test_create_partition(void)
 	}
 	if((command2.sense_len != 0) || (command2.status != 0)){
 		printf("Sense data found means error!\n");
-		fputs(osd_show_sense(command2.sense, command2.sense_len), stderr);
+		fputs(osd_sense_as_string(command2.sense, command2.sense_len), stderr);
 		exit(1);
 	}
 	printf(".....Response len is %d\n", (int) command2.inlen);
@@ -168,7 +168,7 @@ static void test_create_partition(void)
 	printf("Command worked successfully\n\n");
 
 	printf("Problem with the first command was:\n");
-	fputs(osd_show_sense(command.sense, command.sense_len), stderr);
+	fputs(osd_sense_as_string(command.sense, command.sense_len), stderr);
 
 	printf("END CREATE PARTITION TEST\n");
 
@@ -203,7 +203,7 @@ static void create_objects(void)
 	}
 	if((command.sense_len != 0) || (command.status != 0)){
 		printf("Sense data found means error!\n");
-		fputs(osd_show_sense(command.sense, command.sense_len), stderr);
+		fputs(osd_sense_as_string(command.sense, command.sense_len), stderr);
 		exit(1);
 	}
 	printf(".....Response len is %d\n", (int) command.inlen);
@@ -253,7 +253,7 @@ static void remove_objects(void)
 
 		if((command.sense_len != 0) || (command.status != 0)){
 			printf("Sense data found means error!\n");
-			fputs(osd_show_sense(command.sense, command.sense_len), stderr);
+			fputs(osd_sense_as_string(command.sense, command.sense_len), stderr);
 			exit(1);
 		}
 
@@ -307,7 +307,7 @@ static void write_objects(void)
 
 	if((command.sense_len != 0) || (command.status != 0)){
 		printf("Sense data found means error!\n");
-		fputs(osd_show_sense(command.sense, command.sense_len), stderr);
+		fputs(osd_sense_as_string(command.sense, command.sense_len), stderr);
 		exit(1);
 	}
 
@@ -355,7 +355,7 @@ static void read_objects(void)
 
 	if((command.sense_len != 0) || (command.status != 0)){
 		printf("Sense data found means error!\n");
-		fputs(osd_show_sense(command.sense, command.sense_len), stderr);
+		fputs(osd_sense_as_string(command.sense, command.sense_len), stderr);
 		exit(1);
 	}
 

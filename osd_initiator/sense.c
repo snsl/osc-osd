@@ -878,7 +878,19 @@ out:
  *
  * OSD sense is always descriptor format.
  */
-char *osd_show_sense(const uint8_t *sense, int len)
+void osd_sense_extract(const uint8_t *sense, int len, int *key, int *asc_ascq)
+{
+	*key = 0;
+	*asc_ascq = 0;
+	if (len < 8)
+		return;
+	if ((sense[0] & 0x72) != 0x72)
+		return;
+	*key = sense[1];
+	*asc_ascq = (sense[2] << 8) | sense[3];
+}
+
+char *osd_sense_as_string(const uint8_t *sense, int len)
 {
 	uint8_t code, key, asc, ascq, additional_len;
 	int deferred;

@@ -1,15 +1,10 @@
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
+#include <scsi/scsi.h>
 
 #include "util/util.h"
 #include "command.h"
-#include "osd_cmds.h"
-
-#define VARLEN_CDB 0x7f
-#define TIMESTAMP_OFF 0x7f
-
-/* cdb initialization / manipulation functions */
 
 static void varlen_cdb_init(struct osd_command *command, uint16_t action)
 {
@@ -22,7 +17,7 @@ static void varlen_cdb_init(struct osd_command *command, uint16_t action)
         command->cdb[9] = (action & 0x00ffU);
 	command->cdb[11] = 3 << 4;  /* default to list, but empty list lens */
 	/* Update timestamps based on action 5.2.8 */
-	command->cdb[12] = TIMESTAMP_OFF;
+	command->cdb[12] = 0x7f;  /* timestamps not updated */
 }
 
 /*

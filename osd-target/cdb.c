@@ -29,7 +29,7 @@ struct command {
 	uint64_t outlen;
 	uint64_t used_outlen;
 	uint32_t get_used_outlen;
-	uint8_t sense[MAX_SENSE_LEN];
+	uint8_t sense[OSD_MAX_SENSE];
 	int senselen;
 };
 
@@ -377,7 +377,7 @@ static int cdb_create(struct command *cmd)
 	uint64_t pid = ntohll(&cdb[16]);
 	uint64_t requested_oid = ntohll(&cdb[24]);
 	uint16_t numoid = ntohs(&cdb[36]);
-	uint8_t local_sense[MAX_SENSE_LEN];
+	uint8_t local_sense[OSD_MAX_SENSE];
 
 	if (numoid > 1 && cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 		page = ntohl(&cmd->cdb[52]);
@@ -423,7 +423,7 @@ static int cdb_create_partition(struct command *cmd)
 	int ret = 0;
 	uint64_t pid = 0;
 	uint64_t requested_pid = ntohll(&cmd->cdb[16]);
-	uint8_t local_sense[MAX_SENSE_LEN];
+	uint8_t local_sense[OSD_MAX_SENSE];
 
 	ret = osd_create_partition(cmd->osd, requested_pid, cmd->sense);
 	if (ret != 0)
@@ -748,7 +748,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	};
 
 	/* check cdb opcode and length */
-	if (cdb[0] != CDB_OPCODE || cdb[7] != ADD_CDB_LEN)
+	if (cdb[0] != VARLEN_CDB || cdb[7] != OSD_CDB_SIZE - 8)
 		goto out_opcode_err;
 
 	/* Sets retrieved_attr_off, outlen. */
@@ -794,19 +794,19 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	goto out;
 
 out_opcode_err:
-	cmd.senselen = sense_header_build(cmd.sense, MAX_SENSE_LEN,
+	cmd.senselen = sense_header_build(cmd.sense, sizeof(cmd.sense),
 					  OSD_SSK_ILLEGAL_REQUEST,
 					  OSD_ASC_INVALID_COMMAND_OPCODE, 0);
 	goto out_free_resource;
 
 out_cdb_err:
-	cmd.senselen = sense_header_build(cmd.sense, MAX_SENSE_LEN,
+	cmd.senselen = sense_header_build(cmd.sense, sizeof(cmd.sense),
 					  OSD_SSK_ILLEGAL_REQUEST,
 					  OSD_ASC_INVALID_FIELD_IN_CDB, 0); 
 	goto out_free_resource;
 
 out_hw_err:
-	cmd.senselen = sense_header_build(cmd.sense, MAX_SENSE_LEN,
+	cmd.senselen = sense_header_build(cmd.sense, sizeof(cmd.sense),
 					  OSD_SSK_HARDWARE_ERROR,
 					  OSD_ASC_SYSTEM_RESOURCE_FAILURE, 0); 
 	goto out_free_resource;

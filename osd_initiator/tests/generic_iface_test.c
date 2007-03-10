@@ -10,8 +10,8 @@
 #include "drivelist.h"
 #include "sense.h"
 
-#define PVFS_OSD_PID 0x10003ULL
-#define FIRST_OID  0x10000LLU;
+#define FIRST_PID  USEROBJECT_PID_LB
+#define FIRST_OID  USEROBJECT_OID_LB
 
 static int fd;
 static char *buf;
@@ -114,7 +114,7 @@ static void test_create_partition(void)
 	}
 
 	printf("Create Partition command that should work\n");
-	ret = osd_command_set_create_partition(&command2, PVFS_OSD_PID);
+	ret = osd_command_set_create_partition(&command2, FIRST_PID);
 	if (ret != 0){
 		printf("Couldn't set create partition command\n");
 		exit(1);
@@ -183,7 +183,7 @@ static void create_objects(void)
 	printf("BEGIN CREATE OBJECT TEST\n");
 
 	printf("Create the command\n");
-	ret = osd_command_set_create(&command, PVFS_OSD_PID, 0, count);
+	ret = osd_command_set_create(&command, FIRST_PID, 0, count);
 	if (ret != 0 ){
 		printf("Unable to set command\n");
 		exit(1);
@@ -227,7 +227,7 @@ static void remove_objects(void)
 
 	oid = FIRST_OID;
 	oid++;
-	pid = PVFS_OSD_PID;
+	pid = FIRST_PID;
 	for(i=0; i< 5; i++){
 		oid+=1;
 
@@ -279,7 +279,7 @@ static void write_objects(void)
 	}
 
 	oid = FIRST_OID;
-	pid = PVFS_OSD_PID;
+	pid = FIRST_PID;
 	len = 1024;
 	offset = 0;
 
@@ -327,7 +327,7 @@ static void read_objects(void)
 	buf2 = malloc(1024);
 
 	oid = FIRST_OID;
-	pid = PVFS_OSD_PID;
+	pid = FIRST_PID;
 	len = 1024;
 	offset = 0;
 

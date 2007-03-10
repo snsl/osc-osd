@@ -17,15 +17,6 @@
 #include "util/util.h"
 #include "sense.h"
 
-/* Commands with service actions that change the command name */
-#define MAINTENANCE_IN 0xa3
-#define MAINTENANCE_OUT 0xa4
-#define SERVICE_ACTION_IN_12 0xab
-#define SERVICE_ACTION_OUT_12 0xa9
-#define SERVICE_ACTION_IN_16 0x9e
-#define SERVICE_ACTION_OUT_16 0x9f
-#define VARIABLE_LENGTH_CMD 0x7f
-
 #if 0
 static const char *scsi_status_string(unsigned char scsi_status)
 {

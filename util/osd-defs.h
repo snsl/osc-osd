@@ -3,6 +3,9 @@
 /*
  * Shared defitions for OSD target and initiator.
  */
+#define VARLEN_CDB 0x7f
+#define OSD_CDB_SIZE 200
+#define OSD_MAX_SENSE 252
 
 /* varlen cdb service actions for OSD-2 (before SNIA changes 17 jan 07 */
 #define OSD_APPEND			0x8807
@@ -94,7 +97,7 @@ enum {
 	VEND_PG_UB = 0x2FFFFFFF
 };
 	
-/* osd2r00, Section 4.7.4 */
+/* osd2r01, Section 4.7.4 */
 enum {
 	ATTRNUM_LB = 0x0,
 	ATTRNUM_UB = 0xFFFFFFFE,

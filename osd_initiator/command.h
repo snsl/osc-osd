@@ -1,8 +1,7 @@
 #ifndef _COMMAND_H
 #define _COMMAND_H
 
-#define OSD_CDB_SIZE 200
-#define OSD_MAX_SENSE 252
+#include "util/osd-defs.h"
 
 struct attribute_list {
 	enum { ATTR_GET, ATTR_GET_PAGE, ATTR_GET_MULTI, ATTR_SET } type;

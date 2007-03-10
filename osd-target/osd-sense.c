@@ -4,6 +4,7 @@
 
 #include "osd-sense.h"
 #include "util/util.h"
+#include "util/osd-defs.h"
 
 /*
  * Descriptor format sense data.  See spc3 p 31.  Returns length of
@@ -63,7 +64,7 @@ int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
 		      uint64_t pid, uint64_t oid)
 {
 	uint8_t off = 0;
-	uint8_t len = MAX_SENSE_LEN;
+	uint8_t len = OSD_MAX_SENSE;
 	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
 
 	off = sense_header_build(sense+off, len-off, key, code, 32);
@@ -75,7 +76,7 @@ int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
 		    uint64_t pid, uint64_t oid)
 {
 	uint8_t off = 0;
-	uint8_t len = MAX_SENSE_LEN;
+	uint8_t len = OSD_MAX_SENSE;
 	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
 
 	off = sense_header_build(sense+off, len-off, key, code, 32);

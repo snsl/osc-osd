@@ -3,7 +3,7 @@
 #
 
 SRC := device.c sync.c drivelist.c command.c sense.c
-INC := device.h sync.h drivelist.h command.h sense.h osd_cmds.h
+INC := device.h sync.h drivelist.h command.h sense.h
 OBJ := $(SRC:.c=.o)
 LIB := libosd.a
 

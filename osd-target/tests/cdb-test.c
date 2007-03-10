@@ -18,8 +18,6 @@
 #include "osd-sense.h"
 #include "osd_initiator/command.h"
 
-#define CDB_SZ (200)
-
 void test_partition(struct osd_device *osd);
 void test_create(struct osd_device *osd);
 

@@ -2,6 +2,7 @@
  * Attribute bits.
  */
 #include <Python.h>
+#include <structmember.h>  /* T_UBYTE */
 #include "osd_initiator/command.h"
 #include "util/util.h"
 #include "pyosd.h"
@@ -102,6 +103,13 @@ static PyObject *pyosd_attr_get_val(PyObject *self, void *closure __unused)
 
 struct PyGetSetDef pyosd_attr_getset[] = {
     	{ "val", pyosd_attr_get_val, NULL, "returned attribute value", NULL },
+	{ NULL }
+};
+
+struct PyMemberDef pyosd_attr_members[] = {
+	{ "outlen", T_USHORT, offsetof(struct pyosd_attr, attr.outlen),
+		READONLY, "returned attribute length" },
+	{ NULL }
 };
 
 PyTypeObject pyosd_attr_type = {
@@ -114,5 +122,6 @@ PyTypeObject pyosd_attr_type = {
 	.tp_init = pyosd_attr_init,
         .tp_new = PyType_GenericNew,
 	.tp_getset = pyosd_attr_getset,
+	.tp_members = pyosd_attr_members,
 };
 

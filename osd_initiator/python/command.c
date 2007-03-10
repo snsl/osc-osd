@@ -167,7 +167,8 @@ static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
 		return NULL;
 	}
 
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *attr_build_manual(struct attribute_list *cmdattr)
@@ -221,11 +222,10 @@ static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, "command not complete");
 		return NULL;
 	}
-	if (command->attr == NULL) {
-		PyErr_SetString(PyExc_RuntimeError,
-				"attr_build was not called");
-		return NULL;
-	}
+
+	/* not an error */
+	if (command->attr == NULL)
+		return Py_BuildValue("");
 
 	ret = osd_command_attr_resolve(command);
 	if (ret) {
@@ -272,7 +272,8 @@ static PyObject *pyosd_command_set_inquiry(PyObject *self, PyObject *args)
 	if (command->indata == NULL)
 		return PyErr_NoMemory();
 	command->inlen_alloc = 80;
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_append(PyObject *self, PyObject *args)
@@ -296,16 +297,17 @@ static PyObject *pyosd_command_set_append(PyObject *self, PyObject *args)
 		return PyErr_NoMemory();
 	memcpy((void *)(uintptr_t) command->outdata, buf, len);
 	command->outlen = len;
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_create(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
-	uint64_t pid = 0, oid = 0;
+	uint64_t pid = 0, oid = 0, numobj = 1;
 
-	if (!PyArg_ParseTuple(args, "K|K:set_create", &pid, &oid))
+	if (!PyArg_ParseTuple(args, "K|KK:set_create", &pid, &oid, &numobj))
 		return NULL;
 	if (py_command->set) {
 		PyErr_SetString(PyExc_RuntimeError, "command already set");
@@ -313,8 +315,9 @@ static PyObject *pyosd_command_set_create(PyObject *self, PyObject *args)
 	}
 
 	py_command->set = 1;
-	osd_command_set_create(command, pid, oid, 1);
-	return Py_BuildValue("");
+	osd_command_set_create(command, pid, oid, numobj);
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_create_and_write(PyObject *self,
@@ -341,7 +344,8 @@ static PyObject *pyosd_command_set_create_and_write(PyObject *self,
 	/* XXX: take a ref on buf rather than copying it */
 	memcpy((void *)(uintptr_t) command->outdata, buf, len);
 	command->outlen = len;
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_create_collection(PyObject *self,
@@ -360,7 +364,8 @@ static PyObject *pyosd_command_set_create_collection(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_create_collection(command, pid, cid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_create_partition(PyObject *self,
@@ -379,7 +384,8 @@ static PyObject *pyosd_command_set_create_partition(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_create_partition(command, pid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_flush(PyObject *self, PyObject *args)
@@ -398,7 +404,8 @@ static PyObject *pyosd_command_set_flush(PyObject *self, PyObject *args)
 
 	py_command->set = 1;
 	osd_command_set_flush(command, pid, oid, scope);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_flush_collection(PyObject *self,
@@ -419,7 +426,8 @@ static PyObject *pyosd_command_set_flush_collection(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_flush_collection(command, pid, cid, scope);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_flush_osd(PyObject *self, PyObject *args)
@@ -437,7 +445,8 @@ static PyObject *pyosd_command_set_flush_osd(PyObject *self, PyObject *args)
 
 	py_command->set = 1;
 	osd_command_set_flush_osd(command, scope);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_flush_partition(PyObject *self,
@@ -457,7 +466,8 @@ static PyObject *pyosd_command_set_flush_partition(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_flush_partition(command, pid, scope);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_format_osd(PyObject *self, PyObject *args)
@@ -475,7 +485,8 @@ static PyObject *pyosd_command_set_format_osd(PyObject *self, PyObject *args)
 
 	py_command->set = 1;
 	osd_command_set_format_osd(command, capacity);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_get_attributes(PyObject *self,
@@ -494,7 +505,8 @@ static PyObject *pyosd_command_set_get_attributes(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_get_attributes(command, pid, oid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_get_member_attributes(PyObject *self,
@@ -513,7 +525,8 @@ static PyObject *pyosd_command_set_get_member_attributes(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_get_member_attributes(command, pid, cid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 /*
@@ -536,7 +549,8 @@ static PyObject *pyosd_command_set_list(PyObject *self, PyObject *args)
 
 	py_command->set = 1;
 	osd_command_set_list(command, pid, list_id, alloc_len, initial_oid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_list_collection(PyObject *self,
@@ -558,7 +572,8 @@ static PyObject *pyosd_command_set_list_collection(PyObject *self,
 	py_command->set = 1;
 	osd_command_set_list_collection(command, pid, cid, list_id, alloc_len,
 					initial_oid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_perform_scsi_command(PyObject *self __unused,
@@ -592,7 +607,8 @@ static PyObject *pyosd_command_set_query(PyObject *self, PyObject *args)
 
 	py_command->set = 1;
 	osd_command_set_query(command, pid, cid, query_len, alloc_len);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_read(PyObject *self, PyObject *args)
@@ -613,7 +629,8 @@ static PyObject *pyosd_command_set_read(PyObject *self, PyObject *args)
 	osd_command_set_read(command, pid, oid, len, offset);
 	command->indata = PyMem_Malloc(len);
 	command->inlen_alloc = len;
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_remove(PyObject *self, PyObject *args)
@@ -631,7 +648,8 @@ static PyObject *pyosd_command_set_remove(PyObject *self, PyObject *args)
 
 	py_command->set = 1;
 	osd_command_set_remove(command, pid, oid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_remove_collection(PyObject *self,
@@ -650,7 +668,8 @@ static PyObject *pyosd_command_set_remove_collection(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_remove_collection(command, pid, cid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_remove_member_objects(PyObject *self,
@@ -669,7 +688,8 @@ static PyObject *pyosd_command_set_remove_member_objects(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_remove_member_objects(command, pid, cid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_remove_partition(PyObject *self,
@@ -688,7 +708,8 @@ static PyObject *pyosd_command_set_remove_partition(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_remove_partition(command, pid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_set_attributes(PyObject *self,
@@ -707,7 +728,8 @@ static PyObject *pyosd_command_set_set_attributes(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_set_attributes(command, pid, oid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_set_key(PyObject *self,
@@ -734,7 +756,8 @@ static PyObject *pyosd_command_set_set_key(PyObject *self,
 		return NULL;
 	}
 	osd_command_set_set_key(command, key_to_set, pid, key, seed);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_set_master_key(PyObject *self,
@@ -758,7 +781,8 @@ static PyObject *pyosd_command_set_set_master_key(PyObject *self,
 	py_command->set = 1;
 	osd_command_set_set_master_key(command, dh_step, key, param_len,
 				       alloc_len);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_set_member_attributes(PyObject *self,
@@ -777,7 +801,8 @@ static PyObject *pyosd_command_set_set_member_attributes(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_set_member_attributes(command, pid, cid);
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 static PyObject *pyosd_command_set_write(PyObject *self, PyObject *args)
@@ -802,7 +827,8 @@ static PyObject *pyosd_command_set_write(PyObject *self, PyObject *args)
 		return PyErr_NoMemory();
 	memcpy((void *)(uintptr_t) command->outdata, buf, len);
 	command->outlen = len;
-	return Py_BuildValue("");
+	Py_IncRef(self);
+	return self;
 }
 
 /*

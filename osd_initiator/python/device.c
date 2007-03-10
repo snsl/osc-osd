@@ -5,6 +5,7 @@
 #include <Python.h>
 #include "osd_initiator/command.h"
 #include "osd_initiator/device.h"
+#include "util/util.h"
 #include "pyosd.h"
 
 /*
@@ -36,6 +37,19 @@ static PyObject *pyosd_device_open(PyObject *self, PyObject *args)
 	return Py_BuildValue("");
 }
 
+static int pyosd_device_init(PyObject *self, PyObject *args,
+			     PyObject *keywords __unused)
+{
+	struct pyosd_device *py_device = (struct pyosd_device *) self;
+	const char *s;
+
+	py_device->fd = -1;
+
+	if (PyArg_ParseTuple(args, "|s:init", &s))
+		pyosd_device_open(self, args);
+	return 0;
+}
+
 /*
  * Close the fd.
  */
@@ -52,6 +66,14 @@ static PyObject *pyosd_device_close(PyObject *self, PyObject *args)
 		return PyErr_SetFromErrno(PyExc_OSError);
 
 	return Py_BuildValue("");
+}
+
+static void pyosd_device_dealloc(PyObject *self)
+{
+	struct pyosd_device *py_device = (struct pyosd_device *) self;
+
+	if (py_device->fd >= 0)
+		pyosd_device_close(self, Py_None);
 }
 
 /*
@@ -102,7 +124,9 @@ PyTypeObject pyosd_device_type = {
 	.tp_basicsize = sizeof(struct pyosd_device),
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_doc = "Python encapsulation of OSD device",
-        .tp_new = PyType_GenericNew,
+	.tp_init = pyosd_device_init,
+	.tp_new = PyType_GenericNew,
+	.tp_dealloc = pyosd_device_dealloc,
 	.tp_methods = pyosd_device_methods,
 };
 

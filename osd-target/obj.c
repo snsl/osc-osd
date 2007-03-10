@@ -5,7 +5,7 @@
 #include <sqlite3.h>
 
 #include "osd-types.h"
-#include "osd-defs.h"
+#include "util/osd-defs.h"
 #include "osd.h"
 #include "util/util.h"
 #include "obj.h"

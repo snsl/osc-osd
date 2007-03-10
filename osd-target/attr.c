@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 
 #include "osd-types.h"
-#include "osd-defs.h"
+#include "util/osd-defs.h"
 #include "db.h"
 #include "attr.h"
 #include "util/util.h"

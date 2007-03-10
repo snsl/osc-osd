@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <string.h>
 
-#include "osd-defs.h"
+#include "util/osd-defs.h"
 #include "osd.h"
 #include "list-entry.h"
 #include "util/util.h"

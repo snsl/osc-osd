@@ -11,7 +11,7 @@
 #include <assert.h>
 
 #include "osd.h"
-#include "osd-defs.h"
+#include "util/osd-defs.h"
 #include "target-defs.h"
 #include "db.h"
 #include "attr.h"

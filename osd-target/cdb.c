@@ -9,7 +9,7 @@
 
 #include "osd.h"
 #include "osd-sense.h"
-#include "osd-defs.h"
+#include "util/osd-defs.h"
 #include "target-defs.h"
 #include "cdb.h"
 #include "util/util.h"

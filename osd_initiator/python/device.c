@@ -34,7 +34,7 @@ static PyObject *pyosd_device_open(PyObject *self, PyObject *args)
 
 	device->fd = fd;
 
-	return Py_BuildValue("");
+	Py_RETURN_NONE;
 }
 
 static int pyosd_device_init(PyObject *self, PyObject *args,
@@ -65,7 +65,7 @@ static PyObject *pyosd_device_close(PyObject *self, PyObject *args)
 	if (ret < 0)
 		return PyErr_SetFromErrno(PyExc_OSError);
 
-	return Py_BuildValue("");
+	Py_RETURN_NONE;
 }
 
 static void pyosd_device_dealloc(PyObject *self)
@@ -102,7 +102,7 @@ static PyObject *pyosd_device_submit_and_wait(PyObject *self, PyObject *args)
 	py_command->complete = 1;
 	if (ret)
 		return PyErr_SetFromErrno(PyExc_OSError);
-	return Py_BuildValue("");
+	Py_RETURN_NONE;
 }
 
 /*

@@ -18,7 +18,7 @@ static PyObject *pyosd_set_progname(PyObject *self __unused, PyObject *args)
 
 	osd_set_progname(1, argv);
 
-	return Py_BuildValue("");
+	Py_RETURN_NONE;
 }
 
 /*

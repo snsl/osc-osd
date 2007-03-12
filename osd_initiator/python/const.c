@@ -68,6 +68,7 @@ int add_consts(PyObject *d)
 	add(USER_INFO_PG);
 	add(USER_QUOTA_PG);
 	add(USER_TMSTMP_PG);
+	add(COLLECTIONS_PG);
 
 	/* contents of current command attribute page */
 	add(CCAP_RICV);

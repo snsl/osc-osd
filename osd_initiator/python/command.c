@@ -45,7 +45,7 @@ static PyObject *pyosd_command_get_indata(PyObject *self,
 	if (command->indata)
 		return PyString_FromStringAndSize(command->indata,
 						  command->inlen);
-	return Py_BuildValue("");
+	Py_RETURN_NONE;
 }
 
 static PyObject *pyosd_command_show_sense(PyObject *self, PyObject *args)
@@ -225,7 +225,7 @@ static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 
 	/* not an error */
 	if (command->attr == NULL)
-		return Py_BuildValue("");
+		Py_RETURN_NONE;
 
 	ret = osd_command_attr_resolve(command);
 	if (ret) {

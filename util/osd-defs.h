@@ -120,6 +120,7 @@ enum {
 	USER_INFO_PG = 0x1,
 	USER_QUOTA_PG = 0x2,
 	USER_TMSTMP_PG = 0x3,
+	COLLECTIONS_PG = 0x4,
 };
 
 /* in all attribute pages, attribute number 0 is a 40-byte identification */

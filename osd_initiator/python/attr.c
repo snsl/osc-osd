@@ -13,6 +13,7 @@
  *    GETPAGE  page expected_len
  *    GETMULTI page number       expected_len_each
  *    SET      page number       val
+ *    SET      page number       None  == delete
  */
 static int pyosd_attr_init(PyObject *self, PyObject *args,
 			   PyObject *keywords __unused)
@@ -65,6 +66,9 @@ static int pyosd_attr_init(PyObject *self, PyObject *args,
 			attr->val = PyMem_Malloc(8);
 			x = PyLong_AsUnsignedLongLong(val);
 			memcpy(attr->val, &x, attr->len);
+		} else if (val == Py_None) {
+			attr->len = 0;
+			attr->val = NULL;  /* delete attribute */
 		} else {
 			PyErr_SetString(PyExc_RuntimeError,
 					"cannot linearize this type");
@@ -134,7 +138,7 @@ static PyObject *pyosd_attr_get_val(PyObject *self, void *closure __unused)
 		if (attr->outlen < 0xffff)
 			return Py_BuildValue("s#", attr->val, attr->outlen);
 		else
-			return Py_BuildValue("");
+			Py_RETURN_NONE;
 	} else {
 		PyErr_SetString(PyExc_RuntimeError, 
 				"only GET values can be retrieved");

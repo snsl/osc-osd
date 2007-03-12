@@ -376,7 +376,7 @@ static int cdb_create(struct command *cmd)
 	uint8_t *cdb = cmd->cdb;
 	uint64_t pid = ntohll(&cdb[16]);
 	uint64_t requested_oid = ntohll(&cdb[24]);
-	uint16_t numoid = ntohs(&cdb[36]);
+	uint16_t numoid = ntohs(&cdb[32]);
 	uint8_t local_sense[OSD_MAX_SENSE];
 
 	if (numoid > 1 && cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
@@ -506,7 +506,7 @@ static void exec_service_action(struct command *cmd)
 	case OSD_APPEND: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[36]);
+		uint64_t len = ntohll(&cdb[32]);
 
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
@@ -527,7 +527,7 @@ static void exec_service_action(struct command *cmd)
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t requested_oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
-		uint64_t offset = ntohll(&cdb[44]);
+		uint64_t offset = ntohll(&cdb[40]);
 
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
@@ -576,7 +576,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_FORMAT_OSD: {
-		uint64_t capacity = ntohll(&cdb[36]);
+		uint64_t capacity = ntohll(&cdb[32]);
 		ret = osd_format_osd(osd, capacity, sense);
 		break;
 	}
@@ -599,9 +599,9 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_LIST: {
 		uint64_t pid = ntohll(&cdb[16]);
-		uint32_t list_id = ntohl(&cdb[32]);
-		uint64_t alloc_len = ntohll(&cdb[36]);
-		uint64_t initial_oid = ntohll(&cdb[44]);
+		uint32_t list_id = ntohl(&cdb[48]);
+		uint64_t alloc_len = ntohll(&cdb[32]);
+		uint64_t initial_oid = ntohll(&cdb[40]);
 		ret = osd_list(osd, pid, list_id, alloc_len, initial_oid,
 			       cmd->outdata, &cmd->used_outlen, sense);
 		break;
@@ -609,9 +609,9 @@ static void exec_service_action(struct command *cmd)
 	case OSD_LIST_COLLECTION: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
-		uint32_t list_id = ntohl(&cdb[32]);
-		uint64_t alloc_len = ntohll(&cdb[36]);
-		uint64_t initial_oid = ntohll(&cdb[44]);
+		uint32_t list_id = ntohl(&cdb[48]);
+		uint64_t alloc_len = ntohll(&cdb[32]);
+		uint64_t initial_oid = ntohll(&cdb[40]);
 		ret = osd_list_collection(osd, pid, cid, list_id, alloc_len,
 					  initial_oid, cmd->outdata,
 					  &cmd->used_outlen, sense);
@@ -629,16 +629,16 @@ static void exec_service_action(struct command *cmd)
 	case OSD_QUERY: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
-		uint32_t query_len = ntohl(&cdb[32]);
-		uint64_t alloc_len = ntohll(&cdb[36]);
+		uint32_t query_len = ntohl(&cdb[48]);
+		uint64_t alloc_len = ntohll(&cdb[32]);
 		ret = osd_query(osd, pid, cid, query_len, alloc_len, sense);
 		break;
 	}
 	case OSD_READ: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[36]);
-		uint64_t offset = ntohll(&cdb[44]);
+		uint64_t len = ntohll(&cdb[32]);
+		uint64_t offset = ntohll(&cdb[40]);
 		ret = osd_read(osd, pid, oid, len, offset, cmd->outdata,
 			       &cmd->used_outlen, sense);
 		break;
@@ -701,8 +701,8 @@ static void exec_service_action(struct command *cmd)
 	case OSD_WRITE: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[36]);
-		uint64_t offset = ntohll(&cdb[44]);
+		uint64_t len = ntohll(&cdb[32]);
+		uint64_t offset = ntohll(&cdb[40]);
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;

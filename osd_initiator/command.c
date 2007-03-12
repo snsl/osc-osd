@@ -50,7 +50,7 @@ int osd_command_set_append(struct osd_command *command, uint64_t pid,
         varlen_cdb_init(command, OSD_APPEND);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
-        set_htonll(&command->cdb[36], len);
+        set_htonll(&command->cdb[32], len);
         return 0;
 }
 
@@ -61,7 +61,7 @@ int osd_command_set_create(struct osd_command *command, uint64_t pid,
         varlen_cdb_init(command, OSD_CREATE);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], requested_oid);
-        set_htons(&command->cdb[36], num_user_objects);
+        set_htons(&command->cdb[32], num_user_objects);
         return 0;
 }
 
@@ -73,8 +73,8 @@ int osd_command_set_create_and_write(struct osd_command *command, uint64_t pid,
         varlen_cdb_init(command, OSD_CREATE_AND_WRITE);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], requested_oid);
-        set_htonll(&command->cdb[36], len);
-        set_htonll(&command->cdb[44], offset);
+        set_htonll(&command->cdb[32], len);
+        set_htonll(&command->cdb[40], offset);
         return 0;
 }
 
@@ -142,7 +142,7 @@ int osd_command_set_flush_partition(struct osd_command *command, uint64_t pid,
 int osd_command_set_format_osd(struct osd_command *command, uint64_t capacity)
 {
         varlen_cdb_init(command, OSD_FORMAT_OSD);
-        set_htonll(&command->cdb[36], capacity);
+        set_htonll(&command->cdb[32], capacity);
         return 0;
 }
 
@@ -173,9 +173,9 @@ int osd_command_set_list(struct osd_command *command, uint64_t pid,
 {
         varlen_cdb_init(command, OSD_LIST);
         set_htonll(&command->cdb[16], pid);
-        set_htonl(&command->cdb[32], list_id);
-        set_htonll(&command->cdb[36], alloc_len);
-        set_htonll(&command->cdb[44], initial_oid);
+        set_htonl(&command->cdb[48], list_id);
+        set_htonll(&command->cdb[32], alloc_len);
+        set_htonll(&command->cdb[40], initial_oid);
         return 0;
 }
 
@@ -186,9 +186,9 @@ int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
         varlen_cdb_init(command, OSD_LIST_COLLECTION);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
-        set_htonl(&command->cdb[32], list_id);
-        set_htonll(&command->cdb[36], alloc_len);
-        set_htonll(&command->cdb[44], initial_oid);
+        set_htonl(&command->cdb[48], list_id);
+        set_htonll(&command->cdb[32], alloc_len);
+        set_htonll(&command->cdb[40], initial_oid);
         return 0;
 }
 
@@ -210,8 +210,8 @@ int osd_command_set_query(struct osd_command *command, uint64_t pid,
         varlen_cdb_init(command, OSD_QUERY);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
-        set_htonl(&command->cdb[32], query_len);
-        set_htonll(&command->cdb[36], alloc_len);
+        set_htonl(&command->cdb[48], query_len);
+        set_htonll(&command->cdb[32], alloc_len);
         return 0;
 }
 
@@ -221,8 +221,8 @@ int osd_command_set_read(struct osd_command *command, uint64_t pid,
         varlen_cdb_init(command, OSD_READ);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
-        set_htonll(&command->cdb[36], len);
-        set_htonll(&command->cdb[44], offset);
+        set_htonll(&command->cdb[32], len);
+        set_htonll(&command->cdb[40], offset);
         return 0;
 }
 
@@ -320,8 +320,8 @@ int osd_command_set_write(struct osd_command *command, uint64_t pid,
         varlen_cdb_init(command, OSD_WRITE);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
-        set_htonll(&command->cdb[36], len);
-        set_htonll(&command->cdb[44], offset);
+        set_htonll(&command->cdb[32], len);
+        set_htonll(&command->cdb[40], offset);
         return 0;
 }
 

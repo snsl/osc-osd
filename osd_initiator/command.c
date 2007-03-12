@@ -238,9 +238,13 @@ int osd_command_set_remove(struct osd_command *command, uint64_t pid,
 
 
 int osd_command_set_remove_collection(struct osd_command *command,
-				      uint64_t pid, uint64_t cid)
+				      uint64_t pid, uint64_t cid, int force)
 {
         varlen_cdb_init(command, OSD_REMOVE_COLLECTION);
+	if (force)
+		command->cdb[11] |= 1;
+	else
+		command->cdb[11] &= ~1;
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
         return 0;

@@ -217,7 +217,7 @@ int remove_partition(int fd, uint64_t pid)
 	return 0;
 }
 
-int remove_collection(int fd, uint64_t pid, uint64_t cid)
+int remove_collection(int fd, uint64_t pid, uint64_t cid, int force)
 {
 	int ret;
 	struct osd_command command;
@@ -226,7 +226,7 @@ int remove_collection(int fd, uint64_t pid, uint64_t cid)
 	osd_info("PID: %u CID: %u", (uint)pid, (uint)cid);
 
 	osd_info("....creating command");
-	osd_command_set_remove_collection(&command, pid, cid);
+	osd_command_set_remove_collection(&command, pid, cid, force);
 	
 	osd_info("....submitting command");
 	ret = osd_submit_command(fd, &command);

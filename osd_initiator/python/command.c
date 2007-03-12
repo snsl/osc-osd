@@ -658,8 +658,10 @@ static PyObject *pyosd_command_set_remove_collection(PyObject *self,
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 	uint64_t pid, cid;
+	int force = 0;
 
-	if (!PyArg_ParseTuple(args, "KK:set_remove_collection", &pid, &cid))
+	if (!PyArg_ParseTuple(args, "KK|i:set_remove_collection", &pid, &cid,
+			      &force))
 		return NULL;
 	if (py_command->set) {
 		PyErr_SetString(PyExc_RuntimeError, "command already set");
@@ -667,7 +669,7 @@ static PyObject *pyosd_command_set_remove_collection(PyObject *self,
 	}
 
 	py_command->set = 1;
-	osd_command_set_remove_collection(command, pid, cid);
+	osd_command_set_remove_collection(command, pid, cid, force);
 	Py_IncRef(self);
 	return self;
 }

@@ -117,8 +117,64 @@ runfail(OSDCommand().set_remove_collection(pid, cid))
 run(OSDCommand().set_remove(pid, oid))
 run(OSDCommand().set_remove_collection(pid, cid))
 
-# use force flag...
+# remove a collection with something in it, using force flag
+cid = create_any_collection(pid)
+oid = create_any_object(pid)
+command = OSDCommand.set_attributes(pid, oid)
+command.attr_build(OSDAttr(ATTR_SET, COLLECTIONS_PG, cid, htonl(cid)))
+run(command)
+run(OSDCommand().set_remove_collection(pid, cid, 1))
+run(OSDCommand().set_remove(pid, oid))
+runfail(OSDCommand().set_remove_collection(pid, cid))
+
+# get member attributes
+cid = create_any_collection(pid)
+oid1 = create_any_object(pid)
+oid2 = create_any_object(pid)
+s1 = "hiya"
+s2 = "himon"
+run(OSDCommand().set_write(pid, oid1, s1))
+run(OSDCommand().set_write(pid, oid2, s2))
+command = OSDCommand.set_attributes(pid, oid1)
+command.attr_build(OSDAttr(ATTR_SET, COLLECTIONS_PG, cid, htonl(cid)))
+run(command)
+command = OSDCommand.set_attributes(pid, oid2)
+command.attr_build(OSDAttr(ATTR_SET, COLLECTIONS_PG, cid, htonl(cid)))
+run(command)
+command = OSDCommand().get_member_attributes(pid, cid)
+command.attr_build(OSDAttr(ATTR_GET, USER_INFO_PG, UIAP_LOGICAL_LEN, 8))
+attr = run(command)
+assert attr[0].val == len(s1)
+assert attr[1].val == len(s2)
+run(OSDCommand().set_remove(pid, oid1))
+run(OSDCommand().set_remove(pid, oid2))
+run(OSDCommand().set_remove_collection(pid, cid))
+
+# set member attributes
+cid = create_any_collection(pid)
+oid1 = create_any_object(pid)
+oid2 = create_any_object(pid)
+command = OSDCommand.set_attributes(pid, oid1)
+command.attr_build(OSDAttr(ATTR_SET, COLLECTIONS_PG, cid, htonl(cid)))
+run(command)
+command = OSDCommand.set_attributes(pid, oid2)
+command.attr_build(OSDAttr(ATTR_SET, COLLECTIONS_PG, cid, htonl(cid)))
+run(command)
+s = "hello"
+command = OSDCommand().get_member_attributes(pid, cid)
+command.attr_build(OSDAttr(ATTR_SET, LUN_PG_LB+5, 26, s))
+attr = run(command)
+command = OSDCommand().get_attributes(pid, oid1)
+command.attr_build(OSDAttr(ATTR_GET, LUN_PG_LB+5, 26, 100))
+attr = run(command)
+assert attr.val == s
+command = OSDCommand().get_attributes(pid, oid2)
+command.attr_build(OSDAttr(ATTR_GET, LUN_PG_LB+5, 26, 100))
+attr = run(command)
+assert attr.val == s
+run(OSDCommand().set_remove(pid, oid1))
+run(OSDCommand().set_remove(pid, oid2))
+run(OSDCommand().set_remove_collection(pid, cid))
 
 # list collection
 
-# set/remove member attributes

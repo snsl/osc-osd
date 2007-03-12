@@ -97,7 +97,7 @@ int osd_command_set_read(struct osd_command *command, uint64_t pid,
 int osd_command_set_remove(struct osd_command *command, uint64_t pid,
 			   uint64_t oid);
 int osd_command_set_remove_collection(struct osd_command *command,
-				      uint64_t pid, uint64_t cid);
+				      uint64_t pid, uint64_t cid, int force);
 int osd_command_set_remove_member_objects(struct osd_command *command,
 					  uint64_t pid, uint64_t cid);
 int osd_command_set_remove_partition(struct osd_command *command,

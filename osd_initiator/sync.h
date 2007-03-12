@@ -20,7 +20,7 @@ int append_osd(int fd, uint64_t pid, uint64_t oid, const char *buf);
 /* Remove */
 int remove_osd(int fd, uint64_t pid, uint64_t requested_oid);
 int remove_partition(int fd, uint64_t pid);
-int remove_collection(int fd, uint64_t pid, uint64_t cid);
+int remove_collection(int fd, uint64_t pid, uint64_t cid, int force);
 int remove_member_objects(int fd, uint64_t pid, uint64_t cid);
 /* Format/Flush */
 int format_osd(int fd, int capacity);

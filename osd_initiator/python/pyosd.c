@@ -101,24 +101,6 @@ static int ready_type(PyObject *module, PyTypeObject *type)
 	return 0;
 }
 
-/*
- * Insert strings into the module dictionary.
- */
-static int dict_insert(PyObject *d, const char *name, int val)
-{
-        PyObject *v;
-	
-	v = PyInt_FromLong(val);
-	if (!v)
-		return 1;
-
-        if (PyDict_SetItemString(d, name, v) < 0)
-                return 1;
-
-        Py_DECREF(v);
-        return 0;
-}
-
 #if 0
 /*
  * Tracer function, for debugging, not very useful.
@@ -149,10 +131,7 @@ PyMODINIT_FUNC initpyosd(void)
 	}
 
 	d = PyModule_GetDict(m);
-	ret += dict_insert(d, "ATTR_GET", ATTR_GET);
-	ret += dict_insert(d, "ATTR_GET_PAGE", ATTR_GET_PAGE);
-	ret += dict_insert(d, "ATTR_GET_MULTI", ATTR_GET_MULTI);
-	ret += dict_insert(d, "ATTR_SET", ATTR_SET);
+	add_consts(d);
 
 	ret += ready_type(m, &pyosd_command_type);
 	ret += ready_type(m, &pyosd_attr_type);

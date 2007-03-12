@@ -28,3 +28,6 @@ extern PyTypeObject pyosd_drivelist_type;
 /* exporting this to python */
 PyMODINIT_FUNC initpyosd(void);
 
+/* helper function in const.c */
+int add_consts(PyObject *d);
+

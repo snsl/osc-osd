@@ -5,24 +5,6 @@
 import sys
 from pyosd import *
 
-PARTITION_PID_LB  = 0x10000
-PARTITION_OID = 0
-USEROBJECT_PID_LB = 0x10000
-USEROBJECT_OID_LB = 0x10000
-COLLECTION_PID_LB = 0x10000
-COLLECTION_OID_LB = 0x10000
-USEROBJECT_PG = 0
-LUN_PG_LB = 0x10000
-USER_TMSTMP_PG = 3
-
-ROOT_PID = 0
-ROOT_OID = 0
-CUR_CMD_ATTR_PG = 0xFFFFFFFE
-CCAP_TOTAL_LEN = 56
-UTSAP_LEN = 30
-ATTRNUM_INFO = 0
-CCAP_LEN = 48
-
 def hexdump(s, len):
 	buf = ''
 	for i in range((len+7)/8):
@@ -108,7 +90,7 @@ def test_osd_set_attributes():
 	# info attr > 40 bytes, test must fail
 	command = OSDCommand().set_set_attributes(USEROBJECT_PID_LB, \
 						  USEROBJECT_OID_LB)
-	attr = OSDAttr(ATTR_SET, USEROBJECT_PG + LUN_PG_LB, ATTRNUM_INFO, \
+	attr = OSDAttr(ATTR_SET, USEROBJECT_PG + LUN_PG_LB, 0, \
 		       "This is test, long test more than forty bytes")
 	runfail(command.attr_build(attr))
 
@@ -155,7 +137,7 @@ def test_osd_get_ccap(pid, oid):
 	attr = run(command)
 	assert attr.outlen == CCAP_TOTAL_LEN
 	assert ntohl(attr.val[0:4]) == CUR_CMD_ATTR_PG
-	assert ntohl(attr.val[4:8]) == CCAP_LEN
+	assert ntohl(attr.val[4:8]) == CCAP_TOTAL_LEN - 8
 	assert ntohll(attr.val[32:40]) == pid
 	assert ntohll(attr.val[40:48]) == oid
 	assert ntohll(attr.val[48:56]) == 0
@@ -182,7 +164,7 @@ def test_osd_get_utsap():
 	attr = run(command)
 
 	assert ntohl(attr.val[0:4]) == USER_TMSTMP_PG
-	assert ntohl(attr.val[4:8]) == UTSAP_LEN
+	assert ntohl(attr.val[4:8]) == UTSAP_TOTAL_LEN - 8
 
 	# XXX: these should be different, but they are not.
 	atime = ntoh_time(attr.val[26:32])

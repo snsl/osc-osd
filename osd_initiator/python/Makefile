@@ -3,7 +3,7 @@
 #
 
 # edit these files
-SRC := pyosd.c attr.c command.c device.c drivelist.c
+SRC := pyosd.c attr.c command.c device.c drivelist.c const.c
 OBJ := $(SRC:.c=.o)
 LIB := pyosd.so
 

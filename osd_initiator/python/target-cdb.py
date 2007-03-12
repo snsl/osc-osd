@@ -5,14 +5,14 @@
 import sys
 from pyosd import *
 
-PARTITION_PID_LB  = 0x10000
-USEROBJECT_PID_LB = 0x10000
-USEROBJECT_OID_LB = 0x10000
-USEROBJECT_PG = 0
-LUN_PG_LB = 0x10000
-
-CUR_CMD_ATTR_PG = 0xFFFFFFFE
-CCAP_TOTAL_LEN = 56
+def hexdump(s, len):
+	buf = ''
+	for i in range((len+7)/8):
+		buf = buf + "%02x:" % (i*8)
+		for j in range(min(8, len - i*8)):
+			buf = buf + " %02x" % (ord(s[i*8+j]))
+		buf = buf + "\n"
+	return buf
 
 # submit, check status, print sense, or resolve attributes, returning them
 def run(command):
@@ -39,12 +39,12 @@ def test_partition():
 
 	# create partition + empty getlist_setlist
 	command = OSDCommand().set_create_partition(PARTITION_PID_LB)
-	command.attr_build(OSDAttr(ATTR_GET_PAGE, 0, 0, 0))
+	command.attr_build(OSDAttr(ATTR_GET_PAGE, 0, 0))
 	run(command)
 
 	# remove partition + empty getpage_setlist
 	command = OSDCommand().set_remove_partition(PARTITION_PID_LB)
-	command.attr_build(OSDAttr(ATTR_GET_PAGE, 0, 0, 0))
+	command.attr_build(OSDAttr(ATTR_GET_PAGE, 0, 0))
 	run(command)
 
 def test_create():
@@ -59,7 +59,7 @@ def test_create():
 
 	# create 5 objects & get ccap
 	command = OSDCommand().set_create(USEROBJECT_PID_LB, 0, 5)
-	command.attr_build(OSDAttr(ATTR_GET_PAGE, CUR_CMD_ATTR_PG, 0,\
+	command.attr_build(OSDAttr(ATTR_GET_PAGE, CUR_CMD_ATTR_PG,\
 				   CCAP_TOTAL_LEN))
 	attr = run(command)
 	ccap_verify(attr.val, attr.outlen, USEROBJECT_PID_LB, USEROBJECT_OID_LB)

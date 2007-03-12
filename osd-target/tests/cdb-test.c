@@ -121,8 +121,8 @@ void test_create(struct osd_device *osd)
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 
-	assert(ntohl_le(&data_out[CCAP_PAGEID_OFF]) == CUR_CMD_ATTR_PG);
-	assert(ntohl_le(&data_out[CCAP_LEN_OFF]) == CCAP_LEN);
+	assert(ntohl_le(&data_out[0]) == CUR_CMD_ATTR_PG);
+	assert(ntohl_le(&data_out[4]) == CCAP_TOTAL_LEN - 8);
 	assert(data_out[CCAP_OBJT_OFF] == USEROBJECT);
 	assert(ntohll_le(&data_out[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
 	assert(ntohll_le(&data_out[CCAP_APPADDR_OFF]) == 0);

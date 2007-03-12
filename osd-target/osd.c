@@ -239,8 +239,8 @@ static int get_ccap(struct osd_device *osd, void *outbuf, uint64_t outlen,
 	}
 
 	memset(cp, 0, CCAP_TOTAL_LEN);
-	set_htonl_le(&cp[CCAP_PAGEID_OFF], CUR_CMD_ATTR_PG);
-	set_htonl_le(&cp[CCAP_LEN_OFF], CCAP_LEN);
+	set_htonl_le(&cp[0], CUR_CMD_ATTR_PG);
+	set_htonl_le(&cp[4], CCAP_TOTAL_LEN - 8);
 	memcpy(&cp[CCAP_RICV_OFF], osd->ccap.ricv, sizeof(osd->ccap.ricv));
 	cp[CCAP_OBJT_OFF] = osd->ccap.obj_type;
 	set_htonll_le(&cp[CCAP_PID_OFF], osd->ccap.pid);
@@ -270,7 +270,7 @@ static int get_ccap_aslist(struct osd_device *osd, uint32_t number,
 {
 	int ret = 0;
 	uint16_t len = 0;
-	char name[CCAP_PAGEID_LEN] = {'\0'};
+	char name[ATTR_PAGE_ID_LEN] = {'\0'};
 	void *val = NULL;
 	uint8_t *cp = outbuf;
 	uint8_t ll[8];
@@ -279,30 +279,30 @@ static int get_ccap_aslist(struct osd_device *osd, uint32_t number,
 		return -EINVAL;
 
 	switch (number) {
-	case CCAP_PAGEID_ATTR:
-		len = CCAP_PAGEID_LEN;
+	case 0:
+		len = ATTR_PAGE_ID_LEN;
 		sprintf(name, "INCITS  T10 Current Command");
 		val = name;
 		break;
-	case CCAP_RICV_ATTR:
+	case CCAP_RICV:
 		len = CCAP_RICV_LEN;
 		val = osd->ccap.ricv;
 		break;
-	case CCAP_OBJT_ATTR:
+	case CCAP_OBJT:
 		len = CCAP_OBJT_LEN;
 		val = &osd->ccap.obj_type;
 		break;
-	case CCAP_PID_ATTR:
+	case CCAP_PID:
 		set_htonll(ll, osd->ccap.pid);
 		len = CCAP_PID_LEN;
 		val = ll;
 		break;
-	case CCAP_OID_ATTR:
+	case CCAP_OID:
 		set_htonll(ll, osd->ccap.oid);
 		len = CCAP_OID_LEN;
 		val = ll;
 		break;
-	case CCAP_APPADDR_ATTR:
+	case CCAP_APPADDR:
 		set_htonll(ll, osd->ccap.append_off);
 		len = CCAP_APPADDR_LEN;
 		val = ll;
@@ -366,8 +366,8 @@ static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 
 	memset(cp, 0, UTSAP_TOTAL_LEN);
-	set_htonl_le(&cp[UTSAP_PAGE_OFF], USER_TMSTMP_PG);
-	set_htonl_le(&cp[UTSAP_LEN_OFF], UTSAP_LEN);
+	set_htonl_le(&cp[0], USER_TMSTMP_PG);
+	set_htonl_le(&cp[4], UTSAP_TOTAL_LEN - 8);
 
 	get_dfile_name(path, osd->root, pid, oid);
 	memset(&dsb, 0, sizeof(dsb));
@@ -424,7 +424,7 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	uint16_t len = 0;
 	void *val = NULL;
 	uint64_t time = 0;
-	char name[UTSAP_PAGE_LEN] = {'\0'};
+	char name[ATTR_PAGE_ID_LEN] = {'\0'};
 	char path[MAXNAMELEN];
 	struct stat sb;
 
@@ -432,23 +432,23 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		return -EINVAL;
 
 	switch (number) {
-	case UTSAP_PAGE_ATTR:
-		len = UTSAP_PAGE_LEN;
+	case 0:
+		len = ATTR_PAGE_ID_LEN;
 		sprintf(name, "INCITS  T10 User Object Timestamps");
 		val = name;
 		break;
-	case UTSAP_CTIME_ATTR:
-	case UTSAP_DATA_MTIME_ATTR:
-	case UTSAP_DATA_ATIME_ATTR:
+	case UTSAP_CTIME:
+	case UTSAP_DATA_MTIME:
+	case UTSAP_DATA_ATIME:
 		get_dfile_name(path, osd->root, pid, oid);
 		memset(&sb, 0, sizeof(sb));
 		ret = stat(path, &sb);
 		if (ret != 0)
 			return OSD_ERROR;
-		if (number == UTSAP_CTIME_ATTR) {
+		if (number == UTSAP_CTIME) {
 			len = UTSAP_CTIME_LEN;
 			time = sb.st_ctime*1e3 + sb.st_ctim.tv_nsec/1e6;
-		} else if (number == UTSAP_DATA_ATIME_ATTR) {
+		} else if (number == UTSAP_DATA_ATIME) {
 			len = UTSAP_DATA_ATIME_LEN;
 			time = sb.st_atime*1e3 + sb.st_atim.tv_nsec/1e6;
 		} else {
@@ -460,14 +460,14 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		time = time << 16;
 		val = &time;
 		break;
-	case UTSAP_ATTR_ATIME_ATTR:
-	case UTSAP_ATTR_MTIME_ATTR:
+	case UTSAP_ATTR_ATIME:
+	case UTSAP_ATTR_MTIME:
 		get_dbname(path, osd->root);
 		memset(&sb, 0, sizeof(sb));
 		ret = stat(path, &sb);
 		if (ret != 0)
 			return OSD_ERROR;
-		if (number == UTSAP_ATTR_ATIME_ATTR) {
+		if (number == UTSAP_ATTR_ATIME) {
 			len = UTSAP_ATTR_ATIME_LEN;
 			time = sb.st_atime*1e3 + sb.st_atim.tv_nsec/1e6;
 		} else {
@@ -516,30 +516,30 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	void *val = NULL;
 	uint16_t len = 0;
-	char name[UIAP_PAGEID_SZ];
+	char name[ATTR_PAGE_ID_LEN];
 	char path[MAXNAMELEN];
 	struct stat sb;
 	uint8_t ll[8];
 	off_t sz = 0;
 
 	switch (number) {
-	case UIAP_PAGEID:
-		len = UIAP_PAGEID_SZ;
+	case 0:
+		len = ATTR_PAGE_ID_LEN;
 		sprintf(name, "INCITS  T10 User Object Information");
 		val = name;
 		break;
 	case UIAP_PID:
 		set_htonll(ll, pid);
-		len = UIAP_PID_SZ;
+		len = UIAP_PID_LEN;
 		val = ll;
 		break;
 	case UIAP_OID:
 		set_htonll(ll, pid);
-		len = UIAP_OID_SZ;
+		len = UIAP_OID_LEN;
 		val = ll;
 		break;
-	case UIAP_USED_CAP:
-		len = UIAP_USED_CAP_SZ;
+	case UIAP_USED_CAPACITY:
+		len = UIAP_USED_CAPACITY_LEN;
 		get_dfile_name(path, osd->root, pid, oid);
 		ret = stat(path, &sb);
 		if (ret != 0)
@@ -548,8 +548,8 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		set_htonll(ll, sz);
 		val = ll;
 		break;
-	case UIAP_LGCL_LEN:
-		len = UIAP_LGCL_LEN_SZ;
+	case UIAP_LOGICAL_LEN:
+		len = UIAP_LOGICAL_LEN_LEN;
 		get_dfile_name(path, osd->root, pid, oid);
 		ret = stat(path, &sb);
 		if (ret != 0)

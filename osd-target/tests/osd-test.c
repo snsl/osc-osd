@@ -202,8 +202,8 @@ void test_osd_get_ccap(struct osd_device *osd, uint64_t pid, uint64_t oid)
 	assert(used_len == CCAP_TOTAL_LEN);
 
 	cp = val;
-	assert(ntohl_le(&cp[CCAP_PAGEID_OFF]) == CUR_CMD_ATTR_PG);
-	assert(ntohl_le(&cp[CCAP_LEN_OFF]) == CCAP_LEN);
+	assert(ntohl_le(&cp[0]) == CUR_CMD_ATTR_PG);
+	assert(ntohl_le(&cp[4]) == CCAP_TOTAL_LEN - 8);
 	for (i = CCAP_RICV_OFF; i < CCAP_RICV_OFF + CCAP_RICV_LEN; i++)
 		assert(cp[i] == 0);
 	assert(cp[CCAP_OBJT_OFF] == USEROBJECT);
@@ -257,8 +257,8 @@ void test_osd_get_utsap(struct osd_device *osd)
 	assert(ret == 0);
 
 	cp = buf;
-	assert(ntohl_le(&cp[UTSAP_PAGE_OFF]) == USER_TMSTMP_PG);
-	assert(ntohl_le(&cp[UTSAP_LEN_OFF]) == UTSAP_LEN);
+	assert(ntohl_le(&cp[0]) == USER_TMSTMP_PG);
+	assert(ntohl_le(&cp[4]) == UTSAP_TOTAL_LEN - 8);
 
 	time_t atime = ntoh_time(&cp[UTSAP_DATA_ATIME_OFF]);
 	time_t mtime = ntoh_time(&cp[UTSAP_DATA_MTIME_OFF]);

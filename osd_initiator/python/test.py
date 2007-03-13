@@ -127,10 +127,18 @@ else:
 command = pyosd.OSDCommand()
 command.set_read(pid, oid, 1024)
 dev.submit_and_wait(command)
+print command.status, command.sense_key, command.sense_code, command.inlen
+good = 1
 if command.status:
-	print "status", command.status
-	print command.show_sense(),
-else:
+	good = 0
+	if command.status == 2 and command.sense_key == 1 \
+	   and command.sense_code == 0x3b17:
+	   	print "expected this sense:", command.show_sense(),
+		good = 1
+	else:
+	    print "status", command.status
+	    print command.show_sense(),
+if good:
 	print "read:", command.indata
 
 # two set attrs

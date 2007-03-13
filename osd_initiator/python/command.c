@@ -48,6 +48,25 @@ static PyObject *pyosd_command_get_indata(PyObject *self,
 	Py_RETURN_NONE;
 }
 
+static PyObject *pyosd_command_get_sense(PyObject *self, void *closure)
+{
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	const char *which = closure;
+	int key, code;
+
+	if (!py_command->complete) {
+		PyErr_SetString(PyExc_RuntimeError, "command not complete");
+		return NULL;
+	}
+	osd_sense_extract(command->sense, command->sense_len, &key, &code);
+	if (strcmp(which, "key") == 0)
+		return PyInt_FromLong(key);
+	if (strcmp(which, "code") == 0)
+		return PyInt_FromLong(code);
+	Py_RETURN_NONE;
+}
+
 static PyObject *pyosd_command_show_sense(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
@@ -916,6 +935,8 @@ struct PyMemberDef pyosd_command_members[] = {
 /* more complex members with their own functions */
 struct PyGetSetDef pyosd_command_getset[] = {
 	{ "indata", pyosd_command_get_indata, NULL, "returned data", NULL },
+	{ "sense_key", pyosd_command_get_sense, NULL, "sense key", "key" },
+	{ "sense_code", pyosd_command_get_sense, NULL, "sense code", "code" },
 };
 
 PyTypeObject pyosd_command_type = {

@@ -813,15 +813,17 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 	int len = 0;
 
 	if (info[0] == 0x6) {
+		/* object identification */
 		uint64_t pid, oid;
 		if (info[1]+2 != 32) {
-			pos += sprintf(s+pos, "invalid info length %d\n",
+			pos += sprintf(s+pos,
+				       "invalid object ident length %d\n",
 				       info[1]);
 			goto out;
 		}
 		if (addl_len < 32) {
 			pos += sprintf(s+pos,
-			               "insufficient senselen %d for info\n",
+			       "insufficient senselen %d for object ident\n",
 				       addl_len);
 			goto out;
 		}
@@ -829,11 +831,12 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 		/* ignore not_init and completed funcs */
 		pid = ntohll(&info[16]);
 		oid = ntohll(&info[24]);
-		pos += sprintf(s+pos, "Offending pid 0x%016lx oid 0x%016lx\n",
+		pos += sprintf(s+pos, "  Offending pid 0x%016lx oid 0x%016lx\n",
 			       pid, oid);
 	}
 
 	if (info[0] == 0x8) {
+		/* attribute identification */
 		int i;
 		if (addl_len < info[1]+1) {
 			pos += sprintf(s+pos,
@@ -850,10 +853,31 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 		for (i=0; i<len; i+=8) {
 			uint32_t page = ntohl(&info[i*8+0]);
 			uint32_t number = ntohl(&info[i*8+4]);
-			pos += sprintf(s+pos, "Offending attribute"
+			pos += sprintf(s+pos, "  Offending attribute"
 			               " page 0x%08x number 0x%08x\n",
 				       page, number);
 		}
+	}
+
+	if (info[0] == 0x1) {
+		/* spc3 4.5.2.2 information */
+		uint64_t csi;
+		if (info[1]+2 != 12) {
+			pos += sprintf(s+pos, "invalid info length %d\n",
+				       info[1]);
+			goto out;
+		}
+		if (addl_len < 12) {
+			pos += sprintf(s+pos,
+			               "insufficient senselen %d for info\n",
+				       addl_len);
+			goto out;
+		}
+		len = 12;
+		/* not sure it is wise to always convert this to int, but
+		 * that is the use for read overflow at least */
+		csi = ntohll(&info[4]);
+		pos += sprintf(s+pos, "  Information 0x%016lx\n", csi);
 	}
 
 	/* consider adding attribute identification */

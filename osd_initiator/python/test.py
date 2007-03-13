@@ -127,7 +127,6 @@ else:
 command = pyosd.OSDCommand()
 command.set_read(pid, oid, 1024)
 dev.submit_and_wait(command)
-print command.status, command.sense_key, command.sense_code, command.inlen
 good = 1
 if command.status:
 	good = 0

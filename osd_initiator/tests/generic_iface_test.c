@@ -13,6 +13,9 @@
 #define FIRST_PID  USEROBJECT_PID_LB
 #define FIRST_OID  USEROBJECT_OID_LB
 
+#define FULL_TEST  /*comment out for simple test - create 1 part and 1 obj
+			//~ no read or write, etc*/
+
 static int fd;
 static char *buf;
 static char *buf2;
@@ -106,13 +109,14 @@ static void test_create_partition(void)
 
 	printf("BEGIN CREATE PARTITION\n");
 
+#ifdef FULL_TEST
 	printf("Create Partition command that should fail\n");
 	ret = osd_command_set_create_partition(&command, 2);
 	if (ret != 0){
 		printf("Couldn't set create partition command\n");
 		exit(1);
 	}
-
+#endif
 	printf("Create Partition command that should work\n");
 	ret = osd_command_set_create_partition(&command2, FIRST_PID);
 	if (ret != 0){
@@ -120,13 +124,14 @@ static void test_create_partition(void)
 		exit(1);
 	}
 
-
+#ifdef FULL_TEST
 	printf("Submit the commands\n");
 	ret = osd_submit_command(fd, &command);
 	if (ret != 0){
 		printf("Submit command failed\n");
 		exit(1);
 	}
+#endif
 	ret = osd_submit_command(fd, &command2);
 	if (ret != 0){
 		printf("Submit command failed\n");
@@ -134,7 +139,7 @@ static void test_create_partition(void)
 	}
 
 	printf("Get the status of the commands\n\n");
-
+#ifdef FULL_TEST
 	ret = osd_wait_this_response(fd, &command);
 	if (ret != 0) {
 		printf("Unable to get result\n");
@@ -152,7 +157,7 @@ static void test_create_partition(void)
 	printf(".....Response len is %d\n", (int) command.inlen);
 	printf(".....%s\n", (char *) command.indata);
 	printf("Command failed as expected\n");
-
+#endif
 	ret = osd_wait_this_response(fd, &command2);
 	if (ret != 0) {
 		printf("Unable to get result\n");
@@ -178,7 +183,12 @@ static void create_objects(void)
 {
 	int ret;
 	struct osd_command command;
+
+#ifdef FULL_TEST
 	uint16_t count = 10;
+#else
+	uint16_t count = 1;
+#endif
 
 	printf("BEGIN CREATE OBJECT TEST\n");
 
@@ -371,15 +381,59 @@ static void read_objects(void)
 	printf("END READ OBJECTS TEST\n");
 }
 
+static void create_collection(void)
+{
+	int ret;
+	struct osd_command command;
+
+
+	printf("BEGIN CREATE COLLECTION TEST\n");
+
+	printf("Create the command\n");
+	ret = osd_command_set_create_collection(&command, FIRST_PID, FIRST_OID+1);
+	if (ret != 0 ){
+		printf("Unable to set command\n");
+		exit(1);
+	}
+
+	printf("Submit the command\n");
+	ret = osd_submit_command(fd, &command);
+	if (ret != 0){
+		printf("Submit command failed\n");
+		exit(1);
+	}
+
+	ret = osd_wait_this_response(fd, &command);
+	if (ret != 0) {
+		printf("Unable to get result\n");
+		exit(1);
+	}
+	if((command.sense_len != 0) || (command.status != 0)){
+		printf("Sense data found means error!\n");
+		fputs(osd_sense_as_string(command.sense, command.sense_len), stderr);
+		//~ exit(1);
+	}
+	printf(".....Response len is %d\n", (int) command.inlen);
+	printf(".....%s\n", (char *) command.indata);
+	printf("Command worked successfully\n\n");
+
+	printf("END CREATE OBJECT TEST\n");
+
+
+}
+
 int main(void)
 {
 	init();
 	format();
 	test_create_partition();
 	create_objects();
-	remove_objects();
-	write_objects();
-	read_objects();
+	create_collection();
+	#ifdef FULL_TEST
+		remove_objects();
+		write_objects();
+		read_objects();
+	#endif
 	fini();
 	return 0;
 }

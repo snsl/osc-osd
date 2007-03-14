@@ -50,7 +50,7 @@ int inquiry(int fd)
 
 	osd_info("....creating command");
 	memset(inquiry_rsp, 0xaa, sizeof(inquiry_rsp));
-	osd_command_set_inquiry(&command, sizeof(inquiry_rsp));
+	osd_command_set_inquiry(&command, 0, sizeof(inquiry_rsp));
 
 	osd_info("....building command");
 	command.indata = inquiry_rsp;

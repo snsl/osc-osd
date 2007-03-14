@@ -18,8 +18,11 @@ def hexdump(s, len):
 def run(command):
 	dev.submit_and_wait(command)
 	if command.status != 0:
-		print "Command failed:", command.show_sense(),
-		assert 0 == 1
+		# ignore short read status
+		if not(command.status == 2 and command.sense_key == 1 \
+		   and command.sense_code == 0x3b17):
+			print "Command failed:", command.show_sense(),
+			assert 0 == 1
 	return command.attr_resolve()
 
 def runfail(command):

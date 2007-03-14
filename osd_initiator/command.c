@@ -30,12 +30,17 @@ int osd_command_set_test_unit_ready(struct osd_command *command)
 	return 0;
 }
 
-int osd_command_set_inquiry(struct osd_command *command, uint8_t outlen)
+int osd_command_set_inquiry(struct osd_command *command, uint8_t page_code,
+			    uint8_t outlen)
 {
 	memset(command, 0, sizeof(*command));
 	command->cdb_len = 6;
 	command->cdb[0] = INQUIRY;
 	command->cdb[4] = outlen;
+	if (page_code) {
+		command->cdb[1] = 1;
+		command->cdb[2] = page_code;
+	}
 	return 0;
 }
 

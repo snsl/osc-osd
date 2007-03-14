@@ -13,44 +13,55 @@
 #include "device.h"
 #include "drivelist.h"
 
-char *osd_get_drive_serial(int fd)
+/*
+ * Ask for page 0x80 to get serial number.  Returns a new string if it
+ * succeeds.
+ */
+static char *osd_get_drive_serial(int fd)
 {
 	struct osd_command command;
-	char buf[512];
+	char *s, buf[80];
 	int ret;
+	unsigned int len;
 
 	memset(buf, 0, sizeof(buf));
-	memset(&command, 0, sizeof(command));
-
-	/* See http://en.wikipedia.org/wiki/SCSI_Inquiry_Command */
-	command.cdb[0] = 0x12; 	/* SCSI INQUIRY */
-	command.cdb[1] = 1; 	/* Enable extra info */
-	command.cdb[2] = 0x80;   /* Serial number */
-	command.cdb[4] = 252;	/* Length */
-
-	command.cdb_len = 6;
+	osd_command_set_inquiry(&command, 0x80, sizeof(buf));
+	command.cdb[2] = 0x80;  
 	command.indata = buf;
-	command.inlen_alloc = 512;
+	command.inlen_alloc = sizeof(buf);
 
 	ret = osd_submit_and_wait(fd, &command);
 	if (ret) {
-		printf("Submit failed!\n");
+		osd_error_xerrno(ret, "%s: osd_submit_and_wait failed",
+				 __func__);
 		return NULL;
 	}
+	if (command.inlen < 4)
+		return NULL;
+	len = buf[3];
+	if (len == 0)
+		return NULL;
+	if (len < command.inlen - 4)
+		len = command.inlen - 4;
+	s = malloc(len + 1);
+	if (!s)
+		return NULL;
+	memcpy(s, &buf[4], len);
+	s[len] = '\0';
 
-	return strdup(buf+4);
+	return s;
 }
 
 int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 {
 	struct osd_drive_description *ret = NULL;
 	struct dirent *entry;
-	int count = 0, fd;
+	int count, fd, type;
 	char buf[512];
 	char *serial;
 
 	/*
-	 * Walk through /dev/bsg/ to find available devices.  Could look
+	 * Walk through /dev/bsg to find available devices.  Could look
 	 * through /sys/class/bsg, but would have to create each device
 	 * by hand in /tmp somewhere to use it, or figure out the mapping
 	 * in /dev anyway.
@@ -60,9 +71,9 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 		goto out;
 
 	/* First, get the count */
-	while ((entry = readdir(toplevel))) {
-		count++;
-	}
+	count = 0;
+	while ((entry = readdir(toplevel)))
+		++count;
 
 	if (count == 0)
 		goto out;
@@ -72,8 +83,6 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	rewinddir(toplevel);
 	count = 0;
 	while ((entry = readdir(toplevel))) {
-		int type;
-
 		snprintf(buf, sizeof(buf),
 		         "/sys/class/scsi_device/%s/device/type",
 		         entry->d_name);
@@ -81,6 +90,7 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 		if (fd < 0)
 			continue;
 
+		type = 0;
 		buf[0] = '\0';
 		read(fd, buf, sizeof(buf));
 		sscanf(buf, "%d", &type);
@@ -89,10 +99,10 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 		if (type != 17)  /* TYPE_OSD */
 			continue;
 
-		sprintf(buf, "/dev/bsg/%s", entry->d_name);
+		snprintf(buf, sizeof(buf), "/dev/bsg/%s", entry->d_name);
 
 		fd = open(buf, O_RDWR);
-		if (fd <= 0)
+		if (fd < 0)
 			continue;
 
 		serial = osd_get_drive_serial(fd);
@@ -103,7 +113,7 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 
 		ret[count].targetname = serial;
 		ret[count].chardev = strdup(buf);
-		count++;
+		++count;
 	}
 
 out:

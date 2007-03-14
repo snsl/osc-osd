@@ -945,12 +945,6 @@ char *osd_sense_as_string(const uint8_t *sense, int len)
 	    pos += sprintf(s+pos, "Unknown asc/ascq\n");
 
 	additional_len = sense[7];
-	if (additional_len < 32) {
-		sprintf(s+pos, "additional len %d not enough for OSD info\n",
-		       	additional_len);
-		goto out;
-	}
-
 	info = sense + 8;
 	while (additional_len > 0) {
 		int len = sense_parse_descriptor(s, &pos, info, additional_len);

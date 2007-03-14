@@ -102,7 +102,7 @@ static struct attribute_list *attr_flatten(PyObject *o, int *numattr)
 
 	if (PyObject_TypeCheck(o, &pyosd_attr_type)) {
 		py_attr = (struct pyosd_attr *) o;
-		attr = PyMem_Malloc(sizeof(*attr));
+		attr = malloc(sizeof(*attr));
 		if (attr == NULL) {
 			PyErr_NoMemory();
 			return attr;
@@ -116,7 +116,7 @@ static struct attribute_list *attr_flatten(PyObject *o, int *numattr)
 		if (num < 1)
 			goto out;
 
-		attr = PyMem_Malloc(num * sizeof(*attr));
+		attr = malloc(num * sizeof(*attr));
 		if (attr == NULL) {
 			PyErr_NoMemory();
 			return NULL;
@@ -185,6 +185,7 @@ static PyObject *pyosd_command_attr_build(PyObject *self, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, "attr_build failed");
 		return NULL;
 	}
+	free(attr);
 
 	Py_IncRef(self);
 	return self;
@@ -277,8 +278,9 @@ static PyObject *pyosd_command_set_inquiry(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
+	unsigned int page_code = 0;
 
-	if (!PyArg_ParseTuple(args, ":inquiry"))
+	if (!PyArg_ParseTuple(args, "|I:inquiry", &page_code))
 		return NULL;
 	if (py_command->set) {
 		PyErr_SetString(PyExc_RuntimeError, "command already set");
@@ -286,7 +288,7 @@ static PyObject *pyosd_command_set_inquiry(PyObject *self, PyObject *args)
 	}
 
 	py_command->set = 1;
-	osd_command_set_inquiry(command, 80);
+	osd_command_set_inquiry(command, page_code, 80);
 	command->indata = PyMem_Malloc(80);
 	if (command->indata == NULL)
 		return PyErr_NoMemory();
@@ -917,7 +919,7 @@ struct PyMethodDef pyosd_command_methods[] = {
 	{ "set_write", pyosd_command_set_write, METH_VARARGS,
 		"Build the WRITE command." },
 	{ "attr_build", pyosd_command_attr_build, METH_VARARGS,
-		"Modify a command to get a particular attribute." },
+		"Modify a command to get or set attributes." },
 	{ "attr_resolve", pyosd_command_attr_resolve, METH_VARARGS,
 		"After command execution, process the retrieved attributes.\n"
 		"You must call this even if you are only using ATTR_SET." },
@@ -944,7 +946,7 @@ PyTypeObject pyosd_command_type = {
 	.tp_name = "OSDCommand",
 	.tp_basicsize = sizeof(struct pyosd_command),
 	.tp_flags = Py_TPFLAGS_DEFAULT,
-	.tp_doc = "Python encapsulation of struct osd_command",
+	.tp_doc = "Python encapsulation of struct osd_command.",
 	.tp_init = pyosd_command_init,
 	.tp_new = PyType_GenericNew,
 	.tp_dealloc = pyosd_command_dealloc,

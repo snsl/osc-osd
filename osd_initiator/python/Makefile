@@ -9,7 +9,7 @@ LIB := pyosd.so
 
 # external libraries being wrapped for python
 INCDIR := -I/usr/include/python2.4 -I../..
-OSDLIBS := ../libosd.a ../../util/libosdutil.a
+OSDLIBS := ../libosdinit.a ../../util/libosdutil.a
 
 # usual definitions
 CC := gcc

@@ -619,6 +619,7 @@ int osd_command_attr_build(struct osd_command *command,
 
 	/* set pad spaces to known pattern, for debugging */
 	memset(p, 0x6b, size_pad_outdata);
+	/* XXX: now p could be unaligned, reconsider this */
 	p += size_pad_outdata;
 
 	/*
@@ -721,13 +722,15 @@ int osd_command_attr_build(struct osd_command *command,
 	header->orig_iov_outlen = command->iov_outlen;
 	if (extra_out) {
 		if (command->outdata) {
+			command->outdata = iov;
 			if (command->iov_outlen == 0) {
-				iov->iov_base = (uintptr_t) command->outdata;
+				iov->iov_base =
+					(uintptr_t) header->orig_outdata;
 				iov->iov_len = command->outlen;
 				++iov;
 				command->iov_outlen = 2;
 			} else {
-				memcpy(iov, command->outdata,
+				memcpy(iov, header->orig_outdata,
 				       command->iov_outlen * sizeof(*iov));
 				iov += command->iov_outlen;
 				++command->iov_outlen;
@@ -748,13 +751,14 @@ int osd_command_attr_build(struct osd_command *command,
 	header->orig_iov_inlen = command->iov_inlen;
 	if (extra_in) {
 		if (command->indata) {
+			command->indata = iov;
 			if (command->iov_inlen == 0) {
-				iov->iov_base = (uintptr_t) command->indata;
+				iov->iov_base = (uintptr_t) header->orig_indata;
 				iov->iov_len = command->inlen;
 				++iov;
 				command->iov_inlen = 2;
 			} else {
-				memcpy(iov, command->indata,
+				memcpy(iov, header->orig_indata,
 				       command->iov_inlen * sizeof(*iov));
 				iov += command->iov_inlen;
 				++command->iov_inlen;

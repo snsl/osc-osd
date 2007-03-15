@@ -12,7 +12,7 @@ TESTDIR := ./tests/
 UTILDIR := ../util/
 STGTDIR := ../stgt/
 INITDIR := ../osd_initiator/
-OSDTARGETLIB := libosd.a
+OSDTARGETLIB := libosdtgt.a
 
 STGTLIB := ../stgt/libstgt.a
 UTILLIB := ../util/libosdutil.a

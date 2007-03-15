@@ -14,7 +14,7 @@ CMD_OBJ := $(CMD:.c=.o)
 CMD_SRC := ../../osd_initiator/$(CMD)
 CMD_INC := $(CMD_SRC:.c=.h)
 
-LIBOSD := ../libosd.a ../../util/libosdutil.a
+LIBOSD := ../libosdtgt.a ../../util/libosdutil.a
 
 CC := gcc
 CPP_M := -MM

@@ -5,7 +5,7 @@
 PROGSRC := sgio.c generic_iface_test.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
-LIB := ../libosd.a ../../util/libosdutil.a
+LIB := ../libosdinit.a ../../util/libosdutil.a
 
 CC := gcc
 CPP_M := -MM

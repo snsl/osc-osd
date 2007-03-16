@@ -3,5 +3,6 @@
 
 void osd_sense_extract(const uint8_t *sense, int len, int *key, int *asc_ascq);
 char *osd_sense_as_string(const uint8_t *sense, int len);
+uint8_t *osd_sense_extract_csi(const uint8_t *sense, int len);
 
 #endif /* _SENSE_H */

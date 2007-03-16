@@ -812,6 +812,8 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 	int pos = *ppos;
 	int len = 0;
 
+	if (addl_len < 2)
+		return 0;
 	if (info[0] == 0x6) {
 		/* object identification */
 		uint64_t pid, oid;
@@ -960,5 +962,35 @@ char *osd_sense_as_string(const uint8_t *sense, int len)
 
 out:
 	return strdup(s);
+}
+
+/*
+ * Return a pointer to the 8-byte CSI string.  Not necessarily an int.
+ * Assumes proper descriptor format sense buffer.
+ */
+uint8_t *osd_sense_extract_csi(const uint8_t *sense, int len)
+{
+	uint8_t *s = NULL;
+
+	/* skip header */
+	sense += 8;
+	len -= 8;
+	while (len > 0) {
+		int nextlen;
+		if (len < 2)
+			break;
+		nextlen = sense[1] + 2;
+		if (sense[0] == 0x1) {
+			if (nextlen != 12)
+				break;
+			if (len < nextlen)
+				break;
+			s = sense + 4;
+			break;
+		}
+		sense += nextlen;
+		len -= nextlen;
+	}
+	return s;
 }
 

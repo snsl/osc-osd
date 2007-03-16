@@ -17,7 +17,7 @@
 #include "attr.h"
 #include "util/util.h"
 #include "obj.h"
-#include "osd-sense.h"
+#include "util/osd-sense.h"
 #include "list-entry.h"
 
 struct incits_page_id {

@@ -108,10 +108,10 @@ enum {
 
 /* osd2r00, Table 5 Section 4.7.5 */
 enum {
-	USEROBJECT_DIR_PG = USEROBJECT_PG + 0x0,
-	PARTITION_DIR_PG = PARTITION_PG + 0x0,
-	COLLECTION_DIR_PG = COLLECTION_PG + 0x0,
-	ROOT_DIR_PG = ROOT_PG + 0x0
+	USEROBJECT_DIR_PG = (USEROBJECT_PG + 0x0),
+	PARTITION_DIR_PG = (PARTITION_PG + 0x0),
+	COLLECTION_DIR_PG = (COLLECTION_PG + 0x0),
+	ROOT_DIR_PG = (ROOT_PG + 0x0)
 };
 
 /* (selected) attribute pages defined by osd spec, osd2r01 sec 7.1.2.1 */

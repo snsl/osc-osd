@@ -8,7 +8,7 @@
 #include <string.h>
 
 #include "osd.h"
-#include "osd-sense.h"
+#include "util/osd-sense.h"
 #include "util/osd-defs.h"
 #include "target-defs.h"
 #include "cdb.h"

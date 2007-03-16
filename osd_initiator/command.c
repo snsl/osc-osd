@@ -366,13 +366,13 @@ int osd_command_attr_build(struct osd_command *command,
 	uint32_t getsize, getpagesize, getmultisize, setsize;
 	uint32_t getmulti_num_objects;
 	struct attr_malloc_header *header;
-	uint8_t *p;
+	uint8_t *p, *extra_out_buf, *extra_in_buf;
 	struct bsg_iovec *iov;
 	int i;
 	int neediov;
 	int setattr_index;
 	uint64_t extra_out, extra_in;
-	uint32_t getmulti_result_space;
+	uint32_t header_space, attr_space, iov_space, getmulti_result_space;
 
 	/*
 	 * These are values, in units of bytes (not offsets), in the
@@ -382,7 +382,7 @@ int osd_command_attr_build(struct osd_command *command,
 	uint64_t size_pad_outdata;
 	uint64_t start_getlist;
 	uint64_t size_getlist;
-	uint64_t size_pad_getlist;
+	uint64_t size_pad_setlist;
 	uint64_t start_setlist;
 	uint64_t size_setlist;
 
@@ -393,6 +393,16 @@ int osd_command_attr_build(struct osd_command *command,
 	uint64_t size_pad_indata;
 	uint64_t start_retrieved;
 	uint64_t size_retrieved;
+
+	/*
+	 * These are used so that we know the setlist and retrieved
+	 * areas start on 8-byte boundaries.  Since padding after
+	 * outdata or indata can be arbitrary, alloc a bit extra to
+	 * keep the pointers nice.
+	 */
+	uint64_t size_pad_outdata_alloc;
+	uint64_t size_pad_indata_alloc;
+	uint64_t extra_out_alloc, extra_in_alloc;
 
 	if (numattr == 0)
 		return 0;
@@ -479,37 +489,46 @@ int osd_command_attr_build(struct osd_command *command,
 
 	/*
 	 * Outdata:
-	 *	padding between real outdata and getlist
-	 *	getlist
-	 *	padding between getlist and setlist
+	 *	padding between real outdata and setlist
 	 *	setlist (including values)
+	 *	padding between setlist and getlist
+	 *	getlist
 	 */
 	end_outdata = command->outlen;
-	start_getlist = next_offset(end_outdata);
-	size_pad_outdata = start_getlist - end_outdata;
 
-	size_getlist = 0;
-	if (numget)
-		size_getlist = 8 + 8 * numget;
-	if (numgetmulti)
-		size_getlist = 8 + 8 * numgetmulti;
-
+	size_pad_outdata = 0;
+	size_pad_outdata_alloc = 0;  /* so setlist starts on 8-byte boundary */
 	start_setlist = 0;
-	size_pad_getlist = 0;
 	size_setlist = 0;
 	if (numset) {
-		start_setlist = next_offset(start_getlist + size_getlist);
-		size_pad_getlist = start_setlist
-				 - (start_getlist + size_getlist);
-		if (use_getpage) {
-			/* no list format around the value */
+		start_setlist = next_offset(end_outdata);
+		size_pad_outdata = start_setlist - end_outdata;
+		size_pad_outdata_alloc = roundup8(size_pad_outdata);
+		if (use_getpage)
+			/* no list format around the single value */
 			size_setlist = attr[setattr_index].len;
-		} else {
-			size_setlist = 8 + setsize;  /* already rounded */
-		}
+		else
+			/* add list header; setsize already rounded */
+			size_setlist = 8 + setsize;
 	}
-	extra_out = size_pad_outdata + size_getlist
-		  + size_pad_getlist + size_setlist;
+
+	size_pad_setlist = 0;
+	start_getlist = 0;
+	size_getlist = 0;
+	if (numget || numgetmulti) {
+		/* getlist will be aligned due to next_offset here */
+		start_getlist = next_offset(start_setlist + size_setlist);
+		size_pad_setlist = start_getlist
+				 - (start_setlist + size_setlist);
+		if (size_setlist == 0)
+			size_pad_outdata_alloc = roundup8(size_pad_setlist);
+		size_getlist = 8 + 8 * (numget + numgetmulti);
+	}
+
+	extra_out = size_pad_outdata + size_setlist
+		  + size_pad_setlist + size_getlist;
+	extra_out_alloc = size_pad_outdata_alloc + size_setlist
+		  + size_pad_setlist + size_getlist;
 
 	/*
 	 * Indata:
@@ -517,17 +536,24 @@ int osd_command_attr_build(struct osd_command *command,
 	 *	retrieved results area
 	 */
 	end_indata = command->inlen_alloc;
-	start_retrieved = next_offset(end_indata);
-	size_pad_indata = start_retrieved - end_indata;
-
+	start_retrieved = 0;
+	size_pad_indata = 0;
+	size_pad_indata_alloc = 0;
 	size_retrieved = 0;
-	if (numget)
-		size_retrieved = 8 + getsize;  /* already rounded */
-	if (numgetpage)
-		size_retrieved = getpagesize;  /* no rounding */
-	if (numgetmulti)
-		size_retrieved = 8 + getmultisize * getmulti_num_objects;
+	if (numget || numgetpage || numgetmulti) {
+		start_retrieved = next_offset(end_indata);
+		size_pad_indata = start_retrieved - end_indata;
+		size_pad_indata_alloc = roundup8(size_pad_indata);
+		if (numget)
+			size_retrieved = 8 + getsize;  /* already rounded */
+		if (numgetpage)
+			size_retrieved = getpagesize;  /* no rounding */
+		if (numgetmulti)
+			size_retrieved = 8 + getmultisize * getmulti_num_objects;
+	}
+
 	extra_in = size_pad_indata + size_retrieved;
+	extra_in_alloc = size_pad_indata_alloc + size_retrieved;
 
 	/*
 	 * Each ATTR_GET_MULTI will return an array of values, one for
@@ -541,7 +567,7 @@ int osd_command_attr_build(struct osd_command *command,
 			+ getmulti_num_objects
 			* (sizeof(*mr->oid) + sizeof(*mr->val)
 			   + sizeof(*mr->outlen));
-		getmulti_result_space = numgetmulti * one_space;
+		getmulti_result_space = roundup8(numgetmulti * one_space);
 	}
 
 	/*
@@ -574,30 +600,45 @@ int osd_command_attr_build(struct osd_command *command,
 	 * 	outgoing setlist area
 	 * 	incoming retrieved area
 	 */
-	command->attr_malloc = Malloc(sizeof(*header)
-				    + numattr * sizeof(*attr)
-				    + getmulti_result_space
-				    + neediov * sizeof(*iov)
-				    + extra_out + extra_in);
-	if (!command->attr_malloc)
+	header_space = roundup8(sizeof(*header));
+	attr_space = roundup8(numattr * sizeof(*attr));
+	iov_space = roundup8(neediov * sizeof(*iov));
+	p = Malloc(header_space
+		 + attr_space
+		 + getmulti_result_space
+		 + iov_space
+		 + extra_out_alloc
+		 + extra_in_alloc);
+	if (!p)
 		return 1;
 
+	/* to free it later */
+	command->attr_malloc = p;
+
 	/* header holds original indata, iniovec, etc. */
-	header = command->attr_malloc;
+	header = (void *) p;
+	p += header_space;
 
 	/* copy user's passed-in attribute structure for use by resolve */
-	command->attr = (void *) &header[1];
+	command->attr = (void *) p;
 	memcpy(command->attr, attr, numattr * sizeof(*attr));
 	command->numattr = numattr;
+	p += attr_space;
 
 	/* for ATTR_GET_MULTI results */
-	header->mr = (void *) &command->attr[numattr];
+	header->mr = (void *) p;
+	p += getmulti_result_space;
 
 	/* space for replacement out and in iovecs */
-	iov = (void *) ((uint8_t *) header->mr + getmulti_result_space);
+	iov = (void *) p;
+	p += iov_space;
 
-	/* outgoing pad, getlist, pad, setlist; incoming pad, retrieval areas */
-	p = (uint8_t *) &iov[neediov];
+	/* extra out; including pad, setlist, pad, getlist */
+	extra_out_buf = p;
+	p += extra_out_alloc;
+
+	/* extra in; including pad, retrieved area */
+	extra_in_buf = p;
 
 	/*
 	 * Initialize get multi result space.
@@ -616,32 +657,11 @@ int osd_command_attr_build(struct osd_command *command,
 		}
 	}
 
-	/* set pad spaces to known pattern, for debugging */
-	memset(p, 0x6b, size_pad_outdata);
-	/* XXX: now p could be unaligned, reconsider this */
-	p += size_pad_outdata;
-
 	/*
-	 * Build the getlist.
+	 * Start on outbuf.  Skip over 0..7 bytes used to pad indata
+	 * that would wreck our setlist alignment.
 	 */
-	if (numget || numgetmulti) {
-		uint8_t *q = p + 8;
-		for (i=0; i<numattr; i++) {
-			if (!(attr[i].type == ATTR_GET_MULTI
-			   || attr[i].type == ATTR_GET))
-				continue;
-			set_htonl(&q[0], attr[i].page);
-			set_htonl(&q[4], attr[i].number);
-			q += 8;
-		}
-		p[0] = 0x1;
-		p[1] = p[2] = p[3] = 0;
-		set_htonl(&p[4], (numget + numgetmulti) * 8);
-		p += size_getlist;
-	}
-
-	memset(p, 0x6b, size_pad_getlist);
-	p += size_pad_getlist;
+	p = extra_out_buf + size_pad_outdata_alloc;
 
 	/*
 	 * Build the setlist, or copy in the single value to set.
@@ -673,16 +693,35 @@ int osd_command_attr_build(struct osd_command *command,
 		}
 		p += size_setlist;
 	}
-	/* no padding at the end of the setlist */
 
-	/* Now we are at the beginning of the retrieved area */
-	memset(p, 0x6b, size_pad_indata);
-	p += size_pad_indata;
+	p += size_pad_setlist;
 
-	/* Set it to something different, for debugging */
-	header->retrieved_buf = p;
+	/*
+	 * Build the getlist.
+	 */
+	if (numget || numgetmulti) {
+		uint8_t *q = p + 8;
+		for (i=0; i<numattr; i++) {
+			if (!(attr[i].type == ATTR_GET_MULTI
+			   || attr[i].type == ATTR_GET))
+				continue;
+			set_htonl(&q[0], attr[i].page);
+			set_htonl(&q[4], attr[i].number);
+			q += 8;
+		}
+		p[0] = 0x1;
+		p[1] = p[2] = p[3] = 0;
+		set_htonl(&p[4], (numget + numgetmulti) * 8);
+		p += size_getlist;
+	}
+	/* no padding at the end of the getlist */
+
+	/*
+	 * Remember a pointer to the retrieved buffer (padded nicely)
+	 * and the cdb offset for the retrieved.
+	 */
+	header->retrieved_buf = extra_in_buf + size_pad_indata_alloc;
 	header->start_retrieved = start_retrieved;
-	memset(p, 0x7c, size_retrieved);
 
 	/*
 	 * Update the CDB bits.
@@ -713,13 +752,15 @@ int osd_command_attr_build(struct osd_command *command,
 	}
 
 	/*
-	 * Adjust the iovecs.
+	 * Adjust the iovecs.  These use the real sizes, not the _alloc
+	 * sizes.
 	 */
-	p = (uint8_t *) &iov[neediov];
 	header->orig_outdata = command->outdata;
 	header->orig_outlen = command->outlen;
 	header->orig_iov_outlen = command->iov_outlen;
 	if (extra_out) {
+		/* ignore the 0..7 extra bytes so that data lands nicely */
+		p = extra_out_buf + (extra_out_alloc - extra_out);
 		if (command->outdata) {
 			command->outdata = iov;
 			if (command->iov_outlen == 0) {
@@ -743,11 +784,11 @@ int osd_command_attr_build(struct osd_command *command,
 		command->outlen += extra_out;
 	}
 
-	p += extra_out;
 	header->orig_indata = command->indata;
 	header->orig_inlen_alloc = command->inlen_alloc;
 	header->orig_iov_inlen = command->iov_inlen;
 	if (extra_in) {
+		p = extra_in_buf + (extra_in_alloc - extra_in);
 		if (command->indata) {
 			command->indata = iov;
 			if (command->iov_inlen == 0) {

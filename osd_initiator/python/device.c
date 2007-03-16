@@ -41,11 +41,13 @@ static int pyosd_device_init(PyObject *self, PyObject *args,
 			     PyObject *keywords __unused)
 {
 	struct pyosd_device *py_device = (struct pyosd_device *) self;
-	const char *s;
+	const char *s = NULL;
 
 	py_device->fd = -1;
 
-	if (PyArg_ParseTuple(args, "|s:init", &s))
+	if (!PyArg_ParseTuple(args, "|s:init", &s))
+		return -1;
+	if (s)
 		pyosd_device_open(self, args);
 	return 0;
 }

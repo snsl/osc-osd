@@ -340,7 +340,6 @@ struct attr_malloc_header {
 	int orig_iov_outlen;
 	void *orig_indata;
 	size_t orig_inlen_alloc;
-	size_t orig_inlen;
 	int orig_iov_inlen;
 	uint8_t *retrieved_buf;
 	uint64_t start_retrieved;
@@ -517,7 +516,7 @@ int osd_command_attr_build(struct osd_command *command,
 	 *	padding between real indata and retrieved results area
 	 *	retrieved results area
 	 */
-	end_indata = command->inlen;
+	end_indata = command->inlen_alloc;
 	start_retrieved = next_offset(end_indata);
 	size_pad_indata = start_retrieved - end_indata;
 
@@ -747,14 +746,13 @@ int osd_command_attr_build(struct osd_command *command,
 	p += extra_out;
 	header->orig_indata = command->indata;
 	header->orig_inlen_alloc = command->inlen_alloc;
-	header->orig_inlen = command->inlen;
 	header->orig_iov_inlen = command->iov_inlen;
 	if (extra_in) {
 		if (command->indata) {
 			command->indata = iov;
 			if (command->iov_inlen == 0) {
 				iov->iov_base = (uintptr_t) header->orig_indata;
-				iov->iov_len = command->inlen;
+				iov->iov_len = command->inlen_alloc;
 				++iov;
 				command->iov_inlen = 2;
 			} else {
@@ -951,8 +949,19 @@ unwind:
 	command->indata = header->orig_indata;
 	command->inlen_alloc = header->orig_inlen_alloc;
 	command->iov_inlen = header->orig_iov_inlen;
-	if (command->inlen > header->orig_inlen)
-		command->inlen = header->orig_inlen;
+
+	/* This is tricky.  We modified the inlen_alloc so that we
+	 * could reserve extra space for the retrieved attributes.
+	 * But if it was a short read, there is no way for the user
+	 * to find that out without looking at the returned status,
+	 * since the pad bytes papered over the short read.  Instead
+	 * of fixing it up here, or in wait_response, we just put
+	 * inlen back so it is no bigger than what was asked for.  But
+	 * this is no guarantee that any of those bytes are valid
+	 * read data!
+	 */
+	if (command->inlen > command->inlen_alloc)
+		command->inlen = command->inlen_alloc;
 	return ret;
 }
 

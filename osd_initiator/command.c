@@ -3,6 +3,12 @@
 #include <stdint.h>
 #include <scsi/scsi.h>
 
+/* #define BSG_BACK_TO_SG_IOVEC */
+
+#ifdef BSG_BACK_TO_SG_IOVEC
+#include <scsi/sg.h>  /* sg_iovec */
+#endif
+
 #include "util/util.h"
 #include "command.h"
 
@@ -367,7 +373,11 @@ int osd_command_attr_build(struct osd_command *command,
 	uint32_t getmulti_num_objects;
 	struct attr_malloc_header *header;
 	uint8_t *p, *extra_out_buf, *extra_in_buf;
+#ifdef BSG_BACK_TO_SG_IOVEC
+	struct sg_iovec *iov;
+#else
 	struct bsg_iovec *iov;
+#endif
 	int i;
 	int neediov;
 	int setattr_index;
@@ -516,10 +526,11 @@ int osd_command_attr_build(struct osd_command *command,
 	start_getlist = 0;
 	size_getlist = 0;
 	if (numget || numgetmulti) {
-		/* getlist will be aligned due to next_offset here */
-		start_getlist = next_offset(start_setlist + size_setlist);
-		size_pad_setlist = start_getlist
-				 - (start_setlist + size_setlist);
+		uint64_t prev = start_setlist + size_setlist;
+		if (prev == 0)
+			prev = end_outdata;
+		start_getlist = next_offset(prev);
+		size_pad_setlist = start_getlist - prev;
 		if (size_setlist == 0)
 			size_pad_outdata_alloc = roundup8(size_pad_setlist);
 		size_getlist = 8 + 8 * (numget + numgetmulti);

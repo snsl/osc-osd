@@ -968,9 +968,9 @@ out:
  * Return a pointer to the 8-byte CSI string.  Not necessarily an int.
  * Assumes proper descriptor format sense buffer.
  */
-uint8_t *osd_sense_extract_csi(const uint8_t *sense, int len)
+const uint8_t *osd_sense_extract_csi(const uint8_t *sense, int len)
 {
-	uint8_t *s = NULL;
+	const uint8_t *s = NULL;
 
 	/* skip header */
 	sense += 8;

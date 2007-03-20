@@ -26,26 +26,26 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wmissing-declarations -Wnested-externs 
 CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../util
 
-.PHONY: UTIL TESTS
+.PHONY: UTIL TESTS STGT
 
 .SUFFIXES: .c .o .i
 
-all :: TESTS UTIL tgtd
+all :: TESTS tgtd
 
 tgtd: $(STGTLIB) $(OSDTARGETLIB) $(UTILLIB)
 	$(LD) -o $@ $^ $(LIBS)
 
+TESTS: $(UTILLIB) $(OSDTARGETLIB)
+	make -C $(TESTDIR)
+
 $(OSDTARGETLIB): $(OBJ)
 	ar cr $@ $^
 
-$(STGTLIB):
+$(STGTLIB): STGT
 	make -C $(STGTDIR)
 
-$(UTILLIB) UTIL:
+$(UTILLIB): UTIL
 	make -C $(UTILDIR)
-
-TESTS: UTIL $(OSDTARGETLIB)
-	make -C $(TESTDIR)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

@@ -180,6 +180,10 @@ static int empty_dir(const char *dirname)
 		if (ret != 0)
 			return -1;
 	}
+
+	/* This leaks a ton of memory if we don't close it */
+	closedir(dir);
+
 	ret = rmdir(dirname);
 	if (ret != 0)
 		return -1;

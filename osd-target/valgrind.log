@@ -1,226 +1,242 @@
-==3628== Memcheck, a memory error detector.
-==3628== Copyright (C) 2002-2006, and GNU GPL'd, by Julian Seward et al.
-==3628== Using LibVEX rev 1658, a library for dynamic binary translation.
-==3628== Copyright (C) 2004-2006, and GNU GPL'd, by OpenWorks LLP.
-==3628== Using valgrind-3.2.1, a dynamic binary instrumentation framework.
-==3628== Copyright (C) 2000-2006, and GNU GPL'd, by Julian Seward et al.
-==3628== For more details, rerun with: -v
-==3628== 
-==3628== My PID = 3628, parent PID = 3627.  Prog and args are:
-==3628==    ./tgtd
-==3628==    -f
-==3628== 
-==3628== Invalid read of size 2
-==3628==    at 0x406373: tgt_device_update (target.c:348)
-==3628==    by 0x4045CA: device_mgmt (mgmt.c:179)
-==3628==    by 0x40492A: tgt_mgmt (mgmt.c:278)
-==3628==    by 0x405208: autoconf_iscsi_osdemu (mgmt.c:546)
-==3628==    by 0x4055DC: ipc_init (mgmt.c:653)
-==3628==    by 0x4040E2: main (tgtd.c:335)
-==3628==  Address 0x4E62544 is 12 bytes inside a block of size 13 alloc'd
-==3628==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
-==3628==    by 0x4051C1: autoconf_iscsi_osdemu (mgmt.c:540)
-==3628==    by 0x4055DC: ipc_init (mgmt.c:653)
-==3628==    by 0x4040E2: main (tgtd.c:335)
-==3628== 
-==3628== Invalid read of size 1
-==3628==    at 0x40637B: tgt_device_update (target.c:348)
-==3628==    by 0x4045CA: device_mgmt (mgmt.c:179)
-==3628==    by 0x40492A: tgt_mgmt (mgmt.c:278)
-==3628==    by 0x405208: autoconf_iscsi_osdemu (mgmt.c:546)
-==3628==    by 0x4055DC: ipc_init (mgmt.c:653)
-==3628==    by 0x4040E2: main (tgtd.c:335)
-==3628==  Address 0x4E62546 is 1 bytes after a block of size 13 alloc'd
-==3628==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
-==3628==    by 0x4051C1: autoconf_iscsi_osdemu (mgmt.c:540)
-==3628==    by 0x4055DC: ipc_init (mgmt.c:653)
-==3628==    by 0x4040E2: main (tgtd.c:335)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41EC95: obj_insert (obj.c:24)
-==3628==    by 0x417ED7: osd_initialize_db (osd.c:605)
-==3628==    by 0x41820C: osd_open (osd.c:674)
-==3628==    by 0x418D36: osd_format_osd (osd.c:981)
-==3628==    by 0x41B906: exec_service_action (cdb.c:620)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41CA24: attr_set_attr (attr.c:46)
-==3628==    by 0x417F74: osd_initialize_db (osd.c:612)
-==3628==    by 0x41820C: osd_open (osd.c:674)
-==3628==    by 0x418D36: osd_format_osd (osd.c:981)
-==3628==    by 0x41B906: exec_service_action (cdb.c:620)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41CA24: attr_set_attr (attr.c:46)
-==3628==    by 0x41801F: osd_initialize_db (osd.c:625)
-==3628==    by 0x41820C: osd_open (osd.c:674)
-==3628==    by 0x418D36: osd_format_osd (osd.c:981)
-==3628==    by 0x41B906: exec_service_action (cdb.c:620)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41CA24: attr_set_attr (attr.c:46)
-==3628==    by 0x418066: osd_initialize_db (osd.c:632)
-==3628==    by 0x41820C: osd_open (osd.c:674)
-==3628==    by 0x418D36: osd_format_osd (osd.c:981)
-==3628==    by 0x41B906: exec_service_action (cdb.c:620)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41EC95: obj_insert (obj.c:24)
-==3628==    by 0x4189EF: osd_create_partition (osd.c:886)
-==3628==    by 0x41AEDA: cdb_create_partition (cdb.c:436)
-==3628==    by 0x41B736: exec_service_action (cdb.c:587)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628==    by 0x40F388: iscsi_scsi_cmd_execute (iscsid.c:1103)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41F395: obj_ispresent (obj.c:191)
-==3628==    by 0x4184FD: osd_create (osd.c:783)
-==3628==    by 0x41AD32: cdb_create (cdb.c:396)
-==3628==    by 0x41B5E8: exec_service_action (cdb.c:563)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628==    by 0x40F388: iscsi_scsi_cmd_execute (iscsid.c:1103)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41EFD5: obj_get_nextoid (obj.c:109)
-==3628==    by 0x418542: osd_create (osd.c:790)
-==3628==    by 0x41AD32: cdb_create (cdb.c:396)
-==3628==    by 0x41B5E8: exec_service_action (cdb.c:563)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628==    by 0x40F388: iscsi_scsi_cmd_execute (iscsid.c:1103)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41EC95: obj_insert (obj.c:24)
-==3628==    by 0x4185D9: osd_create (osd.c:806)
-==3628==    by 0x41AD32: cdb_create (cdb.c:396)
-==3628==    by 0x41B5E8: exec_service_action (cdb.c:563)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628==    by 0x40F388: iscsi_scsi_cmd_execute (iscsid.c:1103)
-==3628== 
-==3628== Conditional jump or move depends on uninitialised value(s)
-==3628==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
-==3628==    by 0x41CA24: attr_set_attr (attr.c:46)
-==3628==    by 0x4186A5: osd_create (osd.c:818)
-==3628==    by 0x41AD32: cdb_create (cdb.c:396)
-==3628==    by 0x41B5E8: exec_service_action (cdb.c:563)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628==    by 0x40F388: iscsi_scsi_cmd_execute (iscsid.c:1103)
-==3628== 
-==3628== ERROR SUMMARY: 90 errors from 11 contexts (suppressed: 5 from 1)
-==3628== malloc/free: in use at exit: 35,347 bytes in 20 blocks.
-==3628== malloc/free: 7,868 allocs, 7,848 frees, 3,342,779 bytes allocated.
-==3628== For counts of detected errors, rerun with: -v
-==3628== searching for pointers to 20 not-freed blocks.
-==3628== checked 284,448 bytes.
-==3628== 
-==3628== 
-==3628== 33 bytes in 3 blocks are definitely lost in loss record 3 of 12
-==3628==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
-==3628==    by 0x3771275221: strdup (in /lib64/libc-2.5.so)
-==3628==    by 0x4089F6: tgt_target_create (target.c:1189)
-==3628==    by 0x4041E7: target_mgmt (mgmt.c:81)
-==3628==    by 0x404903: tgt_mgmt (mgmt.c:275)
-==3628==    by 0x405015: autoconf_iscsi_osdemu (mgmt.c:505)
-==3628==    by 0x4055DC: ipc_init (mgmt.c:653)
-==3628==    by 0x4040E2: main (tgtd.c:335)
-==3628== 
-==3628== 
-==3628== 48 bytes in 1 blocks are definitely lost in loss record 4 of 12
-==3628==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
-==3628==    by 0x4057CA: it_nexus_create (target.c:93)
-==3628==    by 0x4164E8: session_create (session.c:110)
-==3628==    by 0x40D8D6: login_finish (iscsid.c:410)
-==3628==    by 0x40DD16: cmnd_exec_login (iscsid.c:575)
-==3628==    by 0x40E2C8: cmnd_execute (iscsid.c:700)
-==3628==    by 0x410D72: iscsi_rx_handler (iscsid.c:1715)
-==3628==    by 0x4110D3: iscsi_event_handler (iscsid.c:1823)
-==3628==    by 0x403D06: event_loop (tgtd.c:230)
-==3628==    by 0x4040FA: main (tgtd.c:339)
-==3628== 
-==3628== 
-==3628== 120 bytes in 3 blocks are possibly lost in loss record 5 of 12
-==3628==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
-==3628==    by 0x4038E3: tgt_event_add (tgtd.c:141)
-==3628==    by 0x413DA7: iscsi_tcp_init (iscsi_tcp.c:174)
-==3628==    by 0x4138C8: iscsi_init (transport.c:22)
-==3628==    by 0x403D72: lld_init (tgtd.c:243)
-==3628==    by 0x403FD1: main (tgtd.c:304)
-==3628== 
-==3628== 
-==3628== 16,608 bytes in 4 blocks are definitely lost in loss record 12 of 12
-==3628==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
-==3628==    by 0x3771290618: __alloc_dir (in /lib64/libc-2.5.so)
-==3628==    by 0x37712906E7: opendir (in /lib64/libc-2.5.so)
-==3628==    by 0x416B10: empty_dir (osd.c:171)
-==3628==    by 0x418CA0: osd_format_osd (osd.c:967)
-==3628==    by 0x41B906: exec_service_action (cdb.c:620)
-==3628==    by 0x41C245: osdemu_cmd_submit (cdb.c:807)
-==3628==    by 0x40B9A6: bs_osdemu_cmd_submit (bs_osdemu.c:80)
-==3628==    by 0x40A103: osd_varlen_cdb (osd.c:159)
-==3628==    by 0x40A49F: scsi_cmd_perform (scsi.c:122)
-==3628==    by 0x4066EB: target_cmd_queue (target.c:431)
-==3628==    by 0x40F2F4: iscsi_target_cmd_queue (iscsid.c:1086)
-==3628== 
-==3628== LEAK SUMMARY:
-==3628==    definitely lost: 16,689 bytes in 8 blocks.
-==3628==      possibly lost: 120 bytes in 3 blocks.
-==3628==    still reachable: 18,538 bytes in 9 blocks.
-==3628==         suppressed: 0 bytes in 0 blocks.
-==3628== Reachable blocks (those to which a pointer was found) are not shown.
-==3628== To see them, rerun with: --show-reachable=yes
+==4294== Memcheck, a memory error detector.
+==4294== Copyright (C) 2002-2006, and GNU GPL'd, by Julian Seward et al.
+==4294== Using LibVEX rev 1658, a library for dynamic binary translation.
+==4294== Copyright (C) 2004-2006, and GNU GPL'd, by OpenWorks LLP.
+==4294== Using valgrind-3.2.1, a dynamic binary instrumentation framework.
+==4294== Copyright (C) 2000-2006, and GNU GPL'd, by Julian Seward et al.
+==4294== For more details, rerun with: -v
+==4294== 
+==4294== My PID = 4294, parent PID = 4293.  Prog and args are:
+==4294==    ./tgtd
+==4294==    -f
+==4294== 
+==4294== Invalid read of size 2
+==4294==    at 0x4063B3: tgt_device_update (target.c:348)
+==4294==    by 0x40460A: device_mgmt (mgmt.c:179)
+==4294==    by 0x40496A: tgt_mgmt (mgmt.c:278)
+==4294==    by 0x405248: autoconf_iscsi_osdemu (mgmt.c:546)
+==4294==    by 0x40561C: ipc_init (mgmt.c:653)
+==4294==    by 0x404122: main (tgtd.c:335)
+==4294==  Address 0x4E62544 is 12 bytes inside a block of size 13 alloc'd
+==4294==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==4294==    by 0x405201: autoconf_iscsi_osdemu (mgmt.c:540)
+==4294==    by 0x40561C: ipc_init (mgmt.c:653)
+==4294==    by 0x404122: main (tgtd.c:335)
+==4294== 
+==4294== Invalid read of size 1
+==4294==    at 0x4063BB: tgt_device_update (target.c:348)
+==4294==    by 0x40460A: device_mgmt (mgmt.c:179)
+==4294==    by 0x40496A: tgt_mgmt (mgmt.c:278)
+==4294==    by 0x405248: autoconf_iscsi_osdemu (mgmt.c:546)
+==4294==    by 0x40561C: ipc_init (mgmt.c:653)
+==4294==    by 0x404122: main (tgtd.c:335)
+==4294==  Address 0x4E62546 is 1 bytes after a block of size 13 alloc'd
+==4294==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==4294==    by 0x405201: autoconf_iscsi_osdemu (mgmt.c:540)
+==4294==    by 0x40561C: ipc_init (mgmt.c:653)
+==4294==    by 0x404122: main (tgtd.c:335)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41ECE9: obj_insert (obj.c:24)
+==4294==    by 0x417F2C: osd_initialize_db (osd.c:609)
+==4294==    by 0x418261: osd_open (osd.c:678)
+==4294==    by 0x418D8B: osd_format_osd (osd.c:985)
+==4294==    by 0x41B95A: exec_service_action (cdb.c:620)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41CA78: attr_set_attr (attr.c:46)
+==4294==    by 0x417FC9: osd_initialize_db (osd.c:616)
+==4294==    by 0x418261: osd_open (osd.c:678)
+==4294==    by 0x418D8B: osd_format_osd (osd.c:985)
+==4294==    by 0x41B95A: exec_service_action (cdb.c:620)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41CA78: attr_set_attr (attr.c:46)
+==4294==    by 0x418074: osd_initialize_db (osd.c:629)
+==4294==    by 0x418261: osd_open (osd.c:678)
+==4294==    by 0x418D8B: osd_format_osd (osd.c:985)
+==4294==    by 0x41B95A: exec_service_action (cdb.c:620)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41CA78: attr_set_attr (attr.c:46)
+==4294==    by 0x4180BB: osd_initialize_db (osd.c:636)
+==4294==    by 0x418261: osd_open (osd.c:678)
+==4294==    by 0x418D8B: osd_format_osd (osd.c:985)
+==4294==    by 0x41B95A: exec_service_action (cdb.c:620)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41ECE9: obj_insert (obj.c:24)
+==4294==    by 0x418A44: osd_create_partition (osd.c:890)
+==4294==    by 0x41AF2E: cdb_create_partition (cdb.c:436)
+==4294==    by 0x41B78A: exec_service_action (cdb.c:587)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294==    by 0x40F3D4: iscsi_scsi_cmd_execute (iscsid.c:1103)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41F3E9: obj_ispresent (obj.c:191)
+==4294==    by 0x418552: osd_create (osd.c:787)
+==4294==    by 0x41AD86: cdb_create (cdb.c:396)
+==4294==    by 0x41B63C: exec_service_action (cdb.c:563)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294==    by 0x40F3D4: iscsi_scsi_cmd_execute (iscsid.c:1103)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41F029: obj_get_nextoid (obj.c:109)
+==4294==    by 0x418597: osd_create (osd.c:794)
+==4294==    by 0x41AD86: cdb_create (cdb.c:396)
+==4294==    by 0x41B63C: exec_service_action (cdb.c:563)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294==    by 0x40F3D4: iscsi_scsi_cmd_execute (iscsid.c:1103)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41ECE9: obj_insert (obj.c:24)
+==4294==    by 0x41862E: osd_create (osd.c:810)
+==4294==    by 0x41AD86: cdb_create (cdb.c:396)
+==4294==    by 0x41B63C: exec_service_action (cdb.c:563)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294==    by 0x40F3D4: iscsi_scsi_cmd_execute (iscsid.c:1103)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41CA78: attr_set_attr (attr.c:46)
+==4294==    by 0x4186FA: osd_create (osd.c:822)
+==4294==    by 0x41AD86: cdb_create (cdb.c:396)
+==4294==    by 0x41B63C: exec_service_action (cdb.c:563)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294==    by 0x40F3D4: iscsi_scsi_cmd_execute (iscsid.c:1103)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41F3E9: obj_ispresent (obj.c:191)
+==4294==    by 0x4185D6: osd_create (osd.c:800)
+==4294==    by 0x41AD86: cdb_create (cdb.c:396)
+==4294==    by 0x41B63C: exec_service_action (cdb.c:563)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294==    by 0x40F340: iscsi_target_cmd_queue (iscsid.c:1086)
+==4294==    by 0x40F3D4: iscsi_scsi_cmd_execute (iscsid.c:1103)
+==4294== 
+==4294== Conditional jump or move depends on uninitialised value(s)
+==4294==    at 0x3772E30112: sqlite3_prepare (in /usr/lib64/libsqlite3.so.0.8.6)
+==4294==    by 0x41F85E: obj_get_type (obj.c:280)
+==4294==    by 0x41920F: get_obj_type (osd.c:93)
+==4294==    by 0x418EAD: osd_getattr_list (osd.c:1044)
+==4294==    by 0x41A80D: get_attr_list (cdb.c:216)
+==4294==    by 0x41ABD4: get_attributes (cdb.c:333)
+==4294==    by 0x41B9B2: exec_service_action (cdb.c:628)
+==4294==    by 0x41C299: osdemu_cmd_submit (cdb.c:807)
+==4294==    by 0x40B9F2: bs_osdemu_cmd_submit (bs_osdemu.c:80)
+==4294==    by 0x40A14F: osd_varlen_cdb (osd.c:159)
+==4294==    by 0x40A4EB: scsi_cmd_perform (scsi.c:122)
+==4294==    by 0x40672B: target_cmd_queue (target.c:431)
+==4294== 
+==4294== ERROR SUMMARY: 390 errors from 13 contexts (suppressed: 5 from 1)
+==4294== malloc/free: in use at exit: 18,818 bytes in 21 blocks.
+==4294== malloc/free: 28,320 allocs, 28,299 frees, 12,978,926 bytes allocated.
+==4294== For counts of detected errors, rerun with: -v
+==4294== searching for pointers to 21 not-freed blocks.
+==4294== checked 284,448 bytes.
+==4294== 
+==4294== 
+==4294== 48 bytes in 1 blocks are definitely lost in loss record 3 of 11
+==4294==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==4294==    by 0x40580A: it_nexus_create (target.c:93)
+==4294==    by 0x416534: session_create (session.c:110)
+==4294==    by 0x40D922: login_finish (iscsid.c:410)
+==4294==    by 0x40DD62: cmnd_exec_login (iscsid.c:575)
+==4294==    by 0x40E314: cmnd_execute (iscsid.c:700)
+==4294==    by 0x410DBE: iscsi_rx_handler (iscsid.c:1715)
+==4294==    by 0x41111F: iscsi_event_handler (iscsid.c:1823)
+==4294==    by 0x403D46: event_loop (tgtd.c:230)
+==4294==    by 0x40413A: main (tgtd.c:339)
+==4294== 
+==4294== 
+==4294== 112 bytes in 8 blocks are definitely lost in loss record 4 of 11
+==4294==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==4294==    by 0x3771275221: strdup (in /lib64/libc-2.5.so)
+==4294==    by 0x418206: osd_open (osd.c:674)
+==4294==    by 0x40B883: bs_osdemu_open (bs_osdemu.c:39)
+==4294==    by 0x405C9F: tgt_device_path_update (target.c:169)
+==4294==    by 0x405ED6: tgt_device_create (target.c:232)
+==4294==    by 0x4045D4: device_mgmt (mgmt.c:173)
+==4294==    by 0x40496A: tgt_mgmt (mgmt.c:278)
+==4294==    by 0x4051A0: autoconf_iscsi_osdemu (mgmt.c:533)
+==4294==    by 0x40561C: ipc_init (mgmt.c:653)
+==4294==    by 0x404122: main (tgtd.c:335)
+==4294== 
+==4294== 
+==4294== 120 bytes in 3 blocks are possibly lost in loss record 5 of 11
+==4294==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==4294==    by 0x403923: tgt_event_add (tgtd.c:141)
+==4294==    by 0x413DF3: iscsi_tcp_init (iscsi_tcp.c:174)
+==4294==    by 0x413914: iscsi_init (transport.c:22)
+==4294==    by 0x403DB2: lld_init (tgtd.c:243)
+==4294==    by 0x404011: main (tgtd.c:304)
+==4294== 
+==4294== LEAK SUMMARY:
+==4294==    definitely lost: 160 bytes in 9 blocks.
+==4294==      possibly lost: 120 bytes in 3 blocks.
+==4294==    still reachable: 18,538 bytes in 9 blocks.
+==4294==         suppressed: 0 bytes in 0 blocks.
+==4294== Reachable blocks (those to which a pointer was found) are not shown.
+==4294== To see them, rerun with: --show-reachable=yes

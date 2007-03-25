@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <stdint.h>
 #include <scsi/scsi.h>
+#include <valgrind/memcheck.h>
 
 /* #define BSG_BACK_TO_SG_IOVEC */
 
@@ -846,6 +847,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 
 	p = header->retrieved_buf;
 	len = command->inlen - header->start_retrieved;
+	VALGRIND_MAKE_MEM_DEFINED(p, len);
 
 	/*
 	 * If getpage, just copy it in and done.  Assumes checking was

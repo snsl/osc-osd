@@ -7,17 +7,9 @@
 #include <errno.h>
 
 #include "util/util.h"
+#include "util/bsg.h"
 #include "command.h"
 #include "device.h"
-
-/*
- * Include kernel header directly (bad).  Need to define some kernel
- * data types for that to work.
- */
-typedef  int32_t __s32;
-typedef uint32_t __u32;
-typedef uint64_t __u64;
-#include <linux/bsg.h>
 
 int osd_submit_command(int fd, struct osd_command *command)
 {
@@ -49,7 +41,8 @@ int osd_submit_command(int fd, struct osd_command *command)
 		return -errno;
 	}
 	if (ret != sizeof(sg)) {
-		osd_error("%s: short write, %d not %zu", __func__, ret, sizeof(sg));
+		osd_error("%s: short write, %d not %zu", __func__, ret,
+			  sizeof(sg));
 		return -EIO;
 	}
 	return 0;
@@ -72,7 +65,7 @@ int osd_wait_response(int fd, struct osd_command **out_command)
 		return -EPIPE;
 	}
 
-	command = (void *) sg.usr_ptr;
+	command = (void *)(uintptr_t) sg.usr_ptr;
 	if (command->inlen_alloc)
 		command->inlen = command->inlen_alloc - sg.din_resid;
 	command->status = sg.device_status;

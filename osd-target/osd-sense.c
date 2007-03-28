@@ -2,6 +2,7 @@
 #include <sys/types.h>
 #include <stdint.h>
 
+#include "target-sense.h"
 #include "util/osd-sense.h"
 #include "util/util.h"
 #include "util/osd-defs.h"

@@ -1,27 +1,6 @@
 #ifndef __OSD_SENSE_H
 #define __OSD_SENSE_H
 
-/* stage of command. osd2 rev 10 table 33, 34, 35 */
-/* setters */
-#define SET_OSD_VALIDATON_STG(s) (s = (s) | (0x1U << 7))
-#define SET_OSD_CMD_CAP_V_STG(s) (s = (s) | (0x1U << 5))
-#define SET_OSD_COMMAND_STG(s) (s = (s) | (0x1U << 4))
-#define SET_OSD_IMP_ST_ATT_STG (s = (s) | (0x1U << 12))
-#define SET_OSD_SA_CAP_V_STG (s = (s) | (0x1U << 21))
-#define SET_OSD_SET_ATT_STG (s = (s) | (0x1U << 20))
-#define SET_OSD_GA_CAP_V_STG (s = (s) | (0x1U << 29))
-#define SET_OSD_GET_ATT_STG (s = (s) | (0x1U << 28))
-
-/* unsetters */
-#define UNSET_OSD_VALIDATON_STG(s) (s = (s) & ~(0x1U << 7))
-#define UNSET_OSD_CMD_CAP_V_STG(s) (s = (s) | ~(0x1U << 5))
-#define UNSET_OSD_COMMAND_STG(s) (s = (s) | ~(0x1U << 4))
-#define UNSET_OSD_IMP_ST_ATT_STG (s = (s) | ~(0x1U << 12))
-#define UNSET_OSD_SA_CAP_V_STG (s = (s) | ~(0x1U << 21))
-#define UNSET_OSD_SET_ATT_STG (s = (s) | ~(0x1U << 20))
-#define UNSET_OSD_GA_CAP_V_STG (s = (s) | ~(0x1U << 29))
-#define UNSET_OSD_GET_ATT_STG (s = (s) | ~(0x1U << 28))
-
 /* scsi sense keys (SSK) defined in table 27, SPC3 r23 */
 #define OSD_SSK_NO_SENSE (0x00)
 #define OSD_SSK_RECOVERED_ERROR (0x01)
@@ -57,67 +36,5 @@
 #define OSD_ASC_SECURITY_AUDIT_VALUE_FROZEN (0x2405)
 #define OSD_ASC_SECURITY_WORKING_KEY_FROZEN (0x2406)
 #define OSD_ASC_SYSTEM_RESOURCE_FAILURE (0x5500)
-
-#define ASC(x) ((x & 0xFF00) >> 8)
-#define ASCQ(x) (x & 0x00FF)
-
-/* Descriptor format sense data (fsd). SPC3 r23, 4.5.2.1 */
-typedef struct scsi_desc_fsd {
-	uint8_t resp_code; /* 0x72 */
-	uint8_t sense_key;
-	uint8_t asc;
-	uint8_t ascq;
-	uint8_t reserved[3];
-	uint8_t add_sense_len;
-} scsi_desc_fsd_t;
-
-/*
- * These are sense descriptors.  One or more of them get tacked behind
- * a header that is assembled in stgt's descriptor_sense_data_build().
- */
-
-/* 
- * OSD error identification sense data descriptor (sdd). osd2 T10 r10, 
- * Sec 4.14.2.1 
- */
-typedef struct osd_err_id_sdd {
-    uint8_t key; /* 0x6 */
-    uint8_t add_len; /* 0x1E */
-    uint8_t reserved[6];
-    uint32_t not_initiated_cmd_funcs;
-    uint32_t completed_cmd_funcs;
-    uint64_t pid;
-    uint64_t oid;
-} __attribute__((packed)) osd_err_id_sdd_t;
-
-/* 
- * OSD attribute identification sense data descriptor (sdd). osd2 T10 r10 
- * 4.14.2.3 
- */
-typedef struct osd_attr_id_sdd_t {
-    uint8_t key; /* 0x8 */
-    uint8_t add_len; /* num attributes*8 - 2 */
-    uint8_t reserved[2];
-    uint32_t page;
-    uint32_t number;
-} __attribute__((packed)) osd_attr_id_sdd_t;
-
-int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
-		       uint8_t additional_len);
-int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
-		     uint32_t completed_funcs, uint64_t pid, uint64_t oid);
-int sense_csi_build(uint8_t *data, int len, uint64_t csi);
-int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
-                      uint64_t pid, uint64_t oid);
-int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
-		    uint64_t pid, uint64_t oid);
-int sense_build_sdd_csi(uint8_t *sense, uint8_t key, uint16_t code,
-		        uint64_t pid, uint64_t oid, uint64_t csi);
-
-static inline int sense_test_type(uint8_t *sense, uint8_t key, uint16_t code)
-{
-	return (sense[1] == key && sense[2] == ASC(code) && 
-		sense[3] == ASCQ(code));
-}
 
 #endif /* __OSD_SENSE_H */

@@ -4,7 +4,8 @@
 
 SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c list-entry.c
 SRC += osd-schema.c
-INC := attr.h db.h obj.h osd-types.h osd.h cdb.h target-defs.h list-entry.h
+INC := attr.h db.h obj.h osd-types.h osd.h cdb.h target-defs.h list-entry.h \
+       target-sense.h
 DEP := .depend
 OBJ := $(SRC:.c=.o)
 TESTDIR := ./tests/

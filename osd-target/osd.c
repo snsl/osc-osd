@@ -13,6 +13,7 @@
 #include "osd.h"
 #include "util/osd-defs.h"
 #include "target-defs.h"
+#include "target-sense.h"
 #include "db.h"
 #include "attr.h"
 #include "util/util.h"

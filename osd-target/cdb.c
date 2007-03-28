@@ -11,6 +11,7 @@
 #include "util/osd-sense.h"
 #include "util/osd-defs.h"
 #include "target-defs.h"
+#include "target-sense.h"
 #include "cdb.h"
 #include "util/util.h"
 

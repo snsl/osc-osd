@@ -25,7 +25,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	uint32_t len = buflen;
 
 	/* XXX: osd-errata: buf and buflen must be 8B aligned */
-	if((buflen & 0x7) || ((uint64_t)buf & 0x7)) 
+	if ((buflen & 0x7) || ((uintptr_t) buf & 0x7)) 
 		return -EINVAL; 
 
 	if (buflen < LE_MIN_ITEM_LEN)
@@ -48,7 +48,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	}
 
 	len = valen + LE_VAL_OFF;
-	pad = (0x8 - (len & 0x7)) & 0x7;
+	pad = roundup8(len) - len;
 	cp += len; 
 	len += pad;
 	while (pad--)

@@ -44,7 +44,8 @@ int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t type)
 
 	ret = sqlite3_step(stmt);
 	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: object %lu %lu exists!", __func__, pid, oid);
+		error_sql(db, "%s: object %llu %llu exists!", __func__,
+			  llu(pid), llu(oid));
 		goto out_finalize;
 	} 
 
@@ -78,8 +79,8 @@ int obj_delete(sqlite3 *db, uint64_t pid, uint64_t oid)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "DELETE FROM obj WHERE pid = %lu AND oid = %lu;",
-		pid, oid);
+	sprintf(SQL, "DELETE FROM obj WHERE pid = %llu AND oid = %llu;",
+		llu(pid), llu(oid));
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		sqlite3_free(err);

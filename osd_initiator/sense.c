@@ -833,8 +833,9 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 		/* ignore not_init and completed funcs */
 		pid = ntohll(&info[16]);
 		oid = ntohll(&info[24]);
-		pos += sprintf(s+pos, "  Offending pid 0x%016lx oid 0x%016lx\n",
-			       pid, oid);
+		pos += sprintf(s+pos,
+			       "  Offending pid 0x%016llx oid 0x%016llx\n",
+			       llu(pid), llu(oid));
 	}
 
 	if (info[0] == 0x8) {
@@ -879,7 +880,7 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 		/* not sure it is wise to always convert this to int, but
 		 * that is the use for read overflow at least */
 		csi = ntohll(&info[4]);
-		pos += sprintf(s+pos, "  Information 0x%016lx\n", csi);
+		pos += sprintf(s+pos, "  Information 0x%016llx\n", llu(csi));
 	}
 
 	/* consider adding attribute identification */

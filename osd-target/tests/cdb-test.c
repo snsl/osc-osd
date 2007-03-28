@@ -197,7 +197,7 @@ void test_create(struct osd_device *osd)
 		assert((uint32_t)len == (strlen(str2)+1));
 		assert(memcmp(&cp[LE_VAL_OFF], str2, len) == 0);
 		cp += len + LE_VAL_OFF;
-		pad = (0x8 - ((uint64_t)cp & 0x7)) & 0x7;
+		pad = (0x8 - ((uintptr_t)cp & 0x7)) & 0x7;
 		while (pad--)
 			assert(*cp == 0), cp++;
 		assert(ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB);
@@ -206,7 +206,7 @@ void test_create(struct osd_device *osd)
 		assert((uint32_t)len == (strlen(str1)+1));
 		assert(memcmp(&cp[LE_VAL_OFF], str1, len) == 0);
 		cp += len + LE_VAL_OFF;
-		pad = (0x8 - ((uint64_t)cp & 0x7)) & 0x7;
+		pad = (0x8 - ((uintptr_t)cp & 0x7)) & 0x7;
 		while (pad--)
 			assert(*cp == 0), cp++;
 	}

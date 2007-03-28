@@ -227,7 +227,7 @@ void osd_hexdump(const uint8_t *d, size_t len)
 		range = 8;
 		if (range > len-offset)
 			range = len-offset;
-		printf("%4lx:", offset);
+		printf("%4zx:", offset);
 		for (i=0; i<range; i++)
 			printf(" %02x", d[offset+i]);
 		printf("\n");

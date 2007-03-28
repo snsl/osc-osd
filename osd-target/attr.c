@@ -16,16 +16,12 @@
 /*
  * XXX: to avoid repeated mallocs, create this hack. a cleaner/clever
  * interface with list-entry will avoid this
+ * C-standard says static items are always initialized to zero.
  */
-struct blob_holder {
+static struct {
 	void *buf;
 	size_t sz;
-};
-
-static struct blob_holder attr_blob = {
-	.buf = NULL,
-	.sz = 0,
-};
+} attr_blob;
 
 /* 40 bytes including terminating NUL */
 static const char unidentified_page_identification[ATTR_PG_ID_LEN]
@@ -103,8 +99,8 @@ int attr_delete_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		return -EINVAL;
 
 	sprintf(SQL, "DELETE FROM attr WHERE "
-		" pid = %lu AND oid = %lu AND page = %u AND number = %u;", 
-		pid, oid, page, number);
+		" pid = %llu AND oid = %llu AND page = %u AND number = %u;", 
+		llu(pid), llu(oid), page, number);
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		osd_error("%s: sqlite3_exec : %s", __func__, err);
@@ -123,8 +119,8 @@ int attr_delete_all(sqlite3 *db, uint64_t pid, uint64_t oid)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "DELETE FROM attr WHERE pid = %lu AND oid = %lu;",
-		pid, oid);
+	sprintf(SQL, "DELETE FROM attr WHERE pid = %llu AND oid = %llu;",
+		llu(pid), llu(oid));
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		osd_error("%s: sqlite3_exec : %s", __func__, err);
@@ -133,6 +129,7 @@ int attr_delete_all(sqlite3 *db, uint64_t pid, uint64_t oid)
 
 	return ret;
 }
+
 /* 
  * Gather the results into list_entry format. Each row has page, number, len,
  * value. Look at queries in attr_get_attr attr_get_attr_page.  See page 163.
@@ -153,7 +150,7 @@ static int attr_gather_attr(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
 
 	if (attr_blob.sz < len) {
 		free(attr_blob.buf);
-		attr_blob.sz = len + ((0x8 - (len & 0x7)) & 0x7);
+		attr_blob.sz = roundup8(len);
 		attr_blob.buf = Malloc(attr_blob.sz);
 		if (!attr_blob.buf)
 			return -ENOMEM;
@@ -591,8 +588,8 @@ static int attr_gather_dir_page(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
 
 	if (attr_blob.sz < len) {
 		free(attr_blob.buf);
-		attr_blob.sz = (len + 7) & ~7;
-		attr_blob.buf = Calloc(attr_blob.sz, 1);
+		attr_blob.sz = roundup8(len);
+		attr_blob.buf = Malloc(attr_blob.sz);
 		if (!attr_blob.buf)
 			return -ENOMEM;
 	}

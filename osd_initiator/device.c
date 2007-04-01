@@ -33,7 +33,12 @@ int osd_submit_command(int fd, struct osd_command *command)
 		sg.din_xferp = (uint64_t) (uintptr_t) command->indata;
 		sg.din_iovec_count = command->iov_inlen;
 	}
-	sg.timeout = 3000;
+
+	/*
+	 * Allow 30 sec for entire command.  Some can be
+	 * slow, especially with debugging messages on.
+	 */
+	sg.timeout = 30000;
 	sg.usr_ptr = (uint64_t) (uintptr_t) command;
 	ret = write(fd, &sg, sizeof(sg));
 	if (ret < 0) {

@@ -46,6 +46,13 @@ osd_info(const char *fmt, ...)
 /*
  * XXX: later add first parameter "level".
  */
+#ifdef NDEBUG
+void __attribute__((format(printf,1,2)))
+osd_debug(const char *fmt, ...)
+{
+}
+
+#else
 void __attribute__((format(printf,1,2)))
 osd_debug(const char *fmt, ...)
 {
@@ -57,6 +64,7 @@ osd_debug(const char *fmt, ...)
 	va_end(ap);
 	fprintf(stderr, ".\n");
 }
+#endif
 
 /*
  * Warning, non-fatal.
@@ -167,7 +175,8 @@ Calloc(size_t nmemb, size_t n)
 	else {
 		x = calloc(nmemb, n);
 		if (!x)
-			osd_error("%s: couldn't get %zu bytes", __func__, nmemb * n);
+			osd_error("%s: couldn't get %zu bytes", __func__, 
+				  nmemb * n);
 	}
 	return x;
 }

@@ -1,4 +1,4 @@
-#build everything
+# build everything
 
 UTIL := ./util
 TRGT := ./osd-target
@@ -6,26 +6,35 @@ INIT := ./osd_initiator
 PVFS := ./pvfs
 STGT := ./stgt
 
-.PHONY: all trgt init pvfs
+.PHONY: all init trgt stgt util clean pvfs
 
-pvfs: init trgt
-	make -C $(PVFS) install
+all: init trgt
 
-init: trgt
+init: util
 	make -C $(INIT)
 	make -C $(INIT)/tests/
 	make -C $(INIT)/python
 
-# builds util, stgt, osd-target, osd-target/tests/
-trgt:  
-	make -C $(TRGT) 
+trgt: util stgt
+	make -C $(TRGT)
+	make -C $(TRGT)/tests
+
+stgt:
+	make -C $(STGT)
+
+util:
+	make -C $(UTIL)
 
 clean:
-	make -C util $@
-	make -C stgt $@
-	make -C osd_initiator/python $@
-	make -C osd_initiator/tests $@
-	make -C osd_initiator $@
-	make -C osd-target/tests $@
-	make -C osd-target $@
+	make -C $(UTIL) $@
+	make -C $(STGT) $@
+	make -C $(INIT)/python $@
+	make -C $(INIT)/tests $@
+	make -C $(INIT) $@
+	make -C $(TRGT)/tests $@
+	make -C $(TRGT) $@
+
+# XXX: must configure first, though.  Generally do not do this
+pvfs: util
+	make -C $(PVFS) install
 

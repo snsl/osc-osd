@@ -7,14 +7,16 @@ INC := util.h
 OBJ := $(SRC:.c=.o)
 LIB := libosdutil.a
 
+include ../Makedefs
+
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g -fPIC
+COPTS := $(OPT) -fPIC
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
-	-Wmissing-declarations -Wnested-externs -fPIC
-CFLAGS := $(COPTS) $(CWARN) -I. -Wno-unused
+	-Wmissing-declarations -Wnested-externs
+CFLAGS := $(COPTS) $(CWARN) -I.
 
 all:: $(LIB) $(OBJ)
 

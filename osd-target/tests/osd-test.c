@@ -202,7 +202,7 @@ void test_osd_get_ccap(struct osd_device *osd, uint64_t pid, uint64_t oid)
 
 	len = 1024;
 	used_len = 0;
-	ret = osd_getattr_page(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+	ret = osd_getattr_page(osd, pid, oid,
 			       CUR_CMD_ATTR_PG, val, len, TRUE, &used_len,
 			       sense);
 	assert(ret == 0);

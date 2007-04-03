@@ -18,10 +18,12 @@ STGTLIB := ../stgt/libstgt.a
 UTILLIB := ../util/libosdutil.a
 LIBS := -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common
 
+include ../Makedefs
+
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g -fPIC -D_GNU_SOURCE
+COPTS := $(OPT) -fPIC -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs 

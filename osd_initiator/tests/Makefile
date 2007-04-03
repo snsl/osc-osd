@@ -7,10 +7,12 @@ PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
 LIB := ../libosdinit.a ../../util/libosdutil.a
 
+include ../../Makedefs
+
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g
+COPTS := $(OPT)
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs

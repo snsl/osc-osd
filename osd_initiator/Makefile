@@ -7,10 +7,12 @@ INC := device.h sync.h drivelist.h command.h sense.h
 OBJ := $(SRC:.c=.o)
 LIB := libosdinit.a
 
+include ../Makedefs
+
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g -fPIC
+COPTS := $(OPT) -fPIC
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \
 	-Wmissing-declarations -Wnested-externs

@@ -371,7 +371,7 @@ int osd_command_attr_build(struct osd_command *command,
 	int use_getpage;
 	int numget, numgetpage, numgetmulti, numset;
 	uint32_t getsize, getpagesize, getmultisize, setsize;
-	uint32_t getmulti_num_objects;
+	uint32_t getmulti_num_objects = 0;
 	struct attr_malloc_header *header;
 	uint8_t *p, *extra_out_buf, *extra_in_buf;
 #ifdef BSG_BACK_TO_SG_IOVEC
@@ -921,7 +921,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 	 * Process retrieved entries, figuring out where they go.
 	 */
 	for (;;) {
-		uint64_t oid;
+		uint64_t oid = 0;
 		uint32_t page, number;
 		uint16_t item_len, pad;
 		uint16_t avail_len;

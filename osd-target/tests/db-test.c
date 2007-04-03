@@ -66,11 +66,14 @@ void test_attr(struct osd_device *osd)
 	uint32_t l = strlen(attr)+1+LE_VAL_OFF;
 	l += (0x8 - (l & 0x7)) & 0x7;
 	assert(len == l);
+#ifndef NDEBUG
+	/* ifdef to avoid unused warning */
 	struct list_entry *ent = (struct list_entry *)val;
 	assert(ntohl_le((uint8_t *)&ent->page) == 2);
 	assert(ntohl_le((uint8_t *)&ent->number) == 12);
 	assert(ntohs_le((uint8_t *)&ent->len) == strlen(attr)+1);
 	assert(strcmp((char *)ent + LE_VAL_OFF, attr) == 0); 
+#endif
 
 	/* get non-existing attr, must fail */
 	ret = attr_get_attr(osd->db, 2, 1, 2, 12, val, 1024, listfmt, &len);
@@ -195,7 +198,9 @@ void test_dir_page(struct osd_device *osd)
 	uint8_t buf[1024];
 	char pg3[] = "OSC     page 3 id                      ";
 	char pg4[] = "OSC     page 4 id                      ";
+#ifndef NDEBUG
 	char uid[] = "        unidentified attributes page   ";
+#endif
 	uint32_t used_len;
 	uint32_t val;
 

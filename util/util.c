@@ -44,29 +44,6 @@ osd_info(const char *fmt, ...)
 }
 
 /*
- * XXX: later add first parameter "level".
- */
-#ifdef NDEBUG
-void __attribute__((format(printf,1,2)))
-osd_debug(const char *fmt, ...)
-{
-}
-
-#else
-void __attribute__((format(printf,1,2)))
-osd_debug(const char *fmt, ...)
-{
-	va_list ap;
-
-	fprintf(stderr, "%s: ", progname);
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-	fprintf(stderr, ".\n");
-}
-#endif
-
-/*
  * Warning, non-fatal.
  */
 void __attribute__((format(printf,1,2)))

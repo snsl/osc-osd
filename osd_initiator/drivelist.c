@@ -59,6 +59,7 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	int count, fd, type;
 	char buf[512];
 	char *serial;
+	DIR *toplevel;
 
 	/*
 	 * Walk through /dev/bsg to find available devices.  Could look
@@ -66,12 +67,12 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	 * by hand in /tmp somewhere to use it, or figure out the mapping
 	 * in /dev anyway.
 	 */
-	DIR *toplevel = opendir("/dev/bsg");
+	count = 0;
+	toplevel = opendir("/dev/bsg");
 	if (!toplevel)
 		goto out;
 
 	/* First, get the count */
-	count = 0;
 	while ((entry = readdir(toplevel)))
 		++count;
 

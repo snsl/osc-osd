@@ -16,9 +16,11 @@ CMD_INC := $(CMD_SRC:.c=.h)
 
 LIBOSD := ../libosdtgt.a ../../util/libosdutil.a
 
+include ../../Makedefs
+
 CC := gcc
 CPP_M := -MM
-COPTS := -g
+COPTS := $(OPT)
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs

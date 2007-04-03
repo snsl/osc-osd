@@ -11,11 +11,13 @@ LIB := pyosd.so
 INCDIR := -I/usr/include/python2.4 -I../..
 OSDLIBS := ../libosdinit.a ../../util/libosdutil.a
 
+include ../../Makedefs
+
 # usual definitions
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g -fPIC
+COPTS := $(OPT) -fPIC
 CWARN := -Wall -W -Wno-missing-field-initializers \
          -Wpointer-arith -Wcast-align -Wcast-qual \
 	 -Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \

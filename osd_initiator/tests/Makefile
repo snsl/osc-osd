@@ -2,7 +2,7 @@
 # OSD initiator tests
 #
 
-PROGSRC := sgio.c generic_iface_test.c iovec.c
+PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
 LIB := ../libosdinit.a ../../util/libosdutil.a
@@ -22,6 +22,9 @@ all:: $(LIB) $(PROGEXE)
 
 %: %.o $(LIB)
 	$(CC) -o $@ $^ $(LIB)
+
+iospeed: %: %.o $(LIB)
+	$(CC) -o $@ $^ $(LIB) -lm
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

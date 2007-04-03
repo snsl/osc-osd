@@ -7,16 +7,16 @@
 
 /* Queries */
 int inquiry(int fd);
-int query(int fd, uint64_t pid, uint64_t cid, const char *query);
+int query(int fd, uint64_t pid, uint64_t cid, const uint8_t *query);
 /* Create */
 int create_osd(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_objects);
 int create_partition(int fd, uint64_t requested_pid);
 int create_collection(int fd, uint64_t pid, uint64_t requested_cid);
-int create_osd_and_write(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset);
+int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const uint8_t *buf, uint64_t len, uint64_t offset);
 /* Read/Write */
-int write_osd(int fd, uint64_t pid, uint64_t oid, const char *buf, uint64_t offset);
-int read_osd(int fd, uint64_t pid, uint64_t oid, uint64_t offset);
-int append_osd(int fd, uint64_t pid, uint64_t oid, const char *buf);
+int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf, uint64_t len, uint64_t offset);
+int read_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *buf, uint64_t len, uint64_t offset);
+int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf, uint64_t len);
 /* Remove */
 int remove_osd(int fd, uint64_t pid, uint64_t requested_oid);
 int remove_partition(int fd, uint64_t pid);
@@ -27,6 +27,7 @@ int format_osd(int fd, int capacity);
 int flush_osd(int fd, int flush_scope);
 int flush_partition(int fd, uint64_t pid, int flush_scope);
 int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope);
+int flush_object(int fd, uint64_t pid, uint64_t oid, int flush_scope);
 /* Get/Set Attributes */
 int get_attributes(int fd, uint64_t pid, uint64_t oid);
 int get_member_attributes(int fd, uint64_t pid, uint64_t cid);

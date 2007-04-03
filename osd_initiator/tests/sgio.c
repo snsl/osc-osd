@@ -22,9 +22,9 @@ static const uint16_t NUM_USER_OBJ = 1;
 static const uint64_t OFFSET = 0;
 static const int FLUSH_SCOPE = 2; /* Flush everything */
 static const int OBJ_CAPACITY = 1<<30; /* 1 GB */
-static const char WRITEDATA[] = "Write some data";
-static const char WRITEDATA2[] = "Test #2";
-static const char WRITEDATA3[] = "write data 3";
+static const uint8_t WRITEDATA[] = "Write some data";
+static const uint8_t WRITEDATA2[] = "Test #2";
+static const uint8_t WRITEDATA3[] = "write data 3";
 
 static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 {
@@ -178,7 +178,7 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 	int i, ret;
 	uint64_t len;
 	uint8_t *ts;  /* odd 6-byte timestamp */
-	const char data[] = "Some data.";
+	const uint8_t data[] = "Some data.";
 	/* const char attr_data[] = "An attribute.\n"; */
 	struct osd_command command;
 
@@ -214,7 +214,7 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 	};
 
 	/* so length will be interesting */
-	write_osd(fd, pid, oid, data, sizeof(data));
+	write_osd(fd, pid, oid, data, sizeof(data), 0);
 
 	ret = osd_command_set_get_attributes(&command, pid, oid);
 	if (ret) {
@@ -258,6 +258,7 @@ int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
 	struct osd_drive_description *drives;
+	uint8_t outbuf[100];
 
 	osd_set_progname(argc, argv); 
 
@@ -303,14 +304,14 @@ int main(int argc, char *argv[])
 		create_osd(fd, PID, OID+2, NUM_USER_OBJ);
 		remove_osd(fd, PID, OID+1);
 
-		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
-		read_osd(fd, PID, OID, OFFSET);
-		append_osd(fd, PID, OID, WRITEDATA2);
-		read_osd(fd, PID, OID, OFFSET);
-		write_osd(fd, PID, OID+2, WRITEDATA2, OFFSET);
-		read_osd(fd, PID, OID+2, OFFSET);
+		write_osd(fd, PID, OID, WRITEDATA, sizeof(WRITEDATA), OFFSET);
+		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
+		append_osd(fd, PID, OID, WRITEDATA2, sizeof(WRITEDATA2));
+		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
+		write_osd(fd, PID, OID+2, WRITEDATA2, sizeof(WRITEDATA2), OFFSET);
+		read_osd(fd, PID, OID+2, outbuf, sizeof(outbuf), OFFSET);
 	
-		read_osd(fd, PID, OID, OFFSET);
+		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
 
 #endif
 
@@ -327,7 +328,7 @@ int main(int argc, char *argv[])
 
 #if 1           /* Testing bidirectional operations. */
 		create_osd(fd, PID, OID+5, 1);
-		write_osd(fd, PID, OID+5, "sixty-seven", 12);
+		write_osd(fd, PID, OID+5, (const uint8_t *) "sixty-seven", 12, 0);
 		bidi_test(fd, PID, OID+5);
 		remove_osd(fd, PID, OID+5);
 #endif

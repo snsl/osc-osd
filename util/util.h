@@ -7,6 +7,7 @@
 #ifndef __UTIL_H
 #define __UTIL_H
 
+#include <stdint.h>
 #include <stdlib.h>
 
 extern const char *progname;

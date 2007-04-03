@@ -247,19 +247,17 @@ int main()
 	for (i=12; i<28; i++)
 		write_bw(&osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense,
 			 1 << i, iter, 0);
-#if 0
 	for (i=12; i<28; i++)
 		write_bw(&osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense,
 			 1 << i, iter, 1);
-#endif
 	for (i=12; i<28; i++)
 		read_bw(&osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense,
 			1 << i, iter, 0);
-/*
+
 	for (i=12; i<28; i++)
 		read_bw(&osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense,
 			1 << i, iter, 1);
-*/
+
 	ret = osd_remove(&osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	assert(ret == 0);
 

@@ -5,7 +5,7 @@
 PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
-LIB := ../libosdinit.a ../../util/libosdutil.a
+LIB :=  ../libosdinit.a ../../util/libosdutil.a
 
 include ../../Makedefs
 
@@ -20,10 +20,7 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -I../..
 
 all:: $(LIB) $(PROGEXE)
 
-%: %.o $(LIB)
-	$(CC) -o $@ $^ $(LIB)
-
-iospeed: %: %.o $(LIB)
+$(PROGEXE): %: %.o $(LIB)
 	$(CC) -o $@ $^ $(LIB) -lm
 
 %.o: %.c

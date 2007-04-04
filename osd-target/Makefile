@@ -16,7 +16,7 @@ OSDTARGETLIB := libosdtgt.a
 
 STGTLIB := ../stgt/libstgt.a
 UTILLIB := ../util/libosdutil.a
-LIBS := -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common
+LIBS := -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common
 
 include ../Makedefs
 

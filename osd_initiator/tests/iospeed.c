@@ -15,69 +15,6 @@
 #include "drivelist.h"
 #include "sync.h"
 
-#if defined(__x86_64__)
-	#define rdtsc(v) do { \
-        	unsigned int __a, __d; \
-        	asm volatile("rdtsc" : "=a" (__a), "=d" (__d)); \
-        	(v) = ((unsigned long)__a) | (((unsigned long)__d)<<32); \
-	} while(0)
-#elif defined(__i386__)
-	#define rdtsc(v) do { \
-		asm volatile("rdtsc" : "=A" (v)); \
-	} while (0)
-#endif
-
-static double mean(double *v, int N)
-{
-	int i = 0;
-	double mu = 0.0;
-
-	for (i = 0; i < N; i++)
-		mu += v[i];
-
-	return mu/N;
-}
-
-static double stddev(double *v, double mu, int N) 
-{
-	int i = 0;
-	double sd = 0.0;
-
-	for (i = 0; i < N; i++)
-		sd += (v[i] - mu)*(v[i] - mu);
-
-	return sqrt(sd/(N - 1));
-}
-
-static double get_mhz(void)
-{
-	FILE *fp;
-	char s[1024], *cp;
-	int found = 0;
-	double mhz;
-
-	if (!(fp = fopen("/proc/cpuinfo", "r")))
-		osd_error_fatal("Cannot open /proc/cpuinfo");
-
-	while (fgets(s, sizeof(s), fp)) {
-		if (!strncmp(s, "cpu MHz", 7)) {
-			found = 1;
-			for (cp=s; *cp && *cp != ':'; cp++) ;
-			if (!*cp)
-				osd_error_fatal("no colon found in string");
-			++cp;
-			if (sscanf(cp, "%lf", &mhz) != 1)
-				osd_error_fatal("scanf got no value");
-		}
-	}
-	if (!found)
-		osd_error_fatal("\"cpu MHz\" line not found\n");
-
-	fclose(fp); 
-
-	return mhz;
-}
-
 static uint64_t obj_create_any(int fd, uint64_t pid)
 {
 	struct osd_command command;

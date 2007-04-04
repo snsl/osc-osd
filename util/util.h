@@ -10,6 +10,18 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#if defined(__x86_64__)
+	#define rdtsc(v) do { \
+        	unsigned int __a, __d; \
+        	asm volatile("rdtsc" : "=a" (__a), "=d" (__d)); \
+        	(v) = ((unsigned long)__a) | (((unsigned long)__d)<<32); \
+	} while(0)
+#elif defined(__i386__)
+	#define rdtsc(v) do { \
+		asm volatile("rdtsc" : "=A" (v)); \
+	} while (0)
+#endif
+
 extern const char *progname;
 void osd_set_progname(int argc, char *const argv[]);
 void osd_info(const char *fmt, ...) __attribute__((format(printf,1,2)));
@@ -23,6 +35,9 @@ void *Calloc(size_t nmemb, size_t n) __attribute__((malloc));
 size_t osd_saferead(int fd, void *buf, size_t num);
 size_t osd_safewrite(int fd, const void *buf, size_t num);
 void osd_hexdump(const uint8_t *d, size_t len);
+double mean(double *v, int N);
+double stddev(double *v, double mu, int N);
+double get_mhz(void);
 
 /*
  * Disable debugging with -DNDEBUG in CFLAGS.  This also disables assert().

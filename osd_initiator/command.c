@@ -184,6 +184,8 @@ int osd_command_set_list(struct osd_command *command, uint64_t pid,
 			 uint64_t initial_oid, int list_attr)
 {
         varlen_cdb_init(command, OSD_LIST);
+	if (list_attr)
+		command->cdb[11] |= 0x40;
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[32], alloc_len);
         set_htonll(&command->cdb[40], initial_oid);
@@ -1029,16 +1031,18 @@ int osd_command_list_resolve(struct osd_command *command)
 	uint8_t *p = command->indata;
 	uint64_t addl_len = ntohll(&p[0]);
 	uint64_t cont_oid = ntohll(&p[8]);
-	uint64_t lid = ntohll(&p[16]);
+	uint32_t lid = ntohl(&p[16]);
 	int num_results = (addl_len - 24) / 8;
 	uint64_t list[num_results];
 	int i;
 
 	/*
-	 * For now, output the list elements (what should we do with them?
-	 * Make an uint64_t array in the osd_command struct? Somehow
-	 * return the uint64_t array? Merely display the results? 
-	*/
+	 * For now, output the list elements.  Later, work this into
+	 * the normal attr_resolve above.  Users have to specify what
+	 * attributes they want to get, so we know what to expect and
+	 * can fill in the results.  Just LIST has some different formats
+	 * not handled by the current (messy) attr_resolve.
+	 */
 	osd_debug("LID: %llu CONTINUE_OID: %llu", lid, cont_oid);
 	for (i=0; i < num_results; i++) {
 		list[i] = ntohll(&p[24+8*i]);

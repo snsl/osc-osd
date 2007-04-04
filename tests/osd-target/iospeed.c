@@ -102,8 +102,8 @@ void read_bw(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	double mu, sd;
 	double *b = NULL;
 	void *buf = NULL;
-	int ssk = OSD_SSK_RECOVERED_ERROR;
-	int asc = OSD_ASC_READ_PAST_END_OF_USER_OBJECT;
+	const uint8_t ssk = OSD_SSK_RECOVERED_ERROR;
+	const uint16_t asc = OSD_ASC_READ_PAST_END_OF_USER_OBJECT;
 
 	buf = malloc(sz);
 	b = malloc(iters * sizeof(*b));

@@ -14,7 +14,7 @@ CMD_OBJ := $(CMD:.c=.o)
 CMD_SRC := ../../osd_initiator/$(CMD)
 CMD_INC := $(CMD_SRC:.c=.h)
 
-LIBOSD := ../libosdtgt.a ../../util/libosdutil.a
+LIBOSD := ../../osd-target/libosdtgt.a ../../util/libosdutil.a
 
 include ../../Makedefs
 
@@ -24,7 +24,7 @@ COPTS := $(OPT)
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I. -I.. -I../../
+CFLAGS := $(COPTS) $(CWARN) -I. -I.. -I../../ -I../../osd-target/ 
 
 .SUFFIXES: .c .o .i
 
@@ -49,5 +49,8 @@ all :: $(DEP)
 $(DEP) :
 	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) $(CMD_SRC) > $(DEP) 
 	
+tags:
+	ctags -R $(TESTS) ../../osd-target/ ../../util/
+
 clean:
 	rm -f $(EXE) $(OBJ) $(CMD_OBJ) $(DEP)

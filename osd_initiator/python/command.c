@@ -559,9 +559,10 @@ static PyObject *pyosd_command_set_list(PyObject *self, PyObject *args)
 	struct osd_command *command = &py_command->command;
 	uint64_t pid, alloc_len, initial_oid;
 	uint32_t list_id;
+	int list_attr;
 
-	if (!PyArg_ParseTuple(args, "KIKK:set_list", &pid, &list_id, &alloc_len,
-			      &initial_oid))
+	if (!PyArg_ParseTuple(args, "KIKKi:set_list", &pid, &list_id,
+			      &alloc_len, &initial_oid, &list_attr))
 		return NULL;
 	if (py_command->set) {
 		PyErr_SetString(PyExc_RuntimeError, "command already set");
@@ -569,7 +570,8 @@ static PyObject *pyosd_command_set_list(PyObject *self, PyObject *args)
 	}
 
 	py_command->set = 1;
-	osd_command_set_list(command, pid, list_id, alloc_len, initial_oid);
+	osd_command_set_list(command, pid, list_id, alloc_len, initial_oid,
+			     list_attr);
 	Py_IncRef(self);
 	return self;
 }

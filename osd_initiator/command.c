@@ -181,13 +181,13 @@ int osd_command_set_get_member_attributes(struct osd_command *command,
 
 int osd_command_set_list(struct osd_command *command, uint64_t pid,
 			 uint32_t list_id, uint64_t alloc_len,
-			 uint64_t initial_oid)
+			 uint64_t initial_oid, int list_attr)
 {
         varlen_cdb_init(command, OSD_LIST);
         set_htonll(&command->cdb[16], pid);
-        set_htonl(&command->cdb[48], list_id);
         set_htonll(&command->cdb[32], alloc_len);
         set_htonll(&command->cdb[40], initial_oid);
+        set_htonl(&command->cdb[48], list_id);
         return 0;
 }
 
@@ -1024,3 +1024,26 @@ void osd_command_attr_free(struct osd_command *command)
 	free(command->attr_malloc);
 }
 
+int osd_command_list_resolve(struct osd_command *command)
+{
+	uint8_t *p = command->indata;
+	uint64_t addl_len = ntohll(&p[0]);
+	uint64_t cont_oid = ntohll(&p[8]);
+	uint64_t lid = ntohll(&p[16]);
+	int num_results = (addl_len - 24) / 8;
+	uint64_t list[num_results];
+	int i;
+
+	/*
+	 * For now, output the list elements (what should we do with them?
+	 * Make an uint64_t array in the osd_command struct? Somehow
+	 * return the uint64_t array? Merely display the results? 
+	*/
+	osd_debug("LID: %llu CONTINUE_OID: %llu", lid, cont_oid);
+	for (i=0; i < num_results; i++) {
+		list[i] = ntohll(&p[24+8*i]);
+		osd_debug("List Element: %llu", list[i]);
+	}
+
+	return 1;
+}

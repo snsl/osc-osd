@@ -53,9 +53,9 @@ struct osd_command {
 	struct attribute_list *attr;    /* [o] after attr_resolve() */
 	int numattr;                    /* [o] */
 	void *attr_malloc;		/* [x] internal use only */
-	
 };
 
+/* Setup the CDB */
 int osd_command_set_test_unit_ready(struct osd_command *command);
 int osd_command_set_inquiry(struct osd_command *command, uint8_t page_code,
 			    uint8_t outlen);
@@ -83,8 +83,8 @@ int osd_command_set_get_attributes(struct osd_command *command, uint64_t pid,
 int osd_command_set_get_member_attributes(struct osd_command *command,
 					  uint64_t pid, uint64_t cid);
 int osd_command_set_list(struct osd_command *command, uint64_t pid,
-			 uint32_t list_id, uint64_t alloc_len,
-			 uint64_t initial_oid);
+			 uint32_t list_id, uint64_t alloc_len, uint64_t initial_oid,
+			 int list_attr);
 int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
 				    uint64_t cid, uint32_t list_id,
 				    uint64_t alloc_len,
@@ -114,9 +114,12 @@ int osd_command_set_set_member_attributes(struct osd_command *command,
 					  uint64_t pid, uint64_t cid);
 int osd_command_set_write(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
+/* Attributes */
 int osd_command_attr_build(struct osd_command *command,
 			   const struct attribute_list *const attrs, int num);
 int osd_command_attr_resolve(struct osd_command *command);
 void osd_command_attr_free(struct osd_command *command);
+/* Lists */
+int osd_command_list_resolve(struct osd_command *command);
 
 #endif

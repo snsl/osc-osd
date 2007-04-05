@@ -418,8 +418,9 @@ double stddev(double *v, double mu, int N)
 
 	for (i = 0; i < N; i++)
 		sd += (v[i] - mu)*(v[i] - mu);
-
-	return sqrt(sd/(N - 1));
+	if (N > 1)
+		sd = sqrt(sd / (N-1));
+	return sd;
 }
 
 double get_mhz(void)

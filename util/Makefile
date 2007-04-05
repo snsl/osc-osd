@@ -3,7 +3,7 @@
 #
 
 SRC := util.c
-INC := util.h
+INC := util.h bsg.h osd-defs.h osd-sense.h
 OBJ := $(SRC:.c=.o)
 LIB := libosdutil.a
 

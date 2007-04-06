@@ -210,17 +210,18 @@ int main(int argc, char *argv[])
 
 	oid = obj_create_any(fd, PARTITION_PID_LB);
 
+	printf("# osd_initiator/tests/iospeed\n");
 	printf("# type  size (kB)  rate (MB/s) +- stdev\n");
-	for (i=4096; i<=262144; i<<=1)
+	for (i=4096; i<=262144; i+=4096)
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 	printf("\n\n");
-	for (i=4096; i<=262144; i<<=1)
+	for (i=4096; i<=262144; i+=4096)
 		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 	printf("\n\n");
-	for (i=4096; i<=262144; i<<=1)
+	for (i=4096; i<=262144; i+=4096)
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 1);
 	printf("\n\n");
-	for (i=4096; i<=262144; i<<=1)
+	for (i=4096; i<=262144; i+=4096)
 		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 1);
 	printf("\n\n");
 

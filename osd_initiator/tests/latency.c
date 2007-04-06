@@ -117,12 +117,15 @@ static void create_test(int fd, uint64_t pid)
 	struct osd_command command;
 	uint64_t oid = USEROBJECT_OID_LB;
 	const int iter = 10000;
+	struct attribute_list attr = { ATTR_GET, CUR_CMD_ATTR_PG,
+				       CCAP_OID, NULL, CCAP_OID_LEN, 0};
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
 		osd_error_fatal("out of memory");
 
 	osd_command_set_create(&command, pid, oid, 1);
+        osd_command_attr_build(&command, &attr, 1);
 
 	/* warm up */
 	for (i=0; i<50; i++) {
@@ -152,6 +155,8 @@ static void create_test(int fd, uint64_t pid)
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
 	printf("create  %9.3lf +- %8.3lf\n", mu, stdev);
+/*	for (i = 0; i < iter; i++)
+		printf("%lf\n", v[i]);*/
 	free(v);
 }
 

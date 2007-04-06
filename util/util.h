@@ -23,6 +23,7 @@
 #endif
 
 extern const char *progname;
+extern double mhz;
 void osd_set_progname(int argc, char *const argv[]);
 void osd_info(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void osd_warning(const char *fmt, ...) __attribute__((format(printf,1,2)));

@@ -17,7 +17,7 @@
 
 /* global */
 const char *progname = "(pre-main)";
-
+double mhz = -1.0;
 
 /*
  * Set the program name, first statement of code usually.

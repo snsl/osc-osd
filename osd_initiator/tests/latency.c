@@ -135,6 +135,7 @@ static void create_test(int fd, uint64_t pid)
 		set_htonll(&command.cdb[24], oid);
 	}
 
+	set_htonll(&command.cdb[24], 0);  /* auto-gen oid */
 	for (i=0; i<iter; i++) {
 		rdtsc(start);
 		ret = osd_submit_and_wait(fd, &command);
@@ -142,8 +143,11 @@ static void create_test(int fd, uint64_t pid)
 		assert(ret == 0);
 		delta = end - start;
 		v[i] = (double) delta / mhz;  /* time in usec */
+#if 0
+		/* much faster to select an oid than to use autogen */
 		++oid;
 		set_htonll(&command.cdb[24], oid);
+#endif
 	}
 
 	while (--oid >= USEROBJECT_OID_LB) {
@@ -154,6 +158,10 @@ static void create_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
+	/*
+	 * XXX: Be sure to pay attention to the values, they creep up
+	 * due to database overheads as the number of objects grows.
+	 */
 	printf("# create  %9.3lf +- %8.3lf\n", mu, stdev);
 	if (0) {
 		for (i=0; i<iter; i++)

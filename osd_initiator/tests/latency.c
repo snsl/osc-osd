@@ -47,7 +47,7 @@ static void noop_test(int fd)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("noop    %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("# noop    %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -66,7 +66,7 @@ static void getattr_test(int fd, uint64_t pid)
 		.number = UIAP_LOGICAL_LEN,
 		.len = 8,
 	};
-	const int iter = 100;
+	const int iter = 10000;
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
@@ -103,7 +103,7 @@ static void getattr_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("getattr %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("# getattr %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -154,9 +154,11 @@ static void create_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("create  %9.3lf +- %8.3lf\n", mu, stdev);
-/*	for (i = 0; i < iter; i++)
-		printf("%lf\n", v[i]);*/
+	printf("# create  %9.3lf +- %8.3lf\n", mu, stdev);
+	if (0) {
+		for (i=0; i<iter; i++)
+			printf("%9.3lf\n", v[i]);
+	}
 	free(v);
 }
 
@@ -207,7 +209,7 @@ static void remove_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("remove  %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("# remove  %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -248,7 +250,7 @@ static void create_remove_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("cr+rm   %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("# cr+rm   %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 

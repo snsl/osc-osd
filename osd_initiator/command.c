@@ -1043,10 +1043,10 @@ int osd_command_list_resolve(struct osd_command *command)
 	 * can fill in the results.  Just LIST has some different formats
 	 * not handled by the current (messy) attr_resolve.
 	 */
-	osd_debug("LID: %llu CONTINUE_OID: %llu", lid, cont_oid);
+	osd_debug("LID: %u CONTINUE_OID: %llu", lid, llu(cont_oid));
 	for (i=0; i < num_results; i++) {
 		list[i] = ntohll(&p[24+8*i]);
-		osd_debug("List Element: %llu", list[i]);
+		osd_debug("List Element: %llu", llu(list[i]));
 	}
 
 	return 1;

@@ -587,7 +587,7 @@ int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t 
 	 * partition. 
 	*/ 
 	if (list_id == 0) {
-	`	if (pid == 0) {
+		if (pid == 0) {
 			osd_debug("INITIAL_PID: %llu", llu(initial_oid));
 		} else {
 			osd_debug("PID: %llu INITIAL_OID: %llu", llu(pid), llu(initial_oid));

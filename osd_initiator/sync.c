@@ -564,7 +564,6 @@ int get_member_attributes(int fd, uint64_t pid, uint64_t cid)
 /* List */
 
 /*
- * we are assuming list_attr = 0 for now, will implement list_attr = 1 later 
  * See sec 6.14.1 in spec.
 */
 int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t alloc_len, int list_attr)
@@ -587,10 +586,15 @@ int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t 
 	 * we wish to list all the objects, starting with initial_oid, in that
 	 * partition. 
 	*/ 
-	if (pid == 0) {
-		osd_debug("INITIAL_PID: %llu", llu(initial_oid));
-	} else {
-		osd_debug("PID: %llu INITIAL_OID: %llu", llu(pid), llu(initial_oid));
+	if (list_id == 0) {
+	`	if (pid == 0) {
+			osd_debug("INITIAL_PID: %llu", llu(initial_oid));
+		} else {
+			osd_debug("PID: %llu INITIAL_OID: %llu", llu(pid), llu(initial_oid));
+		}
+	} 
+	else {
+		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id), llu(initial_oid));
 	}
 	
 	osd_debug("....creating command");

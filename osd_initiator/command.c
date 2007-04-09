@@ -1032,9 +1032,18 @@ int osd_command_list_resolve(struct osd_command *command)
 	uint64_t addl_len = ntohll(&p[0]);
 	uint64_t cont_oid = ntohll(&p[8]);
 	uint32_t lid = ntohl(&p[16]);
-	int num_results = (addl_len - 24) / 8;
+	int num_results = (addl_len-24)/8;
 	uint64_t list[num_results];
-	int i;
+	int i, listoid, list_attr;
+
+	listoid = (p[23] | 0x100);
+	char title[3];
+	(listoid ? strcpy(title, "OID") : strcpy(title, "PID"));
+
+	if (p[23] | 0x08)
+		list_attr = 1;
+	else if (p[23] | 0x04)
+		list_attr = 0;
 
 	/*
 	 * For now, output the list elements.  Later, work this into
@@ -1043,10 +1052,18 @@ int osd_command_list_resolve(struct osd_command *command)
 	 * can fill in the results.  Just LIST has some different formats
 	 * not handled by the current (messy) attr_resolve.
 	 */
-	osd_debug("LID: %u CONTINUE_OID: %llu", lid, llu(cont_oid));
+	if (lid || cont_oid)
+		osd_debug("LID: %u CONTINUE_OID: %llu", lid, llu(cont_oid));
+
 	for (i=0; i < num_results; i++) {
 		list[i] = ntohll(&p[24+8*i]);
-		osd_debug("List Element: %llu", llu(list[i]));
+		osd_debug("%s: %llu", title, llu(list[i]));
+
+		if (list_attr) {
+			/* List or store get/set attributes results in the 
+			 * command struct somehow, 
+			 * using a new method or perhaps attr_resolve? */ 
+		}
 	}
 
 	return 1;

@@ -15,8 +15,6 @@
 
 static const uint64_t PID = 0x10000LLU;
 static const uint64_t OID = 0x10000LLU;
-static const uint64_t CID = 0x10000LLU;
-static const uint32_t LIST_ID = 0x10009LLU;
 static const uint64_t PAGE = 0; 
 static const uint16_t NUM_USER_OBJ = 1;
 static const uint64_t OFFSET = 0;
@@ -298,7 +296,7 @@ int main(int argc, char *argv[])
 #endif
 
 		
-#if 1		/* Basic read / write seems to work */
+#if 0		/* Basic read / write seems to work */
 		create_osd(fd, PID, OID, NUM_USER_OBJ);
 		create_osd(fd, PID, OID+1, NUM_USER_OBJ);
 		create_osd(fd, PID, OID+2, NUM_USER_OBJ);
@@ -315,7 +313,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if 1           /* Testing iovec list. */
+#if 0           /* Testing iovec list. */
 		create_osd(fd, PID, OID+3, 1);
 		create_osd(fd, PID, OID+4, 1);
 
@@ -326,29 +324,25 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+4);
 #endif
 
-#if 1           /* Testing bidirectional operations. */
+#if 0           /* Testing bidirectional operations. */
 		create_osd(fd, PID, OID+5, 1);
 		write_osd(fd, PID, OID+5, (const uint8_t *) "sixty-seven", 12, 0);
 		bidi_test(fd, PID, OID+5);
 		remove_osd(fd, PID, OID+5);
 #endif
 
-#if 1           /* Testing attribute API */
+#if 0           /* Testing attribute API */
 		create_osd(fd, PID, OID+6, 1);
 		attr_test(fd, PID, OID+6);
 		remove_osd(fd, PID, OID+6);
 #endif
 
 
-#if 0		/* Testing stuff */
-		create_osd(fd, PID, OID, NUM_USER_OBJ+3);
-		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
-		write_osd(fd, PID, OID+1, WRITEDATA2, OFFSET);
-		write_osd(fd, PID, OID+2, WRITEDATA3, OFFSET);
-		get_attributes(fd, PID, OID);
-		object_list(fd, PID, LIST_ID, OID);
-		read_osd(fd, PID, OID+1, OFFSET);
-		get_attribute_page(fd, PAGE, OFFSET);
+#if 1		/* Testing stuff */
+		create_osd(fd, PID, OID, NUM_USER_OBJ);
+		create_osd(fd, PID, OID+1, NUM_USER_OBJ);
+		write_osd(fd, PID, OID, WRITEDATA, sizeof(WRITEDATA), OFFSET);
+		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
 #endif
 
 		close(fd);

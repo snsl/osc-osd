@@ -29,6 +29,8 @@ void osd_set_progname(int argc __unused, char *const argv[])
 	for (cp=progname=argv[0]; *cp; cp++)
 		if (*cp == '/')
 			progname = cp+1;
+	/* for timing tests */
+	mhz = get_mhz();
 }
 
 /*

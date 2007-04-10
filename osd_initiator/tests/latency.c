@@ -18,7 +18,6 @@ static void noop_test(int fd)
 {
 	int i, ret;
 	uint64_t start, end, delta;
-	double mhz = get_mhz();
 	double mu, stdev;
 	double *v;
 	struct osd_command command;
@@ -55,7 +54,6 @@ static void getattr_test(int fd, uint64_t pid)
 {
 	int i, ret;
 	uint64_t start, end, delta;
-	double mhz = get_mhz();
 	double mu, stdev;
 	double *v;
 	struct osd_command command;
@@ -111,7 +109,6 @@ static void create_test(int fd, uint64_t pid)
 {
 	int i, ret;
 	uint64_t start, end, delta;
-	double mhz = get_mhz();
 	double mu, stdev;
 	double *v;
 	struct osd_command command;
@@ -174,7 +171,6 @@ static void remove_test(int fd, uint64_t pid)
 {
 	int i, ret;
 	uint64_t start, end, delta;
-	double mhz = get_mhz();
 	double mu, stdev;
 	double *v;
 	struct osd_command command;
@@ -225,7 +221,6 @@ static void create_remove_test(int fd, uint64_t pid)
 {
 	int i, ret;
 	uint64_t start, end, delta;
-	double mhz = get_mhz();
 	double mu, stdev;
 	double *v;
 	struct osd_command command_create, command_remove;
@@ -266,7 +261,6 @@ static void get_set_attr(int fd, uint64_t pid)
 {
 	int i, ret;
 	uint64_t start, end, delta;
-	double mhz = get_mhz();
 	double mu, stdev;
 	double *v;
 	char attr_val[] = "deadbEEf";

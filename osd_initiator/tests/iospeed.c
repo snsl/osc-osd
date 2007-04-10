@@ -146,6 +146,8 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 			delta = end - start;
 
 			rdtsc(start);
+			/* XXX: this may be broken, numbers reported
+			 * are too big to be reasonable */
 			ret = flush_object(fd, pid, oid, 2);
 			rdtsc(end);
 			assert(ret == 0);

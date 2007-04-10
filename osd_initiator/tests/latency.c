@@ -262,6 +262,85 @@ static void create_remove_test(int fd, uint64_t pid)
 	free(v);
 }
 
+static void get_set_attr(int fd, uint64_t pid)
+{
+	int i, ret;
+	uint64_t start, end, delta;
+	double mhz = get_mhz();
+	double mu, stdev;
+	double *v;
+	char attr_val[] = "deadbEEf";
+	char ret_val[16];
+	struct osd_command command;
+	uint64_t oid = USEROBJECT_OID_LB;
+	struct attribute_list attr = {
+		.type = ATTR_SET,
+		.page = USEROBJECT_PG + LUN_PG_LB,
+		.number = 1,
+		.val = attr_val,
+		.len = sizeof(attr_val),
+	};
+	const int iter = 1000;
+	const int warm_iter = 5;
+
+	v = malloc(iter * sizeof(*v));
+	if (!v)
+		osd_error_fatal("out of memory");
+
+	osd_command_set_create(&command, pid, oid, 1);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
+
+	osd_command_set_set_attributes(&command, pid, oid);
+	osd_command_attr_build(&command, &attr, 1);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
+
+	attr.type = ATTR_GET;
+	attr.val = ret_val;
+	memset(ret_val, 0, sizeof(ret_val));
+	osd_command_set_get_attributes(&command, pid, oid);
+	osd_command_attr_build(&command, &attr, 1);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
+	osd_command_attr_resolve(&command);
+	assert(memcmp(attr_val, command.attr[0].val, sizeof(attr_val)) == 0);
+	/* free memory */
+	osd_command_attr_free(&command);
+
+
+	attr.type = ATTR_GET;
+	attr.val = ret_val;
+	memset(ret_val, 0, sizeof(ret_val));
+	osd_command_set_get_attributes(&command, pid, oid);
+	osd_command_attr_build(&command, &attr, 1);
+	/* warm up */
+	for (i=0; i<warm_iter; i++) {
+		ret = osd_submit_and_wait(fd, &command);
+		assert(ret == 0);
+	}
+
+	for (i=0; i<iter; i++) {
+		rdtsc(start);
+		ret = osd_submit_and_wait(fd, &command);
+		rdtsc(end);
+		assert(ret == 0);
+		delta = end - start;
+		v[i] = (double) delta / mhz;  /* time in usec */
+	}
+
+
+	osd_command_set_remove(&command, pid, oid);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
+	mu = mean(v, iter);
+	stdev = stddev(v, mu, iter);
+	printf("# getattr %9.3lf +- %8.3lf\n", mu, stdev);
+	for (i=0; i<iter; i++) 
+		printf("latency %lf\n", v[i]);
+	free(v);
+}
+
 int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
@@ -278,7 +357,7 @@ int main(int argc, char *argv[])
 		osd_error("%s: no drives", __func__);
 		return 1;
 	}
-	
+
 	i = 0;
 	osd_debug("drive %s name %s", drives[i].chardev, drives[i].targetname);
 	fd = open(drives[i].chardev, O_RDWR);
@@ -296,6 +375,7 @@ int main(int argc, char *argv[])
 	create_test(fd, PARTITION_PID_LB);
 	remove_test(fd, PARTITION_PID_LB);
 	create_remove_test(fd, PARTITION_PID_LB);
+	get_set_attr(fd, PARTITION_PID_LB);
 
 	close(fd);
 	return 0;

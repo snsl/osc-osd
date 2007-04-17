@@ -12,15 +12,15 @@
 #include "obj.h"
 #include "util/util.h"
 
-void test_obj(struct osd_device *osd);
-void test_dup_obj(struct osd_device *osd);
-void test_obj_manip(struct osd_device *osd);
-void test_pid_isempty(struct osd_device *osd);
-void test_get_obj_type(struct osd_device *osd);
-void test_attr(struct osd_device *osd);
-void test_dir_page(struct osd_device *osd);
+void test_obj(struct osd_hndl *osd);
+void test_dup_obj(struct osd_hndl *osd);
+void test_obj_manip(struct osd_hndl *osd);
+void test_pid_isempty(struct osd_hndl *osd);
+void test_get_obj_type(struct osd_hndl *osd);
+void test_attr(struct osd_hndl *osd);
+void test_dir_page(struct osd_hndl *osd);
 
-void test_obj(struct osd_device *osd)
+void test_obj(struct osd_hndl *osd)
 {
 	int ret = 0;
 
@@ -31,7 +31,7 @@ void test_obj(struct osd_device *osd)
 	assert(ret == 0);
 }
 
-void test_dup_obj(struct osd_device *osd)
+void test_dup_obj(struct osd_hndl *osd)
 {
 	int ret = 0;
 
@@ -46,7 +46,7 @@ void test_dup_obj(struct osd_device *osd)
 	assert(ret == 0);
 }
 
-void test_attr(struct osd_device *osd)
+void test_attr(struct osd_hndl *osd)
 {
 	int ret= 0;
 	const char *attr = "This is first attr";
@@ -82,7 +82,7 @@ void test_attr(struct osd_device *osd)
 	free(val);
 }
 
-void test_obj_manip(struct osd_device *osd)
+void test_obj_manip(struct osd_hndl *osd)
 {
 	int i = 0;
 	int ret = 0;
@@ -124,7 +124,7 @@ void test_obj_manip(struct osd_device *osd)
 	assert(ret == 0);
 }
 
-void test_pid_isempty(struct osd_device *osd)
+void test_pid_isempty(struct osd_hndl *osd)
 {
 	int ret = 0;
 
@@ -143,7 +143,7 @@ void test_pid_isempty(struct osd_device *osd)
 	assert(ret == 1);
 }
 
-void test_get_obj_type(struct osd_device *osd)
+void test_get_obj_type(struct osd_hndl *osd)
 {
 	int ret = 0;
 
@@ -182,7 +182,7 @@ void test_get_obj_type(struct osd_device *osd)
 	assert(ret == ILLEGAL_OBJ);
 }
 
-static inline void delete_obj(struct osd_device *osd, uint64_t pid, 
+static inline void delete_obj(struct osd_hndl *osd, uint64_t pid, 
 			      uint64_t oid)
 {
 	int ret = 0;
@@ -192,7 +192,7 @@ static inline void delete_obj(struct osd_device *osd, uint64_t pid,
 	assert (ret == 0);
 }
 
-void test_dir_page(struct osd_device *osd)
+void test_dir_page(struct osd_hndl *osd)
 {
 	int ret= 0;
 	uint8_t buf[1024];
@@ -262,7 +262,7 @@ int main()
 {
 	char path[]="/tmp/osd/osd.db";
 	int ret = 0;
-	struct osd_device osd;
+	struct osd_hndl osd;
 
 	ret = db_open(path, &osd);
 	assert(ret == 0);

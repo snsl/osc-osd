@@ -212,7 +212,7 @@ can be implemented as a sql view on page numbers 0
 +	write get page for timestamps
 
 # Fri Feb 23 15:07:22 EST 2007
--	include root info page struct in osd_device
+-	include root info page struct in osd_hndl
 -	osd error precision ??
 -	append
 +	split get_attr in cdb.c, handle command ordering, write test cases

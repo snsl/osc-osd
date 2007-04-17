@@ -83,7 +83,7 @@ static struct init_attr partition_info[] = {
 	{PARTITION_PG + 1, 0, "INCITS  T10 Partition Information"},
 };
 
-static inline uint8_t get_obj_type(struct osd_device *osd,
+static inline uint8_t get_obj_type(struct osd_hndl *osd,
 				   uint64_t pid, uint64_t oid)
 {
 	if (pid == ROOT_PID && oid == ROOT_OID) {
@@ -225,7 +225,7 @@ static inline void fill_ccap(struct cur_cmd_attr_pg *ccap, uint8_t *ricv,
  * -EINVAL: generic error
  * ==0: OSD_OK (success), used_outlen stores consumed outbuf len
  */
-static int get_ccap(struct osd_device *osd, void *outbuf, uint64_t outlen,
+static int get_ccap(struct osd_hndl *osd, void *outbuf, uint64_t outlen,
 		    uint32_t *used_outlen)
 {
 	int ret = 0;
@@ -270,7 +270,7 @@ out:
  * -EINVAL: if error, used_outlen not modified
  * ==0: OSD_OK (success), used_outlen stores consumed outbuf len
  */
-static int get_ccap_aslist(struct osd_device *osd, uint32_t number,
+static int get_ccap_aslist(struct osd_hndl *osd, uint32_t number,
 			   void *outbuf, uint64_t outlen,
 			   uint32_t *used_outlen)
 {
@@ -350,7 +350,7 @@ static inline int set_hton_time(uint8_t *dest, time_t t, time_t tnsec)
  * OSD_ERROR: generic system errors, used_outlen not modified
  * ==0: OSD_OK (success), used_outlen stores consumed outbuf len
  */
-static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
+static int get_utsap(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 		     void *outbuf, uint64_t outlen, uint32_t *used_outlen)
 {
 	int ret = 0;
@@ -424,7 +424,7 @@ out:
  * OSD_ERROR: used_outlen not set
  * OSD_OK: on success, sets used_outlen
  */
-static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
+static int get_utsap_aslist(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 			    uint32_t number, void *outbuf, uint64_t outlen,
 			    uint8_t listfmt, uint32_t *used_outlen)
 {
@@ -517,7 +517,7 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
  * OSD_ERROR: in case of error, does not set used_outlen
  * OSD_OK: on success, sets used_outlen
  */
-static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
+static int get_uiap(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 		    uint32_t page, uint32_t number, void *outbuf,
 		    uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen)
 {
@@ -593,7 +593,7 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
  * = 0: success
  * !=0: failure
  */
-static int osd_initialize_db(struct osd_device *osd)
+static int osd_initialize_db(struct osd_hndl *osd)
 {
 	int i = 0;
 	int ret = 0;
@@ -647,7 +647,7 @@ out:
 	return ret;
 }
 
-int osd_open(const char *root, struct osd_device *osd)
+int osd_open(const char *root, struct osd_hndl *osd)
 {
 	int ret;
 	char path[MAXNAMELEN];
@@ -694,7 +694,7 @@ out:
 	return ret;
 }
 
-int osd_close(struct osd_device *osd)
+int osd_close(struct osd_hndl *osd)
 {
 	int ret;
 
@@ -730,7 +730,7 @@ int osd_error_bad_cdb(uint8_t *sense)
 /*
  * Commands
  */
-int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
+int osd_append(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 	       uint64_t len, const uint8_t *data, uint8_t *sense)
 {
 	int ret;
@@ -741,7 +741,7 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 }
 
 
-static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
+static int osd_create_datafile(struct osd_hndl *osd, uint64_t pid,
 			       uint64_t oid)
 {
 	int ret = 0;
@@ -764,7 +764,7 @@ static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 	return 0;
 }
 
-static inline void osd_remove_tmp_objects(struct osd_device *osd, uint64_t pid,
+static inline void osd_remove_tmp_objects(struct osd_hndl *osd, uint64_t pid,
 					  uint64_t start_oid, uint64_t end_oid,
 					  uint8_t *sense)
 {
@@ -776,7 +776,7 @@ static inline void osd_remove_tmp_objects(struct osd_device *osd, uint64_t pid,
 /*
  * XXX: get/set attributes to be handled in cdb.c
  */
-int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
+int osd_create(struct osd_hndl *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t numoid, uint8_t *sense)
 {
 	int ret = 0;
@@ -908,7 +908,7 @@ out_hw_err:
 }
 
 
-int osd_create_and_write(struct osd_device *osd, uint64_t pid,
+int osd_create_and_write(struct osd_hndl *osd, uint64_t pid,
 			 uint64_t requested_oid, uint64_t len, uint64_t offset,
 			 const uint8_t *data, uint8_t *sense)
 {
@@ -917,7 +917,7 @@ int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 }
 
 /* osd2r01 sec. 6.5 */
-int osd_create_collection(struct osd_device *osd, uint64_t pid,
+int osd_create_collection(struct osd_hndl *osd, uint64_t pid,
 			  uint64_t requested_cid, uint8_t *sense)
 {
 	int ret = 0;
@@ -973,7 +973,7 @@ out_hw_err:
 			       requested_cid, 0);
 }
 
-int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
+int osd_create_partition(struct osd_hndl *osd, uint64_t requested_pid,
 			 uint8_t *sense)
 {
 	int ret = 0;
@@ -1013,7 +1013,7 @@ out_hw_err:
 			       requested_pid, 0);
 }
 
-int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
+int osd_flush(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 	      int flush_scope, uint8_t *sense)
 {
 	char path[MAXNAMELEN];
@@ -1056,7 +1056,7 @@ out_cdb_err:
 	return ret;
 }
 
-int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
+int osd_flush_collection(struct osd_hndl *osd, uint64_t pid, uint64_t cid,
 			 int flush_scope, uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1064,14 +1064,14 @@ int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 }
 
 
-int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense)
+int osd_flush_osd(struct osd_hndl *osd, int flush_scope, uint8_t *sense)
 {
 	osd_debug(__func__);
 	return osd_error_unimplemented(0, sense);
 }
 
 
-int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
+int osd_flush_partition(struct osd_hndl *osd, uint64_t pid, int flush_scope,
 			uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1081,7 +1081,7 @@ int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
 /*
  * Destroy the db and start over again.
  */
-int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
+int osd_format_osd(struct osd_hndl *osd, uint64_t capacity, uint8_t *sense)
 {
 	int ret;
 	char *root;
@@ -1144,7 +1144,7 @@ out:
 }
 
 static inline int
-mutiplex_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
+mutiplex_getattr_list(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 		      uint32_t page, uint32_t number, uint8_t *outbuf,
 		      uint32_t outlen, uint8_t isembedded, uint8_t listfmt,
 		      uint32_t *used_outlen, uint8_t *sense)
@@ -1170,7 +1170,7 @@ mutiplex_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
  * == OSD_OK: success, used_outlen modified
  *  >0: failed, sense set accordingly
  */
-int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
+int osd_getattr_list(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 		     uint32_t page, uint32_t number, uint8_t *outbuf,
 		     uint32_t outlen, uint8_t isembedded, uint8_t listfmt,
 		     uint32_t *used_outlen,  uint8_t *sense)
@@ -1272,7 +1272,7 @@ out_cdb_err:
  * == OSD_OK: success, used_outlen modified
  *  >0: failed, sense set accordingly
  */
-int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
+int osd_getattr_page(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 		     uint32_t page, void *outbuf, uint64_t outlen,
 		     uint8_t isembedded, uint32_t *used_outlen,
 		     uint8_t *sense)
@@ -1332,7 +1332,7 @@ out_cdb_err:
 }
 
 
-int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
+int osd_get_member_attributes(struct osd_hndl *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1347,7 +1347,7 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
  * ==0: success, used_outlen is set
  * > 0: error, sense is set
  */
-int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
+int osd_list(struct osd_hndl *osd, uint64_t pid, uint32_t list_id,
 	     uint64_t alloc_len, uint64_t initial_oid, int list_attr,
 	     uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
 {
@@ -1433,7 +1433,7 @@ out_hw_err:
 }
 
 
-int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
+int osd_list_collection(struct osd_hndl *osd, uint64_t pid, uint64_t cid,
 			uint32_t list_id, uint64_t alloc_len,
 			uint64_t initial_oid,  uint8_t *outdata,
 			uint64_t *outlen, uint8_t *sense)
@@ -1443,7 +1443,7 @@ int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 }
 
 
-int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
+int osd_query(struct osd_hndl *osd, uint64_t pid, uint64_t cid,
 	      uint32_t query_len, uint64_t alloc_len, uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1459,7 +1459,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
  * ==0: success, used_outlen is set
  * > 0: error, sense is set
  */
-int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+int osd_read(struct osd_hndl *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	     uint64_t offset, uint8_t *outdata, uint64_t *used_outlen,
 	     uint8_t *sense)
 {
@@ -1515,7 +1515,7 @@ out_cdb_err:
 }
 
 
-int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
+int osd_remove(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 	       uint8_t *sense)
 {
 	int ret = 0;
@@ -1565,7 +1565,7 @@ out_hw_err:
 }
 
 
-int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid, int force_removal,
+int osd_remove_collection(struct osd_hndl *osd, uint64_t pid, uint64_t cid, int force_removal,
 			  uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1573,7 +1573,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid, in
 }
 
 
-int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
+int osd_remove_member_objects(struct osd_hndl *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1585,7 +1585,7 @@ int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
  * ==0: OSD_OK on success
  *  >0: error, sense set approprirately
  */
-int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
+int osd_remove_partition(struct osd_hndl *osd, uint64_t pid, uint8_t *sense)
 {
 	int ret = 0;
 
@@ -1637,7 +1637,7 @@ out_not_empty:
  *
  * -	XXX: attr directory setting
  */
-int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
+int osd_set_attributes(struct osd_hndl *osd, uint64_t pid, uint64_t oid,
 		       uint32_t page, uint32_t number, const void *val,
 		       uint16_t len, uint8_t isembedded, uint8_t *sense)
 {
@@ -1732,7 +1732,7 @@ out_cdb_err:
 }
 
 
-int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
+int osd_set_key(struct osd_hndl *osd, int key_to_set, uint64_t pid,
 		uint64_t key, uint8_t seed[20], uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1740,7 +1740,7 @@ int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
 }
 
 
-int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
+int osd_set_master_key(struct osd_hndl *osd, int dh_step, uint64_t key,
 		       uint32_t param_len, uint32_t alloc_len,
 		       uint8_t *outdata, uint64_t *outlen, uint8_t *sense)
 {
@@ -1749,7 +1749,7 @@ int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
 }
 
 
-int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
+int osd_set_member_attributes(struct osd_hndl *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
 	osd_debug(__func__);
@@ -1767,7 +1767,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
  * @len: length of data to be written
  * @dinbuf: pointer to start of the Data-in-buffer: source of data
  */
-int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+int osd_write(struct osd_hndl *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense)
 {
 	int ret = 0;

@@ -10,6 +10,5 @@ Potential Bugs:
 	sqlite3_finalize grabs error code in case of failure
 
 Misc todos:
--	rename osd_device to osd_hndl
 -	magic constants for return values in db.c, attr.c, obj.c
 	

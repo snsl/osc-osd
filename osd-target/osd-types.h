@@ -90,7 +90,7 @@ struct __attribute__((packed)) cur_cmd_attr_pg {
 	uint64_t append_off;
 };
 
-struct osd_device {
+struct osd_hndl {
 	char *root;
 	sqlite3 *db;
 	struct cur_cmd_attr_pg ccap;

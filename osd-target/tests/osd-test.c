@@ -18,16 +18,16 @@
 #include "util/osd-sense.h"
 #include "target-sense.h"
 
-void test_osd_create(struct osd_device *osd);
-void test_osd_set_attributes(struct osd_device *osd);
-void test_osd_format(struct osd_device *osd);
-void test_osd_read_write(struct osd_device *osd);
-void test_osd_create_partition(struct osd_device *osd);
-void test_osd_get_attributes(struct osd_device *osd);
-void test_osd_get_ccap(struct osd_device *osd);
-void test_osd_get_utsap(struct osd_device *osd);
+void test_osd_create(struct osd_hndl *osd);
+void test_osd_set_attributes(struct osd_hndl *osd);
+void test_osd_format(struct osd_hndl *osd);
+void test_osd_read_write(struct osd_hndl *osd);
+void test_osd_create_partition(struct osd_hndl *osd);
+void test_osd_get_attributes(struct osd_hndl *osd);
+void test_osd_get_ccap(struct osd_hndl *osd);
+void test_osd_get_utsap(struct osd_hndl *osd);
 
-void test_osd_create(struct osd_device *osd)
+void test_osd_create(struct osd_hndl *osd)
 {
 	int ret = 0;
 	void *sense = Calloc(1, 1024);
@@ -63,7 +63,7 @@ void test_osd_create(struct osd_device *osd)
 	free(sense);
 }
 
-void test_osd_set_attributes(struct osd_device *osd)
+void test_osd_set_attributes(struct osd_hndl *osd)
 {
 	int ret = 0;
 	void *sense = Calloc(1, 1024);
@@ -118,7 +118,7 @@ void test_osd_set_attributes(struct osd_device *osd)
 	free(val);
 }
 
-void test_osd_format(struct osd_device *osd)
+void test_osd_format(struct osd_hndl *osd)
 {
 	int ret = 0;
 	void *sense = Calloc(1, 1024);
@@ -129,7 +129,7 @@ void test_osd_format(struct osd_device *osd)
 	free(sense);
 }
 
-void test_osd_read_write(struct osd_device *osd)
+void test_osd_read_write(struct osd_hndl *osd)
 {
 	int ret = 0;
 	uint8_t *sense = Calloc(1, 1024);
@@ -169,7 +169,7 @@ void test_osd_read_write(struct osd_device *osd)
 	free(mybuf);
 }
 
-void test_osd_create_partition(struct osd_device *osd)
+void test_osd_create_partition(struct osd_hndl *osd)
 {
 	int ret = 0;
 	void *sense = Calloc(1, 1024);
@@ -191,7 +191,7 @@ void test_osd_create_partition(struct osd_device *osd)
 	free(sense);
 }
 
-void test_osd_get_ccap(struct osd_device *osd)
+void test_osd_get_ccap(struct osd_hndl *osd)
 {
 	int ret = 0, i = 0;
 	void *sense = Calloc(1, 1024);
@@ -240,7 +240,7 @@ static inline time_t ntoh_time(void *buf)
 	return (t >> 16);
 }
 
-void test_osd_get_utsap(struct osd_device *osd)
+void test_osd_get_utsap(struct osd_hndl *osd)
 {
 	int ret = 0;
 	void *sense = Calloc(1, 1024);
@@ -300,7 +300,7 @@ void test_osd_get_utsap(struct osd_device *osd)
 	assert(ret == 0);
 }
 
-void test_osd_get_attributes(struct osd_device *osd)
+void test_osd_get_attributes(struct osd_hndl *osd)
 {
 	int ret = 0;
 	uint32_t used_len = 0;
@@ -391,7 +391,7 @@ int main()
 {
 	int ret = 0;
 	const char *root = "/tmp/osd/";
-	struct osd_device osd;
+	struct osd_hndl osd;
 
 	ret = osd_open(root, &osd);
 	assert(ret == 0);

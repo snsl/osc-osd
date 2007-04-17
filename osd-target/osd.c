@@ -1683,6 +1683,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		char path[MAXNAMELEN];
 		uint64_t len = ntohll((const uint8_t *)val);
 		get_dfile_name(path, osd->root, pid, oid);
+		osd_debug("%s: %s %llu\n", __func__, path, llu(len));
 		ret = truncate(path, len);
 		if (ret != 0)
 			goto out_cdb_err;

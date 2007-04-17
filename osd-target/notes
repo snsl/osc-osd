@@ -320,3 +320,9 @@ can be implemented as a sql view on page numbers 0
 -	make common case fast, assume correct, recover from error. for eg. assume
 	attr and object exist, if not recover from error.
 -	use triggers
+
+# Sun Apr 15 00:16:14 EDT 2007
+-	composing multiple objects into a file
+-	proper sense codes with the point where command failed
+-	flexible handle allocation in PVFS
+-	speeding up file create operations with OSDs

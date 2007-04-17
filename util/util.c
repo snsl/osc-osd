@@ -418,10 +418,12 @@ double stddev(double *v, double mu, int N)
 	int i = 0;
 	double sd = 0.0;
 
+	if (N <= 1)
+		return 0.;
+
 	for (i = 0; i < N; i++)
 		sd += (v[i] - mu)*(v[i] - mu);
-	if (N > 1)
-		sd = sqrt(sd / (N-1));
+	sd = sqrt(sd / (N-1));
 	return sd;
 }
 

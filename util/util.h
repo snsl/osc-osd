@@ -52,7 +52,9 @@ double get_mhz(void);
 #define osd_debug(fmt,...) do { } while (0)
 #endif
 
+#ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (int)(sizeof(x) / sizeof((x)[0]))
+#endif
 
 #ifndef llu
 #if __WORDSIZE == 64

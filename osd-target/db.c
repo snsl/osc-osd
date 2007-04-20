@@ -13,14 +13,14 @@
 #include "util/util.h"
 #include "attr.h"
 
-/* static int db_print_pragma(struct osd_hndl *osd); */
+/* static int db_print_pragma(struct osd_device *osd); */
 
 /*
  * < 0: error
  * = 0: success
  * = 1: new db opened
  */
-int db_open(const char *path, struct osd_hndl *osd)
+int db_open(const char *path, struct osd_device *osd)
 {
 	int ret;
 	struct stat sb;
@@ -63,7 +63,7 @@ out:
 	return ret;
 }
 
-int db_begin_txn(struct osd_hndl *osd)
+int db_begin_txn(struct osd_device *osd)
 {
 	int ret = 0;
 	char *err = NULL;
@@ -77,7 +77,7 @@ int db_begin_txn(struct osd_hndl *osd)
 	return ret;
 }
 
-int db_end_txn(struct osd_hndl *osd)
+int db_end_txn(struct osd_device *osd)
 {
 	int ret = 0;
 	char *err = NULL;
@@ -91,7 +91,7 @@ int db_end_txn(struct osd_hndl *osd)
 	return ret;
 }
 
-int db_close(struct osd_hndl *osd)
+int db_close(struct osd_device *osd)
 {
 	int ret = 0;
 
@@ -107,7 +107,7 @@ int db_close(struct osd_hndl *osd)
 	return SQLITE_OK;
 }
 
-int db_exec_pragma(struct osd_hndl *osd)
+int db_exec_pragma(struct osd_device *osd)
 {
 	int ret = 0;
 	char *err = NULL;
@@ -152,7 +152,7 @@ static int callback(void *ignore, int count, char **val, char **colname)
 	return 0;
 }
 
-int db_print_pragma(struct osd_hndl *osd)
+int db_print_pragma(struct osd_device *osd)
 {
 	int ret = 0;
 	char *err = NULL;

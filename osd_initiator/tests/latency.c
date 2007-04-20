@@ -330,8 +330,10 @@ static void get_set_attr(int fd, uint64_t pid)
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
 	printf("# getattr %9.3lf +- %8.3lf\n", mu, stdev);
+#if 0
 	for (i=0; i<iter; i++) 
 		printf("latency %lf\n", v[i]);
+#endif
 	free(v);
 }
 

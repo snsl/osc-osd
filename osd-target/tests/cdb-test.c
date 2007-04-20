@@ -18,10 +18,10 @@
 #include "util/osd-sense.h"
 #include "osd_initiator/command.h"
 
-void test_partition(struct osd_hndl *osd);
-void test_create(struct osd_hndl *osd);
+void test_partition(struct osd_device *osd);
+void test_create(struct osd_device *osd);
 
-void test_partition(struct osd_hndl *osd) 
+void test_partition(struct osd_device *osd) 
 {
 	int ret = 0;
 	struct osd_command cmd;
@@ -76,7 +76,7 @@ void test_partition(struct osd_hndl *osd)
 
 }
 
-void test_create(struct osd_hndl *osd)
+void test_create(struct osd_device *osd)
 {
 	int ret = 0;
 	struct osd_command cmd;
@@ -225,7 +225,7 @@ int main()
 {
 	int ret = 0;
 	const char *root = "/tmp/osd/";
-	struct osd_hndl osd;
+	struct osd_device osd;
 
 	ret = osd_open(root, &osd);
 	assert(ret == 0);

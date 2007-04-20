@@ -20,7 +20,7 @@
  * Aggregate parameters for function calls in this file.
  */
 struct command {
-	struct osd_hndl *osd;
+	struct osd_device *osd;
 	uint8_t *cdb;
 	uint16_t action;
 	uint8_t getset_cdbfmt;
@@ -543,7 +543,7 @@ static inline int std_get_set_attr(struct command *cmd, uint64_t pid,
 
 static void exec_service_action(struct command *cmd)
 {
-	struct osd_hndl *osd = cmd->osd;
+	struct osd_device *osd = cmd->osd;
 	uint8_t *cdb = cmd->cdb;
 	uint8_t *sense = cmd->sense;
 	int ret;
@@ -777,7 +777,7 @@ static void exec_service_action(struct command *cmd)
  * uaddr: either input or output, depending on the cmd
  * uaddrlen: output var with number of valid bytes put in uaddr after a read
  */
-int osdemu_cmd_submit(struct osd_hndl *osd, uint8_t *cdb,
+int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		      const uint8_t *data_in, uint64_t data_in_len,
 		      uint8_t **data_out, uint64_t *data_out_len,
 		      uint8_t *sense_out, int *senselen_out)

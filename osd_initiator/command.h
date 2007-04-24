@@ -91,7 +91,7 @@ int osd_command_set_list(struct osd_command *command, uint64_t pid,
 int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
 				    uint64_t cid, uint32_t list_id,
 				    uint64_t alloc_len,
-				    uint64_t initial_oid
+				    uint64_t initial_oid,
 				    int list_attr);
 int osd_command_set_perform_scsi_command(struct osd_command *command);
 int osd_command_set_perform_task_mgmt_func(struct osd_command *command);

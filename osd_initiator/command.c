@@ -198,11 +198,13 @@ int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
 				    uint64_t alloc_len, uint64_t initial_oid)
 {
         varlen_cdb_init(command, OSD_LIST_COLLECTION);
+	if (list_attr)
+		command->cdb[11] |= 0x40;
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
-        set_htonl(&command->cdb[48], list_id);
         set_htonll(&command->cdb[32], alloc_len);
         set_htonll(&command->cdb[40], initial_oid);
+        set_htonl(&command->cdb[48], list_id);
         return 0;
 }
 
@@ -1036,7 +1038,7 @@ int osd_command_list_resolve(struct osd_command *command)
 	uint64_t list[num_results];
 	int i, listoid, list_attr;
 
-	listoid = (p[23] & 0x100);
+	listoid = (p[23] & 0x40);
 	char title[3];
 	(listoid ? strcpy(title, "OID") : strcpy(title, "PID"));
 
@@ -1055,15 +1057,72 @@ int osd_command_list_resolve(struct osd_command *command)
 	if (lid || cont_oid)
 		osd_debug("LID: %u CONTINUE_OID: %llu", lid, llu(cont_oid));
 
+	if (list_attr) {
+		/* List or store get/set attributes results in the 
+		 * command struct somehow, 
+		 * using a new method or perhaps attr_resolve?
+		 * 
+		 * Also, will need to change how the data is extracted
+		 * based on the value of list_attr, since each obj_descriptor
+		 * isn't 8 bytes apart anymore if list_attr=1 (it depends
+		 * on the number of attributes in the attr list 
+	 	 */ 
+	}
+
 	for (i=0; i < num_results; i++) {
 		list[i] = ntohll(&p[24+8*i]);
 		osd_debug("%s: %llu", title, llu(list[i]));
 
-		if (list_attr) {
-			/* List or store get/set attributes results in the 
-			 * command struct somehow, 
-			 * using a new method or perhaps attr_resolve? */ 
-		}
+	}
+
+	return 1;
+}
+
+int osd_command_list_collection_resolve(struct osd_command *command)
+{
+	uint8_t *p = command->indata;
+	uint64_t addl_len = ntohll(&p[0]);
+	uint64_t cont_oid = ntohll(&p[8]);
+	uint32_t lid = ntohl(&p[16]);
+	int num_results = (addl_len-24)/8;
+	uint64_t list[num_results];
+	int i, listoid, list_attr;
+
+	listoid = (p[23] & 0x80);
+	char title[3];
+	(listoid ? strcpy(title, "OID") : strcpy(title, "CID"));
+
+	if (p[23] & 0x08)
+		list_attr = 1;
+	else if (p[23] & 0x04)
+		list_attr = 0;
+
+	/*
+	 * For now, output the list elements.  Later, work this into
+	 * the normal attr_resolve above.  Users have to specify what
+	 * attributes they want to get, so we know what to expect and
+	 * can fill in the results.  Just LIST has some different formats
+	 * not handled by the current (messy) attr_resolve.
+	 */
+	if (lid || cont_oid)
+		osd_debug("LID: %u CONTINUE_OID: %llu", lid, llu(cont_oid));
+
+	if (list_attr) {
+		/* List or store get/set attributes results in the 
+		 * command struct somehow, 
+		 * using a new method or perhaps attr_resolve?
+		 * 
+		 * Also, will need to change how the data is extracted
+		 * based on the value of list_attr, since each obj_descriptor
+		 * isn't 8 bytes apart anymore if list_attr=1 (it depends
+		 * on the number of attributes in the attr list 
+	 	 */ 
+	}
+
+	for (i=0; i < num_results; i++) {
+		list[i] = ntohll(&p[24+8*i]);
+		osd_debug("%s: %llu", title, llu(list[i]));
+
 	}
 
 	return 1;

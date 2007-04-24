@@ -28,13 +28,13 @@ int flush_osd(int fd, int flush_scope);
 int flush_partition(int fd, uint64_t pid, int flush_scope);
 int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope);
 int flush_object(int fd, uint64_t pid, uint64_t oid, int flush_scope);
-/* Get/Set Attributes - don't think any of these work at the moment, use attr_build and attr_resolve in command.c */
+/* Get/Set Attributes - none of these work at the moment, use attr_build and attr_resolve in command.c */
 int get_attributes(int fd, uint64_t pid, uint64_t oid);
 int get_member_attributes(int fd, uint64_t pid, uint64_t cid);
 int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_list *attrs);
 int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attribute_list *attrs);
 /* List */
 int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t alloc_len, int list_attr);
-int collection_list(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid);
+int list_collection(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid, uint64_t alloc_len, int list_attr);
 
 #endif

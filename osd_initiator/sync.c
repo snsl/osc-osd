@@ -275,8 +275,7 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const uin
 	}
 
 	osd_debug("....creating command");
-	osd_command_set_create_and_write(&command, pid, requested_oid, len,
-					 offset);
+	osd_command_set_create_and_write(&command, pid, requested_oid, len, offset);
 	
 	osd_debug("....building command");
 	command.outdata = buf;
@@ -484,6 +483,8 @@ int flush_object(int fd, uint64_t pid, uint64_t oid, int flush_scope)
 }
 
 /* Attributes */
+
+/* Unimplemented */
 int get_attributes(int fd, uint64_t pid, uint64_t oid)
 {
 	int ret;
@@ -502,6 +503,7 @@ int get_attributes(int fd, uint64_t pid, uint64_t oid)
 	return 0;
 }
 
+/* Unimplemented */
 int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_list *attrs)
 {
 	int ret;
@@ -523,6 +525,7 @@ int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_li
 	return 0;
 }
 
+/* Unimplemented */
 int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attribute_list *attrs)
 {
 	int ret;
@@ -543,6 +546,7 @@ int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attri
 	return 0;
 }
 
+/* Unimplemented */
 int get_member_attributes(int fd, uint64_t pid, uint64_t cid)
 {
 	int ret;
@@ -561,10 +565,10 @@ int get_member_attributes(int fd, uint64_t pid, uint64_t cid)
 	return 0;
 }
 
-/* List */
 
 /*
- * See sec 6.14.1 in spec.
+ * List
+ * sec 6.14 in spec.
 */
 int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t alloc_len, int list_attr)
 {
@@ -581,10 +585,10 @@ int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t 
 
 	osd_debug("****** LIST ******");
         /*
-	 * If pid is 0, we would like to list all the pid's available, where
-	 * initial_oid represents the pid to start at, and if pid is nonzero,
-	 * we wish to list all the objects, starting with initial_oid, in that
-	 * partition. 
+	 * If pid is 0, we would like to list all the PIDs that exist, where
+	 * initial_oid represents the PID to start at. If pid is nonzero,
+	 * we wish to list all the OIDs, starting with initial_oid, in the
+	 * partition given by pid. 
 	*/ 
 	if (list_id == 0) {
 		if (pid == 0) {
@@ -615,23 +619,56 @@ int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t 
 	return 0;
 }
 
-int collection_list(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid)
+/*
+ * List Collection
+ * sec 6.15 in spec.
+*/
+int list_collection(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid, uint64_t alloc_len, int list_attr)
 {
+ 	/*
+	 * buf_len specifies how many bytes the buffer for the returned data will be.
+	 * It is 24 bytes larger than alloc_len for header information in the 
+	 * returned data. 
+	*/ 
 	int ret;
-	uint8_t buf[100] = "";
+	uint64_t buf_len = alloc_len + 24;
+	uint8_t buf[buf_len];
+	memset(buf, 0, buf_len);
 	struct osd_command command;
 
 	osd_debug("****** LIST COLLECTION ******");
-	osd_debug("PID: %llu CID: %llu LIST_ID: %u INITIAL_OID: %llu", 
-		 llu(pid), llu(cid), list_id, llu(initial_oid));
-
-	osd_command_set_list_collection(&command, pid, cid, list_id,
-					sizeof(buf), initial_oid);
+        /*
+	 * If cid is 0, we would like to list all the CIDs in the
+	 * given partition, and initial_oid is the lowest CID to start at.
+	 * If cid is nonzero, we would like to list all the OIDs in the 
+	 * collection given by cid, and initial_oid is the lowest OID to start at. 
+	*/ 
+	if (list_id == 0) {
+		if (cid == 0) {
+			osd_debug("PID: %llu INITIAL_CID: %llu", llu(pid), llu(initial_oid));
+		} else {
+			osd_debug("PID: %llu CID: %llu INITIAL_OID: %llu", llu(pid), llu(cid), llu(initial_oid));
+		}
+	} 
+	else {
+		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id), llu(initial_oid));
+	}
+	
+	osd_debug("....creating command");
+	osd_command_set_list_collection(&command, pid, cid, list_id, buf_len, initial_oid, list_attr);
+	
+	osd_debug("....building command");
 	command.indata = buf;
-	command.inlen_alloc = sizeof(buf);
-	memset(buf, 0, sizeof(buf));
-	ret = osd_submit_and_wait(fd, &command);
-	check_response(ret, &command, buf);
+	command.inlen_alloc = buf_len; 
+
+	osd_debug("....submitting command");
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	osd_debug("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	osd_command_list_collection_resolve(&command);
+
 	return 0;
 }
 

@@ -731,15 +731,84 @@ int osd_error_bad_cdb(uint8_t *sense)
  * Commands
  */
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
-	       uint64_t len, const uint8_t *data, uint8_t *sense)
+	       uint64_t len, const uint8_t *appenddata, uint8_t *sense)
 {
-	int ret;
+	ssize_t readlen;
+	int ret, fd;
+	char path[MAXNAMELEN];
+	uint8_t *readdata, *wholedata;
 
-	osd_debug(__func__);
-	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, pid, oid);
+	/* First read the current contents of the object */
+	osd_debug("%s: pid %llu oid %llu len %llu", __func__,
+		  llu(pid), llu(oid), llu(len));
+
+	if (osd == NULL || osd->root == NULL || readdata == NULL ||
+	    used_outlen == NULL)
+		goto out_cdb_err;
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDONLY|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+	readlen = pread(fd, readdata, len, 0);
+	if (readlen < 0) {
+		close(fd);
+		goto out_hw_err;
+	}
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	/* valid, but return a sense code */
+	if ((size_t) readlen < len)
+		ret = sense_build_sdd_csi(sense, OSD_SSK_RECOVERED_ERROR,
+				      OSD_ASC_READ_PAST_END_OF_USER_OBJECT,
+				      pid, oid, readlen);
+
+	/* Now write the passed data to the end of the existing data */ 
+	ret = 0;
+	fd = 0;
+
+	osd_debug("%s: pid %llu oid %llu len %llu data %p",
+		  __func__, llu(pid), llu(oid), llu(len), appenddata);
+
+	if (osd == NULL || osd->root == NULL || data == NULL)
+		goto out_cdb_err;
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+	ret = pwrite(fd, dinbuf, len, offset);
+	if (ret < 0 || (uint64_t)ret != len)
+		goto out_hw_err;
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 }
-
 
 static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 			       uint64_t oid)
@@ -1791,7 +1860,6 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	ret = pwrite(fd, dinbuf, len, offset);
 	if (ret < 0 || (uint64_t)ret != len)
 		goto out_hw_err;
-
 	ret = close(fd);
 	if (ret != 0)
 		goto out_hw_err;

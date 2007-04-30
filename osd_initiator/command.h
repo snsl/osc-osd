@@ -20,8 +20,12 @@ struct attribute_list {
  */
 struct attribute_get_multi_results {
 	int numoid;
-	uint64_t *oid;      /* arrays for each oid:  val, outlen */
-	const void **val;
+	union {
+		uint64_t *oid;
+		uint64_t *cid;
+		uint64_t *pid;
+	};
+	const void **val;  /* arrays for each oid:  val, outlen */
 	uint16_t *outlen;
 };
 
@@ -86,8 +90,8 @@ int osd_command_set_get_attributes(struct osd_command *command, uint64_t pid,
 int osd_command_set_get_member_attributes(struct osd_command *command,
 					  uint64_t pid, uint64_t cid);
 int osd_command_set_list(struct osd_command *command, uint64_t pid,
-			 uint32_t list_id, uint64_t alloc_len, uint64_t initial_oid,
-			 int list_attr);
+			 uint32_t list_id, uint64_t alloc_len,
+			 uint64_t initial_oid, int list_attr);
 int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
 				    uint64_t cid, uint32_t list_id,
 				    uint64_t alloc_len,

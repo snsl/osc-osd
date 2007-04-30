@@ -594,7 +594,7 @@ static PyObject *pyosd_command_set_list_collection(PyObject *self,
 
 	py_command->set = 1;
 	osd_command_set_list_collection(command, pid, cid, list_id, alloc_len,
-					initial_oid);
+					initial_oid, 0);
 	Py_IncRef(self);
 	return self;
 }

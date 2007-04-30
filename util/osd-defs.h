@@ -121,10 +121,12 @@ enum {
 	USER_QUOTA_PG = 0x2,
 	USER_TMSTMP_PG = 0x3,
 	COLLECTIONS_PG = 0x4,
+	USER_POLICY_PG = 0x5,
 };
 
 /* in all attribute pages, attribute number 0 is a 40-byte identification */
-#define ATTR_PAGE_ID_LEN 40
+#define PAGE_ID (0x0)
+#define ATTR_PAGE_ID_LEN (40)
 
 /* current command attributes page constants, osd2r01 sec 7.1.2.24 */
 enum {
@@ -190,6 +192,12 @@ enum {
 	UIAP_OID_LEN = 8,
 	UIAP_USED_CAPACITY_LEN = 8,
 	UIAP_LOGICAL_LEN_LEN = 8,
+};
+
+/* userobject collections attribute page osd2r01 Sec 7.1.2.19 */
+enum {
+	UCAP_COLL_PTR_LB = 0x1,
+	UCAP_COLL_PTR_UB = 0xFFFFFF00,
 };
 
 enum {

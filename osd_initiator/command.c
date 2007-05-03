@@ -491,14 +491,20 @@ int osd_command_attr_build(struct osd_command *command,
 			getmulti_num_objects = ntohs(&command->cdb[36]);
 		}
 		use_getpage = 0;
-		if (numget == 0 && numgetmulti == 0 && numset == 1)
+		if (numget == 0 && numgetmulti == 0 && numset == 1) {
 			/*
-			 * For a single set, prefer simpler page format,
-			 * except if page-to-set is zero, which is a noop
-			 * in this format.
+			 * For a single set and service action !=
+			 * OSD_SET_MEMBER_ATTRIBUTES *, prefer simpler page
+			 * format, * except if page-to-set is zero, which is
+			 * a noop in * this format.
 			 */
-			if (attr[setattr_index].page != 0)
+			uint8_t *cdb = command->cdb;
+			uint16_t action = ((cdb[8] << 8) | cdb[9]);
+			if (attr[setattr_index].page != 0 && 
+			    (action != OSD_SET_MEMBER_ATTRIBUTES)) {
 				use_getpage = 1;
+			}
+		}
 	}
 
 	/*

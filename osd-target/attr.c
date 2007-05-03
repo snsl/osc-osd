@@ -1011,7 +1011,7 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 
 		cp = SQL + sqlen;
 	}
-	sprintf(cp, " ) ORDER BY attr.oid; ");
+	sprintf(cp, " ) ORDER BY obj.oid; ");
 
 #elif LIST_QUERY_TYPE == 2
 

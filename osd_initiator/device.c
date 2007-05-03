@@ -117,4 +117,3 @@ int osd_submit_and_wait(int fd, struct osd_command *command)
 	}
 	return 0;
 }
-

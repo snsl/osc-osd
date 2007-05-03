@@ -16,7 +16,8 @@
 #include "sync.h"
 #include "sense.h"
 
-static int check_response(int ret, struct osd_command *command, uint8_t *buf __unused)
+static int check_response(int ret, struct osd_command *command,
+			  uint8_t *buf __unused)
 {
 	if (ret) {
 		osd_error("%s: submit_and_wait failed", __func__);
@@ -26,7 +27,7 @@ static int check_response(int ret, struct osd_command *command, uint8_t *buf __u
 		osd_error("status: %u sense len: %u inlen: %zu",
 			  command->status, command->sense_len, command->inlen);
 		osd_error("%s ", osd_sense_as_string(command->sense,
-						     command->sense_len));
+			  command->sense_len));
 				
 	} else if (command->inlen > 0) {
 		osd_debug("Successfully performed task. BUF: <<%s>>", buf);
@@ -85,7 +86,8 @@ int query(int fd, uint64_t pid, uint64_t cid, const uint8_t *query)
 	}
 
 	osd_debug("....creating command");
-	osd_command_set_query(&command, pid, cid, strlen((const char *)query), sizeof(buf));
+	osd_command_set_query(&command, pid, cid, 
+			      strlen((const char *)query), sizeof(buf));
 
 	osd_debug("....building command");
 	command.outdata = query;
@@ -104,7 +106,8 @@ int query(int fd, uint64_t pid, uint64_t cid, const uint8_t *query)
 	return 0;
 }
 
-int create_osd(int fd, uint64_t pid, uint64_t requested_oid, uint16_t num_user_objects)
+int create_osd(int fd, uint64_t pid, uint64_t requested_oid,
+	       uint16_t num_user_objects)
 {
 	int ret;
 	struct osd_command command;
@@ -260,14 +263,15 @@ int remove_member_objects(int fd, uint64_t pid, uint64_t cid)
 	return 0;
 }
 
-int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const uint8_t *buf, uint64_t len, uint64_t offset)
+int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid,
+			 const uint8_t *buf, uint64_t len, uint64_t offset)
 {
 	int ret;
 	struct osd_command command;
 	
 	osd_debug("****** CREATE / WRITE ******");
 	osd_debug("PID: %llu OID: %llu BUF: %s", llu(pid), llu(requested_oid),
-		 buf);
+		  buf);
 
 	if (!buf) {
 		osd_error("%s: no data sent", __func__);
@@ -275,7 +279,8 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const uin
 	}
 
 	osd_debug("....creating command");
-	osd_command_set_create_and_write(&command, pid, requested_oid, len, offset);
+	osd_command_set_create_and_write(&command, pid, requested_oid, len,
+					 offset);
 	
 	osd_debug("....building command");
 	command.outdata = buf;
@@ -292,7 +297,8 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid, const uin
 	return 0;
 }
 
-int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf, uint64_t len, uint64_t offset)
+int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
+	      uint64_t len, uint64_t offset)
 {
 	int ret;
 	struct osd_command command;
@@ -319,7 +325,8 @@ int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf, uint64_t l
 	return 0;
 }
 
-int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf, uint64_t len)
+int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
+	       uint64_t len)
 {
 	int ret;
 	struct osd_command command;
@@ -350,7 +357,8 @@ int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf, uint64_t 
 	return 0;
 }
 
-int read_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *buf, uint64_t len, uint64_t offset)
+int read_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *buf, uint64_t len,
+	     uint64_t offset)
 {
 	int ret;
 	struct osd_command command;
@@ -504,7 +512,8 @@ int get_attributes(int fd, uint64_t pid, uint64_t oid)
 }
 
 /* Unimplemented */
-int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_list *attrs)
+int set_attributes(int fd, uint64_t pid, uint64_t oid,
+		   const struct attribute_list *attrs)
 {
 	int ret;
 	struct osd_command command;
@@ -526,7 +535,8 @@ int set_attributes(int fd, uint64_t pid, uint64_t oid, const struct attribute_li
 }
 
 /* Unimplemented */
-int set_member_attributes(int fd, uint64_t pid, uint64_t cid, const struct attribute_list *attrs)
+int set_member_attributes(int fd, uint64_t pid, uint64_t cid,
+			  const struct attribute_list *attrs)
 {
 	int ret;
 	struct osd_command command;
@@ -570,10 +580,12 @@ int get_member_attributes(int fd, uint64_t pid, uint64_t cid)
  * List
  * sec 6.14 in spec.
 */
-int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t alloc_len, int list_attr)
+int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid,
+	 uint64_t alloc_len, int list_attr)
 {
  	/*
-	 * buf_len specifies how many bytes the buffer for the returned data will be.
+	 * buf_len specifies how many bytes the buffer for the returned data 
+	 * will be.
 	 * It is 24 bytes larger than alloc_len for header information in the 
 	 * returned data. 
 	*/ 
@@ -594,15 +606,18 @@ int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t 
 		if (pid == 0) {
 			osd_debug("INITIAL_PID: %llu", llu(initial_oid));
 		} else {
-			osd_debug("PID: %llu INITIAL_OID: %llu", llu(pid), llu(initial_oid));
+			osd_debug("PID: %llu INITIAL_OID: %llu", llu(pid),
+				  llu(initial_oid));
 		}
 	} 
 	else {
-		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id), llu(initial_oid));
+		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id),
+			  llu(initial_oid));
 	}
 	
 	osd_debug("....creating command");
-	osd_command_set_list(&command, pid, list_id, buf_len, initial_oid, list_attr);
+	osd_command_set_list(&command, pid, list_id, buf_len, initial_oid,
+			     list_attr);
 	
 	osd_debug("....building command");
 	command.indata = buf;
@@ -623,10 +638,12 @@ int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid, uint64_t 
  * List Collection
  * sec 6.15 in spec.
 */
-int list_collection(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64_t initial_oid, uint64_t alloc_len, int list_attr)
+int list_collection(int fd, uint64_t pid, uint64_t cid, uint32_t list_id,
+		    uint64_t initial_oid, uint64_t alloc_len, int list_attr)
 {
  	/*
-	 * buf_len specifies how many bytes the buffer for the returned data will be.
+	 * buf_len specifies how many bytes the buffer for the returned data
+	 * will be.
 	 * It is 24 bytes larger than alloc_len for header information in the 
 	 * returned data. 
 	*/ 
@@ -641,21 +658,26 @@ int list_collection(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64
 	 * If cid is 0, we would like to list all the CIDs in the
 	 * given partition, and initial_oid is the lowest CID to start at.
 	 * If cid is nonzero, we would like to list all the OIDs in the 
-	 * collection given by cid, and initial_oid is the lowest OID to start at. 
+	 * collection given by cid, and initial_oid is the lowest OID to start
+	 * at.
 	*/ 
 	if (list_id == 0) {
 		if (cid == 0) {
-			osd_debug("PID: %llu INITIAL_CID: %llu", llu(pid), llu(initial_oid));
+			osd_debug("PID: %llu INITIAL_CID: %llu", llu(pid),
+				  llu(initial_oid));
 		} else {
-			osd_debug("PID: %llu CID: %llu INITIAL_OID: %llu", llu(pid), llu(cid), llu(initial_oid));
+			osd_debug("PID: %llu CID: %llu INITIAL_OID: %llu",
+				  llu(pid), llu(cid), llu(initial_oid));
 		}
 	} 
 	else {
-		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id), llu(initial_oid));
+		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id),
+			  llu(initial_oid));
 	}
 	
 	osd_debug("....creating command");
-	osd_command_set_list_collection(&command, pid, cid, list_id, buf_len, initial_oid, list_attr);
+	osd_command_set_list_collection(&command, pid, cid, list_id, buf_len,
+				        initial_oid, list_attr);
 	
 	osd_debug("....building command");
 	command.indata = buf;
@@ -671,4 +693,3 @@ int list_collection(int fd, uint64_t pid, uint64_t cid, uint32_t list_id, uint64
 
 	return 0;
 }
-

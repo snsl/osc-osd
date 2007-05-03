@@ -195,7 +195,8 @@ int osd_command_set_list(struct osd_command *command, uint64_t pid,
 
 int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
 				    uint64_t cid, uint32_t list_id,
-				    uint64_t alloc_len, uint64_t initial_oid, int list_attr)
+				    uint64_t alloc_len, uint64_t initial_oid,
+				    int list_attr)
 {
         varlen_cdb_init(command, OSD_LIST_COLLECTION);
 	if (list_attr)
@@ -563,7 +564,8 @@ int osd_command_attr_build(struct osd_command *command,
 		if (numgetpage)
 			size_retrieved = getpagesize;  /* no rounding */
 		if (numgetmulti)
-			size_retrieved = 8 + getmultisize * getmulti_num_objects;
+			size_retrieved = 8 + getmultisize * 
+					 getmulti_num_objects;
 	}
 
 	extra_in = size_pad_indata + size_retrieved;
@@ -1120,7 +1122,6 @@ int osd_command_list_collection_resolve(struct osd_command *command)
 	for (i=0; i < num_results; i++) {
 		list[i] = ntohll(&p[24+8*i]);
 		osd_debug("%s: %llu", title, llu(list[i]));
-
 	}
 
 	return 1;

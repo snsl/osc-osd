@@ -11,7 +11,6 @@
 #include "osd.h"
 #include "util/osd-sense.h"
 #include "util/osd-defs.h"
-#include "target-defs.h"
 #include "target-sense.h"
 #include "cdb.h"
 #include "util/util.h"
@@ -569,6 +568,7 @@ static int parse_getattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 
 	if (list_len > 0) {
 		cmd->get_attr.sz = list_len/8;
+		/* XXX: This leaks memory. free is somewhere */
 		cmd->get_attr.le = Malloc(cmd->get_attr.sz *
 					  sizeof(*(cmd->get_attr.le)));
 		if (!cmd->get_attr.le)

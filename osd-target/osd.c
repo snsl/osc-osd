@@ -12,7 +12,6 @@
 
 #include "osd.h"
 #include "util/osd-defs.h"
-#include "target-defs.h"
 #include "target-sense.h"
 #include "db.h"
 #include "attr.h"
@@ -71,6 +70,7 @@ static struct init_attr root_info[] = {
 	{ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security       "}
 };
 
+static const char *md = "md";
 static const char *dbname = "osd.db";
 static const char *dfiles = "dfiles";
 static const char *stranded = "stranded";
@@ -233,13 +233,13 @@ static int empty_dir(const char *dirname)
 static inline void get_dfile_name(char *path, const char *root,
 				  uint64_t pid, uint64_t oid)
 {
-	sprintf(path, "%s/%s/%02x/%llu.%llu", root, dfiles, 
+	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles, 
 		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
 }
 
 static inline void get_dbname(char *path, const char *root)
 {
-	sprintf(path, "%s/%s", root, dbname);
+	sprintf(path, "%s/%s/%s", root, md, dbname);
 }
 
 static inline void fill_ccap(struct cur_cmd_attr_pg *ccap, uint8_t *ricv,
@@ -785,8 +785,7 @@ int osd_open(const char *root, struct osd_device *osd)
 	if (ret != 0)
 		goto out;
 
-	/* create 'dfiles' sub-directory */
-	memset(path, 0, MAXNAMELEN);
+	/* test create 'data/dfiles' sub-directory */
 	sprintf(path, "%s/%s/", root, dfiles);
 	ret = create_dir(path);
 	if (ret != 0)
@@ -801,15 +800,20 @@ int osd_open(const char *root, struct osd_device *osd)
 	}
 
 	/* create 'stranded-files' sub-directory */
-	memset(path, 0, MAXNAMELEN);
 	sprintf(path, "%s/%s/", root, stranded);
+	ret = create_dir(path);
+	if (ret != 0)
+		goto out;
+
+	/* create 'md' sub-directory */
+	sprintf(path, "%s/%s/", root, md);
 	ret = create_dir(path);
 	if (ret != 0)
 		goto out;
 
 	/* auto-creates db if necessary, and sets osd->db */
 	osd->root = strdup(root);
-	sprintf(path, "%s/%s", root, dbname);
+	get_dbname(path, root);
 	ret = db_open(path, osd);
 	if (ret == 1) {
 		ret = osd_initialize_db(osd);
@@ -861,68 +865,43 @@ int osd_error_bad_cdb(uint8_t *sense)
 
 /* 
  * Sec 6.2 in osd2r01.pdf
- * Doesn't appear to be an offset in APPEND's cdb, so I've set those to
- * 0 for now.
-*/
+ */
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	       uint64_t len, const uint8_t *appenddata, uint8_t *sense)
 {
-	ssize_t readlen;
-	int ret, fd;
+	int fd;
+	int ret;
+	off64_t off;
 	char path[MAXNAMELEN];
-	uint8_t *readdata, *writedata;
-	uint64_t outlen;
 
-	osd_debug("%s: pid %llu oid %llu len %llu data %p", __func__, llu(pid),
-		  llu(oid), llu(len), appendata);
+	osd_debug("%s: pid %llu oid %llu len %llu data %p", __func__,
+		  llu(pid), llu(oid), llu(len), appendata);
 
 	if (osd == NULL || osd->root == NULL || appenddata == NULL)
 		goto out_cdb_err;
+
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
 
 	get_dfile_name(path, osd->root, pid, oid);
-	fd = open(path, O_RDONLY|O_LARGEFILE);
+	fd = open(path, O_WRONLY|O_LARGEFILE); /* fails on non-existent obj */
 	if (fd < 0)
 		goto out_cdb_err;
-	
-	/*
-	 * How much should we read in (3rd parameter of pread())? Don't think 
-	 * the user specifies in APPEND. Is there a way to grab the 
-	 * object length that we're appending to, perhaps from SQL (or else-
-	 * where)?
-	 */
-	readlen = pread(fd, readdata, 100, 0);
-	if (readlen < 0) {
-		close(fd);
+
+	/* seek to the end of logical length: current size of the object */
+	off = lseek(fd, 0, SEEK_END);
+	if (off < 0)
 		goto out_hw_err;
-	}
+
+	ret = pwrite(fd, appenddata, len, off);
+	if (ret < 0 || (uint64_t) ret != len)
+		goto out_hw_err;
+
 	ret = close(fd);
 	if (ret != 0)
 		goto out_hw_err;
 
-	/* Combine the read in data and the data to append */
-	/* XXX: Can't think of a way to do what I want to do:
-	 * take the array in readdata and append it to the
-	 * end of writedata; this doesn't work.  */
-	writedata = readdata;
-	(writedata + readlen) = appenddata;
-	outlen = len + readlen;
-	
-	/* Now write to the object with writedata */
-	get_dfile_name(path, osd->root, pid, oid);
-	fd = open(path, O_RDWR|O_LARGEFILE);
-	if (fd < 0)
-		goto out_cdb_err;
-	
-	ret = pwrite(fd, writedata, sizeof(writedata), 0);
-	if (ret < 0 || (uint64_t)ret != outlen)
-		goto out_hw_err;
-	ret = close(fd);	
-	if (ret != 0)
-		goto out_hw_err;
-
-	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, off);
 	return OSD_OK; /* success */
 
 out_hw_err:
@@ -1217,8 +1196,8 @@ int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	char path[MAXNAMELEN];
 	int ret, fd;
 
-	osd_debug("%s: pid %llu oid %llu scope %d",
-		  __func__, llu(pid), llu(oid), flush_scope);
+	osd_debug("%s: pid %llu oid %llu scope %d", __func__, llu(pid),
+		  llu(oid), flush_scope);
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
@@ -1290,9 +1269,10 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 
 	root = strdup(osd->root);
 
-	sprintf(path, "%s/%s", root, dbname);
+	get_dbname(path, root);
 	if(stat(path, &sb) != 0) {
-		osd_error_errno("%s: DB does not exist, creating it", __func__);
+		osd_error_errno("%s: DB %s does not exist, creating it", 
+				__func__, path);
 		goto create;
 	}
 
@@ -1302,9 +1282,10 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 		goto out_sense;
 	}
 
-	ret = unlink(path);
+	sprintf(path, "%s/%s/", root, md);
+	ret = empty_dir(path);
 	if (ret) {
-		osd_error_errno("%s: unlink db %s", __func__, path);
+		osd_error("%s: empty_dir %s failed", __func__, path);
 		goto out_sense;
 	}
 
@@ -1389,9 +1370,6 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (isgettable_page(obj_type, page) == FALSE)
 		goto out_param_list;
 
-	if (!isembedded)
-		fill_ccap(&osd->ccap, NULL, obj_type, pid, oid, 0);
-
 	switch (page) {
 	case CUR_CMD_ATTR_PG:
 		ret = get_ccap_aslist(osd, number, outbuf, outlen,
@@ -1438,6 +1416,8 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			goto out_param_list;
 	}
 
+	if (!isembedded)
+		fill_ccap(&osd->ccap, NULL, obj_type, pid, oid, 0);
 	return OSD_OK; /* success */
 
 out_param_list:
@@ -2130,7 +2110,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		int i;
 		const uint8_t *s = val;
 
-		if (len > ATTR_PG_ID_LEN)
+		if (len > ATTR_PAGE_ID_LEN)
 			goto out_cdb_err;
 		for (i=0; i<len; i++) {
 			if (s[i] == 0)
@@ -2150,7 +2130,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			goto out_success;
 		else
 			goto out_cdb_err;
-	case COLLECTIONS_PG:
+	case USER_COLL_PG:
 		ret = set_cap(osd, pid, oid, number, val, len);
 		if (ret == OSD_OK)
 			goto out_success;

@@ -12,7 +12,6 @@
 #include "attr.h"
 #include "util/util.h"
 #include "list-entry.h"
-#include "target-defs.h"
 
 /*
  * XXX: to avoid repeated mallocs, create this hack. a cleaner/clever
@@ -25,7 +24,7 @@ static struct {
 } attr_blob;
 
 /* 40 bytes including terminating NUL */
-static const char unidentified_page_identification[ATTR_PG_ID_LEN]
+static const char unidentified_page_identification[ATTR_PAGE_ID_LEN]
 = "        unidentified attributes page   ";
 
 
@@ -584,7 +583,7 @@ static int attr_gather_dir_page(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
 	uint32_t number = sqlite3_column_int(stmt, 0);
 	uint16_t len = sqlite3_column_bytes(stmt, 1);
 
-	if (len != ATTR_PG_ID_LEN) 
+	if (len != ATTR_PAGE_ID_LEN) 
 		return -EINVAL;
 
 	if (attr_blob.sz < len) {

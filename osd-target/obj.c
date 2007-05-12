@@ -11,6 +11,8 @@
 #include "obj.h"
 #include "db.h"
 
+/* init
+close */
 int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t type)
 {
 	int ret = 0;

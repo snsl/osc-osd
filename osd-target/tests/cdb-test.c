@@ -354,7 +354,7 @@ static void test_query(struct osd_device *osd)
 		uint64_t attrval;
 		struct attribute_list attr = {
 		    .type = ATTR_SET,
-		    .page = COLLECTIONS_PG,
+		    .page = USER_COLL_PG,
 		    .number = 1,
 		    .len = 8,
 		    .val = &attrval,
@@ -1114,7 +1114,7 @@ void test_set_member_attributes(struct osd_device *osd)
 		uint64_t attrval;
 		struct attribute_list attr = {
 		    .type = ATTR_SET,
-		    .page = COLLECTIONS_PG,
+		    .page = USER_COLL_PG,
 		    .number = 1,
 		    .len = sizeof(attrval),
 		    .val = &attrval,

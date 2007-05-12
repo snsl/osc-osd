@@ -16,8 +16,6 @@ struct getattr_list_entry {
 #define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
 #define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
 
-#define ATTR_PG_ID_LEN (40) 
-
 struct list_entry {
 	uint32_t page;
 	uint32_t number;
@@ -132,6 +130,11 @@ struct buffer {
 	void *buf;
 };
 
+struct array {
+	size_t ne;
+	void *a;
+};
+
 struct id_list {
 	uint64_t cnt;
 	uint64_t limit;
@@ -165,6 +168,16 @@ struct osd_device {
 	struct cur_cmd_attr_pg ccap;
 	struct id_cache ic;
 	struct id_list idl;
+};
+
+enum {
+	FALSE = 0,
+	TRUE = 1
+};
+
+enum {
+	OSD_ERROR = -1,
+	OSD_OK = 0
 };
 
 #endif /* __OSD_TYPES_H */

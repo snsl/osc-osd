@@ -13,7 +13,45 @@
 #include "util/util.h"
 #include "attr.h"
 
-/* static int db_print_pragma(struct osd_device *osd); */
+static int check_membership(void *arg, int count, char **val, 
+			    char **colname)
+{
+	int i = 0;
+	struct array *arr = arg;
+	const char **tables = arr->a;
+
+	for (i = 0; i < arr->ne; i++)
+		if (strcmp(tables[i], val[0]) == 0)
+			return 0;
+	return -1;
+}
+
+/*
+ * returns:
+ * OSD_ERROR: in case no table is found
+ * OSD_OK: when all tables exist
+ */
+static int db_check_tables(struct osd_device *osd)
+{
+	int i = 0;
+	int ret = 0;
+	char SQL[MAXSQLEN];
+	char *err = NULL;
+	const char *tables[] = {"attr", "obj", "object_collection"};
+	struct array arr = {ARRAY_SIZE(tables), tables};
+
+	sprintf(SQL, "SELECT name FROM sqlite_master WHERE type='table' "
+		" ORDER BY name;");
+	ret = sqlite3_exec(osd->db, SQL, check_membership, &arr, &err);
+	if (ret != SQLITE_OK) {
+		osd_error("%s: query %s failed: %s", __func__, SQL, err);
+		sqlite3_free(err);
+		return OSD_ERROR;
+	}
+
+	return OSD_OK;
+}
+
 
 /*
  * < 0: error
@@ -57,7 +95,8 @@ int db_open(const char *path, struct osd_device *osd)
 		goto out;
 	}
 
-	ret = 0;
+	/* existing db, check for tables */
+	ret = db_check_tables(osd);
 
 out:
 	return ret;

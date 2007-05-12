@@ -304,7 +304,7 @@ void test_object_collection(struct osd_device *osd)
 
 int main()
 {
-	char path[]="/tmp/osd/osd.db";
+	char path[]="/tmp/osd/md/osd.db";
 	int ret = 0;
 	struct osd_device osd;
 

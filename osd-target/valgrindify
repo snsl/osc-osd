@@ -1,3 +1,0 @@
-#!/bin/sh
-
-valgrind --trace-children=yes --leak-check=full --log-file-exactly=valgrind.log ./tgtd -f 2>&1 > output.log

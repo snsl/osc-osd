@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <math.h>
+#include <ctype.h>
 
 #include "util.h"
 
@@ -221,6 +222,11 @@ void osd_hexdump(const uint8_t *d, size_t len)
 		printf("%4zx:", offset);
 		for (i=0; i<range; i++)
 			printf(" %02x", d[offset+i]);
+		printf("  ");
+		for (i=range; i<8; i++)
+		    printf("   ");
+		for (i=0; i<range; i++)
+			printf("%c", isprint(d[offset+i]) ? d[offset+i] : '.');
 		printf("\n");
 		offset += range;
 	}

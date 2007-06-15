@@ -209,8 +209,9 @@ size_t osd_safewrite(int fd, const void *buf, size_t num)
 /*
  * Debugging.
  */
-void osd_hexdump(const uint8_t *d, size_t len)
+void osd_hexdump(const void *dv, size_t len)
 {
+	const uint8_t *d = dv;
 	size_t offset = 0;
 
 	while (offset < len) {

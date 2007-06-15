@@ -35,7 +35,7 @@ void *Malloc(size_t n) __attribute__((malloc));
 void *Calloc(size_t nmemb, size_t n) __attribute__((malloc));
 size_t osd_saferead(int fd, void *buf, size_t num);
 size_t osd_safewrite(int fd, const void *buf, size_t num);
-void osd_hexdump(const uint8_t *d, size_t len);
+void osd_hexdump(const void *dv, size_t len);
 double mean(double *v, int N);
 double stddev(double *v, double mu, int N);
 double get_mhz(void);

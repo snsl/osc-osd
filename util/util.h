@@ -4,8 +4,8 @@
  * Copyright (C) 2000-7 Pete Wyckoff <pw@osc.edu>
  * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
  */
-#ifndef __UTIL_H
-#define __UTIL_H
+#ifndef __OSD_UTIL_H
+#define __OSD_UTIL_H
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -75,6 +75,10 @@ void set_htonll_le(uint8_t *x, uint64_t val);
 void set_htonoffset_le(uint8_t *x, uint64_t val);
 uint64_t next_offset(uint64_t start);
 
+/* remove netdb.h declarations */
+#undef ntohs
+#undef ntohl
+
 /* some day deal with the big-endian versions */
 #define     ntohs      ntohs_le
 #define     ntohl      ntohl_le
@@ -92,4 +96,4 @@ uint64_t next_offset(uint64_t start);
 #define roundup8(x) (((x) + 7) & ~7)
 #endif
 
-#endif /* __UTIL_H */
+#endif /* __OSD_UTIL_H */

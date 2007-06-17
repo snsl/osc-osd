@@ -34,7 +34,11 @@ static uint64_t obj_create_any(int fd, uint64_t pid)
 		osd_error_xerrno(ret, "%s: submit_and_wait failed", __func__);
 		exit(1);
 	}
-	osd_command_attr_resolve(&command);
+	ret = osd_command_attr_resolve(&command);
+	if (ret) {
+		osd_error_xerrno(ret, "%s: attr_resolve failed", __func__);
+		exit(1);
+	}
 	oid = ntohll(command.attr[0].val);
 	osd_command_attr_free(&command);
 	return oid;
@@ -196,7 +200,7 @@ int main(int argc, char *argv[])
 	}
 	
 	i = 0;
-	osd_debug("%s: drive %s name %s\n", progname, drives[i].chardev,
+	osd_debug("%s: drive %s name %s", progname, drives[i].chardev,
 		  drives[i].targetname);
 	fd = open(drives[i].chardev, O_RDWR);
 	if (fd < 0) {

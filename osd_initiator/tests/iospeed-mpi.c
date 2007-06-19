@@ -66,7 +66,7 @@ static void obj_remove(int fd, uint64_t pid, uint64_t oid)
 	}
 }
 
-static void read_bw(int fd, uint64_t pid, uint64_t oid, 
+static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		    size_t sz, int iters, int dosync)
 {
 	int i = 0;
@@ -121,7 +121,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		if (dosync)
 			printf("read-sync  %3lu %7.3lf +- %7.3lf\n",
 			       sz>>10, mu, sd);
-		else 
+		else
 			printf("read       %3lu %7.3lf +- %7.3lf\n",
 			       sz>>10, mu, sd);
 	}
@@ -130,7 +130,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	free(b);
 }
 
-static void write_bw(int fd, uint64_t pid, uint64_t oid, 
+static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		     size_t sz, int iters, int dosync)
 {
 	int i = 0;
@@ -188,7 +188,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		if (dosync)
 			printf("write-sync %3lu %7.3lf +- %7.3lf\n",
 			       sz>>10, mu, sd);
-		else 
+		else
 			printf("write      %3lu %7.3lf +- %7.3lf\n",
 			       sz>>10, mu, sd);
 	}
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
 	MPI_Init(&argc, &argv);
 	MPI_Comm_size(MPI_COMM_WORLD, &numproc);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-	osd_set_progname(argc, argv); 
+	osd_set_progname(argc, argv);
 
 	ret = osd_get_drive_list(&drives, &num_drives);
 	if (ret < 0) {
@@ -218,7 +218,7 @@ int main(int argc, char *argv[])
 		osd_error("%s: no drives", __func__);
 		return 1;
 	}
-	
+
 	i = 0;
 	osd_debug("%s: drive %s name %s", progname, drives[i].chardev,
 		  drives[i].targetname);
@@ -232,33 +232,42 @@ int main(int argc, char *argv[])
 	inquiry(fd);
 
 	if (rank == 0) {
-		format_osd(fd, 1<<30); 
+		format_osd(fd, 1<<30);
 		create_partition(fd, PARTITION_PID_LB);
 	}
 	MPI_Barrier(MPI_COMM_WORLD);
 
 	/* each works on a different object */
 	oid = obj_create_any(fd, PARTITION_PID_LB);
-
-	printf("# osd_initiator/tests/iospeed\n");
-	printf("# type  size (kB)  rate (MB/s) +- stdev\n");
+	if (rank == 0) {
+		printf("# osd_initiator/tests/iospeed\n");
+		printf("# type  size (kB)  rate (MB/s) +- stdev\n");
+	}
 	for (i=4096; i<=(1<<19); i+=4096) {
 		MPI_Barrier(MPI_COMM_WORLD);
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 	}
-	printf("\n\n");
+	if (rank == 0) {
+		printf("\n\n");
+	}
 	for (i=4096; i<=(1<<19); i+=4096) {
 		MPI_Barrier(MPI_COMM_WORLD);
 		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 	}
-	printf("\n\n");
+	if (rank == 0) {
+		printf("\n\n");
+	}
 #if 0
 	for (i=4096; i<=(1<<19); i+=4096)
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 1);
-	printf("\n\n");
+	if (rank == 0) {
+		printf("\n\n");
+	}
 	for (i=4096; i<=(1<<19); i+=4096)
 		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 1);
-	printf("\n\n");
+	if (rank == 0) {
+		printf("\n\n");
+	}
 #endif
 
 	obj_remove(fd, PARTITION_PID_LB, oid);

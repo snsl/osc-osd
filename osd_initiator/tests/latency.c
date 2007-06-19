@@ -141,7 +141,7 @@ static void create_test(int fd, uint64_t pid)
 		delta = end - start;
 		v[i] = (double) delta / mhz;  /* time in usec */
 #if 0
-		/* much faster to select an oid than to use autogen */
+		/* no slower to autocreate than to pick an oid */
 		++oid;
 		set_htonll(&command.cdb[24], oid);
 #endif

@@ -37,15 +37,16 @@ def build_buf(size):
 def compare(buf1, buf2):
 	for i in range(len(buf1)):
 		if buf1[i] != buf2[i]:
-			print >>sys.stderr,\
+			print >>sys.stderr, \
 			    "Bufs differ at offset %d: %02x vs %02x" \
-			    % (i, buf1[i], buf2[i])
+			    % (i, ord(buf1[i]), ord(buf2[i]))
 			sys.exit(1)
 
 def test_rw(pid, oid):
 	for logsize in range(1,20):
 	    basesize = 1<<logsize
-	    for size in [ basesize-1, basesize, basesize+1 ]:
+	    #for size in [ basesize-1, basesize, basesize+1 ]:
+	    for size in [ basesize ]:
 		    print "Test size", size
 		    buf = build_buf(size)
 		    command = OSDCommand()

@@ -8,7 +8,7 @@ OBJ := $(SRC:.c=.o)
 LIB := pyosd.so
 
 # external libraries being wrapped for python
-INCDIR := -I/usr/include/python2.4 -I../..
+INCDIR := $(shell python-config --includes) -I../..
 OSDLIBS := ../libosdinit.a ../../util/libosdutil.a
 
 include ../../Makedefs

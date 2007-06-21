@@ -105,6 +105,87 @@ static void getattr_test(int fd, uint64_t pid)
 	free(v);
 }
 
+static void setattr_test(int fd, uint64_t pid)
+{
+	int i, ret;
+	uint64_t start, end, delta;
+	double mu, stdev;
+	double *v;
+	struct osd_command cmd;
+	char attr_val[] = "deadbEEf";
+	char ret_val[16];
+	uint64_t oid = USEROBJECT_OID_LB;
+	struct attribute_list attr = {
+		.type = ATTR_SET,
+		.page = USEROBJECT_PG + LUN_PG_LB,
+		.number = 1,
+		.val = attr_val,
+		.len = sizeof(attr_val),
+	};
+	/* const int iter = 10000; */
+	const int iter = 1;
+
+	v = malloc(iter * sizeof(*v));
+	if (!v)
+		osd_error_fatal("out of memory");
+
+	osd_command_set_create(&cmd, pid, oid, 1);
+	ret = osd_submit_and_wait(fd, &cmd);
+	assert(ret == 0);
+
+	osd_command_set_set_attributes(&cmd, pid, oid);
+	osd_command_attr_build(&cmd, &attr, 1);
+	ret = osd_submit_and_wait(fd, &cmd);
+	assert(ret == 0);
+	osd_command_attr_free(&cmd);
+
+	attr.type = ATTR_GET;
+	attr.val = ret_val;
+	memset(ret_val, 0, sizeof(ret_val));
+	osd_command_set_get_attributes(&cmd, pid, oid);
+	osd_command_attr_build(&cmd, &attr, 1);
+	osd_command_attr_resolve(&cmd);
+	ret = osd_submit_and_wait(fd, &cmd);
+	assert(ret == 0);
+	assert(memcmp(attr_val, cmd.attr[0].val, sizeof(attr_val)) == 0);
+	osd_command_attr_free(&cmd);
+
+	attr.type = ATTR_SET;
+	attr.page = USEROBJECT_PG + LUN_PG_LB;
+	attr.number = 1,
+	attr.val = attr_val;
+	attr.len = sizeof(attr_val),
+	osd_command_set_set_attributes(&cmd, pid, oid);
+	osd_command_attr_build(&cmd, &attr, 1);
+
+	/* warm up */
+	for (i=0; i<0; i++) {
+		ret = osd_submit_and_wait(fd, &cmd);
+		assert(ret == 0);
+	}
+
+	for (i=0; i<iter; i++) {
+		rdtsc(start);
+		ret = osd_submit_and_wait(fd, &cmd);
+		rdtsc(end);
+		assert(ret == 0);
+		delta = end - start;
+		v[i] = (double) delta / mhz;  /* time in usec */
+	}
+
+	/* free memory */
+	osd_command_attr_free(&cmd);
+
+	osd_command_set_remove(&cmd, pid, oid);
+	ret = osd_submit_and_wait(fd, &cmd);
+	assert(ret == 0);
+
+	mu = mean(v, iter);
+	stdev = stddev(v, mu, iter);
+	printf("# setattr %9.3lf +- %8.3lf\n", mu, stdev);
+	free(v);
+}
+
 static void create_test(int fd, uint64_t pid)
 {
 	int i, ret;
@@ -366,12 +447,13 @@ int main(int argc, char *argv[])
 	format_osd(fd, 1<<30); 
 	create_partition(fd, PARTITION_PID_LB);
 
-	noop_test(fd);
-	getattr_test(fd, PARTITION_PID_LB);
-	create_test(fd, PARTITION_PID_LB);
+/* 	noop_test(fd);
+	getattr_test(fd, PARTITION_PID_LB); */
+	setattr_test(fd, PARTITION_PID_LB);
+/* 	create_test(fd, PARTITION_PID_LB);
 	remove_test(fd, PARTITION_PID_LB);
 	create_remove_test(fd, PARTITION_PID_LB);
-	get_set_attr(fd, PARTITION_PID_LB);
+	get_set_attr(fd, PARTITION_PID_LB); */
 
 	close(fd);
 	return 0;

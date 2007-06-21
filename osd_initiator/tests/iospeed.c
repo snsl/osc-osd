@@ -76,7 +76,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		osd_error_fatal("out of memory");
 
 	/* warm up */
-	for (i=0; i< 5; i++) {
+	for (i=0; i<5; i++) {
 		ret = read_osd(fd, pid, oid, buf, sz, 0);
 		assert(ret == 0);
 	}
@@ -113,6 +113,8 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	else 
 		printf("read       %3lu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
 
+/* 	uint8_t *p = buf;
+	printf("%x %x %x %x %x\n", p[0], p[127], p[sz-256], p[sz-2], p[sz-1]); */
 	free(buf);
 	free(b);
 }
@@ -128,12 +130,26 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 	double mu, sd;
 	double *b = NULL;
 	void *buf = NULL;
+	/* uint8_t *p = NULL; */
 
 	buf = malloc(sz);
 	b = malloc(iters * sizeof(*b));
 
 	if (!buf || !b)
 		osd_error_fatal("out of memory");
+
+#if 0
+	assert(sz > 256);
+	
+	p = buf;
+	memset(p, 0xde, 128); 
+	p[0] = 0;
+	p += 128;
+	memset(p, 0xa5, sz - 256);
+	p += (sz - 256);
+	memset(p, 0xef, 128);
+	p[127] = 0;
+#endif
 
 	/* warm up */
 	for (i=0; i< 5; i++) {
@@ -216,7 +232,14 @@ int main(int argc, char *argv[])
 
 	oid = obj_create_any(fd, PARTITION_PID_LB);
 
-	printf("# osd_initiator/tests/iospeed\n");
+#if 0
+	for (i=(1<<19); i<=(1<<19); i <<= 1) {
+		printf("write/read %d\n", i);
+		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
+		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
+	}
+#endif
+ 	printf("# osd_initiator/tests/iospeed\n");
 	printf("# type  size (kB)  rate (MB/s) +- stdev\n");
 	for (i=4096; i<(1<<19); i+=4096)
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);

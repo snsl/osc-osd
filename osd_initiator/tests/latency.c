@@ -22,6 +22,7 @@ static void noop_test(int fd)
 	double *v;
 	struct osd_command command;
 	const int iter = 10000;
+	/* const int iter = 1; */
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
@@ -46,7 +47,7 @@ static void noop_test(int fd)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("# noop    %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("noop    %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -65,6 +66,7 @@ static void getattr_test(int fd, uint64_t pid)
 		.len = 8,
 	};
 	const int iter = 10000;
+	/* const int iter = 1; */
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
@@ -78,7 +80,7 @@ static void getattr_test(int fd, uint64_t pid)
 	osd_command_attr_build(&command, &attr, 1);
 
 	/* warm up */
-	for (i=0; i<5; i++) {
+	for (i=0; i<50; i++) {
 		ret = osd_submit_and_wait(fd, &command);
 		assert(ret == 0);
 	}
@@ -101,7 +103,7 @@ static void getattr_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("# getattr %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("getattr %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -122,8 +124,8 @@ static void setattr_test(int fd, uint64_t pid)
 		.val = attr_val,
 		.len = sizeof(attr_val),
 	};
-	/* const int iter = 10000; */
-	const int iter = 1;
+	const int iter = 10000;
+	/* const int iter = 1; */
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
@@ -139,27 +141,31 @@ static void setattr_test(int fd, uint64_t pid)
 	assert(ret == 0);
 	osd_command_attr_free(&cmd);
 
+	memset(&attr, 0, sizeof(attr));
 	attr.type = ATTR_GET;
+	attr.page = USEROBJECT_PG + LUN_PG_LB;
+	attr.number = 1;
 	attr.val = ret_val;
+	attr.len = sizeof(attr_val);
 	memset(ret_val, 0, sizeof(ret_val));
 	osd_command_set_get_attributes(&cmd, pid, oid);
 	osd_command_attr_build(&cmd, &attr, 1);
-	osd_command_attr_resolve(&cmd);
 	ret = osd_submit_and_wait(fd, &cmd);
 	assert(ret == 0);
+	osd_command_attr_resolve(&cmd);
 	assert(memcmp(attr_val, cmd.attr[0].val, sizeof(attr_val)) == 0);
 	osd_command_attr_free(&cmd);
 
 	attr.type = ATTR_SET;
 	attr.page = USEROBJECT_PG + LUN_PG_LB;
-	attr.number = 1,
+	attr.number = 1;
 	attr.val = attr_val;
-	attr.len = sizeof(attr_val),
+	attr.len = sizeof(attr_val);
 	osd_command_set_set_attributes(&cmd, pid, oid);
 	osd_command_attr_build(&cmd, &attr, 1);
 
 	/* warm up */
-	for (i=0; i<0; i++) {
+	for (i=0; i<50; i++) {
 		ret = osd_submit_and_wait(fd, &cmd);
 		assert(ret == 0);
 	}
@@ -182,7 +188,7 @@ static void setattr_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("# setattr %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("setattr %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -195,40 +201,32 @@ static void create_test(int fd, uint64_t pid)
 	struct osd_command command;
 	uint64_t oid = USEROBJECT_OID_LB;
 	const int iter = 10000;
-	struct attribute_list attr = { ATTR_GET, CUR_CMD_ATTR_PG,
-				       CCAP_OID, NULL, CCAP_OID_LEN, 0};
+	/* const int iter = 1; */
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
 		osd_error_fatal("out of memory");
 
-	osd_command_set_create(&command, pid, oid, 1);
-        osd_command_attr_build(&command, &attr, 1);
+	osd_command_set_create(&command, pid, 0, 1);
 
 	/* warm up */
 	for (i=0; i<50; i++) {
 		ret = osd_submit_and_wait(fd, &command);
 		assert(ret == 0);
-		++oid;
-		set_htonll(&command.cdb[24], oid);
+		osd_command_set_remove(&command, pid, oid);
+		ret = osd_submit_and_wait(fd, &command);
+		assert(ret == 0);
 	}
 
-	set_htonll(&command.cdb[24], 0);  /* auto-gen oid */
 	for (i=0; i<iter; i++) {
+		osd_command_set_create(&command, pid, 0, 1);
 		rdtsc(start);
 		ret = osd_submit_and_wait(fd, &command);
 		rdtsc(end);
 		assert(ret == 0);
 		delta = end - start;
 		v[i] = (double) delta / mhz;  /* time in usec */
-#if 0
-		/* no slower to autocreate than to pick an oid */
-		++oid;
-		set_htonll(&command.cdb[24], oid);
-#endif
-	}
 
-	while (--oid >= USEROBJECT_OID_LB) {
 		osd_command_set_remove(&command, pid, oid);
 		ret = osd_submit_and_wait(fd, &command);
 		assert(ret == 0);
@@ -240,7 +238,7 @@ static void create_test(int fd, uint64_t pid)
 	 * XXX: Be sure to pay attention to the values, they creep up
 	 * due to database overheads as the number of objects grows.
 	 */
-	printf("# create  %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("create  %9.3lf +- %8.3lf\n", mu, stdev);
 	if (0) {
 		for (i=0; i<iter; i++)
 			printf("%9.3lf\n", v[i]);
@@ -258,43 +256,41 @@ static void remove_test(int fd, uint64_t pid)
 	uint64_t oid = USEROBJECT_OID_LB;
 	const int iter = 10000;
 	const int warmup = 50;
+/* 	const int iter = 1;
+	const int warmup = 0; */
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
 		osd_error_fatal("out of memory");
 
-	for (i=0; i<iter+warmup; i++) {
-		osd_command_set_create(&command, pid, oid, 1);
-		ret = osd_submit_and_wait(fd, &command);
-		assert(ret == 0);
-		++oid;
-	}
-
-	oid = USEROBJECT_OID_LB;
-	osd_command_set_remove(&command, pid, oid);
-
 	/* warm up */
 	for (i=0; i<warmup; i++) {
+		osd_command_set_create(&command, pid, 0, 1);
 		ret = osd_submit_and_wait(fd, &command);
 		assert(ret == 0);
-		++oid;
-		set_htonll(&command.cdb[24], oid);
+
+		osd_command_set_remove(&command, pid, oid);
+		ret = osd_submit_and_wait(fd, &command);
+		assert(ret == 0);
 	}
 
 	for (i=0; i<iter; i++) {
+		osd_command_set_create(&command, pid, 0, 1);
+		ret = osd_submit_and_wait(fd, &command);
+		assert(ret == 0);
+
+		osd_command_set_remove(&command, pid, oid);
 		rdtsc(start);
 		ret = osd_submit_and_wait(fd, &command);
 		rdtsc(end);
 		assert(ret == 0);
 		delta = end - start;
 		v[i] = (double) delta / mhz;  /* time in usec */
-		++oid;
-		set_htonll(&command.cdb[24], oid);
 	}
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("# remove  %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("remove  %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -307,6 +303,7 @@ static void create_remove_test(int fd, uint64_t pid)
 	struct osd_command command_create, command_remove;
 	uint64_t oid = USEROBJECT_OID_LB;
 	const int iter = 10000;
+	/* const int iter = 1; */
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
@@ -334,7 +331,7 @@ static void create_remove_test(int fd, uint64_t pid)
 
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("# cr+rm   %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("cr+rm   %9.3lf +- %8.3lf\n", mu, stdev);
 	free(v);
 }
 
@@ -357,6 +354,8 @@ static void get_set_attr(int fd, uint64_t pid)
 	};
 	const int iter = 1000;
 	const int warm_iter = 5;
+/* 	const int iter = 1;
+	const int warm_iter = 0; */
 
 	v = malloc(iter * sizeof(*v));
 	if (!v)
@@ -410,7 +409,7 @@ static void get_set_attr(int fd, uint64_t pid)
 	assert(ret == 0);
 	mu = mean(v, iter);
 	stdev = stddev(v, mu, iter);
-	printf("# getattr %9.3lf +- %8.3lf\n", mu, stdev);
+	printf("getattr %9.3lf +- %8.3lf\n", mu, stdev);
 #if 0
 	for (i=0; i<iter; i++) 
 		printf("latency %lf\n", v[i]);
@@ -447,13 +446,14 @@ int main(int argc, char *argv[])
 	format_osd(fd, 1<<30); 
 	create_partition(fd, PARTITION_PID_LB);
 
-/* 	noop_test(fd);
-	getattr_test(fd, PARTITION_PID_LB); */
+	noop_test(fd);
+	getattr_test(fd, PARTITION_PID_LB);
 	setattr_test(fd, PARTITION_PID_LB);
-/* 	create_test(fd, PARTITION_PID_LB);
+	create_test(fd, PARTITION_PID_LB);
 	remove_test(fd, PARTITION_PID_LB);
 	create_remove_test(fd, PARTITION_PID_LB);
-	get_set_attr(fd, PARTITION_PID_LB); */
+	if (0)
+		get_set_attr(fd, PARTITION_PID_LB);
 
 	close(fd);
 	return 0;

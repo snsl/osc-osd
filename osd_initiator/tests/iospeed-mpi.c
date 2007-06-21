@@ -71,12 +71,13 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 {
 	int i = 0;
 	int ret = 0;
-	uint64_t start, end, delta;
+	uint64_t start, end, delta, total_start, total_stop;
 	double mhz = get_mhz();
 	double time = 0.0;
-	double mu, sd;
+	double mu, sd, total;
 	double *b = NULL;
 	void *buf = NULL;
+	size_t total_size;
 
 	buf = malloc(sz);
 	b = malloc(iters * sizeof(*b));
@@ -89,7 +90,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		ret = read_osd(fd, pid, oid, buf, sz, 0);
 		assert(ret == 0);
 	}
-
+	rdtsc(total_start);
 	for (i=0; i< iters; i++) {
 		if (dosync) {
 			rdtsc(start);
@@ -115,19 +116,33 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		b[i] = sz/time; /* BW in MegaBytes/sec */
 	}
 
-	mu = mean(b, iters);
-	sd = stddev(b, mu, iters);
-	if (rank == 0) {
-		if (dosync)
-			printf("read-sync  %3lu %7.3lf +- %7.3lf\n",
-			       sz>>10, mu, sd);
-		else
-			printf("read       %3lu %7.3lf +- %7.3lf\n",
-			       sz>>10, mu, sd);
-	}
+	MPI_Barrier(MPI_COMM_WORLD); /*everyone is done reading*/
+	rdtsc(total_stop);
 
-	free(buf);
-	free(b);
+	#if 1
+	if (rank == 0) {
+		delta = total_stop - total_start;
+		time = ((double)delta)/mhz; /*time in usec*/
+		total_size = sz * iters * numproc; /*total bytes moved for all procs*/
+		printf("read %d %3lu %7.3lf\n", numproc, sz>>10, total_size/time);
+	}
+	#else
+		mu = mean(b, iters);
+		sd = stddev(b, mu, iters);
+
+		total = mu * numproc;
+
+		if (dosync)
+			printf("rank %d read-sync  %3lu %7.3lf +- %7.3lf\n",
+			       rank, sz>>10, mu, sd);
+		else
+			printf("rank %d read       %3lu %7.3lf +- %7.3lf\n",
+			       rank, sz>>10, mu, sd);
+		free(buf);
+		free(b);
+	#endif
+
+
 }
 
 static void write_bw(int fd, uint64_t pid, uint64_t oid,
@@ -135,12 +150,13 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 {
 	int i = 0;
 	int ret = 0;
-	uint64_t start, end, delta;
+	uint64_t start, end, delta, total_start, total_stop;;
 	double mhz = get_mhz();
 	double time = 0.0;
 	double mu, sd;
 	double *b = NULL;
 	void *buf = NULL;
+	size_t total_size;
 
 	buf = malloc(sz);
 	b = malloc(iters * sizeof(*b));
@@ -153,7 +169,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		ret = write_osd(fd, pid, oid, buf, sz, 0);
 		assert(ret == 0);
 	}
-
+	rdtsc(total_start);
 	for (i=0; i< iters; i++) {
 		if (dosync) {
 			rdtsc(start);
@@ -181,20 +197,29 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		time = ((double)delta)/mhz; /* time in usec */
 		b[i] = sz/time; /* BW in MegaBytes/sec */
 	}
-
-	mu = mean(b, iters);
-	sd = stddev(b, mu, iters);
+	rdtsc(total_stop);
+	#if 1
 	if (rank == 0) {
-		if (dosync)
-			printf("write-sync %3lu %7.3lf +- %7.3lf\n",
-			       sz>>10, mu, sd);
-		else
-			printf("write      %3lu %7.3lf +- %7.3lf\n",
-			       sz>>10, mu, sd);
+		delta = total_stop - total_start;
+		time = ((double)delta)/mhz; /*time in usec*/
+		total_size = sz * iters * numproc; /*total bytes moved for all procs*/
+		printf("write %d %3lu %7.3lf\n", numproc, sz>>10, total_size/time);
 	}
+	#else
 
-	free(buf);
-	free(b);
+
+		mu = mean(b, iters);
+		sd = stddev(b, mu, iters);
+			if (dosync)
+				printf("rank %d write-sync %3lu %7.3lf +- %7.3lf\n",
+				       rank, sz>>10, mu, sd);
+			else
+				printf("rank %d write      %3lu %7.3lf +- %7.3lf\n",
+				       rank, sz>>10, mu, sd);
+		free(buf);
+		free(b);
+	#endif
+
 }
 
 int main(int argc, char *argv[])
@@ -239,24 +264,18 @@ int main(int argc, char *argv[])
 
 	/* each works on a different object */
 	oid = obj_create_any(fd, PARTITION_PID_LB);
+	//~ for (i=4096; i<=(1<<19); i+=4096) {
 	if (rank == 0) {
 		printf("# osd_initiator/tests/iospeed\n");
 		printf("# type  size (kB)  rate (MB/s) +- stdev\n");
 	}
-	for (i=4096; i<(1<<19); i+=4096) {
 		MPI_Barrier(MPI_COMM_WORLD);
-		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
-	}
-	if (rank == 0) {
-		printf("\n\n");
-	}
-	for (i=4096; i<(1<<19); i+=4096) {
+		write_bw(fd, PARTITION_PID_LB, oid, 262144, iter, 0);
+	//~ }
+	//~ for (i=4096; i<=(1<<19); i+=4096) {
 		MPI_Barrier(MPI_COMM_WORLD);
-		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
-	}
-	if (rank == 0) {
-		printf("\n\n");
-	}
+		read_bw(fd, PARTITION_PID_LB, oid, 262144, iter, 0);
+	//~ }
 #if 0
 	for (i=4096; i<=(1<<19); i+=4096)
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 1);

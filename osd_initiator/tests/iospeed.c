@@ -218,10 +218,10 @@ int main(int argc, char *argv[])
 
 	printf("# osd_initiator/tests/iospeed\n");
 	printf("# type  size (kB)  rate (MB/s) +- stdev\n");
-	for (i=4096; i<=(1<<19); i+=4096)
+	for (i=4096; i<(1<<19); i+=4096)
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 	printf("\n\n");
-	for (i=4096; i<=(1<<19); i+=4096)
+	for (i=4096; i<(1<<19); i+=4096)
 		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 	printf("\n\n");
 #if 0

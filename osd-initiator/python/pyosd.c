@@ -2,7 +2,7 @@
  * Main module.
  */
 #include <Python.h>
-#include "osd_initiator/command.h"
+#include "osd-initiator/command.h"
 #include "util/util.h"
 #include "pyosd.h"
 

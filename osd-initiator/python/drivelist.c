@@ -3,8 +3,8 @@
  */
 #include <Python.h>
 #include <structmember.h>  /* T_OBJECT */
-#include "osd_initiator/command.h"
-#include "osd_initiator/drivelist.h"
+#include "osd-initiator/command.h"
+#include "osd-initiator/drivelist.h"
 #include "pyosd.h"
 
 /*

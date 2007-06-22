@@ -14,7 +14,7 @@
 #include "util/osd-defs.h"
 #include "util/util.h"
 #include "util/osd-sense.h"
-#include "osd_initiator/command.h"
+#include "osd-initiator/command.h"
 
 void test_partition(struct osd_device *osd);
 void test_create(struct osd_device *osd);

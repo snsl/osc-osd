@@ -11,7 +11,7 @@ OBJ := $(SRC:.c=.o)
 TESTDIR := ./tests/
 UTILDIR := ../util/
 STGTDIR := ../stgt/
-INITDIR := ../osd_initiator/
+INITDIR := ../osd-initiator/
 OSDTARGETLIB := libosdtgt.a
 
 STGTLIB := ../stgt/libstgt.a

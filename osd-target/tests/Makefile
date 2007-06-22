@@ -11,7 +11,7 @@ EXE := $(TESTS:.c=)
 
 CMD := command.c
 CMD_OBJ := $(CMD:.c=.o)
-CMD_SRC := ../../osd_initiator/$(CMD)
+CMD_SRC := ../../osd-initiator/$(CMD)
 CMD_INC := $(CMD_SRC:.c=.h)
 
 TMG_DIR := ../../benchmarks/osd-target/

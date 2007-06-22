@@ -3,8 +3,8 @@
  */
 #include <fcntl.h>
 #include <Python.h>
-#include "osd_initiator/command.h"
-#include "osd_initiator/device.h"
+#include "osd-initiator/command.h"
+#include "osd-initiator/device.h"
 #include "util/util.h"
 #include "pyosd.h"
 

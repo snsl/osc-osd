@@ -2,7 +2,7 @@
 
 UTIL := ./util
 TRGT := ./osd-target
-INIT := ./osd_initiator
+INIT := ./osd-initiator
 PVFS := ./pvfs
 STGT := ./stgt
 

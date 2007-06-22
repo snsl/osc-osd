@@ -3,8 +3,8 @@
  */
 #include <Python.h>
 #include <structmember.h>  /* T_UBYTE */
-#include "osd_initiator/command.h"
-#include "osd_initiator/sense.h"
+#include "osd-initiator/command.h"
+#include "osd-initiator/sense.h"
 #include "util/util.h"
 #include "pyosd.h"
 

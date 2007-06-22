@@ -2,7 +2,7 @@
  * Constants from #defines and enums.  Try to keep this list up to date.
  */
 #include <Python.h>
-#include "osd_initiator/command.h"
+#include "osd-initiator/command.h"
 #include "util/osd-defs.h"
 #include "pyosd.h"
 

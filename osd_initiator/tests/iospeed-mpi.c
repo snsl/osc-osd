@@ -90,6 +90,10 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		ret = read_osd(fd, pid, oid, buf, sz, 0);
 		assert(ret == 0);
 	}
+
+	memset(buf, '\0', sz);
+
+	MPI_Barrier(MPI_COMM_WORLD);
 	rdtsc(total_start);
 	for (i=0; i< iters; i++) {
 		if (dosync) {
@@ -118,6 +122,15 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 
 	MPI_Barrier(MPI_COMM_WORLD); /*everyone is done reading*/
 	rdtsc(total_stop);
+
+	unsigned int j;
+	for (j=0; j<sz; j++) {
+		char *c = (char *)buf + j;
+		if ( c[0] != 'D') {
+			printf("[%d] ERROR READING BUFF (%c)\n", rank, c[0]);
+		}
+	}
+
 
 	#if 1
 	if (rank == 0) {
@@ -169,6 +182,10 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		ret = write_osd(fd, pid, oid, buf, sz, 0);
 		assert(ret == 0);
 	}
+
+	memset(buf, 'D', sz);
+
+	MPI_Barrier(MPI_COMM_WORLD);
 	rdtsc(total_start);
 	for (i=0; i< iters; i++) {
 		if (dosync) {
@@ -198,6 +215,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		b[i] = sz/time; /* BW in MegaBytes/sec */
 	}
 	rdtsc(total_stop);
+
 	#if 1
 	if (rank == 0) {
 		delta = total_stop - total_start;
@@ -265,16 +283,16 @@ int main(int argc, char *argv[])
 	/* each works on a different object */
 	oid = obj_create_any(fd, PARTITION_PID_LB);
 	//~ for (i=4096; i<=(1<<19); i+=4096) {
-	if (rank == 0) {
-		printf("# osd_initiator/tests/iospeed\n");
-		printf("# type  size (kB)  rate (MB/s) +- stdev\n");
-	}
+	//~ if (rank == 0) {
+		//~ printf("# osd_initiator/tests/iospeed\n");
+		//~ printf("# type  size (kB)  rate (MB/s) +- stdev\n");
+	//~ }
 		MPI_Barrier(MPI_COMM_WORLD);
-		write_bw(fd, PARTITION_PID_LB, oid, 262144, iter, 0);
+		write_bw(fd, PARTITION_PID_LB, oid, 204800, iter, 0);
 	//~ }
 	//~ for (i=4096; i<=(1<<19); i+=4096) {
 		MPI_Barrier(MPI_COMM_WORLD);
-		read_bw(fd, PARTITION_PID_LB, oid, 262144, iter, 0);
+		read_bw(fd, PARTITION_PID_LB, oid, 204800, iter, 0);
 	//~ }
 #if 0
 	for (i=4096; i<=(1<<19); i+=4096)

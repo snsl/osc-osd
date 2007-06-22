@@ -74,6 +74,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	uint64_t start, end, delta, total_start, total_stop;
 	double mhz = get_mhz();
 	double time = 0.0;
+	double max_time = 0.0;
 	double mu, sd, total;
 	double *b = NULL;
 	void *buf = NULL;
@@ -133,12 +134,19 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 
 
 	#if 1
-	if (rank == 0) {
 		delta = total_stop - total_start;
 		time = ((double)delta)/mhz; /*time in usec*/
-		total_size = sz * iters * numproc; /*total bytes moved for all procs*/
-		printf("read %d %3lu %7.3lf\n", numproc, sz>>10, total_size/time);
-	}
+
+		ret = MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX,
+				0, MPI_COMM_WORLD);
+		if (ret != MPI_SUCCESS) {
+			printf("MPI ERROR\n");
+		}
+		if (rank == 0) {
+			total_size = sz * iters * numproc; /*total bytes moved*/
+			printf("read %d %3lu %7.3lf\n", numproc, sz>>10,
+				total_size/max_time);
+		}
 	#else
 		mu = mean(b, iters);
 		sd = stddev(b, mu, iters);
@@ -166,6 +174,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 	uint64_t start, end, delta, total_start, total_stop;;
 	double mhz = get_mhz();
 	double time = 0.0;
+	double max_time = 0.0;
 	double mu, sd;
 	double *b = NULL;
 	void *buf = NULL;
@@ -214,15 +223,23 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		time = ((double)delta)/mhz; /* time in usec */
 		b[i] = sz/time; /* BW in MegaBytes/sec */
 	}
+	MPI_Barrier(MPI_COMM_WORLD); /*everyone is done reading*/
 	rdtsc(total_stop);
 
 	#if 1
-	if (rank == 0) {
 		delta = total_stop - total_start;
 		time = ((double)delta)/mhz; /*time in usec*/
-		total_size = sz * iters * numproc; /*total bytes moved for all procs*/
-		printf("write %d %3lu %7.3lf\n", numproc, sz>>10, total_size/time);
-	}
+
+		ret = MPI_Reduce(&time, &max_time, 1, MPI_DOUBLE, MPI_MAX,
+				0, MPI_COMM_WORLD);
+		if (ret != MPI_SUCCESS) {
+			printf("MPI ERROR\n");
+		}
+		if (rank == 0) {
+			total_size = sz * iters * numproc; /*total bytes moved*/
+			printf("read %d %3lu %7.3lf\n", numproc, sz>>10,
+				total_size/max_time);
+		}
 	#else
 
 

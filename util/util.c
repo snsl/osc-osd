@@ -254,9 +254,23 @@ uint64_t ntohll_le(const uint8_t *d)
 	return (uint64_t) d0 << 32 | d1;
 }
 
+/*
+ * Doing these without memcpy for alignment now.  If anyone actually runs
+ * on a BE machine, perhaps they'll tell us if alignment is needed.
+ */
+uint64_t ntohll_be(const uint8_t *d)
+{
+	return *(const uint64_t *) d;
+}
+
 uint32_t ntohl_le(const uint8_t *d)
 {
 	return swab32(*(const uint32_t *) d);
+}
+
+uint32_t ntohl_be(const uint8_t *d)
+{
+	return *(const uint32_t *) d;
 }
 
 uint16_t ntohs_le(const uint8_t *d)
@@ -267,6 +281,11 @@ uint16_t ntohs_le(const uint8_t *d)
 		(x & (uint16_t) 0xff00U) >> 8;
 }
 
+uint16_t ntohs_be(const uint8_t *d)
+{
+	return *(const uint16_t *) d;
+}
+
 void set_htonll_le(uint8_t *x, uint64_t val)
 {
 	uint32_t *xw = (uint32_t *) x;
@@ -275,11 +294,21 @@ void set_htonll_le(uint8_t *x, uint64_t val)
 	xw[1] = swab32((val & (uint64_t) 0x00000000ffffffffULL));
 }
 
+void set_htonll_be(uint8_t *x, uint64_t val)
+{
+	*(uint64_t *) x = val;
+}
+
 void set_htonl_le(uint8_t *x, uint32_t val)
 {
 	uint32_t *xw = (uint32_t *) x;
 
 	*xw = swab32(val);
+}
+
+void set_htonl_be(uint8_t *x, uint32_t val)
+{
+	*(uint32_t *) x = val;
 }
 
 void set_htons_le(uint8_t *x, uint16_t val)
@@ -290,18 +319,23 @@ void set_htons_le(uint8_t *x, uint16_t val)
 		(val & (uint16_t) 0xff00U) >> 8;
 }
 
+void set_htons_be(uint8_t *x, uint16_t val)
+{
+	*(uint16_t *) x = val;
+}
+
 /*
  * Offset fields for attribute lists are floating point-ish.  Smallest
- * possible offset (other than 0) is 2^8 == 256.
+ * possible offset (other than 0) is 2^8 == 256.  Generic for both endians.
  */
-uint64_t ntohoffset_le(const uint8_t *d)
+uint64_t ntohoffset(const uint8_t *d)
 {
 	const uint32_t mask = 0xf0000000UL;
 	uint32_t base;
 	uint8_t exponent;
 	uint64_t x;
 
-	base = ntohl_le(d);
+	base = ntohl(d);
 	exponent = (base & mask) >> 28;
 
 	x = (uint64_t) (base & ~mask) << (exponent + 8);
@@ -313,7 +347,7 @@ uint64_t ntohoffset_le(const uint8_t *d)
  * it converts, effectively truncating.  These generally try to use
  * the smallest possible exponent to accommodate the value.
  */
-void set_htonoffset_le(uint8_t *x, uint64_t val)
+void set_htonoffset(uint8_t *x, uint64_t val)
 {
 	const uint64_t max_mantissa = 0x0fffffffULL;
 	uint64_t start = val;
@@ -334,7 +368,7 @@ void set_htonoffset_le(uint8_t *x, uint64_t val)
 	}
 	base = val;
 	base |= (uint32_t) exponent << 28;
-	set_htonl_le(x, base);
+	set_htonl(x, base);
 }
 
 /*
@@ -408,6 +442,55 @@ int main(void)
 	return 0;
 }
 #endif
+
+/*
+ * Return time in ms since 1970, given a six-byte big-endian as encoded
+ * in OSD.
+ */
+uint64_t ntohtime_le(const uint8_t *d)
+{
+	uint8_t s[8];
+
+	s[0] = 0;
+	s[1] = 0;
+	memcpy(&s[2], d, 6);
+	return ntohll_le(s);
+}
+
+uint64_t ntohtime_be(const uint8_t *d)
+{
+	union {
+		uint8_t s[8];
+		uint64_t t;
+	} u;
+
+	u.s[0] = 0;
+	u.s[1] = 0;
+	memcpy(&u.s[2], d, 6);
+	return u.t;
+}
+
+/*
+ * Ignore biggest two bytes, encode other six as big endian.
+ */
+void set_htontime_le(uint8_t *x, uint64_t val)
+{
+	uint8_t s[8];
+
+	set_htonll_le(s, val);
+	memcpy(x, s+2, 6);
+}
+
+void set_htontime_be(uint8_t *x, uint64_t val)
+{
+	union {
+		uint8_t s[8];
+		uint64_t t;
+	} u;
+
+	u.t = val;
+	memcpy(x, u.s+2, 6);
+}
 
 double mean(double *v, int N)
 {

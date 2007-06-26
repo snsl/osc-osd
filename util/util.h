@@ -9,6 +9,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <endian.h>
 
 #if defined(__x86_64__)
 	#define rdtsc(v) do { \
@@ -66,28 +67,49 @@ double get_mhz(void);
 
 /* endian covertors */
 uint16_t ntohs_le(const uint8_t *d);
+uint16_t ntohs_be(const uint8_t *d);
 uint32_t ntohl_le(const uint8_t *d);
+uint32_t ntohl_be(const uint8_t *d);
 uint64_t ntohll_le(const uint8_t *d);
-uint64_t ntohoffset_le(const uint8_t *d);
+uint64_t ntohll_be(const uint8_t *d);
+uint64_t ntohtime_le(const uint8_t *d);
+uint64_t ntohtime_be(const uint8_t *d);
 void set_htons_le(uint8_t *x, uint16_t val);
+void set_htons_be(uint8_t *x, uint16_t val);
 void set_htonl_le(uint8_t *x, uint32_t val);
+void set_htonl_be(uint8_t *x, uint32_t val);
 void set_htonll_le(uint8_t *x, uint64_t val);
-void set_htonoffset_le(uint8_t *x, uint64_t val);
+void set_htonll_be(uint8_t *x, uint64_t val);
+void set_htontime_le(uint8_t *x, uint64_t val);
+void set_htontime_be(uint8_t *x, uint64_t val);
+
+uint64_t ntohoffset(const uint8_t *d);
+void set_htonoffset(uint8_t *x, uint64_t val);
 uint64_t next_offset(uint64_t start);
 
 /* remove netdb.h declarations */
 #undef ntohs
 #undef ntohl
 
-/* some day deal with the big-endian versions */
+#if __BYTE_ORDER == __LITTLE_ENDIAN
 #define     ntohs      ntohs_le
 #define     ntohl      ntohl_le
 #define     ntohll     ntohll_le
-#define     ntohoffset ntohoffset_le
+#define     ntohtime   ntohtime_le
 #define set_htons      set_htons_le
 #define set_htonl      set_htonl_le
 #define set_htonll     set_htonll_le
-#define set_htonoffset set_htonoffset_le
+#define set_htontime   set_htontime_le
+#else
+#define     ntohs      ntohs_be
+#define     ntohl      ntohl_be
+#define     ntohll     ntohll_be
+#define     ntohtime   ntohtime_be
+#define set_htons      set_htons_be
+#define set_htonl      set_htonl_be
+#define set_htonll     set_htonll_be
+#define set_htontime   set_htontime_be
+#endif
 
 #define __unused __attribute__((unused))
 

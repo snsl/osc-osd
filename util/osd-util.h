@@ -66,14 +66,14 @@ double get_mhz(void);
 #endif
 
 /* endian covertors */
-uint16_t ntohs_le(const uint8_t *d);
-uint16_t ntohs_be(const uint8_t *d);
-uint32_t ntohl_le(const uint8_t *d);
-uint32_t ntohl_be(const uint8_t *d);
-uint64_t ntohll_le(const uint8_t *d);
-uint64_t ntohll_be(const uint8_t *d);
-uint64_t ntohtime_le(const uint8_t *d);
-uint64_t ntohtime_be(const uint8_t *d);
+uint16_t get_ntohs_le(const uint8_t *d);
+uint16_t get_ntohs_be(const uint8_t *d);
+uint32_t get_ntohl_le(const uint8_t *d);
+uint32_t get_ntohl_be(const uint8_t *d);
+uint64_t get_ntohll_le(const uint8_t *d);
+uint64_t get_ntohll_be(const uint8_t *d);
+uint64_t get_ntohtime_le(const uint8_t *d);
+uint64_t get_ntohtime_be(const uint8_t *d);
 void set_htons_le(uint8_t *x, uint16_t val);
 void set_htons_be(uint8_t *x, uint16_t val);
 void set_htonl_le(uint8_t *x, uint32_t val);
@@ -83,7 +83,7 @@ void set_htonll_be(uint8_t *x, uint64_t val);
 void set_htontime_le(uint8_t *x, uint64_t val);
 void set_htontime_be(uint8_t *x, uint64_t val);
 
-uint64_t ntohoffset(const uint8_t *d);
+uint64_t get_ntohoffset(const uint8_t *d);
 void set_htonoffset(uint8_t *x, uint64_t val);
 uint64_t next_offset(uint64_t start);
 
@@ -92,19 +92,19 @@ uint64_t next_offset(uint64_t start);
 #undef ntohl
 
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-#define     ntohs      ntohs_le
-#define     ntohl      ntohl_le
-#define     ntohll     ntohll_le
-#define     ntohtime   ntohtime_le
+#define get_ntohs      get_ntohs_le
+#define get_ntohl      get_ntohl_le
+#define get_ntohll     get_ntohll_le
+#define get_ntohtime   get_ntohtime_le
 #define set_htons      set_htons_le
 #define set_htonl      set_htonl_le
 #define set_htonll     set_htonll_le
 #define set_htontime   set_htontime_le
 #else
-#define     ntohs      ntohs_be
-#define     ntohl      ntohl_be
-#define     ntohll     ntohll_be
-#define     ntohtime   ntohtime_be
+#define get_ntohs      get_ntohs_be
+#define get_ntohl      get_ntohl_be
+#define get_ntohll     get_ntohll_be
+#define get_ntohtime   get_ntohtime_be
 #define set_htons      set_htons_be
 #define set_htonl      set_htonl_be
 #define set_htonll     set_htonll_be

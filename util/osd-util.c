@@ -246,7 +246,7 @@ static uint32_t swab32(uint32_t d)
  * Things are not aligned in the current osd2r00, but they probably
  * will be soon.  Assume 4-byte alignment though.
  */
-uint64_t ntohll_le(const uint8_t *d)
+uint64_t get_ntohll_le(const uint8_t *d)
 {
 	uint32_t d0 = swab32(*(const uint32_t *) d);
 	uint32_t d1 = swab32(*(const uint32_t *) (d+4));
@@ -258,22 +258,22 @@ uint64_t ntohll_le(const uint8_t *d)
  * Doing these without memcpy for alignment now.  If anyone actually runs
  * on a BE machine, perhaps they'll tell us if alignment is needed.
  */
-uint64_t ntohll_be(const uint8_t *d)
+uint64_t get_ntohll_be(const uint8_t *d)
 {
 	return *(const uint64_t *) d;
 }
 
-uint32_t ntohl_le(const uint8_t *d)
+uint32_t get_ntohl_le(const uint8_t *d)
 {
 	return swab32(*(const uint32_t *) d);
 }
 
-uint32_t ntohl_be(const uint8_t *d)
+uint32_t get_ntohl_be(const uint8_t *d)
 {
 	return *(const uint32_t *) d;
 }
 
-uint16_t ntohs_le(const uint8_t *d)
+uint16_t get_ntohs_le(const uint8_t *d)
 {
 	uint16_t x = *(const uint16_t *) d;
 
@@ -281,7 +281,7 @@ uint16_t ntohs_le(const uint8_t *d)
 		(x & (uint16_t) 0xff00U) >> 8;
 }
 
-uint16_t ntohs_be(const uint8_t *d)
+uint16_t get_ntohs_be(const uint8_t *d)
 {
 	return *(const uint16_t *) d;
 }
@@ -328,14 +328,14 @@ void set_htons_be(uint8_t *x, uint16_t val)
  * Offset fields for attribute lists are floating point-ish.  Smallest
  * possible offset (other than 0) is 2^8 == 256.  Generic for both endians.
  */
-uint64_t ntohoffset(const uint8_t *d)
+uint64_t get_ntohoffset(const uint8_t *d)
 {
 	const uint32_t mask = 0xf0000000UL;
 	uint32_t base;
 	uint8_t exponent;
 	uint64_t x;
 
-	base = ntohl(d);
+	base = get_ntohl(d);
 	exponent = (base & mask) >> 28;
 
 	x = (uint64_t) (base & ~mask) << (exponent + 8);
@@ -433,8 +433,8 @@ int main(void)
 		char x[4];
 		uint64_t out, conv;
 		out = next_offset(v[i].start);
-		set_htonoffset_le(x, out);
-		conv = ntohoffset_le(x);
+		set_htonoffset(x, out);
+		conv = get_ntohoffset(x);
 		printf("%016llx -> %016llx %016llx %016llx %s\n", v[i].start,
 		       v[i].want, out, conv,
 		       (out == v[i].want && out == conv) ? "ok" : "BAD");
@@ -447,17 +447,17 @@ int main(void)
  * Return time in ms since 1970, given a six-byte big-endian as encoded
  * in OSD.
  */
-uint64_t ntohtime_le(const uint8_t *d)
+uint64_t get_ntohtime_le(const uint8_t *d)
 {
 	uint8_t s[8];
 
 	s[0] = 0;
 	s[1] = 0;
 	memcpy(&s[2], d, 6);
-	return ntohll_le(s);
+	return get_ntohll_le(s);
 }
 
-uint64_t ntohtime_be(const uint8_t *d)
+uint64_t get_ntohtime_be(const uint8_t *d)
 {
 	union {
 		uint8_t s[8];

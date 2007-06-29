@@ -2,8 +2,8 @@
 # OSD utilities library
 #
 
-SRC := util.c
-INC := util.h bsg.h osd-defs.h osd-sense.h
+SRC := osd-util.c
+INC := osd-util.h bsg.h osd-defs.h osd-sense.h
 OBJ := $(SRC:.c=.o)
 LIB := libosdutil.a
 

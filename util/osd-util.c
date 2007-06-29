@@ -12,7 +12,7 @@
 #include <math.h>
 #include <ctype.h>
 
-#include "util.h"
+#include "osd-util.h"
 
 #define __unused __attribute__((unused))
 

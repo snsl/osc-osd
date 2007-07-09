@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
 		write_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 		read_bw(fd, PARTITION_PID_LB, oid, i, iter, 0);
 	}
-#endif
+#else
  	printf("# osd_initiator/tests/iospeed\n");
 	printf("# type  size (kB)  rate (MB/s) +- stdev\n");
 	if (onesize) {
@@ -279,6 +279,7 @@ int main(int argc, char *argv[])
 		printf("\n\n");
 #endif
 	}
+#endif
 
 	obj_remove(fd, PARTITION_PID_LB, oid);
 

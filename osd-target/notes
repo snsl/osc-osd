@@ -691,3 +691,14 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
 # Thu Jun 14 00:29:01 EDT 2007
 -   deregister rdmal
 -   handle close conn
+
+
+# Fri Jun 22 17:07:26 EDT 2007
++   isolate mallocs; remove conditions
++   single buffer pool
+
+# Mon Jun 25 14:31:12 EDT 2007
+-   readb writeb
+-   make mem management efficient
+-   take care of buf outruns
+

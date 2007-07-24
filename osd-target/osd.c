@@ -757,8 +757,9 @@ int osd_open(const char *root, struct osd_device *osd)
 	int i = 0;
 	int ret = 0;
 	char path[MAXNAMELEN];
+	char *argv[] = { strdup("osd-target"), NULL };
 
-	progname = "osd-target";  /* for debug messages from libosdutil */
+	osd_set_progname(1, argv);  /* for debug messages from libosdutil */
 	mhz = get_mhz(); /* XXX: find a better way of profiling */
 
 	if (strlen(root) > MAXROOTLEN) {

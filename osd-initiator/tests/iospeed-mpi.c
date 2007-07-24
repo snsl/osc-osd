@@ -270,7 +270,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: %s [<size in kbytes>]\n", progname);
+	fprintf(stderr, "Usage: %s [<size in kbytes>]\n", osd_get_progname());
 	exit(1);
 }
 

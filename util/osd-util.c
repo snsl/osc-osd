@@ -34,6 +34,11 @@ void osd_set_progname(int argc __unused, char *const argv[])
 	mhz = get_mhz();
 }
 
+const char *osd_get_progname(void)
+{
+	return progname;
+}
+
 /*
  * Debugging.
  */

@@ -1096,7 +1096,7 @@ static void usage(void)
 {
 	fprintf(stderr, "\nUsage: ./%s [-o <numobj>] [-p <numpg>]"
 		" [-a numattr] [-i <numiter>]"
-		" \n\t\t [-t <timing-test>]\n\n", progname);
+		" \n\t\t [-t <timing-test>]\n\n", osd_get_progname());
 	fprintf(stderr, "Option -t takes following values:\n");
 	fprintf(stderr, "%16s: cumulative time for numobj insert in coll\n", 
 		"collinsert");

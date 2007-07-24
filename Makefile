@@ -6,7 +6,7 @@ INIT := ./osd-initiator
 PVFS := ./pvfs
 STGT := ./stgt
 
-.PHONY: all init trgt stgt util clean pvfs
+.PHONY: all init trgt stgt util benchmarks clean pvfs
 
 all: init trgt
 
@@ -25,6 +25,12 @@ stgt:
 util:
 	make -C $(UTIL)
 
+benchmarks:
+	make -C benchmarks/osd-target
+	make -C benchmarks/pvfs/bonnie
+	make -C benchmarks/pvfs/metadata
+	make -C benchmarks/pvfs/perf
+
 clean:
 	make -C $(UTIL) $@
 	make -C $(STGT) $@
@@ -33,6 +39,10 @@ clean:
 	make -C $(INIT) $@
 	make -C $(TRGT)/tests $@
 	make -C $(TRGT) $@
+	make -C benchmarks/osd-target $@
+	make -C benchmarks/pvfs/bonnie $@
+	make -C benchmarks/pvfs/metadata $@
+	make -C benchmarks/pvfs/perf $@
 
 # XXX: must configure first, though.  Generally do not do this
 pvfs: util

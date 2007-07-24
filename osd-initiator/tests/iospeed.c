@@ -198,7 +198,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: %s [<size in kbytes>]\n", progname);
+	fprintf(stderr, "Usage: %s [<size in kbytes>]\n", osd_get_progname());
 	exit(1);
 }
 
@@ -235,8 +235,7 @@ int main(int argc, char *argv[])
 	}
 	
 	i = 0;
-	osd_debug("%s: drive %s name %s", progname, drives[i].chardev,
-		  drives[i].targetname);
+	osd_debug("drive %s name %s", drives[i].chardev, drives[i].targetname);
 	fd = open(drives[i].chardev, O_RDWR);
 	if (fd < 0) {
 		osd_error_errno("%s: open %s", __func__, drives[i].chardev);

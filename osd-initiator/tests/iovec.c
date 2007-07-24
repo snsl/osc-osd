@@ -203,7 +203,7 @@ int main(int argc, char *argv[])
 	}
 	
 	i = 0;
-	printf("%s: drive %s name %s\n", progname, drives[i].chardev,
+	printf("%s: drive %s name %s\n", osd_get_progname(), drives[i].chardev,
 	       drives[i].targetname);
 	fd = open(drives[i].chardev, O_RDWR);
 	if (fd < 0) {

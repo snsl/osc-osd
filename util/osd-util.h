@@ -23,9 +23,9 @@
 	} while (0)
 #endif
 
-extern const char *progname;
 extern double mhz;
 void osd_set_progname(int argc, char *const argv[]);
+const char *osd_get_progname(void);
 void osd_info(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void osd_warning(const char *fmt, ...) __attribute__((format(printf,1,2)));
 void osd_error(const char *fmt, ...) __attribute__((format(printf,1,2)));

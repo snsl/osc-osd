@@ -272,8 +272,8 @@ int main(int argc, char *argv[])
 	
 	for (i=0; i<num_drives; i++) {
 
-		printf("%s: drive %s name %s\n", progname, drives[i].chardev,
-		       drives[i].targetname);
+		printf("%s: drive %s name %s\n", osd_get_progname(),
+		       drives[i].chardev, drives[i].targetname);
 		fd = open(drives[i].chardev, O_RDWR);
 		if (fd < 0) {
 			osd_error_errno("%s: open %s", __func__, drives[i].chardev);

@@ -812,6 +812,43 @@ out_cdb_err:
 	return ret;
 }
 
+
+static int cdb_fa(struct command *cmd)
+{
+	int ret = 0;
+	uint8_t *cdb = cmd->cdb;
+	uint64_t pid = get_ntohll(&cdb[16]);
+	uint64_t oid = get_ntohll(&cdb[24]);
+	uint64_t len = get_ntohll(&cdb[32]); /* datain len */
+	uint64_t off = get_ntohll(&cdb[40]); /* offset in dataout */
+	uint64_t add;
+
+	if (cmd->outdata == NULL || cmd->indata == NULL)
+		goto out_cdb_err;
+
+	if (len < sizeof(add))
+		goto out_cdb_err;
+
+	/* add always start at offset 0, get/set attributes follow them */
+	add = get_ntohll(&cmd->indata[0]);
+
+	ret = osd_fa(cmd->osd, pid, oid, add, cmd->outdata + off,
+		     &cmd->used_outlen, cmd->sense); 
+	if (ret)
+		return ret;
+
+	ret = set_attributes(cmd, pid, oid, 1);
+	if (ret != 0)
+		return ret;
+	return get_attributes(cmd, pid, oid, 1);
+
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}
+
+
 /*
  * Compare, and complain if iscsi did not deliver enough bytes to
  * satisfy the WRITE.  It could deliver more for padding, so don't
@@ -1056,6 +1093,10 @@ static void exec_service_action(struct command *cmd)
 		ret = cdb_cas(cmd);
 		break;
 	}
+	case OSD_FA: {
+		ret = cdb_fa(cmd);
+		break;
+	}
 	default:
 		ret = osd_error_unimplemented(cmd->action, sense);
 	}
@@ -1083,6 +1124,7 @@ static int calc_max_out_len(struct command *cmd)
 	case OSD_READ:
 	case OSD_QUERY:
 	case OSD_CAS:
+	case OSD_FA:
 		cmd->outlen = get_ntohll(&cmd->cdb[32]);
 		break;
 	case OSD_SET_MASTER_KEY:

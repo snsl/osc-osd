@@ -1320,6 +1320,39 @@ void test_atomics(struct osd_device *osd)
 	data_out = NULL;
 	data_out_len = 0;
 
+	/* fa */
+	ret = osd_command_set_fa(&cmd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 8UL, 0);
+	assert(ret == 0);
+	cp = data_in;
+	set_htonll(&cp[0], 4UL);
+	data_in_len = 8;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	assert(get_ntohll(&data_out[0]) == 0UL);
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+	
+	ret = osd_command_set_fa(&cmd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 8UL, 0);
+	assert(ret == 0);
+	cp = data_in;
+	set_htonll(&cp[0], 16UL);
+	data_in_len = 8;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	assert(get_ntohll(&data_out[0]) == 4UL);
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
 	ret = osd_command_set_remove(&cmd, USEROBJECT_PID_LB, 
 				     USEROBJECT_OID_LB);
 	assert(ret == 0);

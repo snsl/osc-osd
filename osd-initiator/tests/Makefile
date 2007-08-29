@@ -11,9 +11,9 @@ MPISRC := iospeed-mpi.c
 MPIOBJ := $(MPISRC:.c=.o)
 MPIEXE := $(MPISRC:.c=)
 # auto-find by walking up from your path to mpicc
-MPIDIR := /usr/local/mpich2-eth-pvfs-openib
+MPIDIR := $(dir $(shell type -p mpicc 2>/dev/null))..
 # needed for some MPI builds
-PVFSDIR := /home/dennis/OSD/osd/pvfs/install
+PVFSDIR := $(dir $(shell type -p pvfs2-ls 2>/dev/null))..
 MPIINC := -I$(MPIDIR)/include
 MPILIB := -L$(MPIDIR)/lib -lmpich -L$(PVFSDIR)/lib -lpvfs2 -lrt
 

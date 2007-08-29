@@ -978,6 +978,10 @@ static int osd_init_attr(struct osd_device *osd, uint64_t pid, uint64_t oid)
 			    &val, sizeof(val));
 	if (ret != 0)
 		return ret;
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_FA, &val, 
+			    sizeof(val));
+	if (ret != 0)
+		return ret;
 
 	return OSD_OK;
 }
@@ -2438,6 +2442,59 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 		if (ret != OSD_OK)
 			goto out_hw_err;
 	}
+
+	set_htonll(doutbuf, val);
+	*used_outlen = sizeof(val);
+	return OSD_OK;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}
+
+
+/*
+ * OSD FA: Available only for USEROBJECTs. 
+ * TODO: No explicit software locks used. If multithreaded OSD emulator is
+ * used behavior is undefined.
+ *
+ */
+int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t add,
+	   uint8_t *doutbuf, uint64_t *used_outlen, uint8_t *sense) 
+{
+	int ret = 0;
+	int present = 0;
+	uint8_t obj_type = 0;
+	uint64_t val = 0;
+	uint32_t usedlen = 0;
+
+	if (!osd || !osd->dbc || !doutbuf || !sense)
+		goto out_cdb_err;
+
+	ret = obj_ispresent(osd->dbc, pid, oid, &present);
+	if (ret != OSD_OK || !present) /* object not present! */
+		goto out_cdb_err;
+
+	obj_type = get_obj_type(osd, pid, oid);
+	if (obj_type != USEROBJECT)
+		goto out_cdb_err;
+
+	ret = attr_get_val(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_CAS,
+			   sizeof(val), &val, &usedlen);
+	if (ret != OSD_OK)
+		goto out_hw_err;
+
+	add += val;
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_CAS,
+			    &add, sizeof(add));
+	if (ret != OSD_OK)
+		goto out_hw_err;
 
 	set_htonll(doutbuf, val);
 	*used_outlen = sizeof(val);

@@ -351,6 +351,17 @@ int osd_command_set_cas(struct osd_command *command, uint64_t pid,
         return 0;
 }
 
+int osd_command_set_fa(struct osd_command *command, uint64_t pid,
+			uint64_t oid, uint64_t len, uint64_t offset)
+{
+        varlen_cdb_init(command, OSD_FA);
+        set_htonll(&command->cdb[16], pid);
+        set_htonll(&command->cdb[24], oid);
+        set_htonll(&command->cdb[32], len);
+        set_htonll(&command->cdb[40], offset);
+        return 0;
+}
+
 /*
  * Header for internal use across attr_build to attr_resolve.  Keeps
  * the original iov structures.

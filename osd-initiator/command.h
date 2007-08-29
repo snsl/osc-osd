@@ -127,6 +127,9 @@ int osd_command_set_write(struct osd_command *command, uint64_t pid,
 int osd_command_set_cas(struct osd_command *command, uint64_t pid,
 			uint64_t oid, uint64_t len, uint64_t offset);
 
+int osd_command_set_fa(struct osd_command *command, uint64_t pid,
+		       uint64_t oid, uint64_t len, uint64_t offset);
+
 /* Attributes */
 int osd_command_attr_build(struct osd_command *command,
 			   const struct attribute_list *const attrs, int num);

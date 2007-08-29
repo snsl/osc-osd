@@ -648,7 +648,7 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
     combinations.
   
 # Fri Jun  8 19:58:59 EDT 2007
- -  set header and data digests to None
+-  set header and data digests to None
 
 # Sun Jun 10 00:25:15 EDT 2007
 -   iscsi api for iser
@@ -710,7 +710,7 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
     lookup etc
 
 # Fri Jul 20 15:08:01 EDT 2007
--   improve setattr perf
++   improve setattr perf
 -   clean up iscsi_iser
 
 # Mon Jul 30 15:45:48 EDT 2007

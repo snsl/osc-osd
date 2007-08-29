@@ -23,6 +23,10 @@ int attr_get_attr(struct db_context *dbc, uint64_t pid, uint64_t oid,
 		  uint32_t page, uint32_t number, uint64_t outlen,
 		  void *outdata, uint8_t listfmt, uint32_t *used_outlen);
 
+int attr_get_val(struct db_context *dbc, uint64_t pid, uint64_t oid,
+		 uint32_t page, uint32_t number, uint64_t outlen,
+		 void *outdata, uint32_t *used_outlen);
+
 int attr_get_page_as_list(struct db_context *dbc, uint64_t pid, uint64_t oid,
 			  uint32_t page, uint64_t outlen, void *outdata,
 			  uint8_t listfmt, uint32_t *used_outlen);

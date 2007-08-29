@@ -26,6 +26,7 @@ struct attr_tab {
 	sqlite3_stmt *delattr;  /* delete an attr */
 	sqlite3_stmt *delall;   /* delete all attr for an object */
 	sqlite3_stmt *getattr;  /* get an attr */
+	sqlite3_stmt *getval;   /* get attribute value */
 	sqlite3_stmt *pgaslst;  /* get page as list */
 	sqlite3_stmt *forallpg; /* for all pages get an attribute */
 	sqlite3_stmt *getall;   /* get all attributes of an object */
@@ -96,6 +97,12 @@ int attr_initialize(struct db_context *dbc)
 	if (ret != SQLITE_OK)
 		goto out_finalize_getattr;
 
+	sprintf(SQL, "SELECT value FROM %s WHERE pid = ? AND oid = ? AND "
+		" page = ? AND number = ?;", dbc->attr->name);
+	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->attr->getval, NULL);
+	if (ret != SQLITE_OK)
+		goto out_finalize_getval;
+
 	sprintf(SQL, "SELECT page, number, value FROM %s WHERE pid = ? AND "
 		" oid = ? AND page = ?;", dbc->attr->name);
 	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->attr->pgaslst, NULL);
@@ -153,6 +160,9 @@ out_finalize_forallpg:
 out_finalize_pgaslst:
 	db_sqfinalize(dbc->db, dbc->attr->pgaslst, SQL);
 	SQL[0] = '\0';
+out_finalize_getval:
+	db_sqfinalize(dbc->db, dbc->attr->getval, SQL);
+	SQL[0] = '\0';
 out_finalize_getattr:
 	db_sqfinalize(dbc->db, dbc->attr->getattr, SQL);
 	SQL[0] = '\0';
@@ -180,6 +190,7 @@ int attr_finalize(struct db_context *dbc)
 	sqlite3_finalize(dbc->attr->delattr);
 	sqlite3_finalize(dbc->attr->delall);
 	sqlite3_finalize(dbc->attr->getattr);
+	sqlite3_finalize(dbc->attr->getval);
 	sqlite3_finalize(dbc->attr->pgaslst);
 	sqlite3_finalize(dbc->attr->forallpg);
 	sqlite3_finalize(dbc->attr->getall);
@@ -319,6 +330,25 @@ static int attr_gather_attr(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
 
 
 /*
+ * Gather attr val. Conservative implementation: if not enough space for the
+ * attr then return err.
+ * -EINVAL: error
+ * >0: success. returns number of bytes copied into buf.
+ */
+static int attr_gather_val(sqlite3_stmt *stmt, void *buf, uint32_t buflen)
+{
+	uint16_t len = sqlite3_column_bytes(stmt, 0);
+	const void *val = sqlite3_column_blob(stmt, 0);
+
+	if (buflen < len)
+		return -EINVAL;
+
+	memcpy(buf, val, len);
+	return len;
+}
+
+
+/*
  * packs contents of an attribute of dir page. Note that even though the
  * query selects 'page', the resultant rows are actually rows 'numbers'
  * within directory page.
@@ -359,7 +389,7 @@ static int attr_gather_dir_page(sqlite3_stmt *stmt, uint32_t outlen,
  */
 static int exec_attr_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt,
 				int ret, const char *func, uint64_t oid, 
-				uint64_t page, int dirpg, uint64_t outlen,
+				uint64_t page, int rtrvl_type, uint64_t outlen,
 				uint8_t *outdata, uint8_t listfmt,
 				uint32_t *used_outlen)
 {
@@ -377,13 +407,17 @@ static int exec_attr_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt,
 	while (1) {
 		ret = sqlite3_step(stmt);
 		if (ret == SQLITE_ROW) {
-			if (dirpg == FALSE) {
+			if (rtrvl_type == GATHER_VAL) {
+				ret = attr_gather_val(stmt, outdata, outlen);
+			} else if (rtrvl_type == GATHER_ATTR) {
 				ret = attr_gather_attr(stmt, outdata, outlen, 
 						       oid, listfmt);
-			} else {
+			} else if (rtrvl_type == GATHER_DIR_PAGE) {
 				ret = attr_gather_dir_page(stmt, outlen,
 							   outdata, oid, page,
 							   listfmt);
+			} else {
+				ret = -EINVAL;
 			}
 			if (ret > 0) {
 				len += ret;
@@ -441,8 +475,9 @@ repeat:
 	ret |= sqlite3_bind_int64(stmt, 2, oid);
 	ret |= sqlite3_bind_int(stmt, 3, page);
 	ret |= sqlite3_bind_int(stmt, 4, number);
-	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0, FALSE, 
-				   outlen, outdata, listfmt, used_outlen);
+	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0, 
+				   GATHER_ATTR, outlen, outdata, listfmt,
+				   used_outlen); 
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
@@ -453,6 +488,44 @@ repeat:
 	return ret;
 }
 
+
+/*
+ * get one attribute value.
+ *
+ * -EINVAL: invalid arg, ignore used_len 
+ * -ENOENT: error, attribute not found
+ * OSD_ERROR: some other error
+ * OSD_OK: success, used_outlen modified
+ */
+int attr_get_val(struct db_context *dbc, uint64_t pid, uint64_t oid,
+		 uint32_t page, uint32_t number, uint64_t outlen,
+		 void *outdata, uint32_t *used_outlen)
+{
+	int ret = 0;
+	sqlite3_stmt *stmt = NULL;
+
+	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->getval)
+		return -EINVAL;
+
+repeat:
+	ret = 0;
+	stmt = dbc->attr->getval;
+	ret |= sqlite3_bind_int64(stmt, 1, pid);
+	ret |= sqlite3_bind_int64(stmt, 2, oid);
+	ret |= sqlite3_bind_int(stmt, 3, page);
+	ret |= sqlite3_bind_int(stmt, 4, number);
+	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0, 
+				   GATHER_VAL, outlen, outdata, 0,
+				   used_outlen); 
+	if (ret == OSD_REPEAT) {
+		goto repeat;
+	} else if (ret == -ENOENT) {
+		osd_debug("%s: attr (%llu %llu %u %u) not found!", __func__, 
+			  llu(pid), llu(oid), page, number);
+	}
+
+	return ret;
+}
 
 /*
  * get one page in list format
@@ -478,8 +551,9 @@ repeat:
 	ret |= sqlite3_bind_int64(stmt, 1, pid);
 	ret |= sqlite3_bind_int64(stmt, 2, oid);
 	ret |= sqlite3_bind_int(stmt, 3, page);
-	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0, FALSE,
-				   outlen, outdata, listfmt, used_outlen);
+	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0, 
+				   GATHER_ATTR, outlen, outdata, listfmt,
+				   used_outlen); 
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
@@ -515,8 +589,9 @@ repeat:
 	ret |= sqlite3_bind_int64(stmt, 1, pid);
 	ret |= sqlite3_bind_int64(stmt, 2, oid);
 	ret |= sqlite3_bind_int(stmt, 3, number);
-	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0, FALSE,
-				   outlen, outdata, listfmt, used_outlen);
+	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0,
+				   GATHER_ATTR, outlen, outdata, listfmt,
+				   used_outlen);
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
@@ -552,8 +627,9 @@ repeat:
 	stmt = dbc->attr->getall;
 	ret |= sqlite3_bind_int64(stmt, 1, pid);
 	ret |= sqlite3_bind_int64(stmt, 2, oid);
-	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0, FALSE,
-				   outlen, outdata, listfmt, used_outlen);
+	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, 0,
+				   GATHER_ATTR, outlen, outdata, listfmt,
+				   used_outlen);
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
@@ -594,8 +670,9 @@ repeat:
 				 SQLITE_TRANSIENT);
 	ret |= sqlite3_bind_int64(stmt, 2, pid);
 	ret |= sqlite3_bind_int64(stmt, 3, oid);
-	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, page, TRUE,
-				   outlen, outdata, listfmt, used_outlen);
+	ret = exec_attr_rtrvl_stmt(dbc, stmt, ret, __func__, oid, page,
+				   GATHER_DIR_PAGE, outlen, outdata, listfmt,
+				   used_outlen);
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {

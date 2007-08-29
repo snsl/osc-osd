@@ -36,6 +36,10 @@
 #define OSD_SET_MEMBER_ATTRIBUTES	0x88a3
 #define OSD_WRITE			0x8886
 
+/* custom definitions */
+#define OSD_CAS				0x8889
+#define OSD_FA				0x8890
+
 #define SAM_STAT_GOOD            0x00
 #define SAM_STAT_CHECK_CONDITION 0x02
 #define SAM_STAT_CONDITION_MET   0x04
@@ -122,6 +126,7 @@ enum {
 	USER_TMSTMP_PG = 0x3,
 	USER_COLL_PG = 0x4,
 	USER_POLICY_PG = 0x5,
+	USER_ATOMICS_PG = 0x6,
 };
 
 /* in all attribute pages, attribute number 0 is a 40-byte identification */
@@ -198,6 +203,12 @@ enum {
 enum {
 	UCAP_COLL_PTR_LB = 0x1,
 	UCAP_COLL_PTR_UB = 0xFFFFFF00,
+};
+
+/* userobject atomics page. Only userobjects have atomics attribute page. */
+enum {
+	UAP_CAS = 0x1,
+	UAP_FA = 0x2,
 };
 
 enum {

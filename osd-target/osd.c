@@ -35,6 +35,7 @@ struct incits_page_id {
 	const char user_dir_page[40];
 	const char user_info_page[40];
 	const char user_tmstmp_page[40];
+	const char user_atomic_page[40];
 };
 
 static const struct incits_page_id incits = {
@@ -50,6 +51,7 @@ static const struct incits_page_id incits = {
         .user_dir_page =        "INCITS  T10 User Object Directory      ",
         .user_info_page =       "INCITS  T10 User Object Information    ",
 	.user_tmstmp_page =     "INCITS  T10 User Object Timestamps     ",
+	.user_atomic_page = 	"INCITS  T10 User Atomics               ",
 };
 
 static struct init_attr root_info[] = {
@@ -954,6 +956,32 @@ static inline void osd_remove_tmp_objects(struct osd_device *osd, uint64_t pid,
 		osd_remove(osd, pid, j, sense); /* ignore ret */
 }
 
+static int osd_init_attr(struct osd_device *osd, uint64_t pid, uint64_t oid)
+{
+	int ret = 0;
+	uint64_t val = 0;
+
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_TMSTMP_PG, 0,
+			    incits.user_tmstmp_page,
+			    sizeof(incits.user_tmstmp_page));
+	if (ret != 0)
+		return ret;
+
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, 0,
+			    incits.user_atomic_page, 
+			    sizeof(incits.user_atomic_page));
+	if (ret != 0)
+		return ret;
+
+	val = 0;
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_CAS,
+			    &val, sizeof(val));
+	if (ret != 0)
+		return ret;
+
+	return OSD_OK;
+}
+
 /*
  * XXX: get/set attributes to be handled in cdb.c
  */
@@ -1031,9 +1059,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			goto out_hw_err;
 		}
 
-		ret = attr_set_attr(osd->dbc, pid, i, USER_TMSTMP_PG, 0,
-				    incits.user_tmstmp_page,
-				    sizeof(incits.user_tmstmp_page));
+		ret = osd_init_attr(osd, pid, i);
 		if (ret != 0) {
 			char path[MAXNAMELEN];
 			get_dfile_name(path, osd->root, pid, i);
@@ -2362,6 +2388,60 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}
+
+/*
+ * OSD CAS: Available only for USEROBJECTs. 
+ * TODO: No explicit software locks used. If multithreaded OSD emulator is
+ * used behavior is undefined.
+ *
+ */
+int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
+	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,
+	    uint8_t *sense) 
+{
+	int ret = 0;
+	int present = 0;
+	uint8_t obj_type = 0;
+	uint64_t val = 0;
+	uint32_t usedlen = 0;
+
+	if (!osd || !osd->dbc || !doutbuf || !sense)
+		goto out_cdb_err;
+
+	ret = obj_ispresent(osd->dbc, pid, oid, &present);
+	if (ret != OSD_OK || !present) /* object not present! */
+		goto out_cdb_err;
+
+	obj_type = get_obj_type(osd, pid, oid);
+	if (obj_type != USEROBJECT)
+		goto out_cdb_err;
+
+	ret = attr_get_val(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_CAS,
+			   sizeof(val), &val, &usedlen);
+	if (ret != OSD_OK)
+		goto out_hw_err;
+
+	if (val == cmp) {
+		ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, 
+				    UAP_CAS, &swap, sizeof(swap));
+		if (ret != OSD_OK)
+			goto out_hw_err;
+	}
+
+	set_htonll(doutbuf, val);
+	*used_outlen = sizeof(val);
+	return OSD_OK;
 
 out_hw_err:
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,

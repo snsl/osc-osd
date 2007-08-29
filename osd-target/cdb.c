@@ -371,94 +371,78 @@ out_hw_err:
 }
 
 
-//static int parse_setattr_value(struct command *cmd, uint64_t pid, 
-//			       uint64_t oid)
-//{
-//	int ret = 0;
-//	uint64_t offset = get_ntohoffset(&cmd->cdb[76]);
-//	cmd->set_attr.sz = 1;
-//	cmd->set_attr.le = Malloc(sizeof(*(cmd->set_attr.le)));
-//	cmd->set_attr.le[0].page = get_ntohl(&cmd->cdb[64]);
-//	cmd->set_attr.le[0].number = get_ntohl(&cmd->cdb[68]);
-//
-//	/* XXX: bug in std? sizeof(len) = 4B */
-//	cmd->set_attr.le[0].len = get_ntohl(&cmd->cdb[72]); 
-//
-//	cmd->set_attr.le[0].cval = &cmd->indata[offset];
-//
-//	return ret;
-//}
-//
-//static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
-//{
-//	int ret = 0;
-//	uint32_t i = 0;
-//	uint8_t list_type;
-//	uint8_t *cdb = cmd->cdb;
-//	uint32_t setattr_list_len = get_ntohl(&cmd->cdb[68]);
-//	uint32_t list_len = 0;
-//	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
-//	const uint8_t *list_hdr = &cmd->indata[list_off];
-//	uint8_t pad = 0;
-//
-//	if (setattr_list_len == 0)
-//		return 0; /* nothing to set, osd2r00 Sec 5.2.2.3 */
-//
-//	if (setattr_list_len != 0 && setattr_list_len < LIST_HDR_LEN)
-//		goto out_param_list_err;
-//
-//	list_type = list_hdr[0] & 0xF;
-//	if (list_type != RTRVD_SET_ATTR_LIST)
-//		goto out_param_list_err;
-//
-//	list_len = get_ntohl(&list_hdr[4]);
-//	if ((list_len + 8) != setattr_list_len)
-//		goto out_param_list_err;
-//	if (list_len & 0x7) /* multiple of 8, values are padded */
-//		goto out_param_list_err;
-//
-//	if (list_len > 0) {
-//		/* 
-//		 * This malloc provides for the maximum number of attrs,
-//		 * but it can be much smaller if the attrs have any
-//		 * values. 
-//		 */ 
-//		cmd->set_attr.sz = list_len >> 4; /* min(list_len) == 16 */
-//		/* XXX: this leaks memory */
-//		cmd->set_attr.le = Malloc(cmd->set_attr.sz *
-//					  sizeof(*(cmd->set_attr.le)));
-//		if (!cmd->set_attr.le)
-//			goto out_hw_err;
-//	}
-//
-//	i = 0;
-//	pad = 0;
-//	list_hdr += 8;
-//	cmd->set_attr.sz = 0;  /* start counting again */
-//	while (list_len > 0) {
-//		cmd->set_attr.le[i].page = get_ntohl(&list_hdr[LE_PAGE_OFF]);
-//		cmd->set_attr.le[i].number = get_ntohl(&list_hdr[LE_NUMBER_OFF]);
-//		cmd->set_attr.le[i].len = get_ntohs(&list_hdr[LE_LEN_OFF]);
-//		cmd->set_attr.le[i].cval = &list_hdr[LE_VAL_OFF];
-//
-//		pad = (0x8 - ((LE_VAL_OFF + cmd->set_attr.le[i].len) & 0x7)) & 
-//			0x7;
-//		list_hdr += LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
-//		list_len -= LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
-//		++i;
-//		++cmd->set_attr.sz;
-//	}
-//
-//	return 0;
-//
-//out_param_list_err:
-//	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
-//				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
-//				 oid);
-//out_hw_err:
-//	return sense_basic_build(cmd->sense, OSD_SSK_HARDWARE_ERROR,
-//				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
-//}
+static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
+{
+	int ret = 0;
+	uint32_t i = 0;
+	uint8_t list_type;
+	uint8_t *cdb = cmd->cdb;
+	uint32_t setattr_list_len = get_ntohl(&cmd->cdb[68]);
+	uint32_t list_len = 0;
+	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
+	const uint8_t *list_hdr = &cmd->indata[list_off];
+	uint8_t pad = 0;
+
+	if (setattr_list_len == 0)
+		return 0; /* nothing to set, osd2r00 Sec 5.2.2.3 */
+
+	if (setattr_list_len != 0 && setattr_list_len < LIST_HDR_LEN)
+		goto out_param_list_err;
+
+	list_type = list_hdr[0] & 0xF;
+	if (list_type != RTRVD_SET_ATTR_LIST)
+		goto out_param_list_err;
+
+	list_len = get_ntohl(&list_hdr[4]);
+	if ((list_len + 8) != setattr_list_len)
+		goto out_param_list_err;
+	if (list_len & 0x7) /* multiple of 8, values are padded */
+		goto out_param_list_err;
+
+	if (list_len > 0) {
+		/* 
+		 * This malloc provides for the maximum number of attrs,
+		 * but it can be much smaller if the attrs have any
+		 * values. 
+		 */ 
+		cmd->set_attr.sz = list_len >> 4; /* min(list_len) == 16 */
+		/* XXX: this leaks memory */
+		cmd->set_attr.le = Malloc(cmd->set_attr.sz *
+					  sizeof(*(cmd->set_attr.le)));
+		if (!cmd->set_attr.le)
+			goto out_hw_err;
+	}
+
+	i = 0;
+	pad = 0;
+	list_hdr += 8;
+	cmd->set_attr.sz = 0;  /* start counting again */
+	while (list_len > 0) {
+		cmd->set_attr.le[i].page = get_ntohl(&list_hdr[LE_PAGE_OFF]);
+		cmd->set_attr.le[i].number = 
+			get_ntohl(&list_hdr[LE_NUMBER_OFF]);
+		cmd->set_attr.le[i].len = get_ntohs(&list_hdr[LE_LEN_OFF]);
+		cmd->set_attr.le[i].cval = &list_hdr[LE_VAL_OFF];
+
+		pad = (0x8 - ((LE_VAL_OFF + cmd->set_attr.le[i].len) & 0x7)) & 
+			0x7;
+		list_hdr += LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
+		list_len -= LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
+		++i;
+		++cmd->set_attr.sz;
+	}
+
+	return 0;
+
+out_param_list_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
+				 oid);
+out_hw_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_HARDWARE_ERROR,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+}
+
 
 /*
  * returns:
@@ -756,6 +740,10 @@ static int cdb_set_member_attributes(struct command *cmd)
 	uint64_t pid = get_ntohll(&cmd->cdb[16]);
 	uint64_t cid = get_ntohll(&cmd->cdb[24]);
 
+	ret = parse_setattr_list(cmd, pid, cid);
+	if (ret)
+		goto out_cdb_err;
+
 	ret = osd_set_member_attributes(cmd->osd, pid, cid, &cmd->set_attr, 
 					cmd->sense);
 	if (ret)
@@ -783,6 +771,45 @@ static inline int std_get_set_attr(struct command *cmd, uint64_t pid,
 		return ret;
 
 	return get_attributes(cmd, pid, oid, 1);
+}
+
+static int cdb_cas(struct command *cmd)
+{
+	int ret = 0;
+	uint8_t *cdb = cmd->cdb;
+	uint64_t pid = get_ntohll(&cdb[16]);
+	uint64_t oid = get_ntohll(&cdb[24]);
+	uint64_t len = get_ntohll(&cdb[32]); /* datain len */
+	uint64_t off = get_ntohll(&cdb[40]); /* offset in dataout */
+	uint64_t cmp, swap;
+
+	if (cmd->outdata == NULL || cmd->indata == NULL)
+		goto out_cdb_err;
+
+	if (len < sizeof(swap))
+		goto out_cdb_err;
+
+	/* 
+	 * cmp & swap always start at offset 0, get/set attributes follow
+	 * them 
+	 */
+	cmp = get_ntohll(&cmd->indata[0]);
+	swap = get_ntohll(&cmd->indata[8]);
+
+	ret = osd_cas(cmd->osd, pid, oid, cmp, swap, cmd->outdata + off,
+		      &cmd->used_outlen, cmd->sense); 
+	if (ret)
+		return ret;
+
+	ret = set_attributes(cmd, pid, oid, 1);
+	if (ret != 0)
+		return ret;
+	return get_attributes(cmd, pid, oid, 1);
+
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
 }
 
 /*
@@ -1025,6 +1052,10 @@ static void exec_service_action(struct command *cmd)
 		ret = std_get_set_attr(cmd, pid, oid);
 		break;
 	}
+	case OSD_CAS: {
+		ret = cdb_cas(cmd);
+		break;
+	}
 	default:
 		ret = osd_error_unimplemented(cmd->action, sense);
 	}
@@ -1051,6 +1082,7 @@ static int calc_max_out_len(struct command *cmd)
 	case OSD_LIST_COLLECTION:
 	case OSD_READ:
 	case OSD_QUERY:
+	case OSD_CAS:
 		cmd->outlen = get_ntohll(&cmd->cdb[32]);
 		break;
 	case OSD_SET_MASTER_KEY:
@@ -1128,7 +1160,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		  llu(cmd.outlen), llu(*data_out_len));
 	if (*data_out != NULL) {
 		cmd.outdata = *data_out;  /* use buffer from iscsi */
-		/* verify sane initiator, but should give underflow insted */
+		/* verify sane initiator, but should give underflow instead */
 		if (cmd.outlen != *data_out_len)
 			goto out_cdb_err;
 	} else {

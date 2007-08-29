@@ -184,6 +184,12 @@ enum {
 };
 
 enum {
+	GATHER_VAL = 1,
+	GATHER_ATTR = 2,
+	GATHER_DIR_PAGE = 3,
+};
+
+enum {
 	OSD_ERROR = -1,
 	OSD_OK = 0,
 	OSD_REPEAT = 1

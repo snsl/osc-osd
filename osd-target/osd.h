@@ -90,6 +90,10 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
 	      uint64_t offset, const uint8_t *data, uint8_t *sense);
 
+int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
+	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,
+	    uint8_t *sense);
+
 /* helper functions */
 static inline uint64_t osd_get_created_oid(struct osd_device *osd, 
 					   uint32_t numoid)

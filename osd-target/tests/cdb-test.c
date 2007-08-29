@@ -18,8 +18,10 @@
 
 void test_partition(struct osd_device *osd);
 void test_create(struct osd_device *osd);
+void test_query(struct osd_device *osd);
 void test_list(struct osd_device *osd);
 void test_set_member_attributes(struct osd_device *osd);
+void test_atomics(struct osd_device *osd);
 
 void test_partition(struct osd_device *osd) 
 {
@@ -129,6 +131,10 @@ void test_create(struct osd_device *osd)
 	uint64_t i = get_ntohll(&data_out[CCAP_OID_OFF]);
 	assert (i == (USEROBJECT_PID_LB + 5 - 1));
 
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
 	i -= (5-1);
 	/* remove 5 objects */
 	for (;i < USEROBJECT_OID_LB + 5; i++) {
@@ -210,6 +216,10 @@ void test_create(struct osd_device *osd)
 		while (pad--)
 			assert(*cp == 0), cp++;
 	}
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
 
 	/* remove partition */
 	ret = osd_command_set_remove_partition(&cmd, PARTITION_PID_LB);
@@ -322,7 +332,7 @@ static void check_results(uint8_t *matches, uint64_t matchlen,
 	}
 }
 
-static void test_query(struct osd_device *osd)
+void test_query(struct osd_device *osd)
 {
 	struct osd_command cmd;
 	uint64_t pid = PARTITION_PID_LB;
@@ -415,7 +425,10 @@ static void test_query(struct osd_device *osd)
 	idlist[6] = oid+7;
 	idlist[7] = oid+9;
 	check_results(matches, matchlen, idlist, 8);
+
 	free(matches);
+	matches = NULL;
+	matchlen = 0;
 
 	/* run one query without min/max constraints */
 	qll = 0;
@@ -434,6 +447,10 @@ static void test_query(struct osd_device *osd)
 	idlist[1] = oid+4; 
 	idlist[2] = oid+9;
 	check_results(matches, matchlen, idlist, 3);
+
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
 
 	/* run one query with criteria */
 	uint64_t min, max;
@@ -458,6 +475,10 @@ static void test_query(struct osd_device *osd)
 	idlist[2] = oid+5;
 	idlist[3] = oid+7;
 	check_results(matches, matchlen, idlist, 4);
+
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
 
 	/* run union of two query criteria */
 	qll = 0;
@@ -491,6 +512,10 @@ static void test_query(struct osd_device *osd)
 	idlist[1] = oid+6; 
 	check_results(matches, matchlen, idlist, 2);
 
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
+
 	/* run intersection of 2 query criteria */
 	qll = 0;
 
@@ -522,6 +547,10 @@ static void test_query(struct osd_device *osd)
 	idlist[0] = oid+1; 
 	idlist[1] = oid+4; 
 	check_results(matches, matchlen, idlist, 2);
+
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
 
 	/* run union of 3 query criteria, with missing min/max */
 	qll = 0;
@@ -562,6 +591,10 @@ static void test_query(struct osd_device *osd)
 	idlist[5] = oid+6;
 	idlist[2] = oid+9;
 	check_results(matches, matchlen, idlist, 4);
+
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
 
 	/* set some attributes with text values */
 	set_attr_val(osd, pid, oid,   page, 1, "hello", 6);
@@ -611,6 +644,10 @@ static void test_query(struct osd_device *osd)
 	idlist[2] = oid+7;
 	check_results(matches, matchlen, idlist, 6);
 
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
+
 	/* run intersection of 3 query criteria, with missing min/max */
 	qll = 0;
 
@@ -642,6 +679,10 @@ static void test_query(struct osd_device *osd)
 	idlist[0] = oid+1;
 	check_results(matches, matchlen, idlist, 1);
 
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
+
 	/* run intersection of 2 query criteria with empty result */
 	qll = 0;
 
@@ -668,6 +709,10 @@ static void test_query(struct osd_device *osd)
 				&matchlen, sense_out, &senselen_out);
 	assert(ret == 0);
 	check_results(matches, matchlen, idlist, 0);
+
+	free(matches);
+	matches = NULL;
+	matchlen = 0;
 
 	/*
 	 * Cleanup.
@@ -1086,6 +1131,9 @@ void test_set_member_attributes(struct osd_device *osd)
 	int senselen_out;
 	int i, ret;
 
+	data_out = NULL;
+	data_out_len = 0;
+
 	/* create partition */
 	ret = osd_command_set_create_partition(&cmd, pid);
 	assert(ret == 0);
@@ -1181,6 +1229,10 @@ void test_set_member_attributes(struct osd_device *osd)
 		osd_command_attr_free(&cmd);
 	}
 
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
 	/* clean up */
 	oid = USEROBJECT_OID_LB + 1;
 	for (i=0; i<100; i++) {
@@ -1203,6 +1255,85 @@ void test_set_member_attributes(struct osd_device *osd)
 	assert(ret == 0);
 }
 
+void test_atomics(struct osd_device *osd)
+{
+	int ret = 0;
+	struct osd_command cmd;
+	int senselen_out;
+	uint8_t sense_out[OSD_MAX_SENSE];
+	uint8_t *cp = NULL;
+	uint8_t *data_out = NULL;
+	void *data_in = NULL;
+	uint64_t data_out_len, data_in_len;
+
+	/* create partition + empty getpage_setlist */
+	ret = osd_command_set_create_partition(&cmd, PARTITION_PID_LB);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* create 1 object */
+	ret = osd_command_set_create(&cmd, USEROBJECT_PID_LB,
+				     USEROBJECT_OID_LB, 1); 
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, &data_out_len,
+				sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* cas */
+	ret = osd_command_set_cas(&cmd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				  8UL, 0);
+	assert(ret == 0);
+	data_in = Malloc(1024);
+	assert(data_in != NULL);
+	cp = data_in;
+	set_htonll(&cp[0], 0UL);
+	set_htonll(&cp[8], 5UL);
+	data_in_len = 16;
+	data_out = NULL;
+	data_out_len = 0;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	assert(get_ntohll(&data_out[0]) == 0UL);
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
+	ret = osd_command_set_cas(&cmd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				  8UL, 0);
+	assert(ret == 0);
+	cp = data_in;
+	set_htonll(&cp[0], 5UL);
+	set_htonll(&cp[8], 0UL);
+	data_in_len = 16;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	assert(get_ntohll(&data_out[0]) == 5UL);
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
+	ret = osd_command_set_remove(&cmd, USEROBJECT_PID_LB, 
+				     USEROBJECT_OID_LB);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	ret = osd_command_set_remove_partition(&cmd, PARTITION_PID_LB);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	free(data_in);
+}
+
 int main()
 {
 	int ret = 0;
@@ -1216,8 +1347,9 @@ int main()
 	/* test_partition(&osd); */
 	/* test_create(&osd); */
 	/* test_query(&osd); */
-	test_list(&osd);
+	/* test_list(&osd); */
 	/* test_set_member_attributes(&osd); */
+	test_atomics(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

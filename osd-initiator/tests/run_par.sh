@@ -8,7 +8,7 @@
 MAX_HOSTS=20
 FILE_NAME=ib
 
-cd /home/dennis/OSD/osd/osd_initiator/tests
+cd /home/dennis/OSD/osd/osd-initiator/tests
 
 echo "#Going to do hosts = 1 to hosts = $MAX_HOSTS";
 echo "#OP #Hosts Size(KB) BW(MB/S) Max-Min(uS)";

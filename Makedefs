@@ -4,6 +4,6 @@
 #
 #OPT := -g
 OPT := -O3 -DNDEBUG
-
+#OPT := -03
 # vim: ft=make
 

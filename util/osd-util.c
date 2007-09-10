@@ -11,6 +11,8 @@
 #include <unistd.h>
 #include <math.h>
 #include <ctype.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include "osd-util.h"
 
@@ -46,8 +48,16 @@ void __attribute__((format(printf,1,2)))
 osd_info(const char *fmt, ...)
 {
 	va_list ap;
+	struct timeval tv;
+	time_t tp;
+	char buffer[16];
 
-	fprintf(stderr, "%s: ", progname);
+	gettimeofday(&tv, NULL);
+	tp = tv.tv_sec;
+	strftime(buffer, 9, "%H:%M:%S", localtime(&tp));
+	sprintf(buffer+8, ".%06ld", (long) tv.tv_usec);
+
+	fprintf(stderr, "%s: [%s] ", progname, buffer);
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);

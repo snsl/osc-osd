@@ -40,6 +40,7 @@ void osd_hexdump(const void *dv, size_t len);
 double mean(double *v, int N);
 double stddev(double *v, double mu, int N);
 double get_mhz(void);
+uint32_t jenkins_one_at_a_time_hash(uint8_t *key, size_t key_len);
 
 /*
  * Disable debugging with -DNDEBUG in CFLAGS.  This also disables assert().

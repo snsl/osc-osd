@@ -39,6 +39,10 @@
 /* custom definitions */
 #define OSD_CAS				0x8889
 #define OSD_FA				0x8890
+#define OSD_COND_SETATTR		0x8891
+#define OSD_GEN_CAS			0x88a5
+#define OSD_SCATTER			0x88a6
+#define OSD_GATHER			0x88a7
 
 #define SAM_STAT_GOOD            0x00
 #define SAM_STAT_CHECK_CONDITION 0x02

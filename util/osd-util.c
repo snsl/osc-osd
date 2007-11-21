@@ -524,7 +524,7 @@ double stddev(double *v, double mu, int N)
 	double sd = 0.0;
 
 	if (N <= 1)
-		return 0.;
+		return 0.0;
 
 	for (i = 0; i < N; i++)
 		sd += (v[i] - mu)*(v[i] - mu);
@@ -582,3 +582,5 @@ uint32_t jenkins_one_at_a_time_hash(uint8_t *key, size_t key_len) {
 
     return hash;
 }
+
+

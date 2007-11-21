@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <endian.h>
+#include <time.h>
 
 #if defined(__x86_64__)
 	#define rdtsc(v) do { \
@@ -118,5 +119,10 @@ uint64_t next_offset(uint64_t start);
 #ifndef roundup8
 #define roundup8(x) (((x) + 7) & ~7)
 #endif
+
+static inline void osd_srand(void) 
+{
+	srand(time(0));
+}
 
 #endif /* __OSD_UTIL_H */

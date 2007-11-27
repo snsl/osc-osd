@@ -17,8 +17,8 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes -Wstrict-prototypes \
 	-Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) -I..
-CFLAGS += -I/usr/src/kernel/linux/include
-#CFLAGS += -I/usr/src/kernel/pw/include
+CFLAGS += -Dsg_io_v4=sg_io_v4_v2622
+#CFLAGS += -Dsg_io_v4=sg_io_v4_v2624
 
 all:: $(LIB) $(OBJ)
 

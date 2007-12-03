@@ -4,7 +4,7 @@
 
 PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c atomic.c \
 	   attr-all.c
-PROGSRC += blk-iospeed.c
+PROGSRC += blk-iospeed.c sgl_test.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
 LIB :=  ../libosdinit.a ../../util/libosdutil.a

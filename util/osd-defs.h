@@ -41,8 +41,13 @@
 #define OSD_FA				0x8890
 #define OSD_COND_SETATTR		0x8891
 #define OSD_GEN_CAS			0x88a5
-#define OSD_SCATTER			0x88a6
-#define OSD_GATHER			0x88a7
+
+/*Data Distribution Types*/
+#define DDT_CONTIG	0x0
+#define DDT_SGL		0x1
+#define DDT_IOV		0x2
+#define DDT_RES		0x3
+
 
 #define SAM_STAT_GOOD            0x00
 #define SAM_STAT_CHECK_CONDITION 0x02
@@ -104,7 +109,7 @@ enum {
 	VEND_PG_LB = 0x20000000,
 	VEND_PG_UB = 0x2FFFFFFF
 };
-	
+
 /* osd2r01, Section 4.7.4 */
 enum {
 	ATTRNUM_LB = 0x0,
@@ -217,7 +222,7 @@ enum {
 
 enum {
 	GETPAGE_SETVALUE = 0x2,
-	GETLIST_SETLIST = 0x3 
+	GETLIST_SETLIST = 0x3
 };
 
 #endif /* __OSD_DEFS_H */

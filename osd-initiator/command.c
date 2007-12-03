@@ -13,6 +13,8 @@
 #include "util/osd-util.h"
 #include "command.h"
 
+
+
 static void varlen_cdb_init(struct osd_command *command, uint16_t action)
 {
 	memset(command, 0, sizeof(*command));
@@ -22,6 +24,8 @@ static void varlen_cdb_init(struct osd_command *command, uint16_t action)
 	command->cdb[7] = OSD_CDB_SIZE - 8;
         command->cdb[8] = (action & 0xff00U) >> 8;
         command->cdb[9] = (action & 0x00ffU);
+	/*default to contiguous buffer*/
+	osd_command_set_ddt(command, DDT_CONTIG);
 	command->cdb[11] = 3 << 4;  /* default to list, but empty list lens */
 	/* Update timestamps based on action 5.2.8 */
 	command->cdb[12] = 0x7f;  /* timestamps not updated */
@@ -55,7 +59,7 @@ int osd_command_set_inquiry(struct osd_command *command, uint8_t page_code,
  * These functions take a cdb of the appropriate size (200 bytes),
  * and the arguments needed for the particular command.  They marshall
  * the arguments but do not submit the command.
- */     
+ */
 int osd_command_set_append(struct osd_command *command, uint64_t pid,
 			   uint64_t oid, uint64_t len)
 {
@@ -380,6 +384,12 @@ int osd_command_set_cond_setattr(struct osd_command *command, uint64_t pid,
 	return 0;
 }
 
+void osd_command_set_ddt(struct osd_command *command, uint8_t type)
+{
+	/*need a sep function, might not always be 00 for the default*/
+	command->cdb[10] = type;  /*using last 2 bits of option byte see 5.2.5*/
+}
+
 /*
  * Header for internal use across attr_build to attr_resolve.  Keeps
  * the original iov structures.
@@ -549,7 +559,7 @@ int osd_command_attr_build(struct osd_command *command,
 			 */
 			uint8_t *cdb = command->cdb;
 			uint16_t action = ((cdb[8] << 8) | cdb[9]);
-			if (attr[setattr_index].page != 0 && 
+			if (attr[setattr_index].page != 0 &&
 			    (action != OSD_SET_MEMBER_ATTRIBUTES)) {
 				use_getpage = 1;
 			}
@@ -619,7 +629,7 @@ int osd_command_attr_build(struct osd_command *command,
 		if (numgetpage)
 			size_retrieved = getpagesize;  /* no rounding */
 		if (numgetmulti)
-			size_retrieved = 8 + getmultisize * 
+			size_retrieved = 8 + getmultisize *
 					 getmulti_num_objects;
 		if (numresult) {
 			if (!size_retrieved)
@@ -1290,15 +1300,15 @@ int osd_command_list_resolve(struct osd_command *command)
 		osd_debug("LID: %u CONTINUE_OID: %llu", lid, llu(cont_oid));
 
 	if (list_attr) {
-		/* List or store get/set attributes results in the 
-		 * command struct somehow, 
+		/* List or store get/set attributes results in the
+		 * command struct somehow,
 		 * using a new method or perhaps attr_resolve?
-		 * 
+		 *
 		 * Also, will need to change how the data is extracted
 		 * based on the value of list_attr, since each obj_descriptor
 		 * isn't 8 bytes apart anymore if list_attr=1 (it depends
-		 * on the number of attributes in the attr list 
-	 	 */ 
+		 * on the number of attributes in the attr list
+	 	 */
 	}
 
 	for (i=0; i < num_results; i++) {
@@ -1340,15 +1350,15 @@ int osd_command_list_collection_resolve(struct osd_command *command)
 		osd_debug("LID: %u CONTINUE_OID: %llu", lid, llu(cont_oid));
 
 	if (list_attr) {
-		/* List or store get/set attributes results in the 
-		 * command struct somehow, 
+		/* List or store get/set attributes results in the
+		 * command struct somehow,
 		 * using a new method or perhaps attr_resolve?
-		 * 
+		 *
 		 * Also, will need to change how the data is extracted
 		 * based on the value of list_attr, since each obj_descriptor
 		 * isn't 8 bytes apart anymore if list_attr=1 (it depends
-		 * on the number of attributes in the attr list 
-	 	 */ 
+		 * on the number of attributes in the attr list
+	 	 */
 	}
 
 	for (i=0; i < num_results; i++) {

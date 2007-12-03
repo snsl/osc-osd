@@ -8,10 +8,10 @@
 
 struct attribute_list {
 	enum {
-		ATTR_GET, 
-		ATTR_GET_PAGE, 
-		ATTR_GET_MULTI, 
-		ATTR_SET, 
+		ATTR_GET,
+		ATTR_GET_PAGE,
+		ATTR_GET_MULTI,
+		ATTR_SET,
 		ATTR_RESULT,
 	} type;
 	uint32_t page;
@@ -129,7 +129,7 @@ int osd_command_set_set_member_attributes(struct osd_command *command,
 					  uint64_t pid, uint64_t cid);
 int osd_command_set_write(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
-
+void osd_command_set_ddt(struct osd_command *command, uint8_t type);
 /*
  * Extensions, not yet in T10 or SNIA OSD spec.
  */

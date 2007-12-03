@@ -18,10 +18,13 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid,
 /* Read/Write */
 int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	      uint64_t len, uint64_t offset);
+int write_sgl_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
+	      uint64_t len, uint64_t offset);
 int read_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *buf, uint64_t len,
 	     uint64_t offset);
 int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	       uint64_t len);
+
 /* Remove */
 int remove_osd(int fd, uint64_t pid, uint64_t requested_oid);
 int remove_partition(int fd, uint64_t pid);
@@ -34,7 +37,7 @@ int flush_partition(int fd, uint64_t pid, int flush_scope);
 int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope);
 int flush_object(int fd, uint64_t pid, uint64_t oid, int flush_scope);
 /*
- * Get/Set Attributes - none of these work at the moment, use attr_build 
+ * Get/Set Attributes - none of these work at the moment, use attr_build
  * and attr_resolve in command.c
  */
 int get_attributes(int fd, uint64_t pid, uint64_t oid);

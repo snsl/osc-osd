@@ -1,6 +1,6 @@
 # build everything
 
-UTIL := ./util
+UTIL := ./osd-util
 TRGT := ./osd-target
 INIT := ./osd-initiator
 PVFS := ./pvfs

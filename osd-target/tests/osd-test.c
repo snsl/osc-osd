@@ -6,12 +6,12 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 2 of the License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -83,17 +83,17 @@ static void test_osd_set_attributes(struct osd_device *osd)
 	assert(ret == 0);
 
 	/* setting root attr must fail */
-	ret = osd_set_attributes(osd, ROOT_PID, ROOT_OID, 0, 0, 
+	ret = osd_set_attributes(osd, ROOT_PID, ROOT_OID, 0, 0,
 				 NULL, 0, TRUE, sense);
 	assert(ret != 0);
 
 	/* unsettable page modification must fail */
-	ret = osd_set_attributes(osd, PARTITION_PID_LB, PARTITION_OID, 0, 0, 
+	ret = osd_set_attributes(osd, PARTITION_PID_LB, PARTITION_OID, 0, 0,
 				 NULL, 0, TRUE, sense);
 	assert(ret != 0);
 
 	/* unsettable collection page must fail */
-	ret = osd_set_attributes(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 0, 
+	ret = osd_set_attributes(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 0,
 				 0, NULL, 0, TRUE, sense);
 	assert(ret != 0);
 
@@ -104,15 +104,15 @@ static void test_osd_set_attributes(struct osd_device *osd)
 
 	/* info attr < 40 bytes, test must fail */
 	sprintf(val, "This is test, long test more than forty bytes");
-	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-				 USEROBJECT_PG + LUN_PG_LB, ATTRNUM_INFO, val, 
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USEROBJECT_PG + LUN_PG_LB, ATTRNUM_INFO, val,
 				 strlen(val)+1, TRUE, sense);
 	assert(ret != 0);
 
 	/* this test is normal setattr, must succeed */
 	sprintf(val, "Madhuri Dixit");
-	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-				 USEROBJECT_PG + LUN_PG_LB, 1, val, 
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USEROBJECT_PG + LUN_PG_LB, 1, val,
 				 strlen(val)+1, TRUE, sense);
 	assert(ret == 0);
 
@@ -153,12 +153,12 @@ static void test_osd_io(struct osd_device *osd)
 	assert(ret == 0);
 
 	sprintf(wrbuf, "Hello World! Get life\n");
-	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-			strlen(wrbuf)+1, 0, wrbuf, sense);
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
 	assert(ret == 0);
 
-	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-		       256, 0, rdbuf, &len, sense);
+	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+		       256, 0, NULL, rdbuf, &len, sense, DDT_CONTIG);
 	assert(ret >= 0);
 	if (ret > 0) {
 		assert(sense_test_type(sense, OSD_SSK_RECOVERED_ERROR,
@@ -170,12 +170,12 @@ static void test_osd_io(struct osd_device *osd)
 
 	sprintf(apbuf, "this text is appended\n");
 	ret = osd_append(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			 strlen(apbuf)+1, apbuf, sense);
+			 strlen(apbuf)+1, apbuf, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	memset(rdbuf, 0, len);
-	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-		       256, 0, rdbuf, &len, sense);
+	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+		       256, 0, NULL, rdbuf, &len, sense, DDT_CONTIG);
 	assert(ret >= 0);
 	if (ret > 0) {
 		assert(sense_test_type(sense, OSD_SSK_RECOVERED_ERROR,
@@ -194,7 +194,7 @@ static void test_osd_io(struct osd_device *osd)
 
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
 	assert(ret == 0);
-		
+
 	free(sense);
 	free(rdbuf);
 	free(wrbuf);
@@ -289,20 +289,20 @@ static void test_osd_get_utsap(struct osd_device *osd)
 	assert(ret == 0);
 
 	sprintf(buf, "Hello World! Get life blah blah blah\n");
-	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-			strlen(buf)+1, 0, buf, sense);
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(buf)+1, 0, buf, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	sleep(1);
 	used_len = 0;
 	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-		       strlen(buf)+1, 0, buf, &used_len, sense);
+		       strlen(buf)+1, 0, NULL, buf, &used_len, sense, DDT_CONTIG);
 	assert(ret == 0);
 	assert(used_len = strlen(buf)+1);
 
 	/*sleep(1);*/
-	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-				 USEROBJECT_PG + LUN_PG_LB, 2, buf, 
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USEROBJECT_PG + LUN_PG_LB, 2, buf,
 				 strlen(buf)+1, TRUE, sense);
 	assert(ret == 0);
 
@@ -310,7 +310,7 @@ static void test_osd_get_utsap(struct osd_device *osd)
 	used_getlen = 0;
 	ret = osd_getattr_page(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
 			       USER_TMSTMP_PG, buf, len, FALSE, &used_getlen,
-			       sense); 
+			       sense);
 	assert(ret == 0);
 
 	cp = buf;
@@ -352,8 +352,8 @@ static void test_osd_get_attributes(struct osd_device *osd)
 	assert(ret == 0);
 
 	sprintf(val, "Madhuri Dixit");
-	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-				 USEROBJECT_PG + LUN_PG_LB, 1, val, 
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USEROBJECT_PG + LUN_PG_LB, 1, val,
 				 strlen(val)+1, TRUE, sense);
 	assert(ret == 0);
 
@@ -374,8 +374,8 @@ static void test_osd_get_attributes(struct osd_device *osd)
 
 	/* write to the file and then truncate using setting logical len */
 	sprintf(val, "Hello World! Get life\n");
-	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-			strlen(val)+1, 0, val, sense);
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(val)+1, 0, val, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	len = 1024;
@@ -446,7 +446,7 @@ static void test_osd_create_collection(struct osd_device *osd)
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
 	assert(ret == 0);
 
-	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB,
 				    sense);
 	assert(ret == 0);
 
@@ -459,7 +459,7 @@ static void test_osd_create_collection(struct osd_device *osd)
 				    1, sense);
 	assert(ret != 0);
 
-	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB,
 				    sense);
 	assert(ret == 0);
 
@@ -468,7 +468,7 @@ static void test_osd_create_collection(struct osd_device *osd)
 				    0, sense);
 	assert(ret == 0);
 
-	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB,
 				    sense);
 	assert(ret == 0);
 
@@ -497,7 +497,7 @@ static void test_osd_create_collection(struct osd_device *osd)
 		number++;
 	}
 	/* remove collection */
-	ret = osd_remove_collection(osd, COLLECTION_PID_LB, 
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB,
 				    COLLECTION_OID_LB + 1, 1, sense);
 	assert(ret == 0);
 
@@ -516,8 +516,8 @@ static void test_osd_create_collection(struct osd_device *osd)
 
 
 /* only to be used by test_osd_query */
-static inline void set_attr_int(struct osd_device *osd, uint64_t oid, 
-				uint32_t page, uint32_t number, uint64_t val, 
+static inline void set_attr_int(struct osd_device *osd, uint64_t oid,
+				uint32_t page, uint32_t number, uint64_t val,
 				uint8_t *sense)
 {
 	int ret = 0;
@@ -525,26 +525,26 @@ static inline void set_attr_int(struct osd_device *osd, uint64_t oid,
 	uint64_t pid = PARTITION_PID_LB;
 
 	set_htonll(cp, val);
-	ret = osd_set_attributes(osd, pid, oid, page, number, &val, 
+	ret = osd_set_attributes(osd, pid, oid, page, number, &val,
 				 sizeof(val), 1, sense);
 	assert(ret == 0);
 }
 
 static inline void set_attr_val(struct osd_device *osd, uint64_t oid,
-				uint32_t page, uint32_t number, 
-				const void *val, uint16_t len, 
+				uint32_t page, uint32_t number,
+				const void *val, uint16_t len,
 				uint8_t *sense)
 {
 	int ret = 0;
 	uint64_t pid = PARTITION_PID_LB;
 
-	ret = osd_set_attributes(osd, pid, oid, page, number, val, len, 1, 
+	ret = osd_set_attributes(osd, pid, oid, page, number, val, len, 1,
 				 sense);
 	assert(ret == 0);
 }
 
-static inline void set_qce(uint8_t *cp, uint32_t page, uint32_t number, 
-			   uint16_t min_len, const void *min_val, 
+static inline void set_qce(uint8_t *cp, uint32_t page, uint32_t number,
+			   uint16_t min_len, const void *min_val,
 			   uint16_t max_len, const void *max_val)
 {
 	uint16_t len = 4 + 4 + 2 + min_len + 2 + max_len;
@@ -567,7 +567,7 @@ static inline int ismember(uint64_t needle, uint64_t *hay, uint64_t haysz)
 	return FALSE;
 }
 
-static void check_results(void *ml, uint64_t *idlist, uint64_t sz, 
+static void check_results(void *ml, uint64_t *idlist, uint64_t sz,
 			  uint64_t usedlen)
 {
 	uint8_t *cp = ml;
@@ -669,7 +669,7 @@ static void test_osd_query(struct osd_device *osd)
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x0;
-	page = USEROBJECT_PG+LUN_PG_LB; 
+	page = USEROBJECT_PG+LUN_PG_LB;
 	set_qce(&cp[4], page, 2, 0, NULL, 0, NULL);
 	qll += 4 + (4+4+4+2+2);
 
@@ -677,8 +677,8 @@ static void test_osd_query(struct osd_device *osd)
 			sense);
 	assert(ret == 0);
 
-	idlist[0] = oid+1; 
-	idlist[1] = oid+4; 
+	idlist[0] = oid+1;
+	idlist[1] = oid+4;
 	idlist[2] = oid+9;
 	check_results(matcheslist, idlist, 3, usedlen);
 
@@ -690,7 +690,7 @@ static void test_osd_query(struct osd_device *osd)
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x0;
-	page = USEROBJECT_PG+LUN_PG_LB; 
+	page = USEROBJECT_PG+LUN_PG_LB;
 	set_qce(&cp[4], page, 1, sizeof(min), &min, sizeof(max), &max);
 	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
 
@@ -698,8 +698,8 @@ static void test_osd_query(struct osd_device *osd)
 			sense);
 	assert(ret == 0);
 
-	idlist[0] = oid+1; 
-	idlist[1] = oid+4; 
+	idlist[0] = oid+1;
+	idlist[1] = oid+4;
 	idlist[2] = oid+5;
 	idlist[3] = oid+7;
 	check_results(matcheslist, idlist, 4, usedlen);
@@ -730,8 +730,8 @@ static void test_osd_query(struct osd_device *osd)
 	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
 			sense);
 	assert(ret == 0);
-	idlist[0] = oid+3; 
-	idlist[1] = oid+6; 
+	idlist[0] = oid+3;
+	idlist[1] = oid+6;
 	check_results(matcheslist, idlist, 2, usedlen);
 
 	/* 5: run intersection of 2 query criteria */
@@ -761,8 +761,8 @@ static void test_osd_query(struct osd_device *osd)
 			sense);
 	assert(ret == 0);
 
-	idlist[0] = oid+1; 
-	idlist[1] = oid+4; 
+	idlist[0] = oid+1;
+	idlist[1] = oid+4;
 	check_results(matcheslist, idlist, 2, usedlen);
 
 	/* 6: run union of 3 query criteria, with missing min/max */
@@ -846,8 +846,8 @@ static void test_osd_query(struct osd_device *osd)
 	assert(ret == 0);
 	idlist[3] = oid;
 	idlist[4] = oid+1;
-	idlist[0] = oid+4; 
-	idlist[1] = oid+5; 
+	idlist[0] = oid+4;
+	idlist[1] = oid+5;
 	idlist[5] = oid+6;
 	idlist[2] = oid+7;
 	check_results(matcheslist, idlist, 6, usedlen);
@@ -921,7 +921,7 @@ static void test_osd_query(struct osd_device *osd)
 	/* remove partition */
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
 	assert(ret == 0);
-	
+
 out:
 	free(buf);
 	free(sense);
@@ -944,7 +944,7 @@ int main()
 	test_osd_io(&osd);
 	test_osd_create_partition(&osd);
 	test_osd_get_attributes(&osd);
-	test_osd_get_ccap(&osd); 
+	test_osd_get_ccap(&osd);
 	test_osd_get_utsap(&osd);
 	test_osd_create_collection(&osd);
 	test_osd_query(&osd);

@@ -23,7 +23,7 @@ TMG_EXE := $(TMG_TEST:.c=)
 
 LIBOSD := ../libosdtgt.a ../../osd-util/libosdutil.a 
 
-include ../../Makedefs
+-include ../../Makedefs
 OPT := $(filter-out -DNDEBUG,$(OPT)) # don't turn off asserts!
 
 CC := gcc

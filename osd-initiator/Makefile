@@ -7,7 +7,7 @@ INC := device.h sync.h drivelist.h command.h sense.h
 OBJ := $(SRC:.c=.o)
 LIB := libosdinit.a
 
-include ../Makedefs
+-include ../Makedefs
 
 CC := gcc
 CPP_M := -MM

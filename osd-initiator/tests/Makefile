@@ -23,7 +23,7 @@ ifneq (,$(MPIDIR))
     MPILIB := -L/usr/local/mpich2-eth/lib -lmpich -L$(PVFSDIR)/lib -lpvfs2 -lrt
 endif
 
-include ../../Makedefs
+-include ../../Makedefs
 
 CC := gcc
 CPP_M := -MM

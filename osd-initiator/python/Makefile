@@ -11,7 +11,7 @@ LIB := pyosd.so
 INCDIR := $(shell python-config --includes) -I../..
 OSDLIBS := ../libosdinit.a ../../osd-util/libosdutil.a
 
-include ../../Makedefs
+-include ../../Makedefs
 
 # usual definitions
 CC := gcc

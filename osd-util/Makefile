@@ -7,7 +7,7 @@ INC := osd-util.h bsg.h osd-defs.h osd-sense.h
 OBJ := $(SRC:.c=.o)
 LIB := libosdutil.a
 
-include ../Makedefs
+-include ../Makedefs
 
 CC := gcc
 CPP_M := -MM

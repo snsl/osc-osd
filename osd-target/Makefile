@@ -22,7 +22,7 @@ IB_HW_OF_LIBS= -L/usr/local/openib-iser/lib
 LIBS := -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common \
 	$(IB_HW_OF_LIBS) -libverbs -lrdmacm
 
-include ../Makedefs
+-include ../Makedefs
 
 CC := gcc
 CPP_M := -MM

@@ -40,7 +40,7 @@ id = pwd.getpwuid(os.getuid())[0]
 if id == "pw":
     osd_dir = "/home/pw/src/osd"
 else:
-    osd_dir = sys.environ["HOME"]
+    osd_dir = os.environ["HOME"] + "/osd"
 
 initiator = osd_dir + "/osd-util/initiator"
 tgtd      = osd_dir + "/stgt/tgtd"

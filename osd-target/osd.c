@@ -256,8 +256,20 @@ static int empty_dir(const char *dirname)
 static inline void get_dfile_name(char *path, const char *root,
 				  uint64_t pid, uint64_t oid)
 {
+
+#ifndef PVFS_INTEGRATED
+
 	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles,
 		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
+
+#endif
+#ifdef PVFS_INTEGRATED
+
+	sprintf(path, "%s/%s/%08x/%s/%.8llu/%08llx.bstream", root, collid, 
+		"bstream", bucket(handle), handle);
+
+#endif
+
 }
 
 static inline void get_dbname(char *path, const char *root)

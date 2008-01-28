@@ -34,6 +34,10 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../osd-util
 
+ifeq ($(PVFS_OSD_INTEGRATED),1)
+CFLAGS += -DPVFS_OSD_INTEGRATED
+endif
+
 # To enable the use of tick tracing inside OSD target library.  It is
 # driven by tgt, and we must pick up the header files from it.  When changing
 # TICK_TRACE symbols, be sure to compile in stgt to update ttrace_def.h

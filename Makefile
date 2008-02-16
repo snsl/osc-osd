@@ -51,3 +51,9 @@ benchmarks:
 bmclean:
 endif
 
+# distribution tarball, just makefile lumps
+.PHONY: dist
+MVD := osd-toplevel-$(shell date +%Y%m%d)
+dist:
+	tar cf - Makefile Makedefs | bzip2 -9c > $(MVD).tar.bz2
+

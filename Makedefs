@@ -8,7 +8,7 @@ OPT := -g
 
 # Define this to build a pvfs2-server executable with an embedded OSD target
 # inside it.
-PVFS_OSD_INTEGRATED := 1
+#PVFS_OSD_INTEGRATED := 1
 
 # vim: ft=make
 

@@ -1,50 +1,53 @@
 # build everything
 
-UTIL := ./osd-util
-TRGT := ./osd-target
-INIT := ./osd-initiator
-PVFS := ./pvfs
-STGT := ./stgt
+util := ./osd-util
+target := ./osd-target
+initiator := ./osd-initiator
+stgt := ./stgt
+benchmarks := ./benchmarks
 
-.PHONY: all init trgt stgt util benchmarks clean pvfs
+.PHONY: all initiator target stgt util benchmarks clean bmclean
 
-all: init trgt
+all: initiator target
 
-init: util
-	make -C $(INIT)
-	make -C $(INIT)/tests/
-	make -C $(INIT)/python
+initiator: util
+	make -C $(initiator)
+	make -C $(initiator)/tests
+	make -C $(initiator)/python
 
-trgt: util stgt
-	make -C $(TRGT)
-	make -C $(TRGT)/tests
+target: util
+	make -C $(target)
+	make -C $(target)/tests
 
-stgt:
-	make -C $(STGT)
+stgt: target
+	make -C $(stgt)
 
 util:
-	make -C $(UTIL)
+	make -C $(util)
 
+clean: bmclean
+	make -C $(util) $@
+	make -C $(stgt) $@
+	make -C $(initiator)/python $@
+	make -C $(initiator)/tests $@
+	make -C $(initiator) $@
+	make -C $(target)/tests $@
+	make -C $(target) $@
+
+ifneq (,$(wildcard $(benchmarks)))
 benchmarks:
-	make -C benchmarks/osd-target
-	make -C benchmarks/pvfs/bonnie
-	make -C benchmarks/pvfs/metadata
-	make -C benchmarks/pvfs/perf
+	make -C $(benchmarks)/osd-target
+	make -C $(benchmarks)/pvfs/bonnie
+	make -C $(benchmarks)/pvfs/metadata
+	make -C $(benchmarks)/pvfs/perf
 
-clean:
-	make -C $(UTIL) $@
-	make -C $(STGT) $@
-	make -C $(INIT)/python $@
-	make -C $(INIT)/tests $@
-	make -C $(INIT) $@
-	make -C $(TRGT)/tests $@
-	make -C $(TRGT) $@
-	make -C benchmarks/osd-target $@
-	make -C benchmarks/pvfs/bonnie $@
-	make -C benchmarks/pvfs/metadata $@
-	make -C benchmarks/pvfs/perf $@
-
-# XXX: must configure first, though.  Generally do not do this
-pvfs: util
-	make -C $(PVFS) install
+bmclean:
+	make -C $(benchmarks)/osd-target clean
+	make -C $(benchmarks)/pvfs/bonnie clean
+	make -C $(benchmarks)/pvfs/metadata clean
+	make -C $(benchmarks)/pvfs/perf clean
+else
+benchmarks:
+bmclean:
+endif
 

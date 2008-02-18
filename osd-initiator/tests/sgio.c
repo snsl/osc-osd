@@ -388,14 +388,14 @@ int main(int argc, char *argv[])
 		create_partition(fd, PID);
 
 
-#if 0           /* These are all supposed to fail, for various reasons. */
+#if 1           /* These are all supposed to fail, for various reasons. */
 		write_osd(fd, PID, OID, WRITEDATA,
 			  strlen((const char *) WRITEDATA), OFFSET);
 		flush_osd(fd, FLUSH_SCOPE);
 #endif
 
 		
-#if 0		/* Basic read / write seems to work */
+#if 1		/* Basic read / write seems to work */
 		create_osd(fd, PID, OID, NUM_USER_OBJ);
 		create_osd(fd, PID, OID+1, NUM_USER_OBJ);
 		create_osd(fd, PID, OID+2, NUM_USER_OBJ);
@@ -412,7 +412,7 @@ int main(int argc, char *argv[])
 
 #endif
 
-#if 0           /* Testing iovec list. */
+#if 1           /* Testing iovec list. */
 		create_osd(fd, PID, OID+3, 1);
 		create_osd(fd, PID, OID+4, 1);
 
@@ -443,7 +443,7 @@ int main(int argc, char *argv[])
 #endif
 
 
-#if 0		/* Testing stuff */
+#if 1		/* Testing stuff */
 		create_osd(fd, PID, OID, NUM_USER_OBJ);
 		create_osd(fd, PID, OID+1, NUM_USER_OBJ);
 		write_osd(fd, PID, OID, WRITEDATA, sizeof(WRITEDATA), OFFSET);

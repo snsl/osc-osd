@@ -59,7 +59,7 @@
 #define OSD_COND_SETATTR		0x8891
 #define OSD_GEN_CAS			0x88a5
 
-/*Data Distribution Types*/
+/* Data Distribution Types */
 #define DDT_CONTIG	0x0
 #define DDT_SGL		0x1
 #define DDT_VEC		0x2

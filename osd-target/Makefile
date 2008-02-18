@@ -73,9 +73,9 @@ $(UTILLIB): UTIL
 	$(CC) $(CFLAGS) -c $< -o $@
 
 osd-schema.c: osd.schema
-	( echo "const char osd_schema[] =";\
-	  sed 's/^/"/; s/$$/\\n"/' < $< ;\
-	  echo ";" ) > $@
+	@( echo "const char osd_schema[] =";\
+	   sed 's/^/"/; s/$$/\\n"/' < $< ;\
+	   echo ";" ) > $@
 
 #depend
 ifneq (clean, $(MAKECMDGOALS))

@@ -90,8 +90,8 @@ static void basic_test_sgl(int fd, uint64_t pid, uint64_t oid)
 	uint64_t length = 10;
 	int size;
 	int ret;
-	int hdr_offset = 0;
 	int offset = 0;
+	int hdr_offset = 0;
 	int i;
 
 	/* -------------------------- */
@@ -279,7 +279,6 @@ static void basic_test_vec(int fd, uint64_t pid, uint64_t oid)
 	int size;
 	int ret;
 	int hdr_offset = 0;
-	int offset = 0;
 	int i;
 
 	/* -------------------------- */

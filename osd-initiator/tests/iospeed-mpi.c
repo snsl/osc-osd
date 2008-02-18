@@ -90,7 +90,6 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	double time = 0.0;
 	double max_time = 0.0;
 	double min_time = 0.0;
-	double mu, sd, total;
 	double *b = NULL;
 	void *buf = NULL;
 	size_t total_size;
@@ -170,6 +169,9 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 			max_time - min_time, 100. * (max_time - min_time) / max_time);
 	}
 #else
+	{
+	double mu, sd, total;
+
 	mu = mean(b, iters);
 	sd = stddev(b, mu, iters);
 
@@ -181,6 +183,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	else
 		printf("rank %d read       %3lu %7.3lf +- %7.3lf\n",
 		       rank, sz>>10, mu, sd);
+	}
 #endif
 	free(buf);
 	free(b);
@@ -196,7 +199,6 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 	double time = 0.0;
 	double max_time = 0.0;
 	double min_time = 0.0;
-	double mu, sd;
 	double *b = NULL;
 	void *buf = NULL;
 	size_t total_size;
@@ -269,6 +271,9 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 			max_time - min_time, 100. * (max_time - min_time) / max_time);
 	}
 #else
+	{
+	double mu, sd;
+
 	mu = mean(b, iters);
 	sd = stddev(b, mu, iters);
 	if (dosync)
@@ -277,6 +282,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 	else
 		printf("rank %d write      %3lu %7.3lf +- %7.3lf\n",
 		       rank, sz>>10, mu, sd);
+	}
 #endif
 	free(buf);
 	free(b);

@@ -11,41 +11,41 @@ benchmarks := ./benchmarks
 all: initiator target
 
 initiator: util
-	make -C $(initiator)
-	make -C $(initiator)/tests
-	make -C $(initiator)/python
+	$(MAKE) -C $(initiator)
+	$(MAKE) -C $(initiator)/tests
+	$(MAKE) -C $(initiator)/python
 
 target: util
-	make -C $(target)
-	make -C $(target)/tests
+	$(MAKE) -C $(target)
+	$(MAKE) -C $(target)/tests
 
 stgt: target
-	make -C $(stgt)
+	$(MAKE) -C $(stgt)
 
 util:
-	make -C $(util)
+	$(MAKE) -C $(util)
 
 clean: bmclean
-	make -C $(util) $@
-	make -C $(stgt) $@
-	make -C $(initiator)/python $@
-	make -C $(initiator)/tests $@
-	make -C $(initiator) $@
-	make -C $(target)/tests $@
-	make -C $(target) $@
+	$(MAKE) -C $(util) $@
+	$(MAKE) -C $(stgt) $@
+	$(MAKE) -C $(initiator)/python $@
+	$(MAKE) -C $(initiator)/tests $@
+	$(MAKE) -C $(initiator) $@
+	$(MAKE) -C $(target)/tests $@
+	$(MAKE) -C $(target) $@
 
 ifneq (,$(wildcard $(benchmarks)))
 benchmarks:
-	make -C $(benchmarks)/osd-target
-	make -C $(benchmarks)/pvfs/bonnie
-	make -C $(benchmarks)/pvfs/metadata
-	make -C $(benchmarks)/pvfs/perf
+	$(MAKE) -C $(benchmarks)/osd-target
+	$(MAKE) -C $(benchmarks)/pvfs/bonnie
+	$(MAKE) -C $(benchmarks)/pvfs/metadata
+	$(MAKE) -C $(benchmarks)/pvfs/perf
 
 bmclean:
-	make -C $(benchmarks)/osd-target clean
-	make -C $(benchmarks)/pvfs/bonnie clean
-	make -C $(benchmarks)/pvfs/metadata clean
-	make -C $(benchmarks)/pvfs/perf clean
+	$(MAKE) -C $(benchmarks)/osd-target clean
+	$(MAKE) -C $(benchmarks)/pvfs/bonnie clean
+	$(MAKE) -C $(benchmarks)/pvfs/metadata clean
+	$(MAKE) -C $(benchmarks)/pvfs/perf clean
 else
 benchmarks:
 bmclean:

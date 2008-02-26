@@ -8,7 +8,7 @@ benchmarks := ./benchmarks
 
 .PHONY: all initiator target stgt util benchmarks clean bmclean
 
-all: initiator target
+all: initiator target stgt
 
 initiator: util
 	$(MAKE) -C $(initiator)
@@ -19,20 +19,27 @@ target: util
 	$(MAKE) -C $(target)
 	$(MAKE) -C $(target)/tests
 
-stgt: target
-	$(MAKE) -C $(stgt)
-
 util:
 	$(MAKE) -C $(util)
 
-clean: bmclean
-	$(MAKE) -C $(util) $@
-	$(MAKE) -C $(stgt) $@
-	$(MAKE) -C $(initiator)/python $@
-	$(MAKE) -C $(initiator)/tests $@
+clean: bmclean stgtclean
 	$(MAKE) -C $(initiator) $@
-	$(MAKE) -C $(target)/tests $@
+	$(MAKE) -C $(initiator)/tests $@
+	$(MAKE) -C $(initiator)/python $@
 	$(MAKE) -C $(target) $@
+	$(MAKE) -C $(target)/tests $@
+	$(MAKE) -C $(util) $@
+
+ifneq (,$(wildcard $(stgt)))
+stgt: target
+	$(MAKE) -C $(stgt)
+
+stgtclean:
+	$(MAKE) -C $(stgt) clean
+else
+stgt:
+stgtclean:
+endif
 
 ifneq (,$(wildcard $(benchmarks)))
 benchmarks:

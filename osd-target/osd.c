@@ -2189,9 +2189,9 @@ int osd_punch(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	/* Read section following the bytes to be removed */
 	readlen = pread(fd, buf, new_len, new_offset);
 	
-	if (readlen < 0) {
+	if (readlen < 0) 
 	        goto out_hw_err;
-	}
+	
 	
 	/* Overwrite the bytes to be removed and concatenate to new length */
 	ret = pwrite(fd, buf, new_len, offset);

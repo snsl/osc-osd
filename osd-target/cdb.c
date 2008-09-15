@@ -39,7 +39,7 @@ struct command {
 	uint8_t *cdb;
 	uint16_t action;
 	uint8_t getset_cdbfmt;
-	uint64_t retrieved_attr_off; /* ~0 means empty 0 is legal value */
+	uint64_t retrieved_attr_off;  /* -1 means empty.  0 is a legal value. */
 	struct getattr_list get_attr;
 	struct setattr_list set_attr;
 	const uint8_t *indata;
@@ -1454,11 +1454,11 @@ static int calc_max_out_len(struct command *cmd)
 	cmd->retrieved_attr_off = 0;
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[60]);
-		if (cmd->retrieved_attr_off != llu(~0))
+		if (cmd->retrieved_attr_off != -1LLU)
 			end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[56]);
 	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
 		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[64]);
-		if (cmd->retrieved_attr_off != llu(~0))
+		if (cmd->retrieved_attr_off != -1LLU)
 			end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[60]);
 	} else {
 		return -1; /* TODO: proper error code */
@@ -1528,19 +1528,20 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 
 	exec_service_action(&cmd); /* run the command. */
 
-	/* Not all sense is bad here, like short read.  Continue.  */
-	if (cmd.get_used_outlen > 0) {
-		if ((cmd.used_outlen < cmd.retrieved_attr_off) &&
-					(llu(~0) != cmd.retrieved_attr_off)) {
-			/*
-			 * Not supposed to touch these bytes, but no way to
-			 * have discontiguous return blocks.  So fill with 0.
-			 */
+	/*
+	 * If some retrieved attributes are going back (get_used_outlen),
+	 * advance the overall used_outlen value, and possibly zero the
+	 * unused bytes of the data section.
+	 *
+	 * If the retrieved attribute offset was -1, though, there should be
+	 * no get_used_outlen.  But we'll check anyway.
+	 */
+	if (cmd.get_used_outlen > 0 && cmd.retrieved_attr_off != -1LLU) {
+		/* Unused data-in bytes must contain zero, says the spec. */
+		if (cmd.used_outlen < cmd.retrieved_attr_off)
 			memset(cmd.outdata + cmd.used_outlen, 0,
 			       cmd.retrieved_attr_off - cmd.used_outlen);
-		}
-		cmd.used_outlen = cmd.retrieved_attr_off
-			+ cmd.get_used_outlen;
+		cmd.used_outlen = cmd.retrieved_attr_off + cmd.get_used_outlen;
 	}
 
 	/* Return the data buffer and get attributes. */

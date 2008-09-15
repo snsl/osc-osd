@@ -45,6 +45,7 @@
 #define OSD_PUNCH                       0x8884
 #define OSD_QUERY			0x88a0
 #define OSD_READ			0x8885
+#define OSD_READ_MAP                    0x88b1
 #define OSD_REMOVE			0x888a
 #define OSD_REMOVE_COLLECTION		0x8896
 #define OSD_REMOVE_MEMBER_OBJECTS	0x88a1
@@ -59,7 +60,7 @@
 #define OSD_CAS				0x8880
 #define OSD_FA				0x8890
 #define OSD_COND_SETATTR		0x8891
-#define OSD_GEN_CAS			0x88a5
+#define OSD_GEN_CAS			0x88a5               
 
 /* Data Distribution Types */
 #define DDT_CONTIG	0x0
@@ -245,6 +246,14 @@ enum {
 	GETLIST_SETLIST = 0x3
 };
 
+/* osd2r03 6.22 Table 103, requested map type. */
+enum {
+        ALL_TYPE = 0x0000,
+	WRITTEN_DATA = 0x0001,
+	DATA_HOLE = 0x0002,
+	DAMAGED_DATA = 0x0003,
+	DAMAGED_ATTRIBUTES = 0x8000
+};
 /*osd2r03 4.14.5 Data-In and Data-Out buffer offsets*/
 #define OFFSET_UNUSED (0xFFFFFFFFU)
 

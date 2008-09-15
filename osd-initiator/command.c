@@ -145,12 +145,14 @@ int osd_command_set_create_partition(struct osd_command *command,
 }
 
 
-int osd_command_set_flush(struct osd_command *command, uint64_t pid,
-			  uint64_t oid, int flush_scope)
+int osd_command_set_flush(struct osd_command *command, uint64_t pid, uint64_t len,
+			  uint64_t offset, uint64_t oid, int flush_scope)
 {
         varlen_cdb_init(command, OSD_FLUSH);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
+	set_htonll(&command->cdb[32], len);
+	set_htonll(&command->cdb[40], offset);
         command->cdb[10] = (command->cdb[10] & ~0x3) | flush_scope;
         return 0;
 }
@@ -290,6 +292,18 @@ int osd_command_set_read(struct osd_command *command, uint64_t pid,
         set_htonll(&command->cdb[32], len);
         set_htonll(&command->cdb[40], offset);
         return 0;
+}
+
+int osd_command_set_read_map(struct osd_command*command, uint64_t pid, uint64_t oid,
+			 uint64_t alloc_len, uint64_t offset, uint8_t map_type)
+{
+        varlen_cdb_init(command, OSD_READ_MAP);
+	set_htonll(&command->cdb[16], pid);
+	set_htonll(&command->cdb[24], oid);
+	set_htonll(&command->cdb[32], alloc_len);
+	set_htonll(&command->cdb[40], offset);
+	set_htons(&command->cdb[48], map_type);
+	return 0;
 }
 
 

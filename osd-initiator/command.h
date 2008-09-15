@@ -103,8 +103,8 @@ int osd_command_set_create_collection(struct osd_command *command,
 				      uint64_t pid, uint64_t requested_cid);
 int osd_command_set_create_partition(struct osd_command *command,
 				     uint64_t requested_pid);
-int osd_command_set_flush(struct osd_command *command, uint64_t pid,
-			  uint64_t oid, int flush_scope);
+int osd_command_set_flush(struct osd_command *command, uint64_t pid, uint64_t len,
+			  uint64_t offset, uint64_t oid, int flush_scope);
 int osd_command_set_flush_collection(struct osd_command *command, uint64_t pid,
 				     uint64_t cid, int flush_scope);
 int osd_command_set_flush_osd(struct osd_command *command, int flush_scope);
@@ -131,6 +131,8 @@ int osd_command_set_query(struct osd_command *command, uint64_t pid,
 			  uint64_t cid, uint32_t query_len, uint64_t alloc_len);
 int osd_command_set_read(struct osd_command *command, uint64_t pid,
 			 uint64_t oid, uint64_t len, uint64_t offset);
+int osd_command_set_read_map(struct osd_command*command, uint64_t pid, uint64_t oid,
+			     uint64_t alloc_len, uint64_t offset, uint8_t map_type);
 int osd_command_set_remove(struct osd_command *command, uint64_t pid,
 			   uint64_t oid);
 int osd_command_set_remove_collection(struct osd_command *command,

@@ -2686,6 +2686,79 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 
 }
 
+static int set_dscptr(uint16_t dscptr_type, uint32_t data_len, uint64_t byte_offset,
+		       uint8_t *map_pt)
+{
+/*      set_htons(/\*offset+2*\/, dscptr_type); */
+/* 	set_htonl(/\*offset+4*\/, data_len); */
+/* 	set_htonll(offset+8, byte_offset); */
+	return 0;
+}
+
+int osd_read_map(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t alloc_len,
+		 uint64_t offset, uint16_t map_type, uint8_t *outdata, uint64_t *outlen,
+		 uint8_t *sense)
+{
+	ssize_t readlen;
+	int ret, fd, ct;
+	int dscptr_size = 0xffffffff;
+	char path[MAXNAMELEN];
+	uint8_t *pt;
+	uint64_t additional_len, byte_offset;
+	uint32_t data_len;
+       	struct stat sb;
+
+	osd_debug("%s: pid %llu oid %llu alloc_len %llu offset %llu", __func__,
+		  llu(pid), llu(oid), llu(alloc_len), llu(offset));
+
+	assert(osd && osd->root && osd->dbc && sense && outdata);
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDONLY|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+	
+	*outlen = alloc_len;
+	ret = stat(path, &sb);
+	
+	if (ret != 0) {
+	        close(fd);
+		return OSD_ERROR;
+	}
+	
+	/* Handling Illegal Operation */
+	if (offset > (uint64_t)sb.st_size)
+	        goto out_cdb_err; 
+	
+	if (map_type == WRITTEN_DATA) {
+	  
+	        if (((uint64_t)sb.st_size % dscptr_size) == 0) 
+	                ct = (uint64_t)sb.st_size / dscptr_size;
+		else
+		        ct = ((uint64_t)sb.st_size / dscptr_size) + 1;
+		
+		pt = outdata + 8; /* Skip addtional length for now */
+		while (ct > 0) {
+		  		        
+		        set_dscptr(map_type, data_len, byte_offset, pt);
+			/* update pointer +16 */
+ 		}
+	}
+	
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+}
 
 int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	       uint8_t *sense)

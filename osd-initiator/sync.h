@@ -66,7 +66,7 @@ int format_osd(int fd, int capacity);
 int flush_osd(int fd, int flush_scope);
 int flush_partition(int fd, uint64_t pid, int flush_scope);
 int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope);
-int flush_object(int fd, uint64_t pid, uint64_t oid, int flush_scope);
+int flush_object(int fd, uint64_t pid, uint64_t oid, uint64_t len, uint64_t offset, int flush_scope);
 /*
  * Get/Set Attributes - none of these work at the moment, use attr_build
  * and attr_resolve in command.c

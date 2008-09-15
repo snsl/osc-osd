@@ -809,7 +809,7 @@ int flush_collection(int fd, uint64_t pid, uint64_t cid, int flush_scope)
 	return 0;
 }
 
-int flush_object(int fd, uint64_t pid, uint64_t oid, int flush_scope)
+int flush_object(int fd, uint64_t pid, uint64_t oid, uint64_t len, uint64_t offset,  int flush_scope)
 {
 	int ret;
 	struct osd_command command;
@@ -817,7 +817,7 @@ int flush_object(int fd, uint64_t pid, uint64_t oid, int flush_scope)
 	osd_debug("****** FLUSH OBJECT ******");
 	osd_debug("PID: %llu OID: %llu", llu(pid), llu(oid));
 
-	osd_command_set_flush(&command, pid, oid, flush_scope);
+	osd_command_set_flush(&command, pid, oid, len, offset,  flush_scope);
 
 	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);

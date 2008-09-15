@@ -761,6 +761,26 @@ static int cdb_read(struct command *cmd)
 	return rec_err_sense; /* return 0 or recoved error sense length */
 }
 
+static int cdb_read_map(struct command *cmd)
+{
+        int ret = 0;
+	uint64_t pid = get_ntohll(&cmd->cdb[16]);
+	uint64_t oid = get_ntohll(&cmd->cdb[24]);
+	uint64_t alloc_len = get_ntohll(&cmd->cdb[32]);
+	uint64_t offset = get_ntohll(&cmd->cdb[40]);
+	uint16_t map_type = get_ntohs(&cmd->cdb[48]);
+     
+	ret = set_attributes(cmd, pid, oid, 1);
+	if (ret)
+	        return ret;
+	ret = get_attributes(cmd, pid, oid, 1);
+	if (ret)
+	        return ret;
+	
+	return osd_read_map(cmd->osd, pid, oid, alloc_len, offset, map_type, 
+			    cmd->outdata, &cmd->used_outlen, cmd->sense);
+}
+	
 /*
  *  actions for various (pid, list_attr) combinations:
  *
@@ -1395,6 +1415,12 @@ static void exec_service_action(struct command *cmd)
 		ret = std_get_set_attr(cmd, pid, cid);
 		break;
 	}
+
+	case OSD_READ_MAP: {
+	        ret = cdb_read_map(cmd);	       
+	        break;
+	}
+
 	case OSD_READ: {
 		ret = cdb_read(cmd);
 		break;

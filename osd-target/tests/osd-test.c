@@ -324,7 +324,93 @@ static void test_osd_flush(struct osd_device *osd)
 	free(sense);
 	free(wrbuf);
 }
-  
+
+static void test_osd_read_map(struct osd_device *osd)
+{
+        int ret = 0, i = 0;
+	uint8_t *sense = Calloc(1, 1024);
+	uint64_t len;
+	void *wrbuf = Calloc(1, 256);
+	uint8_t *outdata = Calloc(1, 1024);
+       	uint64_t used_outlen;
+	char path[MAXNAMELEN];
+	struct stat sb;
+	uint16_t map_type = 0x0001;
+
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	assert(ret == 0);
+
+	sprintf(wrbuf, "Te\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
+
+	/* Illegal case: offset > file_size */
+	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 24, 12, map_type,
+			   outdata, &used_outlen, sense);
+	assert(ret != 0);
+	
+	/* Illegal case: allocated_len < 24 */
+	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 10, 2, map_type,
+			   outdata, &used_outlen, sense);
+	assert(ret != 0);
+
+	/* One descriptor case */
+	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 24, 0, map_type,
+			   outdata, &used_outlen, sense);
+	assert(ret == 0);
+	printf("------------------------------------------- \n");
+	printf("OUTPUTS FOR 1 DESCRIPTOR CASE \n------------------------------------------- \n");
+	printf("additional length: %i \n", *(outdata+7));
+	printf("map_type: %i \n", *(outdata+11));
+	printf("data length: %i \n", *(outdata+15));
+	printf("data byte offset: %i \n", *(outdata+23));
+
+	/* Two descriptor case */
+	sprintf(wrbuf, "Testin\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 1024, 0, map_type,
+			   outdata, &used_outlen, sense);
+	assert(ret == 0);
+	printf("------------------------------------------- \n");
+	printf("OUTPUTS FOR 2 DESCRIPTORS CASE \n------------------------------------------- \n");
+	printf("additional length: %i \n", *(outdata+7));
+	printf("map_type(1st descriptor): %i \n", *(outdata+11));
+	printf("data length(1st descriptor): %i \n", *(outdata+15));
+	printf("data byte offset(1st descriptor): %i \n", *(outdata+23));
+	printf("map_type(2nd descriptor): %i \n", *(outdata+27));
+	printf("data length(2nd descriptor): %i \n", *(outdata+31));
+	printf("data byte offset(2nd descriptor): %i \n", *(outdata+39));
+	
+	/* Offset > 0 */
+	sprintf(wrbuf, "Testin\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 1024, 4, map_type,
+			   outdata, &used_outlen, sense);
+	assert(ret == 0);
+	printf("------------------------------------------- \n");
+	printf("1 DESCRIPTOR W/ OFFSET > 0 CASE \n------------------------------------------- \n");
+	printf("additional length: %i \n", *(outdata+7));
+	printf("map_type: %i \n", *(outdata+11));
+	printf("data length: %i \n", *(outdata+15));
+	printf("data byte offset: %i \n", *(outdata+23));
+	
+	/* Special Case: allocated_len = 0 */
+	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, 4, map_type,
+			   outdata, &used_outlen, sense);
+	assert(ret == 0);
+
+	free(sense);
+	free(wrbuf);
+	free(outdata);
+}
 
 static void test_osd_io(struct osd_device *osd)
 {
@@ -1181,6 +1267,7 @@ int main()
 	int ret = 0;
 	const char *root = "/tmp/osd/";
 	struct osd_device osd;
+  
 
         system("rm -rf /tmp/osd");
 	ret = osd_open(root, &osd);
@@ -1188,7 +1275,7 @@ int main()
 	
 /* 	test_osd_clear(&osd); */
 /*	test_osd_punch(&osd); */
-	test_osd_flush(&osd); 
+/* 	test_osd_flush(&osd);  */
 /* 	test_osd_format(&osd); */
 /* 	test_osd_create(&osd); */
 /* 	test_osd_set_attributes(&osd); */
@@ -1199,6 +1286,7 @@ int main()
 /* 	test_osd_get_utsap(&osd); */
 /* 	test_osd_create_collection(&osd); */
 /* 	test_osd_query(&osd); */
+	test_osd_read_map(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

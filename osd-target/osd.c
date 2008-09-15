@@ -2686,25 +2686,26 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 
 }
 
-static int set_dscptr(uint16_t dscptr_type, uint32_t data_len, uint64_t byte_offset,
-		       uint8_t *map_pt)
+static inline int set_dscptr(uint16_t dscptr_type, uint32_t data_len, uint64_t byte_offset,
+			     uint8_t *offset)
 {
-/*      set_htons(/\*offset+2*\/, dscptr_type); */
-/* 	set_htonl(/\*offset+4*\/, data_len); */
-/* 	set_htonll(offset+8, byte_offset); */
+        set_htons(offset+2, dscptr_type);
+	set_htonl(offset+4, data_len);
+	set_htonll(offset+8, byte_offset);
 	return 0;
 }
 
+/* This implementation assumes map_type = WRITTEN_DATA */
+/* Returns a map of the data and attributes in the specified user object */
 int osd_read_map(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t alloc_len,
-		 uint64_t offset, uint16_t map_type, uint8_t *outdata, uint64_t *outlen,
+		 uint64_t offset, uint16_t map_type, uint8_t *outdata, uint64_t *used_outlen,
 		 uint8_t *sense)
 {
-	ssize_t readlen;
-	int ret, fd, ct;
-	int dscptr_size = 0xffffffff;
+	int ret, fd = -1, i;
+	uint64_t dscptr_size = 0x00000004;  /*set to 4 for testing purpose, change to 0xffffffff */
 	char path[MAXNAMELEN];
 	uint8_t *pt;
-	uint64_t additional_len, byte_offset;
+	uint64_t  byte_offset, file_size, add_len = 0;
 	uint32_t data_len;
        	struct stat sb;
 
@@ -2713,6 +2714,14 @@ int osd_read_map(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t al
 
 	assert(osd && osd->root && osd->dbc && sense && outdata);
 
+	if (alloc_len == 0)
+	        return 0; /* No data shall be transfered */
+
+	else if (alloc_len < 24) /* alloc_len needs to be at least 24 for one descriptor */
+		goto out_cdb_err;
+
+	memset(outdata, 0, alloc_len);
+
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
 
@@ -2720,8 +2729,7 @@ int osd_read_map(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t al
 	fd = open(path, O_RDONLY|O_LARGEFILE); /* fails on non-existent obj */
 	if (fd < 0)
 		goto out_cdb_err;
-	
-	*outlen = alloc_len;
+		
 	ret = stat(path, &sb);
 	
 	if (ret != 0) {
@@ -2729,25 +2737,59 @@ int osd_read_map(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t al
 		return OSD_ERROR;
 	}
 	
-	/* Handling Illegal Operation */
 	if (offset > (uint64_t)sb.st_size)
 	        goto out_cdb_err; 
-	
-	if (map_type == WRITTEN_DATA) {
-	  
-	        if (((uint64_t)sb.st_size % dscptr_size) == 0) 
-	                ct = (uint64_t)sb.st_size / dscptr_size;
-		else
-		        ct = ((uint64_t)sb.st_size / dscptr_size) + 1;
-		
+
+	file_size = (uint64_t)sb.st_size - offset; /* Adjust to the offset */
+
+	if (map_type == WRITTEN_DATA) { 
+  
 		pt = outdata + 8; /* Skip addtional length for now */
-		while (ct > 0) {
-		  		        
-		        set_dscptr(map_type, data_len, byte_offset, pt);
-			/* update pointer +16 */
- 		}
+		byte_offset = 8;
+		
+		while(file_size > 0) { 
+		        if(file_size <= dscptr_size) { /* one descriptor */
+		                data_len = file_size;
+				file_size = 0;
+			
+			}else {
+			        data_len = dscptr_size;
+			        file_size -= dscptr_size;
+			}
+						
+			set_dscptr(map_type, data_len, byte_offset, pt);
+			byte_offset += 16;
+			pt += 16;
+			add_len++;
+		}
+		
+		*used_outlen = 8 + (add_len * 16); /* Report total buffer len used */
+		
+		if((add_len * 16) > 0xffffffff )
+		        set_htonll(outdata, 0xffffffff);
+		else
+		        set_htonll(outdata, (add_len * 16)); /* Set additional length */
+
+	}else if (map_type == DATA_HOLE) {
+	        osd_debug(__func__);
+		return osd_error_unimplemented(0, sense);
+	}else if (map_type == DAMAGED_DATA) {
+	 	osd_debug(__func__);
+		return osd_error_unimplemented(0, sense);
+	}else if (map_type == DAMAGED_ATTRIBUTES) {
+		osd_debug(__func__);
+		return osd_error_unimplemented(0, sense);
+	}else { /* map_type == ALL_DATA */
+	  	osd_debug(__func__);
+		return osd_error_unimplemented(0, sense);
 	}
 	
+	ret = close(fd);
+	if (ret)
+		goto out_hw_err;
+
+	return OSD_OK; /* success */
+
 out_hw_err:
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);

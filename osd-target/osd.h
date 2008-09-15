@@ -88,7 +88,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
 	     uint64_t offset, const uint8_t *indata, uint8_t *outdata, uint64_t *outlen,
 	     uint8_t *sense, uint8_t ddt);
 int osd_read_map(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t alloc_len,
-		 uint64_t offset, uint16_t map_type, uint8_t *outdata, uint64_t *outlen, 
+		 uint64_t offset, uint16_t map_type, uint8_t *outdata, uint64_t *used_outlen, 
 		 uint8_t *sense);
 int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
                uint8_t *sense);

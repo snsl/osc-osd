@@ -128,7 +128,8 @@ static uint64_t parse_number(const char *cp)
 }
 
 static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
-		      uint64_t size, int flush, int warmup)
+		      uint64_t size, uint64_t numbytes, uint64_t stride,
+		      int flush, int warmup)
 {
 
 	uint64_t start, stop, delta;
@@ -138,7 +139,11 @@ static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	double mhz = get_mhz();
 	double time = 0.0;
 	double mu, sd;
-	int i;
+	int i, j;
+	uint64_t offset;
+	uint64_t total_size;
+	int segments;
+	int bytes_left;
 
 	assert(mode != READ && flush != FLUSH);
 
@@ -151,14 +156,39 @@ static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	if (mode == READ)
 		ret = write_osd(fd, pid, oid, buf, size, 0); /* put something there to read */
 
+	if (numbytes == 0 || stride == 0) { /* default to a single write */
+		numbytes = size;
+	}
+
+	/* figure out how many segments we are going to have */
+	segments = size / numbytes;
+	bytes_left = size % numbytes;
+	total_size = segments * numbytes + bytes_left;
+	if (bytes_left > 0)
+		segments+=1; /* need one last segment for the remainder of bytes */
+	assert(total_size == size);
+
 	for ( i = 0; i < trials+warmup; i++ ) {
+		offset = 0;
 		rdtsc(start);
-		if (mode == WRITE)
-			ret = write_osd(fd, pid, oid, buf, size, 0);
-		else
-			ret = read_osd(fd, pid, oid, buf, size, 0);
+		for (j = 0; j < segments; j++ ) {
+			if (j + 1 == segments && bytes_left != 0 ) {
+				if (mode == WRITE)
+					ret = write_osd(fd, pid, oid, buf, bytes_left, offset);
+				else
+					ret = read_osd(fd, pid, oid, buf, bytes_left, offset);
+				assert(ret == 0);
+			} else {
+				if (mode == WRITE)
+					ret = write_osd(fd, pid, oid, buf, numbytes, offset);
+				else
+					ret = read_osd(fd, pid, oid, buf, numbytes, offset);
+				assert(ret == 0);
+				offset += stride;
+			}
+		}
 		rdtsc(stop);
-		assert(ret == 0);
+
 		delta = stop - start;
 
 		if (flush == FLUSH) {
@@ -172,6 +202,7 @@ static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 		if (i >= warmup)
 			bw_array[i-warmup] = size/time; /* BW in MegaBytes/sec */
 	}
+
 
 	mu = mean(bw_array, trials);
 	sd = stddev(bw_array, mu, trials);
@@ -401,6 +432,9 @@ int main(int argc, char *argv[])
 
 	osd_set_progname(argc, argv);
 
+	/* note: when passing params ensure end up with a contiguous file
+	   especially for reads or else we won't be able to stage a file ahead
+	   of time */
 
 	while ((c = getopt (argc, argv, "l:o:d:s:n:t:i:w:f")) != -1)
 		switch (c) {
@@ -450,16 +484,6 @@ int main(int argc, char *argv[])
 
 	if (mode == READ && flush == FLUSH) {
 		fprintf(stderr, "flush has no meaning for writes \n");
-		usage();
-	}
-
-	if (ddt == CONTIG && stride > 0) {
-		fprintf(stderr, "stride has no meaning for CONTIG\n");
-		usage();
-	}
-
-	if (ddt == CONTIG && num > 0) {
-		fprintf(stderr, "num segments has no meaning for CONTIG\n");
 		usage();
 	}
 
@@ -527,7 +551,7 @@ int main(int argc, char *argv[])
 		switch (ddt) {
 			case CONTIG:
 				do_contig(fd, mode, pid, oid, trials, size,
-					  flush, warmup);
+					  num, stride, flush, warmup);
 				break;
 			case SGL:
 				do_sgl(fd, mode, pid, oid, trials, size, num,

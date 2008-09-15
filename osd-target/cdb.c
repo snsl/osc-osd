@@ -1530,7 +1530,6 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 
 	/* Not all sense is bad here, like short read.  Continue.  */
 	if (cmd.get_used_outlen > 0) {
-#ifdef ENABLE_CLEAR_PADDING_BYTES
 		if ((cmd.used_outlen < cmd.retrieved_attr_off) &&
 					(llu(~0) != cmd.retrieved_attr_off)) {
 			/*
@@ -1540,7 +1539,6 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			memset(cmd.outdata + cmd.used_outlen, 0,
 			       cmd.retrieved_attr_off - cmd.used_outlen);
 		}
-#endif
 		cmd.used_outlen = cmd.retrieved_attr_off
 			+ cmd.get_used_outlen;
 	}

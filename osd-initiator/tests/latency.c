@@ -453,7 +453,7 @@ static void flush_test(int fd, uint64_t pid)
 	ret = osd_submit_and_wait(fd, &command);
 	assert(ret == 0);
 
-	osd_command_set_flush(&command, pid, oid, 0);
+	osd_command_set_flush(&command, pid, 0, 0, oid, 0);
 
 	/* warm up */
 	for (i=0; i<50; i++) {
@@ -498,7 +498,7 @@ static void unimplemented_test(int fd, uint64_t pid)
 	if (!v)
 		osd_error_fatal("out of memory");
 
-	osd_command_set_flush(&command, pid, oid, 0);
+	osd_command_set_flush(&command, pid, 0, 0, oid, 0);
 	command.cdb[8] = 0xf0;  /* garbage, not flush */
 	command.cdb[9] = 0xf0;
 

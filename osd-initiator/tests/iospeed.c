@@ -107,7 +107,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 			delta = end - start;
 
 			rdtsc(start);
-			ret = flush_object(fd, pid, oid, 2);
+			ret = flush_object(fd, pid, oid, 0, 0, 0);
 			rdtsc(end);
 			assert(ret == 0);
 			delta += (end - start);
@@ -185,7 +185,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 			rdtsc(start);
 			/* XXX: this may be broken, numbers reported
 			 * are too big to be reasonable */
-			ret = flush_object(fd, pid, oid, 2);
+			ret = flush_object(fd, pid, oid, 0, 0, 0);
 			rdtsc(end);
 			assert(ret == 0);
 

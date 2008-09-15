@@ -212,7 +212,7 @@ static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 
 		if (flush == FLUSH) {
 			rdtsc(start);
-			ret = flush_object(fd, pid, oid, 2);
+			ret = flush_object(fd, pid, oid, 0 ,0 ,0);
 			rdtsc(stop);
 			assert(ret == 0);
 			delta += stop - start;
@@ -313,7 +313,7 @@ static void do_sgl(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 
 		if (flush == FLUSH) {
 			rdtsc(start);
-			ret = flush_object(fd, pid, oid, 2);
+			ret = flush_object(fd, pid, oid, 0, 0, 0);
 			rdtsc(stop);
 			assert(ret == 0);
 			delta += stop - start;
@@ -391,7 +391,7 @@ static void do_vec(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 
 		if (flush == FLUSH) {
 			rdtsc(start);
-			ret = flush_object(fd, pid, oid, 2);
+			ret = flush_object(fd, pid, oid, 0, 0, 0);
 			rdtsc(stop);
 			assert(ret == 0);
 			delta += stop - start;

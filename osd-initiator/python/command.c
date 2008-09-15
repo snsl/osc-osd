@@ -462,7 +462,10 @@ static PyObject *pyosd_command_set_flush(PyObject *self, PyObject *args)
 	}
 
 	py_command->set = 1;
-	osd_command_set_flush(command, pid, oid, scope);
+
+/*	FIXME: scope=2 needs a start/length params should read these in too
+	osd_command_set_flush(command, pid, oid, scope);*/
+	osd_command_set_flush(command, pid, 0, 0, oid, 0);
 	Py_IncRef(self);
 	return self;
 }

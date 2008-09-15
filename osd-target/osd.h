@@ -52,8 +52,8 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 			  uint64_t requested_cid, uint8_t *sense);
 int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
                          uint8_t *sense);
-int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
-	      int flush_scope, uint8_t *sense);
+int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,  
+	      uint64_t offset, int flush_scope, uint8_t *sense);
 int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                          int flush_scope, uint8_t *sense);
 int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense);

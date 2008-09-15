@@ -1513,11 +1513,12 @@ out_hw_err:
 }
 
 int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
-	      int flush_scope, uint8_t *sense)
+	      uint64_t len, uint64_t offset, int flush_scope, uint8_t *sense)
 {
 	char path[MAXNAMELEN];
-	int ret, fd;
-
+	int ret, fd=-1;
+	struct stat sb;
+	
 	osd_debug("%s: pid %llu oid %llu scope %d", __func__, llu(pid),
 		  llu(oid), flush_scope);
 
@@ -1531,12 +1532,48 @@ int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (fd < 0)
 		goto out_cdb_err;
 
-	if (flush_scope == 0) {   /* data and attributes */
+	if (flush_scope == 0) {   /* flush data and attributes */
 		ret = fdatasync(fd);
 		if (ret)
 			goto out_hw_err;
+		/* flush attribute to be implemented */
 	}
 
+	else if (flush_scope == 2) {  /* flush user object data range & attributes */
+                
+	        ret = stat(path, &sb);
+		if(ret) {
+		        close(fd);
+		        return OSD_ERROR;
+		}
+	
+	        /* Offset beyond user object length */
+	        if(offset > (uint64_t)sb.st_size)
+	                goto out_cdb_err; 
+	  
+	        /* Designated bytes beyond object length, only flush bytes within length */
+		else if(len > ((uint64_t)sb.st_size - offset)) {
+		        ret = sync_file_range(fd, offset, sb.st_size - offset, 0);
+			if (ret)
+			        goto out_hw_err;
+			/* flush attribute to be implemented */
+		        ret = close(fd);
+		        return OSD_OK;  /* success */
+		}
+		
+		/* Normal Flush */
+		ret = sync_file_range(fd, offset, len, 0);  
+		if (ret)
+		        goto out_hw_err;
+		/* flush attribute to be implemented */
+	}
+	
+	else {  /* flush_scope = 1, flush attribute only */
+	        /* flush attribute to be implemented */
+	  	osd_debug(__func__);
+	        return osd_error_unimplemented(0, sense);
+	}
+		      
 	/* attributes always flushed?  need sqlite call here? */
 
 	ret = close(fd);
@@ -1549,11 +1586,15 @@ int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 out_hw_err:
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	if(fd >= 0)
+	        close(fd);
 	return ret;
 
 out_cdb_err:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	if(fd >= 0)
+	        close(fd);
 	return ret;
 }
 
@@ -2165,7 +2206,7 @@ int osd_punch(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	        goto out_cdb_err; 
 	  
 	/* Handling Special Case */
-	if(offset < (uint64_t)sb.st_size && new_offset > (uint64_t)sb.st_size) {
+	else if(new_offset > (uint64_t)sb.st_size) {
 	        ret = truncate(path, offset);
 	        if (ret < 0)
 		        goto out_hw_err;

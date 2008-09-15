@@ -284,6 +284,48 @@ static void test_osd_punch(struct osd_device *osd)
 }
 
 
+static void test_osd_flush(struct osd_device *osd)
+{
+        int ret = 0;
+	uint8_t *sense = Calloc(1, 1024);
+	uint64_t len;
+	void *wrbuf = Calloc(1, 256);
+	char path[MAXNAMELEN];
+	struct stat sb;
+		
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	assert(ret == 0);
+
+	sprintf(wrbuf, "Testing osd_punch command\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+    
+	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
+	
+	/* flush_scope = 0, non-range based data flush, offset & len disregarded */
+	ret = osd_flush(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, 0, 0, sense);
+	assert(ret == 0);
+	
+	/* flush_scope =2, illegal case must fail */
+	ret = osd_flush(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 5, 30, 2, sense);
+	assert(ret != 0);
+
+	/* flush scope =2, ranged based data flush */
+	ret = osd_flush(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 7, 0, 2, sense);
+	assert(ret == 0);
+
+	/* flush scope = 2, special case data flush */
+	ret = osd_flush(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 20, 10, 2, sense);
+	assert(ret == 0);
+
+	free(sense);
+	free(wrbuf);
+}
+  
+
 static void test_osd_io(struct osd_device *osd)
 {
 	int ret = 0;
@@ -1145,7 +1187,8 @@ int main()
 	assert(ret == 0);
 	
 /* 	test_osd_clear(&osd); */
-	test_osd_punch(&osd);
+/*	test_osd_punch(&osd); */
+	test_osd_flush(&osd); 
 /* 	test_osd_format(&osd); */
 /* 	test_osd_create(&osd); */
 /* 	test_osd_set_attributes(&osd); */

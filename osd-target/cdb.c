@@ -1284,9 +1284,11 @@ static void exec_service_action(struct command *cmd)
 	case OSD_FLUSH: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t oid = get_ntohll(&cdb[24]);
+		uint64_t len = get_ntohll(&cdb[32]);
+		uint64_t offset = get_ntohll(&cdb[40]);
 		int flush_scope = cdb[10] & 0x3;
 
-		ret = osd_flush(osd, pid, oid, flush_scope, sense);
+		ret = osd_flush(osd, pid, oid, len, offset, flush_scope, sense);
 		break;
 	}
 	case OSD_FLUSH_COLLECTION: {

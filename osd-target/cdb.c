@@ -1424,6 +1424,8 @@ static void exec_service_action(struct command *cmd)
 		ret = set_attributes(cmd, pid, oid, 1);
 		if (ret)
 			break;
+		if (cmd->getset_cdbfmt == GETFIELD_SETVALUE)
+		        break;
 		ret = get_attributes(cmd, pid, oid, 1);
 		TICK_TRACE(cdb_set_attributes);
 		break;

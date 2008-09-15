@@ -313,7 +313,6 @@ void test_create(struct osd_device *osd)
 
 
 /* only to be used by test_set_one_attr */
-
 static void set_one_attr_int(struct osd_device *osd, uint64_t pid, uint64_t oid, 
 			 uint32_t page, uint32_t number, uint64_t val)
 {
@@ -366,21 +365,21 @@ static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert(ret == 0);
 	ret = osd_command_attr_build(&cmd, &attr, 1);
 
-/* 	printf("cdbfmt is: %x \n", cmd.cdb[11]); */
-/* 	printf("length is: %x \n", cmd.cdb[60]); */
-/* 	printf("value is: "); */
-/*  	for(i=0; i<=len; i++){ */
-/* 	        printf("%c", cmd.cdb[62+i]); */
-/* 	} */
-/* 	printf("\n"); */
-
-	
 	
 	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen,
 				&data_out, &data_out_len,
 				sense_out, &senselen_out);
 	assert(ret == 0);
 	osd_command_attr_free(&cmd);
+
+	/* output cdbfmt , length , value */
+	printf("cdbfmt is: %x \n", cmd.cdb[11]);
+	printf("length is: %x \n", cmd.cdb[61]);
+	printf("value is: ");
+ 	for(i=0; i<=len; i++){
+	        printf("%c", cmd.cdb[62+i]);
+	}
+	printf("\n");     
 }
 
 static void test_set_one_attr (struct osd_device *osd)
@@ -394,9 +393,8 @@ static void test_set_one_attr (struct osd_device *osd)
 	int senselen_out;
 	int ret;
     	uint32_t page = USEROBJECT_PG + LUN_PG_LB;
-
        	
-	/* create a collection and stick some objects in it */
+	/* create a partition*/
 	ret = osd_command_set_create_partition(&cmd, pid);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
@@ -404,22 +402,22 @@ static void test_set_one_attr (struct osd_device *osd)
 	assert(ret == 0);
 	
 	/* creat one object */
-
 	ret = osd_command_set_create(&cmd, USEROBJECT_PID_LB,
 				     USEROBJECT_OID_LB, 1); 
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, &data_out_len,
 				sense_out, &senselen_out);
 	assert(ret == 0);
-
-	
-	/* test setting attributes */
-	
+		
+	/* these cases should not generate error */
 	set_one_attr_val(osd, pid, oid, page, 1, "test", 5);
+	set_one_attr_val(osd, pid, oid, page, 1, "test_set_one_attr", 18);
+	set_one_attr_int(osd, pid, oid, page, 1, 10);
+	set_one_attr_int(osd, pid, oid, page, 1, 20);
 
-/* 	set_one_attr_int(osd, pid, oid, page, 1, 30); */
-	
-
+	/* these cases must generate error */
+	/* set_one_attr_val(osd, pid, oid, page, 1, "ttest_set_one_attr", 19); */
+	/* set_one_attr_val(osd, pid, oid, page, 1, "", 0); */
 }
 
 

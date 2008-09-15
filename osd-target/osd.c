@@ -1512,6 +1512,115 @@ out_hw_err:
 			       requested_pid, 0);
 }
 
+int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid, 
+					uint64_t requested_cid,	uint64_t source_cid,
+					uint32_t cdb_cont_len, uint8_t *sense)
+{
+	int ret = 0;
+	uint64_t cid = 0;
+	int present = 0;
+
+	osd_debug("%s: pid %llu requested_cid %llu source_cid %llu cdb_cont_len %u",
+		  __func__, llu(pid), llu(requested_cid), llu(source_cid), cdb_cont_len);
+
+	assert(osd && osd->root && osd->dbc && sense);
+
+	if (pid == 0 || pid < COLLECTION_PID_LB)
+		goto out_cdb_err;
+
+	if (requested_cid != 0 && requested_cid < COLLECTION_OID_LB)
+		goto out_cdb_err;
+
+	/* Make sure partition is present */
+	ret = obj_ispresent(osd->dbc, pid, PARTITION_OID, &present);
+	if (ret != OSD_OK || !present)
+		goto out_cdb_err;
+
+	/* Make sure source collection is present */
+	ret = obj_ispresent(osd->dbc, pid, source_cid, &present);
+	if (ret != OSD_OK || !present)
+		goto out_cdb_err;
+
+	/* Checks on cdb_cont_len */
+	if (((source_cid != 0) && (cdb_cont_len == 0)) || ((source_cid == 0) && (cdb_cont_len != 0)))
+	        goto out_cdb_err;
+	
+	if ((cdb_cont_len != 0) /* && (CDB continuation segment does not contain one extension capabilitys 
+				     CDB continuation descriptor(5.4.6) || Contains any CDB continuation
+				     descriptors other than the extension capabilities CDB continuation 
+				     descriptor) */) {
+	        goto out_cdb_err;
+	}
+	
+	/* Checking validity of the source collection */
+	if (source_cid != 0) {
+	        if((source_cid < LINKED_COLLECTION_OID_LB) || (source_cid != 0x1082)
+		   || (source_cid < TRACKING_COLLECTION_OID_LB)) {
+		        goto out_cdb_err;
+		}else if((source_cid > TRACKING_COLLECTION_OID_LB || source_cid > 
+			  USER_TRACKING_COLLECTION_OID_LB) /* && the active command status 
+			 attribute in the Command Tracking attribute page(7.1.3.20) is not
+			 set to zero*/) {
+		  goto out_cdb_err;
+		}
+	}
+
+	if (requested_cid == 0) {
+		
+		if (osd->ic.cur_pid == pid) { /* cache hit */
+		        cid = osd->ic.next_id;
+			osd->ic.next_id++;
+		}else {
+		        ret = obj_get_nextoid(osd->dbc, pid, &cid);
+			if (ret != 0)
+			        goto out_hw_err;
+			osd->ic.cur_pid = pid;
+			osd->ic.next_id = cid + 1;
+		}
+		if (cid == 1) {
+		        cid = COLLECTION_OID_LB; /* first id in partition */
+			osd->ic.next_id = cid + 1;
+		} 
+		if (source_cid != 0) {
+		        /* Copy source collection members to destination collection */ 
+		}
+	}		  
+
+	else {
+		/* Make sure requested_cid doesn't already exist */
+		ret = obj_ispresent(osd->dbc, pid, requested_cid, &present);
+		if (ret != OSD_OK || present)
+			goto out_cdb_err;
+		cid = requested_cid;
+
+		/*XXX: invalidate cache */
+		osd->ic.cur_pid = osd->ic.next_id = 0;
+		
+		if (source_cid != 0) {
+		        /* Copy source collection members to destination collection */ 
+		}
+
+	}
+
+	/* if cid already exists, obj_insert will fail */
+	ret = obj_insert(osd->dbc, pid, cid, COLLECTION);
+	if (ret)
+		goto out_cdb_err;
+
+	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
+	return OSD_OK; /* success */
+
+out_cdb_err:
+	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			       OSD_ASC_INVALID_FIELD_IN_CDB,
+			       requested_cid, 0);
+out_hw_err:
+	osd->ic.cur_pid = osd->ic.next_id = 0; 
+	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			       OSD_ASC_INVALID_FIELD_IN_CDB,
+			       requested_cid, 0);
+}
+
 int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	      uint64_t len, uint64_t offset, int flush_scope, uint8_t *sense)
 {

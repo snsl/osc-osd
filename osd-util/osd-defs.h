@@ -25,36 +25,45 @@
 #define OSD_MAX_SENSE 252
 
 /* varlen cdb service actions for osd2r01 */
-#define OSD_APPEND			0x8887
-#define OSD_CLEAR                       0x8889
-#define OSD_CREATE			0x8882
-#define OSD_CREATE_AND_WRITE		0x8892
-#define OSD_CREATE_COLLECTION		0x8895
-#define OSD_CREATE_PARTITION		0x888b
-#define OSD_FLUSH			0x8888
-#define OSD_FLUSH_COLLECTION		0x889a
-#define OSD_FLUSH_OSD			0x889c
-#define OSD_FLUSH_PARTITION		0x889b
-#define OSD_FORMAT_OSD			0x8881
-#define OSD_GET_ATTRIBUTES		0x888e
-#define OSD_GET_MEMBER_ATTRIBUTES	0x88a2
-#define OSD_LIST			0x8883
-#define OSD_LIST_COLLECTION		0x8897
-#define OSD_PERFORM_SCSI_COMMAND	0x8f7c
-#define OSD_PERFORM_TASK_MGMT_FUNC	0x8f7d
-#define OSD_PUNCH                       0x8884
-#define OSD_QUERY			0x88a0
-#define OSD_READ			0x8885
-#define OSD_READ_MAP                    0x88b1
-#define OSD_REMOVE			0x888a
-#define OSD_REMOVE_COLLECTION		0x8896
-#define OSD_REMOVE_MEMBER_OBJECTS	0x88a1
-#define OSD_REMOVE_PARTITION		0x888c
-#define OSD_SET_ATTRIBUTES		0x888f
-#define OSD_SET_KEY			0x8898
-#define OSD_SET_MASTER_KEY		0x8899
-#define OSD_SET_MEMBER_ATTRIBUTES	0x88a3
-#define OSD_WRITE			0x8886
+#define OSD_APPEND		        	0x8887
+#define OSD_CLEAR                               0x8889
+#define OSD_COPY_USER_OBJECTS                   0x8893
+#define OSD_CREATE			        0x8882
+#define OSD_CREATE_AND_WRITE		        0x8892
+#define OSD_CREATE_CLONE                        0x88a8
+#define OSD_CREATE_COLLECTION		        0x8895
+#define OSD_CREATE_PARTITION		        0x888b
+#define OSD_CREATE_SNAPSHOT                     0x88a9
+#define OSD_CREATE_USER_TRACKING_COLLECTION     0x8894
+#define OSD_DETACH_CLONE                        0x88aa
+#define OSD_FLUSH		        	0x8888
+#define OSD_FLUSH_COLLECTION	        	0x889a
+#define OSD_FLUSH_OSD		        	0x889c
+#define OSD_FLUSH_PARTITION	        	0x889b
+#define OSD_FORMAT_OSD			        0x8881
+#define OSD_GET_ATTRIBUTES	        	0x888e
+#define OSD_GET_MEMBER_ATTRIBUTES        	0x88a2
+#define OSD_LIST		        	0x8883
+#define OSD_LIST_COLLECTION	        	0x8897
+#define OSD_OBJECT_STRUCTURE_CHECK              0x8880
+#define OSD_PERFORM_SCSI_COMMAND        	0x8f7c
+#define OSD_PERFORM_TASK_MGMT_FUNC      	0x8f7d
+#define OSD_PUNCH                               0x8884
+#define OSD_QUERY		        	0x88a0
+#define OSD_READ			        0x8885
+#define OSD_READ_MAP                            0x88b1
+#define OSD_READ_MAPS_AND_COMPARE               0x88b2
+#define OSD_REFRESH_SNAPSHOT_OR_CLONE           0x88ab
+#define OSD_REMOVE		        	0x888a
+#define OSD_REMOVE_COLLECTION	        	0x8896
+#define OSD_REMOVE_MEMBER_OBJECTS       	0x88a1
+#define OSD_REMOVE_PARTITION	         	0x888c
+#define OSD_RESTORE_PARTITION_FROM_SNAPSHOT     ox88ac
+#define OSD_SET_ATTRIBUTES	        	0x888f
+#define OSD_SET_KEY		        	0x8898
+#define OSD_SET_MASTER_KEY	        	0x8899
+#define OSD_SET_MEMBER_ATTRIBUTES       	0x88a3
+#define OSD_WRITE		        	0x8886
 
 /* custom definitions */
 #define OSD_CAS				0x8880
@@ -81,17 +90,28 @@
 #define SAM_STAT_ACA_ACTIVE      0x30
 #define SAM_STAT_TASK_ABORTED    0x40
 
-/* OSD object constants, osd2r01 sec 4.6.2 */
+/* OSD object constants, osd2r04 sec 4.6.1, 4.6.6 */
 #define ROOT_PID 0LLU
 #define ROOT_OID 0LLU
 #define PARTITION_PID_LB 0x10000LLU
 #define PARTITION_OID 0x0LLU
 #define OBJECT_PID_LB 0x10000LLU
+#define SPONTANEOUS_COLLECTION_PID_LB 0x10000LLU
+#define SPONTANEOUS_COLLECTION_OID_LB 0x1082LLU
+#define TRACKING_COLLECTION_PID_LB 0x10000LLU
+#define TRACKING_COLLECTION_OID_LB 0x0001LLU
 #define COLLECTION_PID_LB OBJECT_PID_LB
 #define USEROBJECT_PID_LB OBJECT_PID_LB
-#define OBJECT_OID_LB OBJECT_PID_LB
+#define WELL_KNOWN_COLLECTION_PID_LB OBJECT_PID_LB
+#define LINKED_COLLECTION_PID_LB OBJECT_PID_LB
+#define USER_TRACKING_COLLECTION_OID_LB OBJECT_PID_LB
+#define OBJECT_OID_LB OBJECT_PID_LB 
 #define COLLECTION_OID_LB COLLECTION_PID_LB
 #define USEROBJECT_OID_LB USEROBJECT_PID_LB
+#define WELL_KNOWN_COLLECTION_OID_LB 0x1000
+#define USER_TRACKING_COLLECTION_OID_LB OBJECT_PID_LB
+#define LINKED_COLLECTION_OID_LB OBJECT_PID_LB
+
 
 /* object types, osd2r00 section 4.9.2.2.1 table 9 */
 enum {

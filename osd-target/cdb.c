@@ -1239,9 +1239,23 @@ static void exec_service_action(struct command *cmd)
 	struct osd_device *osd = cmd->osd;
 	uint8_t *cdb = cmd->cdb;
 	uint8_t *sense = cmd->sense;
+	uint32_t cdb_cont_len = get_ntohl(&cdb[48]);
+	uint64_t pid = get_ntohll(&cdb[16]);
+	uint64_t oid = get_ntohll(&cdb[24]);
 	int ret;
-
+	
 	osd_debug("%s: start 0x%04x", __func__, cmd->action);
+
+	if (cdb_cont_len != 0) {
+	        if (((cdb_cont_len % 8) != 0) || (cdb_cont_len > 48)) {
+		  /* need to check if cdb_cont_len is greater than the value in the 
+		     maximum CDB continuation length attribute in the root information 
+		     attributes page (7.1.3.8)*/
+		ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+		}
+	}
+	
 	switch (cmd->action) {
 	case OSD_APPEND: {
 		uint8_t ddt = cdb[10];
@@ -1299,6 +1313,15 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_CREATE_PARTITION: {
 		ret = cdb_create_partition(cmd);
+		break;
+	}
+	case OSD_CREATE_USER_TRACKING_COLLECTION: {
+                uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t requested_cid = get_ntohll(&cdb[24]);
+		uint64_t source_cid = get_ntohll(&cdb[40]);
+		
+		ret = osd_create_user_tracking_collection(osd, pid, requested_cid, 
+							  source_cid, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_FLUSH: {

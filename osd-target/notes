@@ -752,3 +752,6 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
 # Fri Nov 30 17:29:47 EST 2007
 - create branch in svn to handle the debug cases. for eg. tick tracing to
   debug the fairness for different clients
+
+# Mon Jul 21 12:21:07 EDT 2008
+http://www.sqlite.org/atomiccommit.html

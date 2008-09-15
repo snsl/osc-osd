@@ -52,4 +52,7 @@ int coll_get_oids_in_cid(struct db_context *dbc, uint64_t pid, uint64_t cid,
 			 uint8_t *outdata, uint64_t *used_outlen,
 			 uint64_t *add_len, uint64_t *cont_id);
 
+int coll_copyoids(struct db_context *dbc, uint64_t pid, uint64_t dest_cid,
+		  uint64_t source_cid);
+
 #endif /* __COLL_H */

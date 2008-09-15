@@ -46,6 +46,7 @@ struct coll_tab {
 	sqlite3_stmt *emptycid; /* is collection empty? */
 	sqlite3_stmt *getcid;   /* get collection */
 	sqlite3_stmt *getoids;  /* get objects in a collection */
+	sqlite3_stmt *copyoids; /* copy oids from one collection to another */
 };
 
 
@@ -129,9 +130,18 @@ int coll_initialize(struct db_context *dbc)
 	if (ret != SQLITE_OK)
 		goto out_finalize_getoids;
 
+	sprintf(SQL, "INSERT INTO %s SELECT ?, ?, oid, 0, WHERE pid = ? AND "
+		" cid = ?;", dbc->coll->name);
+	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->coll->copyoids, NULL);
+	if (ret != SQLITE_OK)
+		goto out_finalize_copyoids;
+
 	ret = OSD_OK; /* success */
 	goto out;
 
+out_finalize_copyoids:
+	db_sqfinalize(dbc->db, dbc->coll->copyoids, SQL);
+	SQL[0] = '\0';
 out_finalize_getoids:
 	db_sqfinalize(dbc->db, dbc->coll->getoids, SQL);
 	SQL[0] = '\0';
@@ -171,6 +181,7 @@ int coll_finalize(struct db_context *dbc)
 	sqlite3_finalize(dbc->coll->emptycid);
 	sqlite3_finalize(dbc->coll->getcid);
 	sqlite3_finalize(dbc->coll->getoids);
+	sqlite3_finalize(dbc->coll->copyoids);
 	free(dbc->coll->name);
 	free(dbc->coll);
 	dbc->coll = NULL;
@@ -212,6 +223,36 @@ repeat:
 	ret |= sqlite3_bind_int64(dbc->coll->insert, 3, oid);
 	ret |= sqlite3_bind_int(dbc->coll->insert, 4, number);
 	ret = db_exec_dms(dbc, dbc->coll->insert, ret, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
+
+	return ret;
+}
+
+/* 
+ * @pid: partition id 
+ * @dest_cid: destination collection id (typically user tracking collection)
+ * @source_cid: source collection id (whose objects will be tracked)
+ *
+ * returns:
+ * -EINVAL: invalid arg
+ * OSD_ERROR: some other error
+ * OSD_OK: success
+ */
+int coll_copyoids(struct db_context *dbc, uint64_t pid, uint64_t dest_cid,
+		  uint64_t source_cid)
+{
+	int ret = 0;
+
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->copyoids);
+
+repeat:
+	ret = 0;
+	ret |= sqlite3_bind_int64(dbc->coll->copyoids, 1, pid);
+	ret |= sqlite3_bind_int64(dbc->coll->copyoids, 2, dest_cid);
+	ret |= sqlite3_bind_int64(dbc->coll->copyoids, 3, pid);
+	ret |= sqlite3_bind_int64(dbc->coll->copyoids, 4, source_cid);
+	ret = db_exec_dms(dbc, dbc->coll->copyoids, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -403,7 +444,6 @@ repeat:
 
 	return ret;
 }
-
 
 /*
  * Collection Attributes Page (CAP) of a userobject stores its membership in 

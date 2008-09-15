@@ -98,3 +98,8 @@ Misc:
     codes
 -   composing multiple objects into a file
 
+# Thu May 29 23:12:13 EDT 2008
+- change the getattr and setattr to do bulk attr setting/getting
+- implement clear, punch and other new commands.
+- check whether the implementation matches the old spec.
+- update the comments with names of new sections

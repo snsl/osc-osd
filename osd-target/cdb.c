@@ -53,7 +53,7 @@ struct command {
 };
 
 static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
-			 uint8_t isembedded, uint16_t numoid)
+			 uint8_t isembedded, uint16_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint8_t *cdb = cmd->cdb;
@@ -73,7 +73,7 @@ static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	outbuf = &cmd->outdata[cmd->retrieved_attr_off];
 	return osd_getattr_page(cmd->osd, pid, oid, page, outbuf, alloc_len,
-				isembedded, &cmd->get_used_outlen,
+				isembedded, &cmd->get_used_outlen, cdb_cont_len,
 				cmd->sense);
 
 out_param_list_err:
@@ -83,7 +83,7 @@ out_param_list_err:
 }
 
 static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
-			  uint8_t isembedded, uint16_t numoid)
+			  uint8_t isembedded, uint16_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	int err = 0;
@@ -103,7 +103,7 @@ static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 	for (i = oid; i < oid+numoid; i++) {
 		ret = osd_set_attributes(cmd->osd, pid, i, page, number,
 					 &cmd->indata[offset], len, isembedded,
-					 cmd->sense);
+					 cdb_cont_len, cmd->sense);
 		if (ret != 0)
 			break;
 	}
@@ -115,7 +115,7 @@ static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 }
 
 static int set_one_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
-			      uint8_t isembedded, uint16_t numoid)
+			      uint8_t isembedded, uint16_t numoid, uint32_t cdb_cont_len)
 {
         int ret = 0;
 	int err = 0;
@@ -145,7 +145,7 @@ static int set_one_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	for (i = oid; i < oid+numoid; i++) {
     	        ret = osd_set_attributes(cmd->osd, pid, i, page, number,
-					 value, len, isembedded, cmd->sense);
+					 value, len, isembedded, cdb_cont_len, cmd->sense);
 		if (ret != 0)
 		        break;
 	}
@@ -166,7 +166,7 @@ out_invalid_param:
  *  >0: failure, senselen is returned.
  */
 static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
-			 uint8_t isembedded, uint16_t numoid)
+			 uint8_t isembedded, uint16_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	int err = 0;
@@ -231,7 +231,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 			uint32_t get_used_outlen;
 			ret = osd_getattr_list(cmd->osd, pid, i, page, number,
 					       cp, list_alloc_len, isembedded,
-					       listfmt, &get_used_outlen,
+					       listfmt, &get_used_outlen, cdb_cont_len,
 					       cmd->sense);
 			if (ret != 0) {
 				cmd->senselen = ret;
@@ -279,7 +279,7 @@ out_invalid_param_list:
  *  >0: failure, senselen is returned.
  */
 static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
-			 uint8_t isembedded, uint16_t numoid)
+			 uint8_t isembedded, uint16_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	int err = 0;
@@ -321,7 +321,7 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		for (i = oid; i < oid+numoid; i++) {
 			ret = osd_set_attributes(cmd->osd, pid, i, page,
 						 number, &list_hdr[10], len,
-						 isembedded, cmd->sense);
+						 isembedded, cdb_cont_len, cmd->sense);
 			if (ret != 0) {
 				cmd->senselen = ret;
 				goto out_err;
@@ -503,7 +503,7 @@ out_hw_err:
  *  >0: failed, sense len set accordingly
  */
 static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
-			  uint16_t numoid)
+			  uint16_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint8_t isembedded = TRUE;
@@ -515,9 +515,9 @@ static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 		isembedded = FALSE;
 
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
-		return get_attr_page(cmd, pid, oid, isembedded, numoid);
+	        return get_attr_page(cmd, pid, oid, isembedded, numoid, cdb_cont_len);
 	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
-		return get_attr_list(cmd, pid, oid, isembedded, numoid);
+	        return get_attr_list(cmd, pid, oid, isembedded, numoid, cdb_cont_len);
 	} else if (cmd->getset_cdbfmt == GETFIELD_SETVALUE){
 	        return 0;
 	}else {
@@ -535,7 +535,7 @@ out_cdb_err:
  *  >0: failed, sense len set accordingly
  */
 static int set_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
-			  uint32_t numoid)
+			  uint32_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint8_t isembedded = TRUE;
@@ -547,11 +547,11 @@ static int set_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 		isembedded = FALSE;
 
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
-		return set_attr_value(cmd, pid, oid, isembedded, numoid);
+	        return set_attr_value(cmd, pid, oid, isembedded, numoid, cdb_cont_len);
 	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
-		return set_attr_list(cmd, pid, oid, isembedded, numoid);
+	        return set_attr_list(cmd, pid, oid, isembedded, numoid, cdb_cont_len);
 	} else if (cmd->getset_cdbfmt == GETFIELD_SETVALUE) {
-	        return set_one_attr_value(cmd, pid, oid, isembedded, numoid);
+	        return set_one_attr_value(cmd, pid, oid, isembedded, numoid, cdb_cont_len);
 	} else {
 		goto out_cdb_err;
 	}
@@ -566,7 +566,7 @@ out_cdb_err:
  * ==0: success
  *  >0: error, cmd->sense is appropriately set
  */
-static int cdb_create(struct command *cmd)
+static int cdb_create(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	int err = 0;
@@ -590,7 +590,7 @@ static int cdb_create(struct command *cmd)
 	err = osd_begin_txn(cmd->osd);
 	assert(err == 0);
 
-	ret = osd_create(cmd->osd, pid, requested_oid, numoid, cmd->sense);
+	ret = osd_create(cmd->osd, pid, requested_oid, numoid, cdb_cont_len, cmd->sense);
 
 	err = osd_end_txn(cmd->osd);
 	assert(err == 0);
@@ -602,11 +602,11 @@ static int cdb_create(struct command *cmd)
 	oid = osd_get_created_oid(cmd->osd, numoid);
 
 	TICK_TRACE(cdb_create_setattr);
-	ret = set_attributes(cmd, pid, oid, numoid);
+	ret = set_attributes(cmd, pid, oid, numoid, cdb_cont_len);
 	if (ret != 0)
 		goto out_remove_obj;
 	TICK_TRACE(cdb_create_getattr);
-	ret = get_attributes(cmd, pid, oid, numoid);
+	ret = get_attributes(cmd, pid, oid, numoid, cdb_cont_len);
 	if (ret != 0)
 		goto out_remove_obj;
 
@@ -615,7 +615,7 @@ static int cdb_create(struct command *cmd)
 
 out_remove_obj:
 	for (i = oid; i < oid+numoid; i++)
-		osd_remove(cmd->osd, pid, i, local_sense);
+	        osd_remove(cmd->osd, pid, i, cdb_cont_len, local_sense);
 	return ret; /* preserve ret */
 
 out_cdb_err:
@@ -630,29 +630,29 @@ out_cdb_err:
  * ==0: on success
  *  >0: on failure. no side-effects of create partition remain.
  */
-static int cdb_create_collection(struct command *cmd)
+static int cdb_create_collection(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret;
 	uint8_t sense[OSD_MAX_SENSE];
 	uint64_t pid = get_ntohll(&cmd->cdb[16]);
 	uint64_t cid, requested_cid = get_ntohll(&cmd->cdb[24]);
 
-	ret = osd_create_collection(cmd->osd, pid, requested_cid, sense);
+	ret = osd_create_collection(cmd->osd, pid, requested_cid, cdb_cont_len, sense);
 	if (ret != 0)
 		return ret;
 
 	cid = cmd->osd->ccap.oid;
-	ret = set_attributes(cmd, pid, cid, 1);
+	ret = set_attributes(cmd, pid, cid, 1, cdb_cont_len);
 	if (ret != 0)
 		goto out_remove_obj;
-	ret = get_attributes(cmd, pid, cid, 1);
+	ret = get_attributes(cmd, pid, cid, 1, cdb_cont_len);
 	if (ret != 0)
 		goto out_remove_obj;
 
 	return ret;
 
 out_remove_obj:
-	osd_remove(cmd->osd, pid, cid, sense);
+	osd_remove(cmd->osd, pid, cid, cdb_cont_len, sense);
 	return ret;
 }
 
@@ -661,29 +661,29 @@ out_remove_obj:
  * ==0: on success
  *  >0: on failure. no side-effects of create partition remain.
  */
-static int cdb_create_partition(struct command *cmd)
+static int cdb_create_partition(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint64_t pid = 0;
 	uint64_t requested_pid = get_ntohll(&cmd->cdb[16]);
 	uint8_t local_sense[OSD_MAX_SENSE];
 
-	ret = osd_create_partition(cmd->osd, requested_pid, cmd->sense);
+	ret = osd_create_partition(cmd->osd, requested_pid, cdb_cont_len, cmd->sense);
 	if (ret != 0)
 		return ret;
 
 	pid = cmd->osd->ccap.pid;
-	ret = set_attributes(cmd, pid, PARTITION_OID, 1);
+	ret = set_attributes(cmd, pid, PARTITION_OID, 1, cdb_cont_len);
 	if (ret != 0)
 		goto out_remove_obj;
-	ret = get_attributes(cmd, pid, PARTITION_OID, 1);
+	ret = get_attributes(cmd, pid, PARTITION_OID, 1, cdb_cont_len);
 	if (ret != 0)
 		goto out_remove_obj;
 
 	return ret;
 
 out_remove_obj:
-	osd_remove(cmd->osd, pid, PARTITION_OID, local_sense);
+	osd_remove(cmd->osd, pid, PARTITION_OID, cdb_cont_len, local_sense);
 	return ret;
 }
 
@@ -692,19 +692,19 @@ out_remove_obj:
  * ==0: on success
  *  >0: on failure
  */
-static int cdb_remove_partition(struct command *cmd)
+static int cdb_remove_partition(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint64_t pid = get_ntohll(&cmd->cdb[16]);
 
-	ret = set_attributes(cmd, pid, PARTITION_OID, 1);
+	ret = set_attributes(cmd, pid, PARTITION_OID, 1, cdb_cont_len);
 	if (ret != 0)
 		return ret;
-	ret = get_attributes(cmd, pid, PARTITION_OID, 1);
+	ret = get_attributes(cmd, pid, PARTITION_OID, 1, cdb_cont_len);
 	if (ret != 0)
 		return ret;
 
-	return osd_remove_partition(cmd->osd, pid, cmd->sense);
+	return osd_remove_partition(cmd->osd, pid, cdb_cont_len, cmd->sense);
 }
 
 /*
@@ -712,20 +712,20 @@ static int cdb_remove_partition(struct command *cmd)
  * ==0: on success
  *  >0: on failure
  */
-static int cdb_remove(struct command *cmd)
+static int cdb_remove(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint64_t pid = get_ntohll(&cmd->cdb[16]);
 	uint64_t oid = get_ntohll(&cmd->cdb[24]);
 
-	ret = set_attributes(cmd, pid, oid, 1);
+	ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret != 0)
 		return ret;
-	ret = get_attributes(cmd, pid, oid, 1);
+	ret = get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret != 0)
 		return ret;
 
-	return osd_remove(cmd->osd, pid, oid, cmd->sense);
+	return osd_remove(cmd->osd, pid, oid, cdb_cont_len, cmd->sense);
 }
 
 /*
@@ -733,7 +733,7 @@ static int cdb_remove(struct command *cmd)
  * ==0: success
  *  >0: error; either it is a genuine error or it is OSD_SSK_RECOVERED_ERROR.
  */
-static int cdb_read(struct command *cmd)
+static int cdb_read(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0, rec_err_sense = 0;
 	uint8_t ddt = cmd->cdb[10];
@@ -743,7 +743,7 @@ static int cdb_read(struct command *cmd)
 	uint64_t offset = get_ntohll(&cmd->cdb[40]);
 
 	ret = osd_read(cmd->osd, pid, oid, len, offset, cmd->indata, cmd->outdata,
-		       &cmd->used_outlen, cmd->sense, ddt);
+		       &cmd->used_outlen, cdb_cont_len, cmd->sense, ddt);
 	if (ret) {
 		/* only tolerate recovered error, return for others */
 		if (!sense_test_type(cmd->sense, OSD_SSK_RECOVERED_ERROR,
@@ -752,16 +752,16 @@ static int cdb_read(struct command *cmd)
 		rec_err_sense = ret; /* save ret */
 	}
 
-	ret = set_attributes(cmd, pid, oid, 1);
+	ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret)
 		return ret;
-	ret = get_attributes(cmd, pid, oid, 1);
+	ret = get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret)
 		return ret;
 	return rec_err_sense; /* return 0 or recoved error sense length */
 }
 
-static int cdb_read_map(struct command *cmd)
+static int cdb_read_map(struct command *cmd, uint32_t cdb_cont_len)
 {
         int ret = 0;
 	uint64_t pid = get_ntohll(&cmd->cdb[16]);
@@ -770,15 +770,15 @@ static int cdb_read_map(struct command *cmd)
 	uint64_t offset = get_ntohll(&cmd->cdb[40]);
 	uint16_t map_type = get_ntohs(&cmd->cdb[48]);
      
-	ret = set_attributes(cmd, pid, oid, 1);
+	ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret)
 	        return ret;
-	ret = get_attributes(cmd, pid, oid, 1);
+	ret = get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret)
 	        return ret;
 	
 	return osd_read_map(cmd->osd, pid, oid, alloc_len, offset, map_type, 
-			    cmd->outdata, &cmd->used_outlen, cmd->sense);
+			    cmd->outdata, &cmd->used_outlen, cdb_cont_len,  cmd->sense);
 }
 	
 /*
@@ -847,7 +847,7 @@ out_cdb_err:
 	return ret;
 }
 
-static int cdb_set_member_attributes(struct command *cmd)
+static int cdb_set_member_attributes(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint64_t pid = get_ntohll(&cmd->cdb[16]);
@@ -858,7 +858,7 @@ static int cdb_set_member_attributes(struct command *cmd)
 		goto out_cdb_err;
 
 	ret = osd_set_member_attributes(cmd->osd, pid, cid, &cmd->set_attr,
-					cmd->sense);
+					cdb_cont_len, cmd->sense);
 	if (ret)
 		return ret;
 
@@ -877,16 +877,16 @@ out_cdb_err:
 
 
 static inline int std_get_set_attr(struct command *cmd, uint64_t pid,
-				   uint64_t oid)
+				   uint64_t oid, uint32_t cdb_cont_len)
 {
-	int ret = set_attributes(cmd, pid, oid, 1);
+        int ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret)
 		return ret;
 
-	return get_attributes(cmd, pid, oid, 1);
+	return get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 }
 
-static int cdb_cas(struct command *cmd)
+static int cdb_cas(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint8_t *cdb = cmd->cdb;
@@ -914,10 +914,10 @@ static int cdb_cas(struct command *cmd)
 	if (ret)
 		return ret;
 
-	ret = set_attributes(cmd, pid, oid, 1);
+	ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret != 0)
 		return ret;
-	return get_attributes(cmd, pid, oid, 1);
+	return get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 
 out_cdb_err:
 	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -926,7 +926,7 @@ out_cdb_err:
 }
 
 
-static int cdb_fa(struct command *cmd)
+static int cdb_fa(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0;
 	uint8_t *cdb = cmd->cdb;
@@ -950,10 +950,10 @@ static int cdb_fa(struct command *cmd)
 	if (ret)
 		return ret;
 
-	ret = set_attributes(cmd, pid, oid, 1);
+	ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	if (ret != 0)
 		return ret;
-	return get_attributes(cmd, pid, oid, 1);
+	return get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 
 out_cdb_err:
 	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -1042,7 +1042,7 @@ out_err:
 
 
 static int exec_cas_setattr(struct command *cmd, uint64_t pid, uint64_t oid,
-			    const uint8_t *list, uint32_t list_len)
+			    const uint8_t *list, uint32_t list_len, uint32_t cdb_cont_len)
 {
 	int ret;
 	uint32_t page, number;
@@ -1059,7 +1059,7 @@ static int exec_cas_setattr(struct command *cmd, uint64_t pid, uint64_t oid,
 		pad = 0;
 
 		ret = osd_set_attributes(cmd->osd, pid, oid, page, number,
-					 &list[10], len, TRUE, cmd->sense);
+					 &list[10], len, TRUE, cdb_cont_len, cmd->sense);
 		if (ret != 0) {
 			cmd->senselen = ret;
 			goto out_err;
@@ -1092,7 +1092,7 @@ out_err:
  */
 static int exec_getattr(struct command *cmd, uint64_t pid, uint64_t oid,
 			uint32_t orig_page, uint32_t orig_number,
-			uint8_t *orig, uint16_t orig_len)
+			uint8_t *orig, uint16_t orig_len, uint32_t cdb_cont_len)
 {
 	int ret;
 	uint8_t *cp, *sp;
@@ -1110,7 +1110,7 @@ static int exec_getattr(struct command *cmd, uint64_t pid, uint64_t oid,
 	cp = &cmd->outdata[cmd->retrieved_attr_off];
 	memset(cp, 0, LIST_HDR_LEN);
 	set_htonl(&cdb[60], alloc_len - orig_le_len);
-	ret = get_attributes(cmd, pid, oid, 1);
+	ret = get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 	cmd->retrieved_attr_off = old_retr_attr_off;
 	if (ret != OSD_OK)
 		goto out_err;
@@ -1165,7 +1165,7 @@ out_err:
  * 'swap'. The 'cmp' and 'swap' will always be first and second values in
  * the set attribute list format.
  */
-static int cdb_gen_cas(struct command *cmd, int osd_cmd)
+static int cdb_gen_cas(struct command *cmd, int osd_cmd, uint32_t cdb_cont_len)
 {
 	int ret;
 	uint8_t *cdb = cmd->cdb;
@@ -1196,12 +1196,12 @@ static int cdb_gen_cas(struct command *cmd, int osd_cmd)
 		goto get_attr;
 
 	/* set remaining attributes */
-	ret = exec_cas_setattr(cmd, pid, oid, list, list_len);
+	ret = exec_cas_setattr(cmd, pid, oid, list, list_len, cdb_cont_len);
 	if (ret != OSD_OK)
 		goto out_err;
 get_attr:
 	ret = exec_getattr(cmd, pid, oid, orig_page, orig_number, orig,
-			   orig_len);
+			   orig_len, cdb_cont_len);
 	TICK_TRACE(cdb_gen_cas);
 	if (ret == OSD_OK)
 		return ret;
@@ -1267,11 +1267,11 @@ static void exec_service_action(struct command *cmd)
 		if (ret)
 			break;
 
-		ret = osd_append(osd, pid, oid, len, cmd->indata, sense, ddt);
+		ret = osd_append(osd, pid, oid, len, cmd->indata, cdb_cont_len, sense, ddt);
 		if (ret)
 			break;
 
-		ret = std_get_set_attr(cmd, pid, oid);
+		ret = std_get_set_attr(cmd, pid, oid, cdb_cont_len);
 		break;
 	}
 	
@@ -1281,16 +1281,16 @@ static void exec_service_action(struct command *cmd)
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
 	
-		ret = osd_clear(osd, pid, oid, len, offset, sense);
+		ret = osd_clear(osd, pid, oid, len, offset, cdb_cont_len, sense);
 		if (ret)
 			break;
 
-		ret = std_get_set_attr(cmd, pid, oid);
+		ret = std_get_set_attr(cmd, pid, oid, cdb_cont_len);
 		break;
 	}
 
 	case OSD_CREATE: {
-		ret = cdb_create(cmd);
+	        ret = cdb_create(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_CREATE_AND_WRITE: {
@@ -1304,15 +1304,15 @@ static void exec_service_action(struct command *cmd)
 		if (ret)
 			break;
 		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense, ddt);
+					   offset, cmd->indata, cdb_cont_len, sense, ddt);
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {
-		ret = cdb_create_collection(cmd);
+	  ret = cdb_create_collection(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_CREATE_PARTITION: {
-		ret = cdb_create_partition(cmd);
+	        ret = cdb_create_partition(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_CREATE_USER_TRACKING_COLLECTION: {
@@ -1321,7 +1321,7 @@ static void exec_service_action(struct command *cmd)
 		uint64_t source_cid = get_ntohll(&cdb[40]);
 		
 		ret = osd_create_user_tracking_collection(osd, pid, requested_cid, 
-							  source_cid, cdb_cont_len, sense);
+							  cdb_cont_len, source_cid, sense);
 		break;
 	}
 	case OSD_FLUSH: {
@@ -1331,7 +1331,7 @@ static void exec_service_action(struct command *cmd)
 		uint64_t offset = get_ntohll(&cdb[40]);
 		int flush_scope = cdb[10] & 0x3;
 
-		ret = osd_flush(osd, pid, oid, len, offset, flush_scope, sense);
+		ret = osd_flush(osd, pid, oid, len, offset, flush_scope, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_FLUSH_COLLECTION: {
@@ -1339,24 +1339,24 @@ static void exec_service_action(struct command *cmd)
 		uint64_t cid = get_ntohll(&cdb[24]);
 		int flush_scope = cdb[10] & 0x3;
 
-		ret = osd_flush_collection(osd, pid, cid, flush_scope, sense);
+		ret = osd_flush_collection(osd, pid, cid, flush_scope, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_FLUSH_OSD: {
 		int flush_scope = cdb[10] & 0x3;
 
-		ret = osd_flush_osd(osd, flush_scope, sense);
+		ret = osd_flush_osd(osd, flush_scope, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_FLUSH_PARTITION: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		int flush_scope = cdb[10] & 0x3;
-		ret = osd_flush_partition(osd, pid, flush_scope, sense);
+		ret = osd_flush_partition(osd, pid, flush_scope, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_FORMAT_OSD: {
 		uint64_t capacity = get_ntohll(&cdb[32]);
-		ret = osd_format_osd(osd, capacity, sense);
+		ret = osd_format_osd(osd, capacity, cdb_cont_len, sense);
 		/* TODO: what is corresponding get/set attr? */
 		break;
 	}
@@ -1364,17 +1364,17 @@ static void exec_service_action(struct command *cmd)
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t oid = get_ntohll(&cdb[24]);
 
-		ret = get_attributes(cmd, pid, oid, 1);
+		ret = get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 		if (ret)
 			break;
-		ret = set_attributes(cmd, pid, oid, 1);
+		ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 		break;
 
 	}
 	case OSD_GET_MEMBER_ATTRIBUTES: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t cid = get_ntohll(&cdb[24]);
-		ret = osd_get_member_attributes(osd, pid, cid, sense);
+		ret = osd_get_member_attributes(osd, pid, cid, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_LIST: {
@@ -1396,7 +1396,7 @@ static void exec_service_action(struct command *cmd)
 		if (ret)
 			break;
 
-		ret = std_get_set_attr(cmd, pid, cid);
+		ret = std_get_set_attr(cmd, pid, cid, cdb_cont_len);
 		break;
 	}
 	case OSD_PERFORM_SCSI_COMMAND:
@@ -1415,11 +1415,11 @@ static void exec_service_action(struct command *cmd)
 		uint64_t oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
-		ret = osd_punch(osd, pid, oid, len, offset, sense);
+		ret = osd_punch(osd, pid, oid, len, offset, cdb_cont_len, sense);
 		if (ret) 
 		        break;
 		
-		ret = std_get_set_attr(cmd, pid, oid);
+		ret = std_get_set_attr(cmd, pid, oid, cdb_cont_len);
 		break;
 
 	}
@@ -1431,42 +1431,42 @@ static void exec_service_action(struct command *cmd)
 		uint64_t alloc_len = get_ntohll(&cdb[32]);
 		ret = osd_query(osd, pid, cid, query_list_len, alloc_len,
 				cmd->indata, cmd->outdata, &cmd->used_outlen,
-				sense);
+				cdb_cont_len, sense);
 		if (ret)
 			break;
 
-		ret = std_get_set_attr(cmd, pid, cid);
+		ret = std_get_set_attr(cmd, pid, cid, cdb_cont_len);
 		break;
 	}
 
 	case OSD_READ_MAP: {
-	        ret = cdb_read_map(cmd);	       
+	        ret = cdb_read_map(cmd, cdb_cont_len);	       
 	        break;
 	}
 
 	case OSD_READ: {
-		ret = cdb_read(cmd);
+	        ret = cdb_read(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_REMOVE: {
-		ret = cdb_remove(cmd);
+	        ret = cdb_remove(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_REMOVE_COLLECTION: {
 		uint8_t fcr = (cdb[11] & 0x1);
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t cid = get_ntohll(&cdb[24]);
-		ret = osd_remove_collection(osd, pid, cid, fcr, sense);
+		ret = osd_remove_collection(osd, pid, cid, fcr, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_REMOVE_MEMBER_OBJECTS: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t cid = get_ntohll(&cdb[24]);
-		ret = osd_remove_member_objects(osd, pid, cid, sense);
+		ret = osd_remove_member_objects(osd, pid, cid, cdb_cont_len,  sense);
 		break;
 	}
 	case OSD_REMOVE_PARTITION: {
-		ret = cdb_remove_partition(cmd);
+	        ret = cdb_remove_partition(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_SET_ATTRIBUTES: {
@@ -1474,10 +1474,10 @@ static void exec_service_action(struct command *cmd)
 		uint64_t oid = get_ntohll(&cdb[24]);
 
 		TICK_TRACE(cdb_set_attributes);
-		ret = set_attributes(cmd, pid, oid, 1);
+		ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
 		if (ret)
 			break;
-		ret = get_attributes(cmd, pid, oid, 1);
+		ret = get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 		TICK_TRACE(cdb_set_attributes);
 		break;
 	}
@@ -1497,11 +1497,11 @@ static void exec_service_action(struct command *cmd)
 		uint32_t alloc_len = get_ntohl(&cdb[36]);
 		ret = osd_set_master_key(osd, dh_step, key, param_len,
 					 alloc_len, cmd->outdata,
-					 &cmd->used_outlen, sense);
+					 &cmd->used_outlen, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_SET_MEMBER_ATTRIBUTES: {
-		ret = cdb_set_member_attributes(cmd);
+	        ret = cdb_set_member_attributes(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_WRITE: {
@@ -1514,27 +1514,27 @@ static void exec_service_action(struct command *cmd)
 		if (ret)
 			break;
 		ret = osd_write(osd, pid, oid, len, offset, cmd->indata,
-				sense, ddt);
+				cdb_cont_len, sense, ddt);
 		if (ret)
 			break;
 
-		ret = std_get_set_attr(cmd, pid, oid);
+		ret = std_get_set_attr(cmd, pid, oid, cdb_cont_len);
 		break;
 	}
 	case OSD_CAS: {
-		ret = cdb_cas(cmd);
+	        ret = cdb_cas(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_FA: {
-		ret = cdb_fa(cmd);
+	        ret = cdb_fa(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_GEN_CAS: {
-		ret = cdb_gen_cas(cmd, OSD_GEN_CAS);
+	        ret = cdb_gen_cas(cmd, OSD_GEN_CAS, cdb_cont_len);
 		break;
 	}
 	case OSD_COND_SETATTR: {
-		ret = cdb_gen_cas(cmd, OSD_COND_SETATTR);
+	        ret = cdb_gen_cas(cmd, OSD_COND_SETATTR, cdb_cont_len);
 		break;
 	}
 	default:

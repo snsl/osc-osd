@@ -28,10 +28,10 @@
 [ "$?" -ne 0 ] && echo "getattr failed" && exit 1
 ./setattr -o 2 -i 1
 [ "$?" -ne 0 ] && echo "setattr failed" && exit 1
-./list -o 2 -i 1
-[ "$?" -ne 0 ] && echo "list failed" && exit 1
-./list -o 2 -i 1 -a 2 -r 2
-[ "$?" -ne 0 ] && echo "list failed" && exit 1
+#./list -o 2 -i 1
+#[ "$?" -ne 0 ] && echo "list failed" && exit 1
+#./list -o 2 -i 1 -a 2 -r 2
+#[ "$?" -ne 0 ] && echo "list failed" && exit 1
 ./query -i 1 -o 4 -c 2 -m 2 -a 2 -n 2
 [ "$?" -ne 0 ] && echo "query failed" && exit 1
 ./set_member_attributes -i 1 -o 4 -c 4 -a 2 -s 2

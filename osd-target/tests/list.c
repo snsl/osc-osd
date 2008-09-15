@@ -15,8 +15,8 @@
 static void run(struct osd_device *osd, struct osd_command *c)
 {
 	int ret;
-	uint8_t *data_in;
-	uint64_t data_in_len;
+	uint8_t *data_in = NULL;
+	uint64_t data_in_len = 0;
 	uint8_t sense_out[252];
 	int senselen_out;
 
@@ -221,8 +221,8 @@ int main(int argc, char **argv)
 	assert(ret == 0);
 
 	if (numattr && numattr_retrieve)
-		list_attr_speed(&osd, numobj, numiter,
-				numattr, numattr_retrieve);
+		list_attr_speed(&osd, numobj, numiter, numattr,
+				numattr_retrieve);
 	else
 		list_speed(&osd, numobj, numiter);
 

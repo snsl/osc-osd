@@ -3144,7 +3144,8 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 			goto out_hw_err;
 	}
 
-	osd_debug("cmp %llu swap %llu", llu(cmp), llu(swap));
+	osd_debug("pid %llu oid %llu cmp %llu swap %llu val %llu", llu(pid),
+		  llu(oid), llu(cmp), llu(swap), llu(val));
 
 	if (val == cmp) {
 		ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG,

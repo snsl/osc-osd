@@ -12,7 +12,7 @@
 static inline void run(struct osd_device *osd, struct osd_command *c)
 {
 	int ret;
-	uint8_t *data_in =  NULL;
+	uint8_t *data_in = NULL;
 	uint64_t data_in_len = 0;
 	uint8_t sense_out[252];
 	int senselen_out;

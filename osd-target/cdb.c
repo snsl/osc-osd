@@ -341,9 +341,7 @@ static int parse_getattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
        if (list_type != RTRV_ATTR_LIST)
                goto out_invalid_param_list;
 
-       list_len = get_ntohl(&list_hdr[4]);
-       if ((list_len + 8) != getattr_list_len)
-               goto out_param_list_err;
+       list_len = getattr_list_len - 8;
        if (list_len & 0x7) /* multiple of 8 */
                goto out_param_list_err;
        if (list_len + 8 < list_in_len)
@@ -351,7 +349,7 @@ static int parse_getattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 
        if (list_len > 0) {
                cmd->get_attr.sz = list_len/8;
-               /* XXX: This leaks memory. free is somewhere */
+               /* XXX: This leaks memory. free it somewhere */
                cmd->get_attr.le = Malloc(cmd->get_attr.sz *
                                          sizeof(*(cmd->get_attr.le)));
                if (!cmd->get_attr.le)
@@ -405,9 +403,7 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	if (list_type != RTRVD_SET_ATTR_LIST)
 		goto out_param_list_err;
 
-	list_len = get_ntohl(&list_hdr[4]);
-	if ((list_len + 8) != setattr_list_len)
-		goto out_param_list_err;
+	list_len = setattr_list_len - 8;
 	if (list_len & 0x7) /* multiple of 8, values are padded */
 		goto out_param_list_err;
 

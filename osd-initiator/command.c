@@ -875,7 +875,7 @@ int osd_command_attr_build(struct osd_command *command,
 	        command->cdb[11] = (command->cdb[11] & ~(3 << 4)) | (1 << 4);
 		        set_htonl(&command->cdb[52], attr[0].page);
 		        set_htonl(&command->cdb[56], attr[0].number);
-			set_htonl(&command->cdb[60], attr[0].len);
+			set_htons(&command->cdb[60], attr[0].len);
 			memcpy(&command->cdb[62], attr[0].val, attr[0].len);
 	}
 	

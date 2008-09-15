@@ -353,7 +353,7 @@ static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int senselen_out;
 	uint8_t *data_out = NULL;
 	uint64_t data_out_len;
-	int ret;
+	int ret,i;
 	struct attribute_list attr = {
 		.type = ATTR_SET,
 		.page = page,
@@ -366,6 +366,16 @@ static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert(ret == 0);
 	ret = osd_command_attr_build(&cmd, &attr, 1);
 
+/* 	printf("cdbfmt is: %x \n", cmd.cdb[11]); */
+/* 	printf("length is: %x \n", cmd.cdb[60]); */
+/* 	printf("value is: "); */
+/*  	for(i=0; i<=len; i++){ */
+/* 	        printf("%c", cmd.cdb[62+i]); */
+/* 	} */
+/* 	printf("\n"); */
+
+	
+	
 	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen,
 				&data_out, &data_out_len,
 				sense_out, &senselen_out);
@@ -376,9 +386,8 @@ static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 static void test_set_one_attr (struct osd_device *osd)
 {
 	struct osd_command cmd;
-	uint64_t pid = PARTITION_PID_LB;
-	uint64_t cid = COLLECTION_OID_LB;
-	uint64_t oid = USEROBJECT_OID_LB + 1;  /* leave room for cid */
+	uint64_t pid = USEROBJECT_PID_LB;
+       	uint64_t oid = USEROBJECT_OID_LB;
 	uint8_t *data_out = NULL;
 	uint64_t data_out_len;
 	uint8_t sense_out[OSD_MAX_SENSE];
@@ -394,13 +403,23 @@ static void test_set_one_attr (struct osd_device *osd)
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 	
-/* 	set_one_attr_val(osd, pid, oid, page, 1, "test", 5); */
+	/* creat one object */
 
-	set_one_attr_int(osd, pid, oid, page, 1, 30);
+	ret = osd_command_set_create(&cmd, USEROBJECT_PID_LB,
+				     USEROBJECT_OID_LB, 1); 
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, &data_out_len,
+				sense_out, &senselen_out);
+	assert(ret == 0);
+
 	
-/* 	printf("cdbfmt is %x \n", cmd.cdb[11]); */
-/* 	printf("length is %x \n", cmd.cdb[60]); */
-/* 	printf("value is %x \n", cmd.cdb[62]); */
+	/* test setting attributes */
+	
+	set_one_attr_val(osd, pid, oid, page, 1, "test", 5);
+
+/* 	set_one_attr_int(osd, pid, oid, page, 1, 30); */
+	
+
 }
 
 

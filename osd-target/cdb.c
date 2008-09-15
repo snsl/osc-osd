@@ -123,7 +123,7 @@ static int set_one_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t i = 0;
 	uint32_t page = get_ntohl(&cmd->cdb[52]);
 	uint32_t number = get_ntohl(&cdb[56]);
-	uint32_t len = get_ntohl(&cdb[60]); 
+	uint16_t len = get_ntohs(&cdb[60]); 
 	void *value = &cmd->cdb[62];
 
 	/* nothing to set. osd2r03 Sec 5.2.4.2 */
@@ -1537,6 +1537,8 @@ static int calc_max_out_len(struct command *cmd)
 		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[64]);
 		if (cmd->retrieved_attr_off != -1LLU)
 			end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[60]);
+	} else if (cmd->getset_cdbfmt == GETFIELD_SETVALUE) {
+	        return 0;
 	} else {
 		return -1; /* TODO: proper error code */
 	}

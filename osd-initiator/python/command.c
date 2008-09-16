@@ -867,6 +867,8 @@ static PyObject *pyosd_command_set_cas(PyObject *self, PyObject *args)
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 	uint64_t pid, oid, len = 8, offset = 0;
+	const char *inbuf, *outbuf;
+	int inlen, outlen;
 
 	if (!PyArg_ParseTuple(args, "KKs#s#|KK:set_cas", &pid, &oid,
 			      inbuf, inlen, outbuf, outlen, &len, &offset))
@@ -879,17 +881,49 @@ static PyObject *pyosd_command_set_cas(PyObject *self, PyObject *args)
 	/*
 	 * Various asserts.  inlen = 2 * len; outlen = len;
 	 */
-	py_command->set = 1
+	py_command->set = 1;
 	osd_command_set_cas(command, pid, oid, len, offset);
 	command->indata = PyMem_Malloc(len);
 	if (!command->indata)
 		return PyErr_NoMemory();
-	memcpy((void *)(uintptr_t) command->outdata, buf, len);
-	command->outlen = len;
+	memcpy((void *)(uintptr_t) command->outdata, outbuf, outlen);
+	command->outlen = outlen;
 	Py_IncRef(self);
 	return self;
 }
 
+/*
+ * Input: one value, add; output: original value.
+ */
+static PyObject *pyosd_command_set_fa(PyObject *self, PyObject *args)
+{
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, oid, len = 8, offset = 0;
+	const char *inbuf, *outbuf;
+	int inlen, outlen;
+
+	if (!PyArg_ParseTuple(args, "KKs#s#|KK:set_fa", &pid, &oid,
+			      inbuf, inlen, outbuf, outlen, &len, &offset))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	/*
+	 * Various asserts.  inlen = outlen = len;
+	 */
+	py_command->set = 1;
+	osd_command_set_cas(command, pid, oid, len, offset);
+	command->indata = PyMem_Malloc(len);
+	if (!command->indata)
+		return PyErr_NoMemory();
+	memcpy((void *)(uintptr_t) command->outdata, outbuf, outlen);
+	command->outlen = outlen;
+	Py_IncRef(self);
+	return self;
+}
 /*
  * OSDCommand instance methods, members, and type.
  */

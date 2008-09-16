@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "sense.h"
 
 #if 0

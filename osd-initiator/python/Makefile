@@ -9,7 +9,7 @@ LIB := pyosd.so
 
 # external libraries being wrapped for python
 INCDIR := $(shell python-config --includes) -I../..
-OSDLIBS := ../libosdinit.a ../../util/libosdutil.a
+OSDLIBS := ../libosdinit.a ../../osd-util/libosdutil.a
 
 include ../../Makedefs
 

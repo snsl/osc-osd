@@ -2,7 +2,7 @@
 #define _COMMAND_H
 
 #include <stdint.h>
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 
 /* Data Structure Definition */
 

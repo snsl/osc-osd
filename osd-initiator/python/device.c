@@ -5,7 +5,7 @@
 #include <Python.h>
 #include "osd-initiator/command.h"
 #include "osd-initiator/device.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "pyosd.h"
 
 /*

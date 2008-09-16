@@ -16,7 +16,7 @@
 
 #include <mpi.h>
 
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "command.h"
 #include "device.h"
 #include "drivelist.h"

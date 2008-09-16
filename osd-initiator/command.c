@@ -10,7 +10,7 @@
 #include <scsi/sg.h>  /* sg_iovec */
 #endif
 
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "command.h"
 
 

@@ -39,8 +39,8 @@
 #include <scsi/sg.h>
 #include <sys/ioctl.h>
 
-#include "util/osd-util.h"
-#include "util/bsg.h"
+#include "osd-util/osd-util.h"
+#include "osd-util/bsg.h"
 
 /*
  * Be sure to pick the disk correctly.  Write test will destroy it.

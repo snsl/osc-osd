@@ -10,7 +10,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "command.h"
 #include "device.h"
 #include "sync.h"

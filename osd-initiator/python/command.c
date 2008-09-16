@@ -5,7 +5,7 @@
 #include <structmember.h>  /* T_UBYTE */
 #include "osd-initiator/command.h"
 #include "osd-initiator/sense.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "pyosd.h"
 
 /*

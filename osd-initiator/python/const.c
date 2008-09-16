@@ -3,7 +3,7 @@
  */
 #include <Python.h>
 #include "osd-initiator/command.h"
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 #include "pyosd.h"
 
 /*

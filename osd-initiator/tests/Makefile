@@ -7,7 +7,7 @@ PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c atomic.c \
 PROGSRC += blk-iospeed.c sgl_test.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
-LIB :=  ../libosdinit.a ../../util/libosdutil.a
+LIB :=  ../libosdinit.a ../../osd-util/libosdutil.a
 
 # auto-find by walking up from your path to mpicc
 MPIDIR := $(dir $(shell type -p mpicc 2>/dev/null))

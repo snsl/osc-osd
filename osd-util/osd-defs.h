@@ -242,4 +242,7 @@ enum {
 	GETLIST_SETLIST = 0x3
 };
 
+/*osd2r03 4.14.5 Data-In and Data-Out buffer offsets*/
+#define OFFSET_UNUSED (0xFFFFFFFFU)
+
 #endif /* __OSD_DEFS_H */

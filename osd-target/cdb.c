@@ -39,7 +39,7 @@ struct command {
 	uint8_t *cdb;
 	uint16_t action;
 	uint8_t getset_cdbfmt;
-	uint64_t retrieved_attr_off;
+	uint64_t retrieved_attr_off; /* ~0 means empty 0 is legal value */
 	struct getattr_list get_attr;
 	struct setattr_list set_attr;
 	const uint8_t *indata;
@@ -159,9 +159,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if (list_type != RTRV_ATTR_LIST)
 		goto out_invalid_param_list;
 
-	list_len = get_ntohl(&list_hdr[4]);
-	if ((list_len + 8) != getattr_list_len)
-		goto out_param_list_err;
+	list_len = getattr_list_len - 8;
 	if (list_len & 0x7) /* multiple of 8 */
 		goto out_param_list_err;
 	if (list_len + 8 < list_in_len)
@@ -259,9 +257,7 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if (list_type != RTRVD_SET_ATTR_LIST)
 		goto out_param_list_err;
 
-	list_len = get_ntohl(&list_hdr[4]); /* XXX: osd errata */
-	if ((list_len + 8) != setattr_list_len)
-		goto out_param_list_err;
+	list_len = setattr_list_len - 8;
 	if (list_len & 0x7) /* multiple of 8, values are padded */
 		goto out_param_list_err;
 
@@ -1462,10 +1458,12 @@ static int calc_max_out_len(struct command *cmd)
 	cmd->retrieved_attr_off = 0;
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[60]);
-		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[56]);
+		if (cmd->retrieved_attr_off != llu(~0))
+			end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[56]);
 	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
 		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[64]);
-		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[60]);
+		if (cmd->retrieved_attr_off != llu(~0))
+			end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[60]);
 	} else {
 		return -1; /* TODO: proper error code */
 	}
@@ -1536,7 +1534,9 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 
 	/* Not all sense is bad here, like short read.  Continue.  */
 	if (cmd.get_used_outlen > 0) {
-		if (cmd.used_outlen < cmd.retrieved_attr_off) {
+#ifdef ENABLE_CLEAR_PADDING_BYTES
+		if ((cmd.used_outlen < cmd.retrieved_attr_off) &&
+					(llu(~0) != cmd.retrieved_attr_off)) {
 			/*
 			 * Not supposed to touch these bytes, but no way to
 			 * have discontiguous return blocks.  So fill with 0.
@@ -1544,6 +1544,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			memset(cmd.outdata + cmd.used_outlen, 0,
 			       cmd.retrieved_attr_off - cmd.used_outlen);
 		}
+#endif
 		cmd.used_outlen = cmd.retrieved_attr_off
 			+ cmd.get_used_outlen;
 	}

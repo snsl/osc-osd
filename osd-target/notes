@@ -337,12 +337,16 @@ can be implemented as a sql view on page numbers 0
 -   make common case fast, assume correct, recover from error. for eg. assume
     attr and object exist, if not recover from error.
 -   use triggers for time attrs, might slow things down
-
-# Sun Apr 15 00:16:14 EDT 2007
 -   composing multiple objects into a file
 -   proper sense codes with the point where command failed
 -   flexible handle allocation in PVFS
 -   speeding up file create operations with OSDs
+
+# Sun Apr 15 00:16:14 EDT 2007
+-	composing multiple objects into a file
+-	proper sense codes with the point where command failed
+-	flexible handle allocation in PVFS
+-	speeding up file create operations with OSDs
 
 # Fri Apr 20 15:28:45 EDT 2007
 -   remove global variables in attr.c

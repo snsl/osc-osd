@@ -29,6 +29,7 @@
 #include <sys/time.h>
 
 #include "osd-util.h"
+#include "osd-defs.h"
 
 /* global */
 static const char *progname = "(pre-main)";
@@ -352,18 +353,26 @@ void set_htons_be(uint8_t *x, uint16_t val)
 }
 
 /*
- * Offset fields for attribute lists are floating point-ish.  Smallest
- * possible offset (other than 0) is 2^8 == 256.  Generic for both endians.
+ * Offset fields for attribute lists are floating point-ish.
+ *
+ * Returns mantissa * (2^(exponent+8)) where
+ *	unsigned mantissa : 28;
+ *	int	 exponent : 04;
+ * d points to 32bit __be32 osd_offset value
  */
 uint64_t get_ntohoffset(const uint8_t *d)
 {
 	const uint32_t mask = 0xf0000000UL;
 	uint32_t base;
-	uint8_t exponent;
+	int32_t exponent;
 	uint64_t x;
 
 	base = get_ntohl(d);
-	exponent = (base & mask) >> 28;
+	if (base == OFFSET_UNUSED)
+		return ~0;
+
+	exponent = base ;
+	exponent >>= 28; /* sign extend right shift */
 
 	x = (uint64_t) (base & ~mask) << (exponent + 8);
 	return x;
@@ -379,10 +388,10 @@ void set_htonoffset(uint8_t *x, uint64_t val)
 	const uint64_t max_mantissa = 0x0fffffffULL;
 	uint64_t start = val;
 	uint32_t base;
-	uint8_t exponent;
+	int32_t exponent;
 
-	exponent = 0;
-	val >>= 8;
+	exponent = -5;
+	val >>= 3;
 	while (val > max_mantissa) {
 		++exponent;
 		val >>= 1;
@@ -394,7 +403,7 @@ void set_htonoffset(uint8_t *x, uint64_t val)
 		return;
 	}
 	base = val;
-	base |= (uint32_t) exponent << 28;
+	base |= exponent << 28;
 	set_htonl(x, base);
 }
 
@@ -405,9 +414,9 @@ uint64_t next_offset(uint64_t start)
 {
 	const uint64_t max_mantissa = 0x0fffffffULL;
 	uint64_t val;
-	uint8_t exponent;
+	unsigned exponent;
 
-	exponent = 8;
+	exponent = 3;
 	val = start;
 	val >>= exponent;
 	while (val > max_mantissa) {

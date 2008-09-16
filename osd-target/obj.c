@@ -139,6 +139,7 @@ out:
 /* 
  * returns: 1 if present, 0 otherwise.
  * NOTE: type not in arg, since USEROBJECT and COLLECTION share namespace 
+ * and (pid, oid) is unique.
  */
 int obj_ispresent(sqlite3 *db, uint64_t pid, uint64_t oid)
 {

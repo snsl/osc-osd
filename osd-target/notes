@@ -159,3 +159,7 @@ EBUSY. in future keep sqlite3_step in a infinite loop
 schema changes. attr table need to have directory pages. rows need to have
 writable flags to prevent certain directory pages to be modified. directories
 can be implemented as a sql view on page numbers 0
+
+# Wed Jan 31 14:26:19 EST 2007
+need sense.c which builds sense, since both cdb and osd want to construct
+sense.

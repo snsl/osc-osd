@@ -216,44 +216,24 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
 	      llu(requested_oid), num);
 
-	if (pid == 0 || pid < USEROBJECT_PID_LB) {
-		ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
-				      OSD_ASC_INVALID_FIELD_IN_CDB, 
-				      pid, requested_oid);
-		return ret;
-	}
-	
-	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB) {
-		ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
-				      OSD_ASC_INVALID_FIELD_IN_CDB, 
-				      pid, requested_oid);
-		return ret;
-	}
-	
-	if (num > 1 && requested_oid != 0) {
-		ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
-				      OSD_ASC_INVALID_FIELD_IN_CDB, 
-				      pid, requested_oid);
-		return ret;
-	}
+	if (pid == 0 || pid < USEROBJECT_PID_LB) 	
+		goto out_illegal_req;
+
+	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB) 	
+		goto out_illegal_req;
+
+	if (num > 1 && requested_oid != 0) 
+		goto out_illegal_req;
 
 	if (requested_oid == 0) {
 		ret = obj_get_nextoid(osd->db, pid, USEROBJECT, &oid);
-		if (ret != 0) {
-			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
-					      OSD_ASC_INVALID_FIELD_IN_CDB, 
-					      pid, requested_oid);
-			return ret;
-		}
+		if (ret != 0) 
+			goto out_hw_err;
 	} else {
 		ret = obj_ispresent(osd->db, pid, requested_oid);
-		if (ret == 1) {
-			/* requested_oid already exists! */
-			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
-					      OSD_ASC_INVALID_FIELD_IN_CDB, 
-					      pid, requested_oid);
-			return ret;
-		}
+		if (ret == 1) 
+			goto out_hw_err; /* requested_oid already exists! */
+
 		oid = requested_oid; /* requested_oid works! */
 	}
 
@@ -269,7 +249,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			return ret;
 		}
 		ret = osd_create_datafile(osd, pid, i);
-		if (ret) {
+		if (ret != 0) {
 			obj_delete(osd->db, pid, i); 
 			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
 					      OSD_ASC_INVALID_FIELD_IN_CDB, 
@@ -278,7 +258,19 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		}
 	}
 
-	return 0;
+	return 0; /* success */
+	
+out_illegal_req:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+			      OSD_ASC_INVALID_FIELD_IN_CDB, 
+			      pid, requested_oid);
+	return ret;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+			      OSD_ASC_INVALID_FIELD_IN_CDB, 
+			      pid, requested_oid);
+	return ret;
 }
 
 
@@ -380,9 +372,13 @@ out:
 
 
 int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
-                       uint8_t *sense)
+                       uint32_t page, uint32_t number, void *outbuf,
+		       uint8_t *sense)
 {
-	debug(__func__);
+	int ret = 0;
+
+	debug("%s: get attr for (%llu, %llu)", __func__, llu(pid), llu(oid));
+	
 	return 0;
 }
 

@@ -21,15 +21,26 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
 
+.PHONY: UTIL TESTS
+
 .SUFFIXES: .c .o .i
 
-all: tgtd
+all: UTIL tgtd TESTS
 
 tgtd: $(STGTLIB) $(OSDTARGETLIB) $(UTILLIB)
 	$(LD) -o $@ $^ $(LIBS)
 
 $(OSDTARGETLIB): $(OBJ)
 	ar cr $@ $^
+
+$(STGTLIB):
+	make -C ../stgt
+
+$(UTILLIB) UTIL:
+	make -C ../util/
+
+TESTS:
+	make -C ./tests/
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -42,7 +53,9 @@ osd-schema.c: osd.schema
 $(OBJ): $(INC)
 
 clean:
+	make -C ../util clean
 	rm -f tgtd $(OSDTARGETLIB) $(OBJ) osd-schema.c
+	make -C ./tests clean
 
 tags: FORCE
 	ctags $(SRC) $(INC)

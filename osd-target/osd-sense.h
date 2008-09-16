@@ -1,6 +1,9 @@
 #ifndef __OSD_SENSE_H
 #define __OSD_SENSE_H
 
+/* including 8 byte header, and additional len = 244, as given by spc3 */
+#define MAX_SENSE_LEN 252
+
 /* stage of command. osd2 rev 10 table 33, 34, 35 */
 /* setters */
 #define SET_OSD_VALIDATON_STG(s) (s = (s) | (0x1U << 7))

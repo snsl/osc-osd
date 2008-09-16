@@ -10,6 +10,7 @@
 #include "attr.h"
 #include "obj.h"
 #include "util.h"
+#include "util/util.h"
 
 void test_osd_create(struct osd_device *osd);
 void test_osd_set_attributes(struct osd_device *osd);
@@ -31,10 +32,10 @@ void test_osd_create(struct osd_device *osd)
 		      "expected");
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0, sense);
 	if (ret != 0)
-		error_fatal("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
+		error_errno("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, sense);
 	if (ret != 0)
-		error_fatal("USEROBJECT_PID_LB, USEROBJECT_PID_LB");
+		error_errno("USEROBJECT_PID_LB, USEROBJECT_PID_LB");
 
 	free(sense);
 }
@@ -47,7 +48,7 @@ void test_osd_set_attributes(struct osd_device *osd)
 
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0, sense);
 	if (ret != 0)
-		error_fatal("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
+		error_errno("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
 
 	ret = osd_set_attributes(osd, ROOT_PID, ROOT_OID, 0, 0, 
 				 NULL, 0, sense);
@@ -78,11 +79,11 @@ void test_osd_set_attributes(struct osd_device *osd)
 				 USEROBJECT_PG_LB, 1, val, strlen(val)+1, 
 				 sense);
 	if (ret != 0)
-		error_fatal("osd_set_attributes failed for mad dix");
+		error_errno("osd_set_attributes failed for mad dix");
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, sense);
 	if (ret != 0)
-		error_fatal("osd_remove USEROBJECT_PID_LB, USEROBJECT_PID_LB");
+		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_PID_LB");
 
 	free(sense);
 	free(val);
@@ -96,14 +97,14 @@ int main()
 
 	ret = osd_open(root, &osd);
 	if (ret != 0)
-		error_fatal("%s: osd_open", __func__);
+		error_errno("%s: osd_open", __func__);
 
 	/*test_osd_create(&osd);*/
 	test_osd_set_attributes(&osd);
 
 	ret = osd_close(&osd);
 	if (ret != 0)
-		error_fatal("%s: osd_close", __func__);
+		error_errno("%s: osd_close", __func__);
 
 	return 0;
 }

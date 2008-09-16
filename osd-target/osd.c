@@ -1568,7 +1568,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
                         uint64_t pid, uint64_t cid, uint64_t alloc_len,
                         uint64_t initial_oid, struct getattr_list *get_attr,
                         uint32_t list_id, uint8_t *outdata,
-                        uint64_t *used_outlen, uint8_t *sense);
+                        uint64_t *used_outlen, uint8_t *sense)
 {
 	int ret = 0;
 	uint8_t *cp = outdata;

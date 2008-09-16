@@ -1289,13 +1289,67 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 	return osd_error_unimplemented(0, sense);
 }
 
-
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *outdata,
 	     uint64_t *outlen, uint8_t *sense)
 {
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
+	int ret = 0;
+	uint64_t addl_length, obj_descriptor, continuation_id, len = 24;
+	memset(outdata, 0, *outlen);
+
+	if (list_id != 0) {
+		/* Need to continue a list that was previously
+		   truncated; initial_oid is the continuation_id
+		   given by the first LIST command call. Do we
+		   need to store list_ids somewhere or just
+		   interpret a nonzero list_id as an indicator to
+		   start our list at continuation_id? */
+	}
+	else {
+		/* If pid is zero, list pids; otherwise, list oids in that pid */
+		obj_descriptor = initial_oid;
+		while (len < alloc_len) {
+			/* Hoping obj_get_nextpid() works like I think it
+			   does: takes the given pid/(pid+oid) and finds the next
+			   lowest pid/oid, sending it back by reference. */
+			ret = (pid != 0 ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
+				        : obj_get_nextpid(osd->db, &obj_descriptor));	
+			if (ret != 0) {
+				osd_error("%s: error retrieving next oid/pid", __func__);
+				return ret;	
+			}
+			/* Fill up the list before we get to the header data */
+			set_htonll(&outdata[len], obj_descriptor);
+			len += 7;
+		}
+		ret = (pid != 0 ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
+			        : obj_get_nextpid(osd->db, &obj_descriptor));	
+		addl_length = len - 7;
+
+		/* Check to see if more pid/oids exist */
+		if (ret) {
+			continuation_id = obj_descriptor;
+			list_id = 1; /* Any special way to generate list_ids? */
+
+			/* Find out how many more oid/pids, even though we've
+			   decided to truncate */
+			while (ret) {
+				ret = (pid != 0 ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
+					        : obj_get_nextpid(osd->db, &obj_descriptor));	
+				addl_length += 7;
+			}
+		}
+		else {
+			continuation_id = 0;
+			list_id = 0;
+		}
+		set_htonll(&outdata[0], addl_length);
+		set_htonll(&outdata[8], continuation_id);
+		set_htonll(&outdata[16], list_id);
+		*outlen = addl_length + 7;
+	}
+
+	return ret; 
 }
 
 

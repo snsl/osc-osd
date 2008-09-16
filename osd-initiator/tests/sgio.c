@@ -1,7 +1,7 @@
 /*
  * Test the use of the existing SG_IO interface to transport OSD commands.
  *
- * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
+ * Copyright (C) 2007-8 OSD Team <pvfs-osd@osc.edu>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -388,7 +388,7 @@ int main(int argc, char *argv[])
 		create_partition(fd, PID);
 
 
-#if 1           /* These are all supposed to fail, for various reasons. */
+#if 0           /* These are all supposed to fail, for various reasons. */
 		write_osd(fd, PID, OID, WRITEDATA,
 			  strlen((const char *) WRITEDATA), OFFSET);
 		flush_osd(fd, FLUSH_SCOPE);
@@ -430,22 +430,22 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+5);
 #endif
 
-#if 0           /* Testing attribute API */
+#if 1           /* Testing attribute API */
 		create_osd(fd, PID, OID+6, 1);
 		attr_test(fd, PID, OID+6);
 		remove_osd(fd, PID, OID+6);
 #endif
 
 #if 1           /* Testing all-attribute API (listing attributes in a page */
-		create_osd(fd, PID, OID+6, 1);
-		all_attr_test(fd, PID, OID+6);
-		remove_osd(fd, PID, OID+6);
+		create_osd(fd, PID, OID+7, 1);
+		all_attr_test(fd, PID, OID+7);
+		remove_osd(fd, PID, OID+7);
 #endif
 
 
 #if 1		/* Testing stuff */
-		create_osd(fd, PID, OID, NUM_USER_OBJ);
-		create_osd(fd, PID, OID+1, NUM_USER_OBJ);
+		create_osd(fd, PID, OID+10, NUM_USER_OBJ);
+		create_osd(fd, PID, OID+11, NUM_USER_OBJ);
 		write_osd(fd, PID, OID, WRITEDATA, sizeof(WRITEDATA), OFFSET);
 		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
 #endif

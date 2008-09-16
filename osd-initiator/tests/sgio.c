@@ -78,13 +78,15 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 	if (ret) {
 		osd_error("%s: attr_resolve failed", __func__);
 		printf("\n");
-		return 1;
+		exit(1);
 	}
 	attr = command.attr;
 
-	if (attr->outlen != attr->len)
+	if (attr->outlen != attr->len) {
 		osd_error("%s: short attr outlen %d", __func__,
 		          attr->outlen);
+		exit(1);
+	}
 
 	printf("%s: logical length 0x%016llx\n\n", __func__,
 	       llu(get_ntohll(attr->val)));
@@ -382,7 +384,8 @@ int main(int argc, char *argv[])
 
 
 #if 0           /* These are all supposed to fail, for various reasons. */
-		write_osd(fd, PID, OID, WRITEDATA, OFFSET);
+		write_osd(fd, PID, OID, WRITEDATA,
+			  strlen((const char *) WRITEDATA), OFFSET);
 		flush_osd(fd, FLUSH_SCOPE);
 #endif
 
@@ -415,7 +418,7 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+4);
 #endif
 
-#if 0           /* Testing bidirectional operations. */
+#if 1           /* Testing bidirectional operations. */
 		create_osd(fd, PID, OID+5, 1);
 		write_osd(fd, PID, OID+5, (const uint8_t *) "sixty-seven", 12, 0);
 		bidi_test(fd, PID, OID+5);

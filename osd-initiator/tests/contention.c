@@ -391,9 +391,9 @@ static void queueback(int fd, uint64_t pid, uint64_t oid, int numlocks,
 				continue;
 			}
 			if (dowork == 0) {
-				pause = (num_waiters + .5)*(rtt);
+				pause = (num_waiters - .5)*(rtt);
 			} else if (dowork == 1) {
-				pause = (num_waiters + .5)*(rtt) + WORK_MAX/2.;
+				pause = (num_waiters - .5)*(rtt) + WORK_MAX/2.;
 			} else if (dowork == 2) {
 				pause = (num_waiters + .5)*(rtt); 
 			}
@@ -489,31 +489,26 @@ static void expwait(int fd, uint64_t pid, uint64_t oid, int numlocks,
 	int reqs, attempts;
 	int locks = 0;
 	int64_t num_waiters, queued;
-	int first_attempt;
+	int start_clk;
 	double rtt, pause, mhz = get_mhz();
 	uint64_t start, end, lat_beg, lat_end;
 	struct osd_command cmd;
 
-	reqs = 0, attempts = 0, num_waiters = 0, queued = 0, first_attempt = 1;
+	reqs = 0, attempts = 0, num_waiters = 0, queued = 0, start_clk = 1;
 	while (locks < numlocks) {
-		if (first_attempt) {
+		if (start_clk) {
 			rdtsc(lat_beg);
-			first_attempt = 0;
+			start_clk = 0;
 		}
+		rdtsc(start);
 		ret = cas(fd, &cmd, pid, oid, 0, 1); /* lock */
+		rdtsc(end);
 		++attempts;
 		++reqs;
 		if (ret == 1) {
 			rdtsc(lat_end);
 			latency[locks] = ((double)(lat_end - lat_beg)/mhz);
-			first_attempt = 1;
-			if (queued) {
-				ret = fa(fd, &cmd, pid, oid, -1, &num_waiters);
-				if (ret == -1)
-					osd_error_fatal("fa failed");
-				++reqs;
-				queued = 0;
-			}
+			start_clk = 1;
 			++locks;
 			if (dowork == 1) 
 				local_work();
@@ -523,50 +518,14 @@ static void expwait(int fd, uint64_t pid, uint64_t oid, int numlocks,
 			assert(ret == 1);
 			++reqs;
 		} else if (ret == 0) {
-			if (!queued) {
-				rdtsc(start);
-				ret = fa(fd, &cmd, pid, oid, 1, &num_waiters);
-				rdtsc(end);
-				if (ret == -1)
-					osd_error_fatal("fa error");
-				++reqs;
-				queued = 1;
-			} else {
-				rdtsc(start);
-				ret = fa(fd, &cmd, pid, oid, 0, &num_waiters);
-				rdtsc(end);
-				if (ret == -1)
-					osd_error_fatal("fa error");
-			}
 			rtt = ((double)(end-start))/mhz;
 
-			/* 
-			 * Expected pause duration is determined by assuming
-			 * uniform distribution of the events. The interval
-			 * depends on the cases:
-			 * N == 0 && dowork == 0: [0, 1*rtt]
-			 * N  > 0 && dowork == 0: [0, 2*N*rtt]
-			 * N  > 0 && dowork == 1: [0, (2*rtt + W)*N]
-			 * N  > 0 && dowork == 2: [0, 3*N*rtt]
-			 * 
-			 * pause = E(delay) = 1/2 of width of interval
-			 */
 			if (dowork == 0) {
-				if (num_waiters == 0)
-					pause = rtt/2.;
-				else
-					pause = num_waiters*rtt;
+				pause = rtt;
 			} else if (dowork == 1) {
-				if (num_waiters == 0)
-					pause = (rtt + WORK_MAX/2.);
-				else
-					pause = (rtt + WORK_MAX/2.) 
-						* num_waiters;
+				pause = (rtt + WORK_MAX/2.);
 			} else if (dowork == 2) {
-				if (num_waiters == 0)
-					pause = rtt;
-				else 
-					pause = 1.5*rtt*num_waiters; 
+				pause = 2*rtt;
 			}
 			hires_pause((uint64_t)(pause*mhz));
 			continue;

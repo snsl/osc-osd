@@ -515,9 +515,10 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	void *val = NULL;
 	uint16_t len = 0;
-	char name[UIAP_PAGEID_SZ] = {'\0'};
+	char name[UIAP_PAGEID_SZ];
 	char path[MAXNAMELEN];
 	struct stat sb;
+	uint8_t ll[8];
 	off_t sz = 0;
 
 	switch (number) {
@@ -527,12 +528,14 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		val = name;
 		break;
 	case UIAP_PID:
+		set_htonll(ll, pid);
 		len = UIAP_PID_SZ;
-		val = &pid;
+		val = ll;
 		break;
 	case UIAP_OID:
+		set_htonll(ll, pid);
 		len = UIAP_OID_SZ;
-		val = &oid;
+		val = ll;
 		break;
 	case UIAP_USED_CAP:
 		len = UIAP_USED_CAP_SZ;
@@ -541,7 +544,8 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		if (ret != 0)
 			return OSD_ERROR;
 		sz = sb.st_blocks*BLOCK_SZ;
-		val = &sz;
+		set_htonll(ll, sz);
+		val = ll;
 		break;
 	case UIAP_LGCL_LEN:
 		len = UIAP_LGCL_LEN_SZ;
@@ -549,7 +553,8 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = stat(path, &sb);
 		if (ret != 0)
 			return OSD_ERROR;
-		val = &sb.st_size;
+		set_htonll(ll, sb.st_size);
+		val = ll;
 		break;
 	default:
 		return OSD_ERROR;

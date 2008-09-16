@@ -312,10 +312,6 @@ void test_create(struct osd_device *osd)
 }
 
 
-
-
-
-
 /* only to be used by test_set_one_attr */
 static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			 uint32_t page, uint32_t number, const void *val,
@@ -366,11 +362,6 @@ static void test_set_one_attr (struct osd_device *osd)
 	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
-	ret = osd_command_set_create_collection(&cmd, pid, cid);
-	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
-				&data_out_len, sense_out, &senselen_out);
-	assert(ret == 0);
 
 	set_one_attr_val(osd, pid, oid, page, 1, "88", 8);
 
@@ -379,13 +370,6 @@ static void test_set_one_attr (struct osd_device *osd)
 	/* More Test To Be Done */
 	
 }
-
-
-
-
-
-
-
 
 
 /* only to be used by test_osd_query */

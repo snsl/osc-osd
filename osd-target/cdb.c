@@ -767,10 +767,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 
 	exec_service_action(&cmd); /* run the command. */
 
-	/* any error sets senselen to >0 */
-	if (cmd.senselen > 0)
-		goto out_free_resource;
-
+	/* Not all sense is bad here, like short read.  Continue.  */
 	if (cmd.get_used_outlen > 0) {
 		if (cmd.used_outlen < cmd.retrieved_attr_off) {
 			/*

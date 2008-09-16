@@ -67,10 +67,10 @@ $(DEP) : osd-schema.c
 
 clean:
 	make -C $(UTILDIR) clean
-	rm -f tgtd $(OSDTARGETLIB) $(OBJ) $(DEP)
+	rm -f tgtd $(OSDTARGETLIB) $(OBJ) $(DEP) osd-schema.c
 	make -C $(TESTDIR) clean
 
-tags: FORCE
-	ctags -R $(SRC) $(INC) $(TESTDIR) $(UTILDIR) $(INITDIR)
+tags: FORCE osd-schema.c
+	ctags -R $(SRC) $(INC) $(TESTDIR) $(UTILDIR) $(INITDIR) osd-schema.c
 
 FORCE:;

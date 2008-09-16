@@ -14,11 +14,11 @@
 
 void test_obj(struct osd_device *osd);
 void test_dup_obj(struct osd_device *osd);
-void test_attr(struct osd_device *osd);
 void test_obj_manip(struct osd_device *osd);
 void test_pid_isempty(struct osd_device *osd);
 void test_get_obj_type(struct osd_device *osd);
-void test_osd_interface(void);
+void test_attr(struct osd_device *osd);
+void test_dir_page(struct osd_device *osd);
 
 void test_obj(struct osd_device *osd)
 {
@@ -179,6 +179,80 @@ void test_get_obj_type(struct osd_device *osd)
 	assert(ret == ILLEGAL_OBJ);
 }
 
+static inline void delete_obj(struct osd_device *osd, uint64_t pid, 
+			      uint64_t oid)
+{
+	int ret = 0;
+	ret = obj_delete(osd->db, pid, oid);
+	assert (ret == 0);
+	ret = attr_delete_all(osd->db, pid, oid);
+	assert (ret == 0);
+}
+
+void test_dir_page(struct osd_device *osd)
+{
+	int ret= 0;
+	uint8_t buf[1024];
+	char pg3[] = "OSC     page 3 id                      ";
+	char pg4[] = "OSC     page 4 id                      ";
+	char uid[] = "        unidentified attributes page   ";
+	uint32_t used_len;
+	uint32_t val;
+
+	delete_obj(osd, 1, 1);
+
+	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
+	assert(ret == 0);
+
+	val = 44;
+	ret = attr_set_attr(osd->db, 1, 1, 1, 2, &val, sizeof(val));
+	assert(ret == 0);
+	val = 444;
+	ret = attr_set_attr(osd->db, 1, 1, 1, 3, &val, sizeof(val));
+	assert(ret == 0);
+	val = 333;
+	ret = attr_set_attr(osd->db, 1, 1, 2, 22, &val, sizeof(val));
+	assert(ret == 0);
+	ret = attr_set_attr(osd->db, 1, 1, 3, 0, pg3, sizeof(pg3));
+	assert(ret == 0);
+	val = 321;
+	ret = attr_set_attr(osd->db, 1, 1, 3, 3, &val, sizeof(val));
+	assert(ret == 0);
+	ret = attr_set_attr(osd->db, 1, 1, 4, 0, pg4, sizeof(pg4));
+	assert(ret == 0);
+
+	memset(buf, 0, sizeof(buf));
+	ret = attr_get_dir_page(osd->db, 1, 1, USEROBJECT_DIR_PG, buf, 
+				sizeof(buf), RTRVD_SET_ATTR_LIST, &used_len);
+	assert (ret == 0);
+
+	uint8_t *cp = buf;
+	int i = 0;
+	for (i = 1; i <= 4; i++) {
+		uint8_t pad = 0;
+		uint16_t len = 0;
+		uint32_t j = 0;
+		assert(ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_DIR_PG);
+		j = ntohl(&cp[LE_NUMBER_OFF]);
+		assert(j == (uint32_t)i);
+		len = ntohs(&cp[LE_LEN_OFF]);
+		assert(len == 40);
+		cp += 10;
+		if (i == 1 || i == 2)
+			assert(strcmp((char *)cp, uid) == 0);
+		else if (i == 3)
+			assert(strcmp((char *)cp, pg3) == 0);
+		else if (i == 4)
+			assert(strcmp((char *)cp, pg4) == 0);
+		cp += len;
+		pad = (0x8 - ((10+len) & 0x7)) & 0x7;
+		while (pad--)
+			assert(*cp == 0), cp++;
+	}
+
+	delete_obj(osd, 1, 1);
+}
+
 int main()
 {
 	char path[]="/tmp/osd/osd.db";
@@ -188,12 +262,13 @@ int main()
 	ret = db_open(path, &osd);
 	assert(ret == 0);
 
-	test_obj(&osd);
-	test_attr(&osd);
+/*	test_obj(&osd);
 	test_dup_obj(&osd);
 	test_obj_manip(&osd);
 	test_pid_isempty(&osd);
 	test_get_obj_type(&osd);
+	test_attr(&osd);*/
+	test_dir_page(&osd);
 
 	ret = db_close(&osd);
 	assert(ret == 0);

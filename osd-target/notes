@@ -273,10 +273,19 @@ can be implemented as a sql view on page numbers 0
 -	cdb tests, tests for new osd-functions
 
 # Mon Mar  5 16:42:31 EST 2007
--	directory page: sql query to generate a directory page
++	directory page: sql query to generate a directory page
 +	get attribute list length in 5.2.2.3, is list length in bytes
 -	still to test getpage_setvalue, setvalue part in cdb.c
 -	implement sense to report the stage where command failed.
 
 # Tue Mar  6 13:08:16 EST 2007
 -	outdata/indata notation different from spec XXX:SD
+-	use stranded files to mv existing dfiles when creating dfiles
+
+# Wed Mar  7 12:43:35 EST 2007
+-	handle access to directory page offset
+!	align Malloc and Calloc  to 8B
+	cannot handle this, as it would need bookkeeping
+-	refactor attr.c 
+-	in dir page add by default for each object, CCAP and UTSAP.
+-	sqlite truncates strings with 

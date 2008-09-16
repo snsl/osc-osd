@@ -24,12 +24,12 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	uint8_t *cp = buf;
 	uint32_t len = buflen;
 
-	if (buflen < LE_VAL_OFF)
-		return -EOVERFLOW;
-
 	/* XXX: osd-errata: buf and buflen must be 8B aligned */
 	if((buflen & 0x7) || ((uint64_t)buf & 0x7)) 
 		return -EINVAL; 
+
+	if (buflen < LE_MIN_ITEM_LEN)
+		return -EOVERFLOW;
 
 	set_htonl_le(&cp[LE_PAGE_OFF], page);
 	set_htonl_le(&cp[LE_NUMBER_OFF], number);
@@ -71,15 +71,14 @@ int le_multiobj_pack_attr(void *buf, uint32_t buflen, uint64_t oid,
 	int ret = 0;
 	uint8_t *cp = buf;
 
-	if (buflen < MLE_VAL_OFF)
+	if (buflen < MLE_MIN_ITEM_LEN)
 		return -EOVERFLOW;
 
 	set_htonll_le(cp, oid);
 
 	/* 
 	 * test if layout of struct multiobj_list_entry is similar to 
-	 * struct list_entry prefixed with oid. If it is then, we can call
-	 * attr_pack_attr to pack remaining values.
+	 * struct list_entry prefixed with oid.
 	 */
 	assert(MLE_VAL_OFF == (LE_VAL_OFF+sizeof(oid)));
 

@@ -1,9 +1,67 @@
-Documentation for OSD Initiator library.
+Documentation for OSC OSD Initiator library.
 
 Copyright (C) 2007 Dennis Dalessandro (dennis@osc.edu)
 Copyright (C) 2007 Ananth Devulapalli (ananth@osc.edu)
 Copyright (C) 2007 Pete Wyckoff (pw@osc.edu)
 
+Using
+-----
+This code relies on the kernel to ship the SCSI commands to an OSD.  It
+formmats CDBs then submits them to the BSG kernel interface.  As such,
+there are some number of kernel patches necessary to make this work,
+because current v2.6.24-rc6 does not quite yet support bidirectional
+SCSI transfers or variable length SCSI commands.  See the linux-scsi
+mailing list for progress on this.
+
+There are a few other missing features in current kernels.  You can
+grab the branch "osd" from
+
+    git://git.osc.edu/linux.git
+
+or browse at
+
+    http://git.osc.edu/?p=linux.git;a=summary
+
+to see these four patches:
+
+bsg-iovec-u64
+
+    The big one is the need for iovec support in bsg.  Attribute lists
+    are much easier to manage if it is possible to submit a list of
+    address,length pairs to BSG to use as SCSI data buffers.  Otherwise
+    it is necessary to do lots of memory copying to generate contiguous
+    buffers.
+
+bsg-accept-varlen-commands
+
+    Allow non-root to submit OSD commands to devices through BSG.
+    Access to a bsg interface is still governed through file system
+    permissions on the character device.
+
+bsg-return-sam-device-status-code
+
+    The return status code from bsg is half of what it should be.  I.e.
+    instead of returning 2 for SAM_STAT_CHECK_CONDITION, it returns 1.
+    This fixes that.
+
+block-allow-no-queue-dma-alignment
+
+    Even though iscsi TCP advertises itself as not needing queue
+    alignment, the current block interface rounds this zero up to
+    512.  That forces bounce buffers for any userspace tranfers
+    that are not aligned to 512 on both ends.
+
+
+Build a kernel with these patches, type "make" to build the initiator
+code (which relies on osd-util).  Go into tests/ or python/ and type
+make to build test codes, in C and Python respectively.  Use iscsiadm to
+attach an OSD device.  Most of the codes will operate on the first
+device of TYPE_OSD that they find.  You'll have to read through them
+all to see what they do.
+
+
+Contents
+--------
 There are five major files here, each of which has a separate header
 file that can be included from user programs:
 

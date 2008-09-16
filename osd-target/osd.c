@@ -1223,15 +1223,13 @@ int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 	}
 
 	ret = osd_write(osd, pid, oid, len, offset, data, sense, ddt);
-	//~ if (ret) {
-		//~ osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
-		//~ uint8_t *sense);
-		//~ return ret;
-	//~ }
+	if (ret) {
+		osd_remove(osd, pid, oid, sense);
+		return ret;
+	}
 
 	return ret;
 
-	/* XXX What to do when create succeeds but write fails, remove object? */
 }
 
 /* osd2r01 sec. 6.5 */
@@ -2728,6 +2726,74 @@ out_cdb_err:
 
 }
 
+static int vec_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense)
+{
+	int ret;
+	int fd;
+	char path[MAXNAMELEN];
+	uint64_t data_offset, offset_val, hdr_offset, length, stride, bytes;
+	unsigned int i;
+
+	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p",
+		  __func__, llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
+
+	assert(osd && osd->root && osd->dbc && dinbuf && sense);
+
+	stride = get_ntohll(dinbuf);
+	hdr_offset = sizeof(uint64_t);
+	length = get_ntohll(dinbuf + hdr_offset);
+
+	osd_debug("%s: stride is %llu and len is %llu", __func__, llu(stride), llu(length));
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+	data_offset= hdr_offset + sizeof(uint64_t);
+
+	bytes = len - (2*sizeof(uint64_t));
+
+	osd_debug("%s: bytes to write is %llu", __func__, llu(bytes));
+	offset_val = 0;
+	while (bytes > 0) {
+		osd_debug("%s: Position in data buffer: %llu", __func__,
+			   llu(data_offset));
+		osd_debug("%s: Offset: %llu", __func__, llu(offset_val + offset));
+		osd_debug("%s: ------------------------------", __func__);
+		ret = pwrite(fd, dinbuf+data_offset, length, offset_val+offset);
+		if (ret < 0 || (uint64_t)ret != length)
+			goto out_hw_err;
+		data_offset += length;
+		offset_val += stride;
+		bytes -= length;
+		osd_debug("%s: Total Bytes Left to write: %llu", __func__,
+			  llu(bytes));
+	}
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+
+}
+
 
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense, uint8_t ddt)
@@ -2743,6 +2809,10 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 		}
 		case DDT_SGL: {
 			return sgl_write(osd, pid, oid, len, offset, dinbuf,
+				           sense);
+		}
+		case DDT_VEC: {
+			return vec_write(osd, pid, oid, len, offset, dinbuf,
 				           sense);
 		}
 		default: {

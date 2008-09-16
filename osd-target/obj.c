@@ -229,7 +229,7 @@ out:
 /*
  * tests whether partition is empty. 
  * = 1: if partition is empty or absent or in case of sqlite error
- * = 0: if full
+ * = 0: if not empty
  */
 int obj_pid_isempty(sqlite3 *db, uint64_t pid)
 {

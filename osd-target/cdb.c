@@ -675,9 +675,11 @@ static void exec_service_action(struct command *cmd)
 	case OSD_QUERY: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
-		uint32_t query_len = ntohl(&cdb[48]);
+		uint32_t query_list_len = ntohl(&cdb[48]);
 		uint64_t alloc_len = ntohll(&cdb[32]);
-		ret = osd_query(osd, pid, cid, query_len, alloc_len, sense);
+		ret = osd_query(osd, pid, cid, query_list_len, alloc_len, 
+				cmd->indata, cmd->outdata, &cmd->used_outlen,
+				sense);
 		break;
 	}
 	case OSD_READ: {
@@ -691,8 +693,8 @@ static void exec_service_action(struct command *cmd)
 	case OSD_REMOVE_COLLECTION: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
-		int force_removal = (ntohll(&cdb[11]) & 0x1);
-		ret = osd_remove_collection(osd, pid, cid, force_removal, sense);
+		uint8_t fcr = (cdb[11] & 0x1);
+		ret = osd_remove_collection(osd, pid, cid, fcr, sense);
 		break;
 	}
 	case OSD_REMOVE_MEMBER_OBJECTS: {

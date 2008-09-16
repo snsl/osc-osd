@@ -17,8 +17,13 @@
  * object_collection table stores many-to-many relationship between
  * userobjects and collections. Using this table members of a collection and
  * collections to which an object belongs can be computed efficiently.
+ *
+ * @cid: collection id
+ * @oid: userobject id
+ * @number: attribute number of cid in CAP of oid
  */
-int oc_insert_cid_oid(sqlite3 *db, uint64_t cid, uint64_t oid)
+int oc_insert_row(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t oid, 
+		  uint32_t number)
 {
 	int ret = -EINVAL;
 	char SQL[MAXSQLEN];
@@ -27,8 +32,9 @@ int oc_insert_cid_oid(sqlite3 *db, uint64_t cid, uint64_t oid)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "INSERT INTO object_collection VALUES (%llu, %llu);",
-		llu(cid), llu(oid));
+	sprintf(SQL, "INSERT INTO object_collection VALUES "
+		" (%llu, %llu, %llu, %u);", llu(pid), llu(cid), llu(oid), 
+		number);
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		osd_error("%s: sqlite3_exec : %s", __func__, err);
@@ -38,7 +44,7 @@ int oc_insert_cid_oid(sqlite3 *db, uint64_t cid, uint64_t oid)
 	return ret;
 }
 
-int oc_delete_cid(sqlite3 *db, uint64_t cid)
+int oc_delete_row(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t oid)
 {
 	int ret = -EINVAL;
 	char SQL[MAXSQLEN];
@@ -47,8 +53,8 @@ int oc_delete_cid(sqlite3 *db, uint64_t cid)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "DELETE FROM object_collection WHERE cid = %llu;", 
-		llu(cid));
+	sprintf(SQL, "DELETE FROM object_collection pid = %llu AND "
+		" cid = %llu AND oid = %llu;", llu(pid), llu(cid), llu(oid));
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		osd_error("%s: sqlite3_exec : %s", __func__, err);
@@ -58,7 +64,7 @@ int oc_delete_cid(sqlite3 *db, uint64_t cid)
 	return ret;
 }
 
-int oc_delete_oid(sqlite3 *db, uint64_t oid)
+int oc_delete_all_cid(sqlite3 *db, uint64_t pid, uint64_t cid)
 {
 	int ret = -EINVAL;
 	char SQL[MAXSQLEN];
@@ -67,8 +73,28 @@ int oc_delete_oid(sqlite3 *db, uint64_t oid)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "DELETE FROM object_collection WHERE oid = %llu;", 
-		llu(oid));
+	sprintf(SQL, "DELETE FROM object_collection WHERE pid = %llu AND "
+		" cid = %llu;", llu(pid), llu(cid));
+	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
+	if (ret != SQLITE_OK) {
+		osd_error("%s: sqlite3_exec : %s", __func__, err);
+		sqlite3_free(err);
+	}
+
+	return ret;
+}
+
+int oc_delete_all_oid(sqlite3 *db, uint64_t pid, uint64_t oid)
+{
+	int ret = -EINVAL;
+	char SQL[MAXSQLEN];
+	char *err = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "DELETE FROM object_collection WHERE pid = %llu "
+		"AND oid = %llu;", llu(pid), llu(oid));
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		osd_error("%s: sqlite3_exec : %s", __func__, err);
@@ -79,21 +105,108 @@ int oc_delete_oid(sqlite3 *db, uint64_t oid)
 }
 
 /*
+ * tests whether collection is empty. 
+ * < 0: in case of error
+ * = 1: if collection is empty or absent 
+ * = 0: if not empty
+ */
+int oc_isempty_cid(sqlite3 *db, uint64_t pid, uint64_t cid)
+{
+	int ret = 0;
+	int count = -1;
+	char SQL[MAXSQLEN];
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "SELECT COUNT (*) FROM object_collection WHERE "
+		" pid = %llu AND cid = %llu;", llu(pid), llu(cid));
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret) {
+		ret = -EIO;
+		error_sql(db, "%s: prepare", __func__);
+		goto out_err;
+	}
+
+	while((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		count = sqlite3_column_int(stmt, 0);
+	}
+	if (ret != SQLITE_DONE)
+		error_sql(db, "%s: query %s failed", __func__, SQL);
+
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: finalize", __func__);
+		ret = -EIO;
+		goto out_err;
+	}
+
+out:
+	return (count == 0);
+
+out_err:
+	return ret;
+}
+
+int oc_get_cid(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t number, 
+	       uint64_t *cid)
+{
+	int ret = -EINVAL;
+	char SQL[MAXSQLEN];
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "SELECT cid FROM object_collection WHERE pid = %llu "
+		" AND oid = %llu AND number = %u;", llu(pid), llu(oid), 
+		number);
+	sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: prepare", __func__);
+		goto out;
+	}
+	while ((ret == sqlite3_step(stmt)) == SQLITE_ROW) {
+		*cid = sqlite3_column_int(stmt, 0);
+	}
+	if (ret != SQLITE_DONE)
+		error_sql(db, "%s: query %s failed", __func__, SQL);
+
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) 
+		error_sql(db, "%s: finalize", __func__);
+
+out:
+	return ret;
+}
+
+/*
  * Collection Attributes Page (CAP) of a userobject stores its membership in 
  * collections osd2r01 Sec 7.1.2.19.
  */
-int oc_get_cap(sqlite3 *db, uint64_t oid, void *outbuf, uint64_t outlen,
-	       uint8_t listfmt, uint32_t *used_outlen)
+int oc_get_cap(sqlite3 *db, uint64_t pid, uint64_t oid, void *outbuf, 
+	       uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen)
 {
 	return -1;
 }
 
 
-int oc_get_oids_in_cid(sqlite3 *db, uint64_t cid, void **buf)
+/*
+ * NOTE: buf needs to be freed by the caller
+ *
+ * returns:
+ * -ENOMEM: out of memory
+ * -EINVAL: invalid arg
+ * ==0: success, buf points to memory containing oids
+ */
+int oc_get_oids_in_cid(sqlite3 *db, uint64_t pid, uint64_t cid, void **buf)
 {
 	int ret = -EINVAL;
 	char SQL[MAXSQLEN];
-	uint64_t cnt = 0;
+	uint64_t cnt = 4096;
 	uint64_t cur_cnt = 0;
 	uint64_t *oids = NULL;
 	sqlite3_stmt *stmt = NULL;
@@ -101,30 +214,31 @@ int oc_get_oids_in_cid(sqlite3 *db, uint64_t cid, void **buf)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "SELECT COUNT(oid) FROM object_collection WHERE cid = "
-		" %llu	UNION ALL SELECT oid FROM object_collection WHERE"
-		" cid = %llu;", llu(cid), llu(cid));
+	oids = Malloc(cnt * sizeof(*oids));
+	if (!oids)
+		return -ENOMEM;
+
+	sprintf(SQL, "SELECT oid FROM object_collection WHERE pid = %llu"
+		" AND cid = %llu;", llu(pid), llu(cid));
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: prepare", __func__);
 		goto out; /* no prepared stmt, no need to finalize */
 	}
 
+	cur_cnt = 0;
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		if (oids == NULL) {
-			cnt = sqlite3_column_int64(stmt, 0);
-			oids = (uint64_t *)Malloc(cnt * sizeof(uint64_t));
+		if (cur_cnt == cnt) {
+			cnt *= 2;
+			oids = realloc(oids, cnt*sizeof(*oids));
 			if (!oids) {
 				ret = -ENOMEM;
 				goto out_finalize;
 			}
-			continue;
 		}
 		oids[cur_cnt] = (uint64_t)sqlite3_column_int64(stmt, 0);
 		cur_cnt++;
 	}
-
-	assert (cur_cnt == cnt);
 
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: sqlite3_step", __func__);
@@ -145,3 +259,5 @@ out_finalize:
 out:
 	return ret;
 }
+
+

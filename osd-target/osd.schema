@@ -6,17 +6,17 @@
 -- identifies the root obect, each partition, each collection, and each
 -- user object.  Thus we store everything in this one table.
 CREATE TABLE obj (
-	pid INTEGER,
-	oid INTEGER,
-	type INTEGER,
+	pid INTEGER NOT NULL,
+	oid INTEGER NOT NULL,
+	type INTEGER NOT NULL,
 	PRIMARY KEY (pid, oid)
 );
 
 CREATE TABLE attr (
-	pid INTEGER,
-	oid INTEGER,
-	page INTEGER,
-	number INTEGER,
+	pid INTEGER NOT NULL,
+	oid INTEGER NOT NULL,
+	page INTEGER NOT NULL,
+	number INTEGER NOT NULL,
 	value BLOB,
 	PRIMARY KEY (pid, oid, page, number)
 );
@@ -24,9 +24,11 @@ CREATE TABLE attr (
 -- object_collection table is used as an intersection table to hold
 -- many-to-many mappings between userobjects and collections.
 CREATE TABLE object_collection (
-	cid INTEGER,
-	oid INTEGER,
-	PRIMARY KEY (cid, oid)
+	pid INTEGER NOT NULL,
+	cid INTEGER NOT NULL,
+	oid INTEGER NOT NULL,
+	number INTEGER NOT NULL,
+	PRIMARY KEY (pid, cid, oid)
 );
 
 -- Add index on most varying fields for performance

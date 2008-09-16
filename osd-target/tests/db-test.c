@@ -266,23 +266,22 @@ void test_object_collection(struct osd_device *osd)
 	void *buf = NULL;
 	uint64_t *oids = NULL;
 
-	ret = oc_insert_cid_oid(osd->db, 0x1, 0x1111111111111111);
+	ret = oc_insert_row(osd->db, 0x20, 0x1, 0x1111111111111111, 2);
 	assert(ret == 0);
-	ret = oc_insert_cid_oid(osd->db, 0x2, 0x2222);
+	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x2222, 2);
 	assert(ret == 0);
-	ret = oc_insert_cid_oid(osd->db, 0x2, 0x3333333333333333);
+	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x3333333333333333, 2);
 	assert(ret == 0);
-	ret = oc_insert_cid_oid(osd->db, 0x2, 0x7888888888888888);
+	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x7888888888888888, 2);
 	assert(ret == 0);
-	ret = oc_insert_cid_oid(osd->db, 0x2, 0x7AAAAAAAAAAAAAAA);
+	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x7AAAAAAAAAAAAAAA, 2);
 	assert(ret == 0);
-	ret = oc_insert_cid_oid(osd->db, 0x2, 0xFFFFFFFFFFFFFFFF);
+	ret = oc_insert_row(osd->db, 0x20, 0x2, 0xFFFFFFFFFFFFFFFF, 2);
 	assert(ret == 0);
-	assert(ret == 0);
-	ret = oc_insert_cid_oid(osd->db, 0x1, 0x111);
+	ret = oc_insert_row(osd->db, 0x20, 0x1, 0x111, 2);
 	assert(ret == 0);
 
-	ret = oc_get_oids_in_cid(osd->db, 0x2, &buf);
+	ret = oc_get_oids_in_cid(osd->db, 0x20, 0x2, &buf);
 	assert(ret == 0);
 	oids = (uint64_t *)buf;
 	assert(oids[0] == 0x2222);
@@ -293,9 +292,9 @@ void test_object_collection(struct osd_device *osd)
 
 	free(oids);
 
-	ret = oc_delete_cid(osd->db, 0x1);
+	ret = oc_delete_all_cid(osd->db, 0x20, 0x1);
 	assert(ret == 0);
-	ret = oc_delete_cid(osd->db, 0x2);
+	ret = oc_delete_all_cid(osd->db, 0x20, 0x2);
 	assert(ret == 0);
 }
 

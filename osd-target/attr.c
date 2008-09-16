@@ -690,3 +690,249 @@ out:
 	return ret;
 }
 
+/*
+ * return values:
+ * -ENOMEM: out of memory
+ * -EINVAL: invalid argument
+ * 0: success
+ */
+int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
+		   void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
+{
+	int ret = 0;
+	int pos = 0;
+	char *cp = NULL;
+	const char *op = NULL;
+	char *SQL = NULL;
+	uint8_t *p = NULL;
+	uint32_t i = 0;
+	uint32_t sqlen = 0;
+	uint32_t factor = 1;
+	uint64_t len = 0;
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	SQL = Malloc(MAXSQLEN);
+	if (SQL == NULL)
+		return -ENOMEM;
+
+	if (qc->query_type == 0)
+		op = " UNION ";
+	else if (qc->query_type == 1)
+		op = " INTERSECT ";
+	else {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	/* 
+	 * Build the query with place holders. SQLite does not support
+	 * sub-query grouping using parenthesis. Therefore membership of
+	 * collection is tested at last with INTERSECT operation.
+	 *
+	 * XXX:SD the spec does not mention whether min or max values have to
+	 * in tested with '<' or '<='. We assume the test are inclusive.
+	 */
+	cp = SQL;
+	sqlen = 0;
+	for (i = 0; i < qc->qc_cnt; i++) {
+		sprintf(cp, "SELECT oid FROM attr WHERE page = ? AND "
+			" number = ? ");
+		if (qc->min_len[i] > 0)
+			strcat(cp, "AND ? <= value ");
+		if (qc->max_len[i] > 0)
+			strcat(cp, "AND value <= ? ");
+
+		/* if this is not the last one qce, append op */
+		if ((i+1) < qc->qc_cnt) 
+			cp = strcat(cp, op);
+
+		sqlen += strlen(cp);
+		if (sqlen >= (MAXSQLEN*factor - 100)) {
+			factor *= 2;
+			SQL = realloc(SQL, MAXSQLEN*factor);
+			if (!SQL) {
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+		cp = SQL + sqlen;
+	}
+	if (qc->qc_cnt > 0) {
+		sprintf(cp, " INTERSECT ");
+		cp += strlen(cp);
+	}
+	/*
+	 * XXX:SD, we assume that if no min or max exist, then the entire
+	 * membership of the collection is returned. min and max constraints
+	 * are used to reduce the size of result set. The spec does not
+	 * define the result when there are no query criteria.
+	 */
+	sprintf(cp, "SELECT oid FROM object_collection WHERE cid = ? ;");
+
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: sqlite3_prepare", __func__);
+		goto out;
+	}
+
+	/* bind the place holders with values */
+	pos = 1;
+	for (i = 0; i < qc->qc_cnt; i++) {
+		ret = sqlite3_bind_int(stmt, pos, qc->page[i]);
+		if (ret != SQLITE_OK) {
+			error_sql(db, "%s: bind page @ %d", __func__, pos);
+			goto out_finalize;
+		}
+		pos++;
+		ret = sqlite3_bind_int(stmt, pos, qc->number[i]);
+		if (ret != SQLITE_OK) {
+			error_sql(db, "%s: bind number @ %d", __func__, pos);
+			goto out_finalize;
+		}
+		pos++;
+
+		if (qc->min_len[i] > 0) {
+			ret = sqlite3_bind_blob(stmt, pos, qc->min_val[i], 
+						qc->min_len[i], 
+						SQLITE_TRANSIENT);
+			if (ret != SQLITE_OK) {
+				error_sql(db, "%s: bind min_val @ %d", 
+					  __func__, pos);
+				goto out_finalize;
+			}
+			pos++;
+		}
+		if (qc->max_len[i] > 0) {
+			ret = sqlite3_bind_blob(stmt, pos, qc->max_val[i], 
+						qc->max_len[i], 
+						SQLITE_TRANSIENT);
+			if (ret != SQLITE_OK) {
+				error_sql(db, "%s: bind max_val @ %d", 
+					  __func__, pos);
+				goto out_finalize;
+			}
+			pos++;
+		}
+	}
+	ret = sqlite3_bind_int64(stmt, pos, cid);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: bind cid", __func__);
+		goto out_finalize;
+	}
+
+
+	/* execute the query */
+	p = outdata;
+	p += ML_ODL_OFF; 
+	len = ML_ODL_OFF - 8; /* subtract len of addition_len */
+	*used_outlen = ML_ODL_OFF;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		if ((alloc_len - len) > 8) {
+			/* 
+			 * TODO: query is a multi-object command, so delete
+			 * the objects from the collection, once they are
+			 * selected
+			 */
+			osd_debug("%llx", sqlite3_column_int64(stmt, 0));
+			set_htonll(p, sqlite3_column_int64(stmt, 0));
+			*used_outlen += 8;
+		}
+		p += 8, len += 8;
+	}
+	if (ret != SQLITE_DONE) {
+		error_sql(db, "%s: sqlite3_step", __func__);
+		ret = -EIO;
+		goto out_finalize;
+	}
+	ret = 0;
+	set_htonll(outdata, len);
+
+out_finalize:
+	ret = sqlite3_finalize(stmt); 
+	if (ret != SQLITE_OK)
+		error_sql(db, "%s: finalize", __func__);
+
+out:
+	free(SQL);
+	return ret;
+}
+
+int attr_get_attr_value(sqlite3 *db, uint64_t pid, uint64_t oid, 
+			uint32_t page, uint32_t number, void *outdata, 
+			uint16_t len)
+{
+	int ret = 0;
+	int found = 0;
+	uint32_t l = 0;
+	char SQL[MAXSQLEN];
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL || outdata == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "SELECT value FROM attr WHERE pid = ? AND oid = ?"
+		" AND page = ? AND number = ?;");
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: prepare", __func__);
+		ret = -EIO;
+		goto out; 
+	}
+	ret = sqlite3_bind_int64(stmt, 1, pid);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: bind pid", __func__);
+		goto out_finalize;
+	}
+	ret = sqlite3_bind_int64(stmt, 2, oid);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: bind oid", __func__);
+		goto out_finalize;
+	}
+	ret = sqlite3_bind_int(stmt, 3, page);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: bind page", __func__);
+		goto out_finalize;
+	}
+	ret = sqlite3_bind_int(stmt, 4, number);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: bind num", __func__);
+		goto out_finalize;
+	}
+
+	found = 0;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		/* duplicate rows violate unique constraint of db */
+		assert(found == 0);
+		found = 1;
+		l = sqlite3_column_bytes(stmt, 0);
+		if (len < l)
+			l = len;
+		memcpy(outdata, sqlite3_column_blob(stmt, 0), l);
+	}
+	if (ret != SQLITE_DONE) {
+		error_sql(db, "%s: sqlite3_step", __func__);
+		ret = -EIO;
+		goto out_finalize;
+	} else if (found == 0) {
+		osd_debug("%s: attr (%llu %llu %u %u) not found", __func__,
+		          llu(pid), llu(oid), page, number);
+		ret = -ENOENT;
+		goto out_finalize;
+	}
+
+	ret = 0; /* success */
+
+out_finalize:
+	/* 'ret' must be preserved. */
+	if (sqlite3_finalize(stmt) != SQLITE_OK) {
+		ret = -EIO;
+		error_sql(db, "%s: finalize", __func__);
+	}
+	
+out:
+	return ret;
+}
+

@@ -18,6 +18,7 @@
 #include "attr.h"
 #include "util/util.h"
 #include "obj.h"
+#include "object-collection.h"
 #include "util/osd-sense.h"
 #include "list-entry.h"
 
@@ -110,10 +111,35 @@ static inline int get_rel_page(uint8_t obj_type, uint32_t page)
 		return -1;
 }
 
+static inline int check_valid_pg(uint8_t obj_type, uint32_t page)
+{
+	switch (obj_type) {
+	case USEROBJECT:
+		return (page < PARTITION_PG);
+	case COLLECTION:
+		return (COLLECTION_PG <= page && page < ROOT_PG);
+	case PARTITION:
+		return (PARTITION_PG <= page && page < COLLECTION_PG);
+	case ROOT:
+		return (ROOT_PG <= page && page < RESERVED_PG);
+	default:
+		return FALSE;
+	}
+}
+
 static int issettable_page(uint8_t obj_type, uint32_t page)
 {
-	int rel_page = get_rel_page(obj_type, page);
+	int rel_page = 0;
+	int valid_pg = check_valid_pg(obj_type, page);
 
+	if (!valid_pg) {
+		if (page >= ANY_PG)
+			return TRUE;
+		else 
+			return FALSE;
+	}
+
+	rel_page = get_rel_page(obj_type, page);
 	if ((STD_PG_LB <= rel_page && rel_page <= STD_PG_UB) ||
 	    (LUN_PG_LB <= rel_page && rel_page <= LUN_PG_UB))
 		return TRUE;
@@ -123,8 +149,17 @@ static int issettable_page(uint8_t obj_type, uint32_t page)
 
 static int isgettable_page(uint8_t obj_type, uint32_t page)
 {
-	int rel_page = get_rel_page(obj_type, page);
+	int rel_page = 0;
+	int valid_pg = check_valid_pg(obj_type, page);
 
+	if (!valid_pg) {
+		if (page >= ANY_PG)
+			return TRUE;
+		else 
+			return FALSE;
+	}
+
+	rel_page = get_rel_page(obj_type, page);
 	if ((RSRV_PG_LB <= rel_page && rel_page <= RSRV_PG_UB) ||
 	    rel_page > VEND_PG_UB)
 		return FALSE;
@@ -619,6 +654,56 @@ static int set_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 }
 		   
 /*
+ * returns:
+ * OSD_ERROR: for error
+ * OSD_OK: on success
+ */
+static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		   uint32_t number, const void *val, uint16_t len)
+{
+	int ret = 0;
+	uint64_t cid = 0;
+
+	if (number < UCAP_COLL_PTR_LB || number > UCAP_COLL_PTR_UB)
+		return OSD_ERROR;
+
+	if (len == 0) {
+		/* 
+		 * XXX:SD len == 0 we are deleting the (cid, oid)
+		 * combination. This does not follow the sematics of the
+		 * spec. In future if this has to be changed then one way
+		 * would be to add length column and setting length to zero.
+		 * Other queries might have to be modified to reflect this
+		 * development
+		 */
+		ret = oc_get_cid(osd->db, pid, oid, number, &cid);
+		if (ret != 0)
+			return OSD_ERROR;
+
+		ret = oc_delete_row(osd->db, pid, cid, oid);
+		if (ret != 0)
+			return OSD_ERROR;
+
+		return OSD_OK;
+	}
+
+	if (len != 8)
+		return OSD_ERROR;
+
+	cid = ntohll(val);
+	/* cid = *((uint64_t *)val);  *//* XXX: endian of cid?? */
+	ret = obj_ispresent(osd->db, pid, cid);
+	if (ret <= 0)
+		return OSD_ERROR;
+
+	ret = oc_insert_row(osd->db, pid, cid, oid, number);
+	if (ret != 0)
+		return OSD_ERROR;
+
+	return OSD_OK;
+}
+
+/*
  * Create root object and set attributes for root and partition zero.
  * = 0: success
  * !=0: failure
@@ -839,24 +924,27 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		 * oid using SQL itself
 		 */
 		if (osd->ic.cur_pid == pid) { /* cache hit */
-			oid = osd->ic.next_oid;
-			osd->ic.next_oid++;
+			oid = osd->ic.next_id;
+			osd->ic.next_id++;
 		} else {
 			ret = obj_get_nextoid(osd->db, pid, &oid);
 			if (ret != 0)
 				goto out_hw_err;
 			osd->ic.cur_pid = pid;
-			osd->ic.next_oid = oid + 1;
+			osd->ic.next_id = oid + 1;
 		}
 		if (oid == 1) {
 			oid = USEROBJECT_OID_LB; /* first oid in partition */
-			osd->ic.next_oid = oid + 1;
+			osd->ic.next_id = oid + 1;
 		}
 	} else {
 		ret = obj_ispresent(osd->db, pid, requested_oid);
 		if (ret == 1)
 			goto out_illegal_req; /* requested_oid exists! */
 		oid = requested_oid; /* requested_oid works! */
+
+		/*XXX: invalidate cache */
+		osd->ic.cur_pid = osd->ic.next_id = 0;
 	}
 
 	if (numoid == 0)
@@ -887,8 +975,8 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
-		osd->ic.next_oid++;
 	}
+	osd->ic.next_id += (numoid - 1);
 
 	ret = db_end_txn(osd);
 	assert(ret == 0);
@@ -907,7 +995,7 @@ out_illegal_req:
 			       pid, requested_oid);
 
 out_hw_err:
-	osd->ic.cur_pid = osd->ic.next_oid = 0; /* invalidate cache */
+	osd->ic.cur_pid = osd->ic.next_id = 0; /* invalidate cache */
 	if (within_txn) {
 		ret = db_end_txn(osd);
 		assert(ret == 0);
@@ -951,17 +1039,33 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 	 * get_nextoid.
 	 */
 	if (requested_cid == 0) {
-		ret = obj_get_nextoid(osd->db, pid, &cid);
-		if (ret != 0)
-			goto out_hw_err;
-		if (cid == 1)
-			cid = COLLECTION_OID_LB; /* firstever cid */
+		/*
+		 * XXX: there should be a better way of getting next maximum
+		 * oid using SQL itself
+		 */
+		if (osd->ic.cur_pid == pid) { /* cache hit */
+			cid = osd->ic.next_id;
+			osd->ic.next_id++;
+		} else {
+			ret = obj_get_nextoid(osd->db, pid, &cid);
+			if (ret != 0)
+				goto out_hw_err;
+			osd->ic.cur_pid = pid;
+			osd->ic.next_id = cid + 1;
+		}
+		if (cid == 1) {
+			cid = COLLECTION_OID_LB; /* first id in partition */
+			osd->ic.next_id = cid + 1;
+		}
 	} else {
 		/* Make sure requested_cid doesn't already exist */
 		ret = obj_ispresent(osd->db, pid, requested_cid);
 		if (ret == 1)
 			goto out_cdb_err;
 		cid = requested_cid;
+
+		/*XXX: invalidate cache */
+		osd->ic.cur_pid = osd->ic.next_id = 0;
 	}
 
 	/* if cid already exists, obj_insert will fail */
@@ -979,6 +1083,7 @@ out_cdb_err:
 			       OSD_ASC_INVALID_FIELD_IN_CDB,
 			       requested_cid, 0);
 out_hw_err:
+	osd->ic.cur_pid = osd->ic.next_id = 0; /* invalidate cache */
 	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			       OSD_ASC_INVALID_FIELD_IN_CDB,
 			       requested_cid, 0);
@@ -1454,11 +1559,136 @@ int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 }
 
 
-int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
-	      uint32_t query_len, uint64_t alloc_len, uint8_t *sense)
+static inline int alloc_qc(struct query_criteria *qc)
 {
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
+	uint32_t limit = 0;
+
+	if (qc->qc_cnt_limit == 0)
+		qc->qc_cnt_limit = 16;
+	else
+		qc->qc_cnt_limit *= 2;
+
+	limit = qc->qc_cnt_limit;
+	qc->qce_len = realloc(qc->qce_len, sizeof(*(qc->qce_len))*limit);
+	qc->page = realloc(qc->page, sizeof(*(qc->page))*limit);
+	qc->number = realloc(qc->number, sizeof(*(qc->number))*limit);
+	qc->min_len = realloc(qc->min_len, sizeof(*(qc->min_len))*limit);
+	qc->min_val = realloc(qc->min_val, sizeof(void *)*limit);
+	qc->max_len = realloc(qc->max_len, sizeof(*(qc->max_len))*limit);
+	qc->max_val = realloc(qc->max_val, sizeof(void *)*limit);
+
+	if (!qc->page || !qc->number || !qc->min_len || !qc->min_val ||
+	    !qc->max_len || !qc->max_val)
+		return -ENOMEM;
+
+	return OSD_OK;
+}
+
+static int parse_query_criteria(const uint8_t *qlf, uint32_t qll,
+				struct query_criteria *qc)
+{
+	int ret = 0;
+	const uint8_t *cp = NULL;
+	qc->query_type = qlf[0] & 0xF;
+
+	cp = &qlf[4];
+	qc->qc_cnt = 0;
+	qll -= 4; /* remove query list header */
+	while (qll) {
+		qc->qce_len[qc->qc_cnt] = ntohs(&cp[2]);
+		if (qc->qce_len[qc->qc_cnt] == MINQCELEN)
+			break; /* qce is empty */
+
+		qc->page[qc->qc_cnt] = ntohl(&cp[4]);
+		if (qc->page[qc->qc_cnt] >= PARTITION_PG) /* osd2r01 p 120 */
+			return OSD_ERROR;
+
+		qc->number[qc->qc_cnt] = ntohl(&cp[8]);
+		qc->min_len[qc->qc_cnt] = ntohs(&cp[12]);
+		qc->min_val[qc->qc_cnt] = &cp[14];
+		cp += (14 + qc->min_len[qc->qc_cnt]);
+		qc->max_len[qc->qc_cnt] = ntohs(&cp[0]);
+		qc->max_val[qc->qc_cnt] = &cp[2];
+		cp += (2 + qc->max_len[qc->qc_cnt]);
+		qll -= (16 + qc->max_len[qc->qc_cnt] + qc->max_len[qc->qc_cnt]);
+		qc->qc_cnt++;
+
+		if (qc->qc_cnt == qc->qc_cnt_limit) {
+			ret = alloc_qc(qc);
+			if (ret != OSD_OK)
+				return ret;
+		}
+	}
+
+	return OSD_OK;
+}
+
+int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
+	      uint32_t query_list_len, uint64_t alloc_len, const void *indata,
+	      void *outdata, uint64_t *used_outlen, uint8_t *sense)
+{
+	int ret = 0;
+	uint8_t *cp = outdata;
+	struct query_criteria qc = {
+		.query_type = 0,
+		.qc_cnt_limit = 0,
+		.qc_cnt = 0,
+		.qce_len = NULL,
+		.page = NULL,
+		.number = NULL,
+		.min_len = NULL,
+		.min_val = NULL,
+		.max_len = NULL,
+		.max_val = NULL,
+	};
+
+	osd_debug("%s pid %llu cid %llu query_list_len %u alloc_len %llu", 
+		  __func__, llu(pid), llu(cid), query_list_len, 
+		  llu(alloc_len));
+
+	if (osd == NULL || indata == NULL || sense == NULL)
+		goto out_cdb_err;
+
+	if (pid < USEROBJECT_PID_LB)
+		goto out_cdb_err;
+
+	if (!obj_ispresent(osd->db, pid, cid))
+		goto out_cdb_err;
+
+	if (query_list_len < MINQLISTLEN)
+		goto out_cdb_err;
+
+	if (alloc_len == 0)
+		return OSD_OK;
+	else if (alloc_len != 0 && alloc_len < MIN_ML_LEN)
+		goto out_cdb_err;
+
+	ret = alloc_qc(&qc);
+	if (ret != OSD_OK)
+		goto out_hw_err;
+
+	ret = parse_query_criteria(indata, query_list_len, &qc);
+	if (ret != OSD_OK)
+		goto out_cdb_err;
+
+	cp[12] = (0x21 << 2);
+	ret = attr_run_query(osd->db, cid, &qc, outdata, alloc_len, 
+			     used_outlen);
+	if (ret != OSD_OK)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	return ret;
 }
 
 /*
@@ -1539,7 +1769,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_cdb_err;
 
 	/* XXX: invalidate ic_cache immediately */
-	osd->ic.cur_pid = osd->ic.next_oid = 0;
+	osd->ic.cur_pid = osd->ic.next_id = 0;
 
 	get_dfile_name(path, osd->root, pid, oid);
 	ret = unlink(path);
@@ -1551,6 +1781,11 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	/* delete all attr of the object */
 	ret = attr_delete_all(osd->db, pid, oid);
+	if (ret != 0)
+		goto out_hw_err;
+
+	/* delete all collection memberships */
+	ret = oc_delete_all_oid(osd->db, pid, oid);
 	if (ret != 0)
 		goto out_hw_err;
 
@@ -1576,11 +1811,70 @@ out_hw_err:
 }
 
 
-int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid, int force_removal,
-			  uint8_t *sense)
+int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
+			  uint8_t fcr, uint8_t *sense)
 {
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
+	int ret = 0;
+	int8_t isempty = 0;
+
+	osd_debug("%s: pid %llu cid %llu fcr %u", __func__, llu(pid), 
+		  llu(cid), fcr);
+	
+	if (pid == 0 || pid < COLLECTION_PID_LB)
+		goto out_cdb_err;
+
+	if (cid < COLLECTION_OID_LB)
+		goto out_cdb_err;
+
+	/* make sure partition and collection are present */
+	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
+		goto out_cdb_err;
+	if (obj_ispresent(osd->db, pid, cid) == 0)
+		goto out_cdb_err;
+
+	/* XXX: invalidate ic_cache */
+	osd->ic.cur_pid = osd->ic.next_id = 0;
+
+	isempty = oc_isempty_cid(osd->db, pid, cid);
+	if (isempty < 0)
+		goto out_hw_err;
+	if (fcr == 0 && !isempty)
+		goto out_not_empty;
+
+	if (fcr == 1) {
+		if (!isempty) {
+			ret = oc_delete_all_cid(osd->db, pid, cid);
+			if (ret != 0)
+				goto out_hw_err;
+		}
+
+		ret = attr_delete_all(osd->db, pid, cid);
+		if (ret != 0)
+			goto out_hw_err;
+
+		ret = obj_delete(osd->db, pid, cid);
+		if (ret != 0)
+			goto out_hw_err;
+	}
+
+	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
+	return OSD_OK; /* success */
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	return ret;
+
+out_not_empty:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_PART_OR_COLL_CONTAINS_USER_OBJECTS,
+			      pid, cid);
+	return ret;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	return ret;
 }
 
 
@@ -1609,7 +1903,7 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 		goto out_not_empty;
 
 	/* XXX: invalidate ic_cache */
-	osd->ic.cur_pid = osd->ic.next_oid = 0;
+	osd->ic.cur_pid = osd->ic.next_id = 0;
 
 	ret = attr_delete_all(osd->db, pid, PARTITION_OID);
 	if (ret != 0)
@@ -1689,13 +1983,26 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			goto out_cdb_err;
 	}
 
-	if (page == USER_INFO_PG) {
+	if (len > ATTR_LEN_UB)
+		goto out_param_list;
+
+	switch (page) {
+	case USER_INFO_PG:
 		ret = set_uiap(osd, pid, oid, number, val);
-		if (ret != OSD_OK)
-			goto out_cdb_err;
-		else
+		if (ret == OSD_OK)
 			goto out_success;
+		else
+			goto out_cdb_err;
+	case COLLECTIONS_PG:
+		ret = set_cap(osd, pid, oid, number, val, len);
+		if (ret == OSD_OK)
+			goto out_success;
+		else
+			goto out_cdb_err;
+	default:
+		break;
 	}
+
 
 	/* 
 	 * XXX:SD len == 0 is equivalent to deleting the attr. osd2r00 4.7.4
@@ -1706,12 +2013,9 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = attr_delete_attr(osd->db, pid, oid, page, number);
 		if (ret != 0)
 			goto out_cdb_err;
-		else goto
-			out_success;
+		else 
+			goto out_success;
 	}
-
-	if (len > ATTR_LEN_UB)
-		goto out_param_list;
 
 	ret = attr_set_attr(osd->db, pid, oid, page, number, val, len);
 	if (ret != 0) {

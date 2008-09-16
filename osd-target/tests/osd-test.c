@@ -14,6 +14,7 @@
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
+#include "object-collection.h"
 #include "util/util.h"
 #include "util/osd-sense.h"
 #include "target-sense.h"
@@ -26,6 +27,8 @@ void test_osd_create_partition(struct osd_device *osd);
 void test_osd_get_attributes(struct osd_device *osd);
 void test_osd_get_ccap(struct osd_device *osd);
 void test_osd_get_utsap(struct osd_device *osd);
+void test_osd_query(struct osd_device *osd);
+void test_osd_create_collection(struct osd_device *osd);
 
 void test_osd_create(struct osd_device *osd)
 {
@@ -53,7 +56,7 @@ void test_osd_create(struct osd_device *osd)
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	assert(ret == 0);
 
-	/* remove non-existing object, test must fail succeed */
+	/* remove non-existing object, test must fail */
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	assert(ret != 0);
 
@@ -387,6 +390,505 @@ void test_osd_get_attributes(struct osd_device *osd)
 	free(val);
 }
 
+void test_osd_create_collection(struct osd_device *osd)
+{
+	int ret = 0;
+	uint64_t cid = 0;
+	uint64_t oid = 0;
+	uint32_t number = 0;
+	void *buf = Calloc(1, 1024);
+	void *sense = Calloc(1, 1024);
+
+	if (!sense || !buf)
+		return;
+
+	/* invalid pid/cid, test must fail */
+	ret = osd_create_collection(osd, 0, 1, sense);
+	assert(ret != 0);
+
+	/* invalid cid, non-existant pid, test must fail */
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, 1, sense);
+	assert(ret != 0);
+
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 
+				    sense);
+	assert(ret == 0);
+
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB,
+				    1, sense);
+	assert(ret == 0);
+
+	/* remove non-existing collection, test must fail */
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB,
+				    1, sense);
+	assert(ret != 0);
+
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 
+				    sense);
+	assert(ret == 0);
+
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, 0, sense);
+	assert(ret == 0);
+	assert(osd->ccap.oid == COLLECTION_OID_LB + 1);
+
+	/* create objects */
+	ret = osd_create(osd, USEROBJECT_PID_LB, 0, 10, sense);
+	assert(ret == 0);
+	assert(osd->ccap.oid == (USEROBJECT_OID_LB + 12 - 1));
+
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB,
+				    1, sense);
+	assert(ret == 0);
+
+	/* add objects to collection */
+	cid = COLLECTION_OID_LB + 1;
+	set_htonll(buf, cid);
+	number = 1;
+	for (oid = USEROBJECT_OID_LB+2; oid < (USEROBJECT_OID_LB+9); oid++) {
+		ret = osd_set_attributes(osd, USEROBJECT_PID_LB, oid,
+					 COLLECTIONS_PG, number, buf,
+					 sizeof(cid), 0, sense);
+		assert(ret == 0);
+		number++;
+	}
+	/* remove collection */
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, 
+				    COLLECTION_OID_LB + 1, 1, sense);
+	assert(ret == 0);
+
+	/* remove objects */
+	for (oid = USEROBJECT_OID_LB+2; oid < (USEROBJECT_OID_LB+12); oid++) {
+		ret = osd_remove(osd, USEROBJECT_PID_LB, oid, sense);
+		assert(ret == 0);
+	}
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+
+	free(sense);
+	free(buf);
+}
+
+
+/* only to be used by test_osd_query */
+static inline void set_attr_int(struct osd_device *osd, uint64_t oid, 
+				uint32_t page, uint32_t number, uint64_t val, 
+				uint8_t *sense)
+{
+	int ret = 0;
+	uint8_t *cp = (uint8_t *)&val;
+	uint64_t pid = PARTITION_PID_LB;
+
+	set_htonll(cp, val);
+	ret = osd_set_attributes(osd, pid, oid, page, number, &val, 
+				 sizeof(val), 1, sense);
+	assert(ret == 0);
+}
+
+static inline void set_attr_val(struct osd_device *osd, uint64_t oid,
+				uint32_t page, uint32_t number, 
+				const void *val, uint16_t len, 
+				uint8_t *sense)
+{
+	int ret = 0;
+	uint64_t pid = PARTITION_PID_LB;
+
+	ret = osd_set_attributes(osd, pid, oid, page, number, val, len, 1, 
+				 sense);
+	assert(ret == 0);
+}
+
+static inline void set_qce(uint8_t *cp, uint32_t page, uint32_t number, 
+			   uint16_t min_len, const void *min_val, 
+			   uint16_t max_len, const void *max_val)
+{
+	uint16_t len = 4 + 4 + 2 + min_len + 2 + max_len;
+	set_htons(&cp[2], len);
+	set_htonl(&cp[4], page);
+	set_htonl(&cp[8], number);
+	set_htons(&cp[12], min_len);
+	memcpy(&cp[14], min_val, min_len);
+	set_htons(&cp[14+min_len], max_len);
+	memcpy(&cp[16+min_len], max_val, max_len);
+}
+
+static inline int ismember(uint64_t needle, uint64_t *hay, uint64_t haysz)
+{
+	osd_debug("%s: %016llx", __func__, llu(needle));
+	while (haysz--) {
+		if (needle == hay[haysz])
+			return TRUE;
+	}
+	return FALSE;
+}
+
+static void check_results(void *ml, uint64_t *idlist, uint64_t sz, 
+			  uint64_t usedlen)
+{
+	uint8_t *cp = ml;
+	uint32_t add_len = ntohll(&cp[0]);
+	assert(add_len == (5+8*sz));
+	assert(cp[12] == (0x21 << 2));
+	assert(usedlen == add_len+8);
+	add_len -= 5;
+	cp += MIN_ML_LEN;
+	while (add_len) {
+		assert(ismember(ntohll(cp), idlist, 8));
+		cp += 8;
+		add_len -= 8;
+	}
+	memset(idlist, 0, sz*sizeof(*idlist));
+}
+
+void test_osd_query(struct osd_device *osd)
+{
+	int ret = 0;
+	uint64_t cid = 0;
+	uint64_t oid = 0;
+	uint64_t pid = 0;
+	uint8_t *cp = NULL;
+	uint32_t number = 0;
+	uint32_t len = 0;
+	uint64_t min = 0, max = 0;
+	uint64_t usedlen = 0, add_len = 0;
+	uint32_t page = COLLECTIONS_PG;
+	uint32_t qll = 0;
+	void *buf = Calloc(1, 1024);
+	void *sense = Calloc(1, 1024);
+	void *matcheslist = Calloc(1, 4096);
+	uint64_t *idlist = Calloc(sizeof(*idlist), 512);
+
+	if (!sense || !buf || !matcheslist || !idlist)
+		goto out;
+
+	pid = PARTITION_PID_LB;
+	ret = osd_create_partition(osd, pid, sense);
+	assert(ret == 0);
+
+	/* create objects */
+	ret = osd_create(osd, pid, 0, 10, sense);
+	assert(ret == 0);
+
+	ret = osd_create_collection(osd, pid, 0, sense);
+	assert(ret == 0);
+	cid = COLLECTION_OID_LB + 10;
+	assert(osd->ccap.oid == cid);
+
+	/* set attributes */
+	oid = USEROBJECT_OID_LB;
+	page = USEROBJECT_PG + LUN_PG_LB;
+	set_attr_int(osd, oid,   page, 1, 4, sense);
+	set_attr_int(osd, oid+1, page, 1, 49, sense);
+	set_attr_int(osd, oid+1, page, 2, 130, sense);
+	set_attr_int(osd, oid+2, page, 1, 20, sense);
+	set_attr_int(osd, oid+3, page, 1, 101, sense);
+	set_attr_int(osd, oid+4, page, 1, 59, sense);
+	set_attr_int(osd, oid+4, page, 2, 37, sense);
+	set_attr_int(osd, oid+5, page, 1, 75, sense);
+	set_attr_int(osd, oid+6, page, 1, 200, sense);
+	set_attr_int(osd, oid+7, page, 1, 67, sense);
+	set_attr_int(osd, oid+8, page, 1, 323, sense);
+	set_attr_int(osd, oid+8, page, 2, 44, sense);
+	set_attr_int(osd, oid+9, page, 1, 1, sense);
+	set_attr_int(osd, oid+9, page, 2, 19, sense);
+
+	/* include some objects in the collection */
+	page = COLLECTIONS_PG;
+	set_attr_int(osd, oid,   page, 1, cid, sense);
+	set_attr_int(osd, oid+1, page, 1, cid, sense);
+	set_attr_int(osd, oid+3, page, 1, cid, sense);
+	set_attr_int(osd, oid+4, page, 1, cid, sense);
+	set_attr_int(osd, oid+5, page, 1, cid, sense);
+	set_attr_int(osd, oid+6, page, 1, cid, sense);
+	set_attr_int(osd, oid+7, page, 1, cid, sense);
+	set_attr_int(osd, oid+9, page, 1, cid, sense);
+
+	/* run without query criteria */
+	qll = MINQLISTLEN;
+	memset(buf, 0, 1024);
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+
+	idlist[0] = oid;
+	idlist[1] = oid+1;
+	idlist[2] = oid+3;
+	idlist[3] = oid+4;
+	idlist[4] = oid+5;
+	idlist[5] = oid+6;
+	idlist[6] = oid+7;
+	idlist[7] = oid+9;
+	check_results(matcheslist, idlist, 8, usedlen);
+
+	/* run one query without min/max constraints */
+	qll = 0;
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x0;
+	page = USEROBJECT_PG+LUN_PG_LB; 
+	set_qce(&cp[4], page, 2, 0, NULL, 0, NULL);
+	qll += 4 + (4+4+4+2+2);
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+
+	idlist[0] = oid+1; 
+	idlist[1] = oid+4; 
+	idlist[2] = oid+9;
+	check_results(matcheslist, idlist, 3, usedlen);
+
+	/* run one query with criteria */
+	qll = 0;
+	min = 40, max= 80;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x0;
+	page = USEROBJECT_PG+LUN_PG_LB; 
+	set_qce(&cp[4], page, 1, sizeof(min), &min, sizeof(max), &max);
+	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+
+	idlist[0] = oid+1; 
+	idlist[1] = oid+4; 
+	idlist[2] = oid+5;
+	idlist[3] = oid+7;
+	check_results(matcheslist, idlist, 4, usedlen);
+
+	/* run union of two query criteria */
+	qll = 0;
+
+	/* first query */
+	page = USEROBJECT_PG+LUN_PG_LB;
+	min = 100, max = 180;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x0; /* UNION */
+	set_qce(&cp[4], page, 1, sizeof(min), &min, sizeof(max), &max);
+	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+	cp += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	/* second query */
+	min = 200, max = 323;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	set_qce(cp, page, 1, sizeof(min), &min, sizeof(max), &max);
+	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
+	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+	idlist[0] = oid+3; 
+	idlist[1] = oid+6; 
+	check_results(matcheslist, idlist, 2, usedlen);
+
+	/* run intersection of 2 query criteria */
+	qll = 0;
+
+	/* first query */
+	page = USEROBJECT_PG+LUN_PG_LB;
+	min = 4, max = 100;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x1; /* INTERSECTION */
+	set_qce(&cp[4], page, 1, sizeof(min), &min, sizeof(max), &max);
+	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+	cp += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	/* second query */
+	min = 10, max = 400;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	set_qce(cp, page, 2, sizeof(min), &min, sizeof(max), &max);
+	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
+	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+
+	idlist[0] = oid+1; 
+	idlist[1] = oid+4; 
+	check_results(matcheslist, idlist, 2, usedlen);
+
+	/* run union of 3 query criteria, with missing min/max */
+	qll = 0;
+
+	/* first query */
+	min = 130, max = 130;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x0; /* UNION */
+	page = USEROBJECT_PG+LUN_PG_LB;
+	set_qce(&cp[4], page, 2, sizeof(min), &min, sizeof(max), &max);
+	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+	cp += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	/* second query */
+	min = 150;
+	set_htonll((uint8_t *)&min, min);
+	set_qce(cp, page, 1, sizeof(min), &min, 0, NULL);
+	qll += (4+4+4+2+sizeof(min)+2+0);
+	cp += (4+4+4+2+sizeof(min)+2+0);
+
+	/* third query */
+	max = 10;
+	set_htonll((uint8_t *)&max, max);
+	set_qce(cp, page, 1, 0, NULL, sizeof(max), &max);
+	qll += (4+4+4+2+0+2+sizeof(max));
+	cp += (4+4+4+2+0+2+sizeof(max));
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+	idlist[3] = oid;
+	idlist[4] = oid+1;
+	idlist[5] = oid+6;
+	idlist[2] = oid+9;
+	check_results(matcheslist, idlist, 4, usedlen);
+
+	/* set some attributes with text values */
+	oid = USEROBJECT_OID_LB;
+	page = USEROBJECT_PG + LUN_PG_LB;
+	set_attr_val(osd, oid,   page, 1, "hello", 6, sense);
+	set_attr_val(osd, oid+1, page, 1, "cat", 4, sense);
+	set_attr_int(osd, oid+1, page, 2, 130, sense);
+	set_attr_int(osd, oid+2, page, 1, 20, sense);
+	set_attr_val(osd, oid+3, page, 1, "zebra", 6, sense);
+	set_attr_int(osd, oid+4, page, 1, 59, sense);
+	set_attr_int(osd, oid+4, page, 2, 37, sense);
+	set_attr_int(osd, oid+5, page, 1, 75, sense);
+	set_attr_val(osd, oid+6, page, 1, "keema", 6, sense);
+	set_attr_int(osd, oid+7, page, 1, 67, sense);
+	set_attr_int(osd, oid+8, page, 1, 323, sense);
+	set_attr_int(osd, oid+8, page, 2, 44, sense);
+	set_attr_int(osd, oid+9, page, 1, 1, sense);
+	set_attr_val(osd, oid+9, page, 2, "hotelling", 10, sense);
+
+	/* run queries on different datatypes, with diff min max lengths */
+	qll = 0;
+
+	/* first query */
+	min = 41, max = 169;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x0; /* UNION */
+	page = USEROBJECT_PG+LUN_PG_LB;
+	set_qce(&cp[4], page, 1, sizeof(min), &min, sizeof(max), &max);
+	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+	cp += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	/* second query */
+	set_qce(cp, page, 1, 3, "ab", 5, "keta");
+	qll += (4+4+4+2+2+2+5);
+	cp += (4+4+4+2+2+2+5);
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+	idlist[3] = oid;
+	idlist[4] = oid+1;
+	idlist[0] = oid+4; 
+	idlist[1] = oid+5; 
+	idlist[5] = oid+6;
+	idlist[2] = oid+7;
+	check_results(matcheslist, idlist, 6, usedlen);
+
+	/* run intersection of 3 query criteria, with missing min/max */
+	qll = 0;
+
+	/* first query */
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x1; /* INTERSECTION */
+	page = USEROBJECT_PG+LUN_PG_LB;
+	set_qce(&cp[4], page, 1, 2, "a", 3, "zz");
+	qll += 4 + (4+4+4+2+2+2+3);
+	cp += 4 + (4+4+4+2+2+2+3);
+
+	/* second query */
+	min = 140;
+	set_htonll((uint8_t *)&min, min);
+	set_qce(cp, page, 1, sizeof(min), &min, 0, NULL);
+	qll += (4+4+4+2+sizeof(min)+2+0);
+	cp += (4+4+4+2+sizeof(min)+2+0);
+
+	/* third query */
+	set_qce(cp, page, 2, 0, NULL, 6, "alpha");
+	qll += (4+4+4+2+0+2+6);
+	cp += (4+4+4+2+0+2+6);
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+	idlist[0] = oid+1;
+	check_results(matcheslist, idlist, 1, usedlen);
+
+	/* run intersection of 2 query criteria with empty result */
+	qll = 0;
+
+	/* first query */
+	memset(buf, 0, 1024);
+	cp = buf;
+	cp[0] = 0x1; /* INTERSECTION */
+	page = USEROBJECT_PG+LUN_PG_LB;
+	set_qce(&cp[4], page, 1, 2, "aa", 4, "zzz");
+	qll += 4 + (4+4+4+2+2+2+3);
+	cp += 4 + (4+4+4+2+2+2+3);
+
+	/* second query */
+	min = 50;
+	max = 80;
+	set_htonll((uint8_t *)&min, min);
+	set_htonll((uint8_t *)&max, max);
+	set_qce(cp, page, 1, sizeof(min), &min, sizeof(max), &max);
+	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
+	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
+
+	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
+			sense);
+	assert(ret == 0);
+	check_results(matcheslist, idlist, 0, usedlen);
+
+	/* remove collection */
+	ret = osd_remove_collection(osd, pid, cid, 1, sense);
+	assert(ret == 0);
+
+	/* remove objects */
+	for (oid = USEROBJECT_OID_LB; oid < (USEROBJECT_OID_LB+10); oid++) {
+		ret = osd_remove(osd, USEROBJECT_PID_LB, oid, sense);
+		assert(ret == 0);
+	}
+
+	/* remove partition */
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+	
+out:
+	free(buf);
+	free(sense);
+	free(matcheslist);
+	free(idlist);
+}
+
 int main()
 {
 	int ret = 0;
@@ -404,6 +906,8 @@ int main()
 	test_osd_get_attributes(&osd);
 	test_osd_get_ccap(&osd); 
 	test_osd_get_utsap(&osd);
+	test_osd_create_collection(&osd);
+	test_osd_query(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

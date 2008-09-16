@@ -17,6 +17,7 @@ CMD_INC := $(CMD_SRC:.c=.h)
 LIBOSD := ../libosdtgt.a ../../util/libosdutil.a
 
 include ../../Makedefs
+OPT := $(filter-out -DNDEBUG,$(OPT)) # don't turn off asserts!
 
 CC := gcc
 CPP_M := -MM

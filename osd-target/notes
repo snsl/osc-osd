@@ -144,6 +144,7 @@ EBUSY. in future keep sqlite3_step in a infinite loop
 # +: issue is resolved
 # ?: question. the answer to question is usually indented
 # !: important point, make a note of it
+# #: comment
 
 # Fri Jan 26 11:03:52 EST 2007
 +	single makefile for tests and libosd
@@ -367,8 +368,75 @@ can be implemented as a sql view on page numbers 0
 	be incorporated in the db_context
 !	getting rowcount and the results in a single sql query
 	http://searchoracle.techtarget.com/ateQuestionNResponse/0,289625,sid41_gci1072588,00.html
-
+!	sqlite looses precision. If uint64_t value is stored then large values
+	like 0x9FFFFFFFFFFFFFFF cannot be stored, since sqlite converts all integers
+	to double and stores it.
 -	scaling as function of objects, putting and taking out of collecitons
 -	implement query
 -	implement collection
 -	implement list, list collection, list + attr
+
+-	Storage conference and Workshops
+	TOS (Transactions on Storage)
+	ISCA
+	USENIX Technical conference
+	FAST
+	OSDI (more filesystem and OS related)
+	SOSP ( -do- )
+	NSDI (Network Systems Design and Implementation)
+	HPDC
+	HPCA
+	SIGMOD
+	JSPP
+	IPDPS
+	ICPP
+	CCGrid
+	Cluster
+	DSN ??
+	SC
+	WIOSCA
+	IOPADS (Workshop on Input/Output in Parallel and Distributed Systems)
+	SPDT (Symposium on Parallel and Distributed Tools)
+	MSST 
+	SNAPI Workshop along with MSST
+	HiPC (for vacation in India)
+	APDSC (Asia Pacific Data and Storage conference) Tier 3
+	NAS  (Network Architecture Storage) Tier 3
+
+# Sat Apr 28 14:45:36 EDT 2007
+-	6.18.3 the object descriptors are not aligned at 8 byte, even though the
+	revision makes the case for other packetes.
+-	sqlite issues
+		precompile the queries
+		multithreaded
+		reduce the fcntl calls for locking
+		refactor the code such that error checking is minimized
+		read other codes where SQLite is used
+		solve the irritating 'ret' value preservation.
+-	set PAGE_ID attr in set_attr function. refactor that function
+-	ATTR_PG_ID_LEN is declared twice. standardize on names, PAGE or PG.
+-	Every create and create_collection sets default attr
+-	use datatime functions to set timestamps
+-	test attr when BLOB == NULL, does it remove the attr. change the
+	semantics to set attr of zero length rather than removing the attr.
+!	the code of deleting attribute is repeated in set_Attribute and set_cap
+-	setup triggers to delete the cids or oids as necessary
+!	get_all_attr needs to be modified to grab values from object_collection
+-	change the semantic decision (XXX:SD) made of leaving no side-effects in
+	case of create and other commands
++	set_attribute must check for obj_type along with page. for eg.
+	collections don't have user 
+-	create 128 directories under dfiles to prevent fanout
+-	collect and summarize all todos in one place 
+?	how to handle endian correction when attr value is integer?
+		store the values in big endian format. SQLite uses memcmp to compare
+		blobs and only big endian format enables comparison of integers
+		stored as blobs
+
+# Sun Apr 29 12:17:55 EDT 2007
+-	look for memory leaks in attr.c, tests etc.
+-	run valgrind and span all the code to check for memory leaks
+-	in C how to determine the caller function. can be used to prevent a
+	function being called from outside a set of predetermined functions.
+-	python interface for writing unit tests
+-	function to run different tests

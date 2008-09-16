@@ -85,9 +85,33 @@ struct __attribute__((packed)) cur_cmd_attr_pg {
 	uint64_t append_off;
 };
 
+struct query_criteria {
+	uint8_t query_type;	/* type of query */
+	uint32_t qc_cnt_limit;	/* current limit on number of queries */
+	uint32_t qc_cnt;	/* current count of queries */
+	uint16_t *qce_len;
+	uint32_t *page;
+	uint32_t *number;
+	uint16_t *min_len;
+	const void **min_val;
+	uint16_t *max_len;
+	const void **max_val;
+};
+
+/* osd2r01 Section 6.18.2 tab 90 and 92 */
+#define MINQLISTLEN (8U) /* query list header(4B) + first QCE header(4B) */
+#define MINQCELEN (0)    /* QCE with just header */
+
+/* osd2r01 Section 6.18.3 tab 93 */
+enum {
+	ML_ODF_OFF = 12U,
+	ML_ODL_OFF = 13U,
+	MIN_ML_LEN = 13U /* add len + reserved + ODF */
+};
+
 struct id_cache {
-	uint64_t cur_pid; 	/* last pid referenced */
-	uint64_t next_oid; 	/* next free oid within partition (cur_pid) */
+	uint64_t cur_pid;  /* last pid referenced */
+	uint64_t next_id;  /* next free oid/cid within partition (cur_pid) */
 };
 
 struct blob {

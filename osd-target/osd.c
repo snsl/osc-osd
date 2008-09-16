@@ -875,7 +875,7 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	char path[MAXNAMELEN];
 
 	osd_debug("%s: pid %llu oid %llu len %llu data %p", __func__,
-		  llu(pid), llu(oid), llu(len), appendata);
+		  llu(pid), llu(oid), llu(len), appenddata);
 
 	if (osd == NULL || osd->root == NULL || appenddata == NULL)
 		goto out_cdb_err;

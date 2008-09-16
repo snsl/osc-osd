@@ -1205,8 +1205,10 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 		p += 10;
 		len -= 10;
 
-		if (item_len == 0xffff)
+		if (item_len == 0xffff) {
 			osd_error("%s: target returned item_len -1", __func__);
+			goto unwind;
+		}
 
 		++command->numattr;
 
@@ -1219,8 +1221,9 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 	}
 
 	/*
-	 * Allocate space for them.
+	 * Allocate space for them.  Okay if none.
 	 */
+	ret = 0;
 	if (command->numattr == 0)
 		goto unwind;
 
@@ -1265,7 +1268,6 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 		p += item_len + pad;
 		len -= item_len + pad;
 	}
-	ret = 0;
 
 unwind:
 	command->outdata = header->orig_outdata;
@@ -1283,7 +1285,8 @@ void osd_command_attr_all_free(struct osd_command *command)
 {
 	/* we hid the command->attr that points into attr_malloc,
 	 * instead building our own at resolve time */
-	free(command->attr);
+	if (command->numattr)
+		free(command->attr);
 	osd_command_attr_free(command);
 }
 

@@ -37,67 +37,6 @@ struct command {
 	int senselen;
 };
 
-/*
- * Compare, and complain if iscsi did not deliver enough bytes to
- * satisfy the WRITE.  Don't check too hard that we use bytes from
- * the getlist, e.g., just that no coredump happens.
- */
-static int verify_enough_input_data(struct command *cmd, uint64_t cdblen)
-{
-	int ret = 0;
-
-	if (cdblen > cmd->inlen) {
-		osd_error("%s: supplied data %llu but cdb says %llu",
-			  __func__, llu(cmd->inlen), llu(cdblen));
-		ret = osd_error_bad_cdb(cmd->sense);
-	}
-	return ret;
-}
-
-/*
- * What's the total number of bytes this command might produce?
- */
-static int calc_max_out_len(struct command *cmd)
-{
-	uint64_t end = 0;
-
-	/* These commands return data. */
-	switch (cmd->action) {
-	case OSD_LIST:
-	case OSD_LIST_COLLECTION:
-	case OSD_READ:
-	case OSD_QUERY:
-		cmd->outlen = get_ntohll(&cmd->cdb[32]);
-		break;
-	case OSD_SET_MASTER_KEY:
-		cmd->outlen = get_ntohl(&cmd->cdb[36]);
-		break;
-	default:
-		cmd->outlen = 0;
-	}
-
-	/*
-	 * All commands might have getattr requests.  Add together
-	 * the result offset and the allocation length to get the
-	 * end of their write.
-	 */
-	cmd->retrieved_attr_off = 0;
-	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
-		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[60]);
-		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[56]);
-	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
-		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[64]);
-		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[60]);
-	} else {
-		return -1; /* TODO: proper error code */
-	}
-
-	if (end > cmd->outlen)
-		cmd->outlen = end;
-
-	return 0 /* TODO: proper error code */;
-}
-
 static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
 			 uint8_t isembedded, uint16_t numoid)
 {
@@ -775,6 +714,23 @@ static inline int std_get_set_attr(struct command *cmd, uint64_t pid,
 	return get_attributes(cmd, pid, oid, 1);
 }
 
+/*
+ * Compare, and complain if iscsi did not deliver enough bytes to
+ * satisfy the WRITE.  It could deliver more for padding, so don't
+ * check for exact.
+ */
+static int verify_enough_input_data(struct command *cmd, uint64_t cdblen)
+{
+	int ret = 0;
+
+	if (cdblen > cmd->inlen) {
+		osd_error("%s: supplied data %llu but cdb says %llu",
+			  __func__, llu(cmd->inlen), llu(cdblen));
+		ret = osd_error_bad_cdb(cmd->sense);
+	}
+	return ret;
+}
+
 static void exec_service_action(struct command *cmd)
 {
 	struct osd_device *osd = cmd->osd;
@@ -1010,10 +966,55 @@ static void exec_service_action(struct command *cmd)
 	cmd->senselen = ret;
 }
 
+/*
+ * What's the total number of bytes this command might produce?  Look
+ * only at the CDB parameters, not the iSCSI transport lengths.
+ */
+static int calc_max_out_len(struct command *cmd)
+{
+	uint64_t end = 0;
+
+	/* These commands return data. */
+	switch (cmd->action) {
+	case OSD_LIST:
+	case OSD_LIST_COLLECTION:
+	case OSD_READ:
+	case OSD_QUERY:
+		cmd->outlen = get_ntohll(&cmd->cdb[32]);
+		break;
+	case OSD_SET_MASTER_KEY:
+		cmd->outlen = get_ntohl(&cmd->cdb[36]);
+		break;
+	default:
+		cmd->outlen = 0;
+	}
+
+	/*
+	 * All commands might have getattr requests.  Add together
+	 * the result offset and the allocation length to get the
+	 * end of their write.
+	 */
+	cmd->retrieved_attr_off = 0;
+	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
+		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[60]);
+		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[56]);
+	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
+		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[64]);
+		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[60]);
+	} else {
+		return -1; /* TODO: proper error code */
+	}
+
+	if (end > cmd->outlen)
+		cmd->outlen = end;
+
+	return 0 /* TODO: proper error code */;
+}
 
 /*
- * uaddr: either input or output, depending on the cmd
- * uaddrlen: output var with number of valid bytes put in uaddr after a read
+ * Inputs are write data from client.  Output are for the read results that
+ * OSD will produce.  You can modify the data_out and data_out_len to return
+ * a new buffer, or short read result.
  */
 int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		      const uint8_t *data_in, uint64_t data_in_len,
@@ -1052,19 +1053,20 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	if (ret < 0)
 		goto out_cdb_err;
 
-	/* Allocate total possible output size. */
-	if (cmd.outlen) {
-		/* XXX: stgt will free the allocated bufs */
-		osd_debug("%s: outlen %llu, data_out_len %llu", __func__, 
-			  llu(cmd.outlen), llu(*data_out_len));
-		if(cmd.outlen < *data_out_len)
-			goto out_hw_err;
-		if (*data_out_len == 0)
+	osd_debug("%s: outlen %llu, data_out_len %llu", __func__, 
+		  llu(cmd.outlen), llu(*data_out_len));
+	if (*data_out != NULL) {
+		cmd.outdata = *data_out;  /* use buffer from iscsi */
+		/* verify sane initiator, but should give underflow insted */
+		if (cmd.outlen != *data_out_len)
+			goto out_cdb_err;
+	} else {
+		if (cmd.outlen) {
+			/* old way: malloc our own outbuf, iscsi will free it */
 			cmd.outdata = Malloc(cmd.outlen); 
-		else
-			cmd.outdata = *data_out;
-		if (!cmd.outdata)
-			goto out_hw_err;
+			if (!cmd.outdata)
+				goto out_hw_err;
+		}
 	}
 
 	exec_service_action(&cmd); /* run the command. */
@@ -1087,8 +1089,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	if (cmd.outlen > 0) {
 		assert(cmd.used_outlen <= cmd.outlen);
 		if (cmd.used_outlen > 0) {
-			if (*data_out_len == 0)
-				*data_out = cmd.outdata;
+			*data_out = cmd.outdata;
 			*data_out_len = cmd.used_outlen;
 		} else {
 			goto out_free_resource;
@@ -1115,9 +1116,9 @@ out_hw_err:
 	goto out_free_resource;
 
 out_free_resource:
-	if (*data_out_len == 0)
-		free(cmd.outdata);
-	*data_out_len = cmd.used_outlen; /* XXX: dirty hack */
+	if (cmd.outlen && *data_out == NULL)
+		free(cmd.outdata);  /* old way */
+	*data_out_len = 0;
 
 out:
 	if (cmd.senselen == 0) {

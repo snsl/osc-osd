@@ -12,17 +12,12 @@ typedef uint64_t usrobject_id_t;
 typedef uint64_t collection_id_t;
 typedef uint16_t num_of_usr_object_t;
 
-typedef uint32_t attr_pgnum_t;
-typedef uint32_t attr_num_t;
 typedef uint32_t attr_len_t;
 typedef uint32_t attr_off_t;
-typedef uint16_t attr_val_len_t;
 
 typedef uint32_t list_len_t;
 typedef uint32_t list_off_t;
 typedef uint32_t list_alloc_len_t;
-
-typedef uint64_t osd_size_t;
 
 typedef enum {
 	ROOT = 1,
@@ -39,10 +34,10 @@ typedef enum {
 	RESERVED_PG = 0xC0000000
 } attrpg_range_t;
 
-typedef struct attr_t {
-	attr_pgnum_t pgnum;
-	attr_num_t num;
-	attr_val_len_t len;
+typedef struct attr {
+	uint32_t pgnum;
+	uint32_t num;
+	uint16_t len;
 	void *val;
 } attr_t;
 typedef  attr_t list_entry_t;
@@ -52,7 +47,7 @@ typedef  attr_t list_entry_t;
 #define MAXNAMELEN (256UL)
 #define MAXROOTLEN (200UL)
 
-typedef struct osd_t {
+typedef struct osd {
 	char *root;
 	void *db;
 } osd_t;

@@ -13,24 +13,52 @@
 
 int osd_open(const char *root, osd_t *osd)
 {
-	int ret = 0;
-
-	/* test if root directory is present with perms */
-	ret = open(root, O_RDWR | O_CREAT | O_DIRECTORY, S_IRWXU | S_IRGRP);
-	if (ret == -1 && errno != EEXIST)
-		return -1;
-	else if ((ret == -1 && errno == EEXIST) || (ret != -1))
-		close(ret);
-
-	if (strlen(root) > MAXROOTLEN)
-		return -1;
+	int ret;
 	char dbname[MAXNAMELEN];
+	struct stat sb;
+
+	if (strlen(root) > MAXROOTLEN) {
+		ret = -ENAMETOOLONG;
+		goto out;
+	}
+
+	/* test if it exists and is a directory */
+	ret = stat(root, &sb);
+	if (ret == 0) {
+		if (!S_ISDIR(sb.st_mode)) {
+			fprintf(stderr, "%s: root %s not a directory\n",
+			        __func__, root);
+			ret = -ENOTDIR;
+			goto out;
+		}
+	} else {
+
+		if (errno != ENOENT) {
+			fprintf(stderr, "%s: stat root %s: %m\n",
+			        __func__, root);
+			ret = -ENOTDIR;
+			goto out;
+		}
+
+		/* if not, create it */
+		ret = mkdir(root, 0777);
+		if (ret < 0) {
+			fprintf(stderr, "%s: create root %s: %m\n",
+			        __func__, root);
+			goto out;
+		}
+	}
+
+	/* auto-creates db if necessary */
+	/* initializes osd->db */
 	sprintf(dbname, "%s/attr.db", root);
 	ret = attrdb_open(dbname, osd);
-	if (ret == -1)
-		return ret;
+	if (ret < 0)
+		goto out;
+
 	osd->root = strdup(root);
-	return 0;
+out:
+	return ret;
 }
 
 int osd_close(osd_t *osd)
@@ -42,7 +70,8 @@ int osd_close(osd_t *osd)
 	return ret;
 }
 
-int osd_format(osd_size_t cap)
+int osd_format(uint64_t cap)
 {
 	return 0;
 }
+

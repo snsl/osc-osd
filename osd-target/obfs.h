@@ -7,7 +7,7 @@ int osd_open(const char *root, osd_t *osd);
 
 int osd_close(osd_t *osd);
 
-int osd_format(osd_size_t cap);
+int osd_format(uint64_t cap);
 
 int osd_create(partition_id_t pid, usrobject_id_t uid, 
 	       num_of_usr_object_t num);
@@ -22,10 +22,10 @@ int osd_remove_partition(partition_id_t pid);
 
 int osd_remove_collection(partition_id_t pid, collection_id_t cid);
 
-int osd_get_attr_pg(attr_pgnum_t pg, attr_len_t alloc_len, 
+int osd_get_attr_pg(uint32_t pg, attr_len_t alloc_len, 
 		    attr_off_t ret_attr_off, void *dout_buf);
 
-int osd_set_attr(attr_pgnum_t pg, attr_num_t attr_num, attr_len_t attr_len,
+int osd_set_attr(uint32_t pg, uint32_t attr_num, attr_len_t attr_len,
 		 attr_off_t off, const void *din_buf);
 
 int osd_get_attr_list(list_len_t len, list_off_t off, 

@@ -134,8 +134,8 @@ int attrdb_drop_object_attr_tab(void *dbh, object_id_t id)
 	return 0;
 }
 
-int attrdb_set_attr(void *dbh, object_id_t id, attr_pgnum_t pg, 
-		    attr_num_t num, attr_val_len_t len, const void *val)
+int attrdb_set_attr(void *dbh, object_id_t id, uint32_t pg, 
+		    uint32_t num, uint16_t len, const void *val)
 {
 	int ret = 0;
 	char SQL[MAXSQLEN];
@@ -171,7 +171,7 @@ int attrdb_set_attr(void *dbh, object_id_t id, attr_pgnum_t pg,
 	return 0;
 }
 
-static int attrdb_gather_attr(sqlite3_stmt *stmt, attr_val_len_t len, 
+static int attrdb_gather_attr(sqlite3_stmt *stmt, uint16_t len, 
 			      void *outbuf)
 {
 	list_entry_t *ent = (list_entry_t *)outbuf;
@@ -189,8 +189,8 @@ static int attrdb_gather_attr(sqlite3_stmt *stmt, attr_val_len_t len,
 	return 0;
 }
 
-int attrdb_get_attr(void *dbh, object_id_t id, attr_pgnum_t pg, 
-		    attr_num_t num, attr_val_len_t len, void *outbuf)
+int attrdb_get_attr(void *dbh, object_id_t id, uint32_t pg, 
+		    uint32_t num, uint16_t len, void *outbuf)
 {
 	int ret = 0;
 	char SQL[MAXSQLEN];
@@ -226,8 +226,8 @@ int attrdb_get_attr(void *dbh, object_id_t id, attr_pgnum_t pg,
 	return 0;
 }
 
-int attrdb_get_attr_page(void *dbh, object_id_t id, attr_pgnum_t pg, 
-			 attr_val_len_t len, void *outbuf)
+int attrdb_get_attr_page(void *dbh, object_id_t id, uint32_t pg, 
+			 uint16_t len, void *outbuf)
 {
 	int ret = 0;
 	int it_len = 0;

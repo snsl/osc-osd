@@ -26,8 +26,15 @@ all :: $(LIB) $(OBJ)
 $(LIB) : $(OBJ)
 	ar cr $@ $^
 
-%.o : %.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+$(OBJ): $(INC)
 
 clean:
 	rm -f $(LIB) $(OBJ)
+
+tags: FORCE
+	ctags $(SRC) $(INC)
+
+FORCE:;

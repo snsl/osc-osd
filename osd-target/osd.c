@@ -1681,7 +1681,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	/* XXX: dirty hack for truncate */
 	if (page == USER_INFO_PG && number == UIAP_LOGICAL_LEN) {
 		char path[MAXNAMELEN];
-		uint64_t len = ntohll_le((const uint8_t *)val);
+		uint64_t len = ntohll((const uint8_t *)val);
 		get_dfile_name(path, osd->root, pid, oid);
 		ret = truncate(path, len);
 		if (ret != 0)

@@ -23,9 +23,9 @@ void test_osd_set_attributes(struct osd_device *osd);
 void test_osd_format(struct osd_device *osd);
 void test_osd_read_write(struct osd_device *osd);
 void test_osd_create_partition(struct osd_device *osd);
-void test_osd_get_ccap(struct osd_device *osd, uint64_t pid, uint64_t oid);
-void test_osd_get_utsap(struct osd_device *osd);
 void test_osd_get_attributes(struct osd_device *osd);
+void test_osd_get_ccap(struct osd_device *osd);
+void test_osd_get_utsap(struct osd_device *osd);
 
 void test_osd_create(struct osd_device *osd)
 {
@@ -191,7 +191,7 @@ void test_osd_create_partition(struct osd_device *osd)
 	free(sense);
 }
 
-void test_osd_get_ccap(struct osd_device *osd, uint64_t pid, uint64_t oid)
+void test_osd_get_ccap(struct osd_device *osd)
 {
 	int ret = 0, i = 0;
 	void *sense = Calloc(1, 1024);
@@ -200,9 +200,15 @@ void test_osd_get_ccap(struct osd_device *osd, uint64_t pid, uint64_t oid)
 	uint32_t used_len = 0;
 	uint64_t len = 0;
 
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	assert(ret == 0);
+
 	len = 1024;
 	used_len = 0;
-	ret = osd_getattr_page(osd, pid, oid,
+	ret = osd_getattr_page(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
 			       CUR_CMD_ATTR_PG, val, len, TRUE, &used_len,
 			       sense);
 	assert(ret == 0);
@@ -214,9 +220,15 @@ void test_osd_get_ccap(struct osd_device *osd, uint64_t pid, uint64_t oid)
 	for (i = CCAP_RICV_OFF; i < CCAP_RICV_OFF + CCAP_RICV_LEN; i++)
 		assert(cp[i] == 0);
 	assert(cp[CCAP_OBJT_OFF] == USEROBJECT);
-	assert(ntohll_le(&cp[CCAP_PID_OFF]) == pid);
-	assert(ntohll_le(&cp[CCAP_OID_OFF]) == oid);
+	assert(ntohll_le(&cp[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
+	assert(ntohll_le(&cp[CCAP_OID_OFF]) == USEROBJECT_OID_LB);
 	assert(ntohll_le(&cp[CCAP_APPADDR_OFF]) == 0);
+
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
+	assert(ret == 0);
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
 
 	free(sense);
 	free(val);
@@ -237,6 +249,12 @@ void test_osd_get_utsap(struct osd_device *osd)
 	uint32_t used_getlen = 0;
 	uint64_t used_len = 0;
 	uint64_t len = 0;
+
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	assert(ret == 0);
 
 	sprintf(buf, "Hello World! Get life blah blah blah\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
@@ -274,6 +292,12 @@ void test_osd_get_utsap(struct osd_device *osd)
 	atime = ntoh_time(&cp[UTSAP_ATTR_ATIME_OFF]);
 	mtime = ntoh_time(&cp[UTSAP_ATTR_MTIME_OFF]);
 	assert(atime != 0 && mtime != 0 && mtime == atime);
+
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
+	assert(ret == 0);
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
 }
 
 void test_osd_get_attributes(struct osd_device *osd)
@@ -283,6 +307,7 @@ void test_osd_get_attributes(struct osd_device *osd)
 	uint64_t len = 0;
 	void *sense = Calloc(1, 1024);
 	void *val = Calloc(1, 1024);
+	void *getval = Calloc(1, 1024);
 	struct list_entry *le = NULL;
 
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
@@ -312,27 +337,45 @@ void test_osd_get_attributes(struct osd_device *osd)
 	len += (0x8 - (len & 0x7)) & 0x7;
 	assert(used_len == len);
 
-	/* run different get attr tests */
-	test_osd_get_ccap(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB); 
-	test_osd_get_utsap(osd);
-
 	/* write to the file and then truncate using setting logical len */
 	sprintf(val, "Hello World! Get life\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
 			strlen(val)+1, 0, val, sense);
 	assert(ret == 0);
 
-	set_htonll_le(val, 0);
+	len = 1024;
+	ret = osd_getattr_list(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			       USER_INFO_PG, UIAP_LOGICAL_LEN, getval, len,
+			       TRUE, RTRVD_SET_ATTR_LIST, &used_len, sense);
+	assert(ret == 0);
+	le = getval;
+	assert(ntohl_le((uint8_t *)&le->page) == USER_INFO_PG);
+	assert(ntohl_le((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
+	assert(ntohs_le((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
+	assert(ntohll_le((uint8_t *)le + LE_VAL_OFF) == strlen(val)+1);
+	len = LE_VAL_OFF + UIAP_LOGICAL_LEN_LEN;
+	len += (0x8 - (len & 0x7)) & 0x7;
+	assert(used_len == len);
+
+	set_htonll(val, 0);
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
 				 USER_INFO_PG, UIAP_LOGICAL_LEN, val, 8, TRUE,
 				 sense);
 	assert(ret == 0);
-/*
+
 	len = 1024;
 	ret = osd_getattr_list(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			       USER_INFO_PG, UIAP_LOGICAL_LEN, val, len, TRUE,
-			       RTRVD_SET_ATTR_LIST, &used_len, sense);
-*/
+			       USER_INFO_PG, UIAP_LOGICAL_LEN, getval, len,
+			       TRUE, RTRVD_SET_ATTR_LIST, &used_len, sense);
+	assert(ret == 0);
+	le = getval;
+	assert(ntohl_le((uint8_t *)&le->page) == USER_INFO_PG);
+	assert(ntohl_le((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
+	assert(ntohs_le((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
+	assert(ntohll_le((uint8_t *)le + LE_VAL_OFF) == 0);
+	len = LE_VAL_OFF + UIAP_LOGICAL_LEN_LEN;
+	len += (0x8 - (len & 0x7)) & 0x7;
+	assert(used_len == len);
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	assert(ret == 0);
@@ -359,6 +402,8 @@ int main()
 	test_osd_read_write(&osd);
 	test_osd_create_partition(&osd);
 	test_osd_get_attributes(&osd);
+	test_osd_get_ccap(&osd); 
+	test_osd_get_utsap(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

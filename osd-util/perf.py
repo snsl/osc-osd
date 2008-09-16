@@ -219,6 +219,9 @@ def buildfiles():
 	if options["osdtype"] != "none":
 	    print >>sys.stderr, "Option -mio only works in case \"-o none\"."
 	    sys.exit(1)
+	if options["mirror"] != "":
+	    print >>sys.stderr, "Option -mio is not for use with \"-mirror\"."
+	    sys.exit(1)
 
     # figure out how many nodes are needed for servers, rest will be clients
     if options["dirtype"] == "pvfs":
@@ -423,6 +426,13 @@ def buildfiles():
 #    print >>fd, "        Value 256"
 #    print >>fd, "    </Distribution>"
     print >>fd, "    FlowBufferSizeBytes 16777216"
+
+    # mark it as read-only, still allowing localhost to write
+    if options["mirror"] != "":
+	print >>fd, "    <ExportOptions>"
+	print >>fd, "        ReadOnly 10.0.0.0@8"
+	print >>fd, "    </ExportOptions>"
+
     print >>fd, "</Filesystem>"
 
     fd.close()

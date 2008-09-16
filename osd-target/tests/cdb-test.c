@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "util/osd-defs.h"
 #include "osd-types.h"
@@ -21,6 +22,7 @@
 void test_partition(struct osd_device *osd);
 void test_create(struct osd_device *osd);
 void test_list(struct osd_device *osd);
+void test_set_member_attributes(struct osd_device *osd);
 
 void test_partition(struct osd_device *osd) 
 {
@@ -996,8 +998,210 @@ void test_list(struct osd_device *osd)
 	/* execute list with attr, alloc length less than required */
 	test_oids_with_attr(osd, pid, getattr, 6, 680, 680, 784, 65546, 
 			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
+
+	/* clean up */
+	oid = USEROBJECT_OID_LB;
+	for (i=0; i<12; i++) {
+		if (i == 0 || i == 7)
+			continue;
+		ret = osd_command_set_remove(&cmd, pid, oid + i);
+		assert(ret == 0);
+		ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+					&data_out_len, sense_out,
+					&senselen_out);
+		assert(ret == 0);
+	}
+	cid = COLLECTION_OID_LB;
+	ret = osd_command_set_remove_collection(&cmd, pid, cid, 0);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	cid = COLLECTION_OID_LB + 7;
+	ret = osd_command_set_remove_collection(&cmd, pid, cid, 0);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	ret = osd_command_set_remove_partition(&cmd, pid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
 }
 
+static void test_attr_vals(uint8_t *cp, struct attribute_list *attrs, 
+			   size_t sz)
+{
+	size_t i = 0;
+	uint32_t page = 0;
+	uint32_t num = 0;
+	uint16_t len = 0;
+	uint32_t list_len = 0;
+
+	assert((cp[0] & 0x0F) == 0x9);
+	cp += 4;
+	list_len = ntohl(cp);
+	cp += 4;
+	while (list_len > 0) {
+		page = ntohl(cp);
+		cp += 4;
+		num = ntohl(cp);
+		cp += 4;
+		len = ntohs(cp);
+		cp += 2;
+		for (i = 0; i < sz; i++) {
+			if (!(attrs[i].page==page && attrs[i].number==num)) 
+				continue;
+
+			assert(len == attrs[i].len);
+			if (len == 8) {
+				assert(ntohll((uint8_t *)attrs[i].val) == 
+				       ntohll(cp));
+			} else {
+				assert(!memcmp(attrs[i].val, cp, len));
+			}
+			break;
+		}
+		assert(i < sz);
+		cp += len;
+		cp += (roundup8(2+len) - (2+len));
+		list_len -= roundup8(4+4+2+len);
+	}
+	assert(list_len == 0);
+}
+
+void test_set_member_attributes(struct osd_device *osd)
+{
+	struct osd_command cmd;
+	uint64_t pid = PARTITION_PID_LB;
+	uint64_t cid = COLLECTION_OID_LB;
+	uint64_t oid = 0; 
+	uint8_t *data_out;
+	uint32_t page = 0;
+	const void *data_in;
+	uint64_t data_out_len, data_in_len;
+	uint8_t sense_out[OSD_MAX_SENSE];
+	int senselen_out;
+	int i, ret;
+
+	/* create partition */
+	ret = osd_command_set_create_partition(&cmd, pid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* create collection */
+	ret = osd_command_set_create_collection(&cmd, pid, cid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* create 100 objects */
+	ret = osd_command_set_create(&cmd, pid, 0, 100);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	assert(osd->ccap.oid == (USEROBJECT_OID_LB + 100));
+
+	/* put odd objects into the collection */
+	oid = USEROBJECT_OID_LB + 1;
+	for (i = 0; i < 100; i += 2) {
+		uint64_t attrval;
+		struct attribute_list attr = {
+		    .type = ATTR_SET,
+		    .page = COLLECTIONS_PG,
+		    .number = 1,
+		    .len = sizeof(attrval),
+		    .val = &attrval,
+		};
+		set_htonll((uint8_t *) &attrval, cid);
+		ret = osd_command_set_set_attributes(&cmd, pid, oid + i);
+		assert(ret == 0);
+		ret = osd_command_attr_build(&cmd, &attr, 1);
+		assert(ret == 0);
+		ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen,
+					&data_out, &data_out_len,
+					sense_out, &senselen_out);
+		assert(ret == 0);
+		osd_command_attr_free(&cmd);
+	}
+
+	/* set attr on collection members */
+	uint64_t val1 = 123454321, val2 = 987654, val3 = 59999999;
+	char str1[MAXNAMELEN], str2[MAXNAMELEN], str3[MAXNAMELEN];
+	set_htonll((uint8_t *) &val1, val1);
+	set_htonll((uint8_t *) &val2, val2);
+	set_htonll((uint8_t *) &val3, val3);
+	sprintf(str1, "GoMtI");
+	sprintf(str2, "DeViL");
+	sprintf(str3, "homeopath");
+	page = USEROBJECT_PG + LUN_PG_LB;
+	struct attribute_list attrs[] = {
+		{ATTR_SET, page+1, 2, str1, strlen(str1)+1, 0},
+		{ATTR_SET, page+21, 4, &val1, sizeof(val1), 0},
+		{ATTR_SET, page+5, 55, &val2, sizeof(val2), 0},
+		{ATTR_SET, page+666, 66, str2, strlen(str2)+1, 0},
+		{ATTR_SET, page+10, 10, str3, strlen(str3)+1, 0},
+		{ATTR_SET, page+2, 3, &val3, sizeof(val3), 0},
+	};
+	ret = osd_command_set_set_member_attributes(&cmd, pid, cid);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, attrs, 6);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen, 
+				&data_out, &data_out_len, sense_out, 
+				&senselen_out);
+	assert(ret == 0);
+	osd_command_attr_free(&cmd);
+
+	/* randomly select 5 objects, get their attrs and test */
+	for (i = 0; i < 6; i++) {
+		attrs[i].type = ATTR_GET;
+	}
+	srand(time(0));
+	for (i = 0; i < 5; i++) {
+		int r = (int)(50.0 * (rand()/(RAND_MAX+1.0)));
+		oid = USEROBJECT_OID_LB + 1 + 2*r;
+		ret = osd_command_set_get_attributes(&cmd, pid, oid);
+		assert(ret == 0);
+		ret = osd_command_attr_build(&cmd, attrs, 6);
+		assert(ret == 0);
+		data_in = cmd.outdata;
+		data_in_len = cmd.outlen;
+		ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len,
+					&data_out, &data_out_len, sense_out,
+					&senselen_out);
+		assert(ret == 0);
+		test_attr_vals(data_out, attrs, 6);
+		osd_command_attr_free(&cmd);
+	}
+
+	/* clean up */
+	oid = USEROBJECT_OID_LB + 1;
+	for (i=0; i<100; i++) {
+		ret = osd_command_set_remove(&cmd, pid, oid + i);
+		assert(ret == 0);
+		ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+					&data_out_len, sense_out,
+					&senselen_out);
+		assert(ret == 0);
+	}
+	cid = COLLECTION_OID_LB;
+	ret = osd_command_set_remove_collection(&cmd, pid, cid, 0);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	ret = osd_command_set_remove_partition(&cmd, pid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+}
 
 int main()
 {
@@ -1012,7 +1216,8 @@ int main()
 	/* test_partition(&osd); */
 	/* test_create(&osd); */
 	/* test_query(&osd); */
-	test_list(&osd);
+	/* test_list(&osd); */
+	test_set_member_attributes(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

@@ -1045,6 +1045,95 @@ out:
 	return ret;
 }
 
+int attr_set_member_attrs(sqlite3 *db, uint64_t pid, uint64_t cid, 
+			  struct setattr_list *set_attr)
+{
+	int ret = 0;
+	int factor = 1;
+	uint32_t i = 0;
+	char *cp = NULL;
+	char *SQL = NULL;
+	size_t sqlen = 0;
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL || set_attr == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (set_attr->sz == 0) {
+		ret = 0;
+		goto out;
+	}
+
+	SQL = Malloc(MAXSQLEN*factor);
+	if (!SQL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	cp = SQL;
+	sqlen = 0;
+	sprintf(SQL, "INSERT OR REPLACE INTO attr ");
+	sqlen += strlen(SQL);
+	cp += sqlen;
+	
+	for (i = 0; i < set_attr->sz; i++) {
+		sprintf(cp, " SELECT %llu, oid, %u, %u, ? FROM "
+			" object_collection WHERE cid = %llu ", llu(pid), 
+			set_attr->le[i].page, set_attr->le[i].number, 
+			llu(cid));
+		if (i < (set_attr->sz - 1))
+			strcat(cp, " UNION ALL ");
+		sqlen += strlen(cp);
+		if (sqlen > (MAXSQLEN*factor - 100)) {
+			factor *= 2;
+			SQL = realloc(SQL, MAXSQLEN*factor);
+			if (!SQL) {
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+		cp = SQL + sqlen;
+	}
+	strcat(cp, " ;");
+
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: sqlite3_prepare", __func__);
+		goto out;
+	}
+
+	/* bind values */
+	for (i = 0; i < set_attr->sz; i++) {
+		ret = sqlite3_bind_blob(stmt, i+1, set_attr->le[i].cval, 
+					set_attr->le[i].len,
+					SQLITE_TRANSIENT);
+		if (ret != SQLITE_OK) {
+			error_sql(db, "%s: blob @ %u", __func__, i+1);
+			goto out_finalize;
+		}
+	}
+
+	/* execute the statement */
+	while ((ret = sqlite3_step(stmt)) == SQLITE_BUSY);
+	if (ret != SQLITE_DONE) {
+		error_sql(db, "%s: sqlite3_step", __func__);
+		ret = -EIO;
+		goto out_finalize;
+	}
+	ret = 0;
+
+out_finalize:
+	if (sqlite3_finalize(stmt) != SQLITE_OK)
+		error_sql(db, "%s: finalize", __func__);
+
+out:
+	free(SQL);
+	return ret;
+}
+
+
 int attr_get_attr_value(sqlite3 *db, uint64_t pid, uint64_t oid, 
 			uint32_t page, uint32_t number, void *outdata, 
 			uint16_t len)

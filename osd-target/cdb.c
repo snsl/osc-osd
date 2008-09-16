@@ -628,9 +628,11 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 		goto out_param_list_err;
 
 	if (list_len > 0) {
-		/* This malloc provides for the maximum number of attrs,
+		/* 
+		 * This malloc provides for the maximum number of attrs,
 		 * but it can be much smaller if the attrs have any
-		 * values. */
+		 * values. 
+		 */ 
 		cmd->set_attr.sz = list_len/10;
 		cmd->set_attr.le = Malloc(cmd->set_attr.sz *
 					  sizeof(*(cmd->set_attr.le)));
@@ -747,6 +749,15 @@ static int cdb_set_member_attributes(struct command *cmd)
 
 	ret = osd_set_member_attributes(cmd->osd, pid, cid, &cmd->set_attr, 
 					cmd->sense);
+	if (ret)
+		return ret;
+
+	/* 
+	 * TODO: currently not setting any attributes in collection. Also not
+	 * getting any attributes, either for the collection or for the
+	 * objects within collection
+	 */
+	return 0;
 
 out_cdb_err:
 	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,

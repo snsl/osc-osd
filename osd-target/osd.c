@@ -1673,7 +1673,7 @@ static int parse_query_criteria(const uint8_t *cp, uint32_t qll,
 	qc->qc_cnt = 0;
 	cp += 4;
 	qll -= 4; /* remove query list header */
-	while (qll) {
+	while (qll > 0) {
 		qc->qce_len[qc->qc_cnt] = ntohs(&cp[2]);
 		if (qc->qce_len[qc->qc_cnt] == MINQCELEN)
 			break; /* qce is empty */
@@ -1685,12 +1685,12 @@ static int parse_query_criteria(const uint8_t *cp, uint32_t qll,
 		qc->number[qc->qc_cnt] = ntohl(&cp[8]);
 		qc->min_len[qc->qc_cnt] = ntohs(&cp[12]);
 		qc->min_val[qc->qc_cnt] = &cp[14];
-		cp += 14 + qc->min_len[qc->qc_cnt];
-		qll -= 14 + qc->min_len[qc->qc_cnt];
+		cp += (14 + qc->min_len[qc->qc_cnt]);
+		qll -= (14 + qc->min_len[qc->qc_cnt]);
 		qc->max_len[qc->qc_cnt] = ntohs(&cp[0]);
 		qc->max_val[qc->qc_cnt] = &cp[2];
-		cp += 2 + qc->max_len[qc->qc_cnt];
-		qll -= 2 + qc->max_len[qc->qc_cnt];
+		cp += (2 + qc->max_len[qc->qc_cnt]);
+		qll -= (2 + qc->max_len[qc->qc_cnt]);
 		qc->qc_cnt++;
 
 		if (qc->qc_cnt == qc->qc_cnt_limit) {
@@ -1852,6 +1852,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	/* XXX: invalidate ic_cache immediately */
 	osd->ic.cur_pid = osd->ic.next_id = 0;
 
+	/* if userobject is absent unlink will fail */
 	get_dfile_name(path, osd->root, pid, oid);
 	ret = unlink(path);
 	if (ret != 0)
@@ -1907,10 +1908,8 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	if (cid < COLLECTION_OID_LB)
 		goto out_cdb_err;
 
-	/* make sure partition and collection are present */
-	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
-		goto out_cdb_err;
-	if (obj_ispresent(osd->db, pid, cid) == 0)
+	/* make sure collection object is present */
+	if (!obj_ispresent(osd->db, pid, cid))
 		goto out_cdb_err;
 
 	/* XXX: invalidate ic_cache */
@@ -2162,11 +2161,22 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 	 * collection
 	 */
 	for (i = 0; i < set_attr->sz; i++) {
-		if (issettable_page(USEROBJECT, set_attr->le[i].page) == FALSE)
+		if (!issettable_page(USEROBJECT, set_attr->le[i].page))
 			goto out_param_list;
-
 	}
 	
+	ret = attr_set_member_attrs(osd->db, pid, cid, set_attr);
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	return ret;
+
 out_param_list:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_PARAM_LIST, pid, cid);

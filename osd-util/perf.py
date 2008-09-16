@@ -10,12 +10,12 @@
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -47,7 +47,7 @@ id = pwd.getpwuid(os.getuid())[0]
 if id == "pw":
     osd_dir = "/home/pw/src/osd"
 elif id == "dennis":
-	osd_dir = "/home/dennis/Projects/OSD/osd"
+    osd_dir = "/home/dennis/Projects/OSD/osd"
 elif id == "alin":
     osd_dir = "/home/alin/research/osd"
 elif id == "ananth":
@@ -634,16 +634,16 @@ def start():
     # this script runs must be one of the compnodes so it can talk to
     # all the OSDs with iscsi.  (Or could rsh to one.)
     for n in osdnodes:
-	if datahandles.has_key(n): 
-	    d = datahandles[n][0] 
-	else: 
+	if datahandles.has_key(n):
+	    d = datahandles[n][0]
+	else:
 	    d = 0
-	if metahandles.has_key(n): 
-	    m = metahandles[n][0] 
-	else: 
+	if metahandles.has_key(n):
+	    m = metahandles[n][0]
+	else:
 	    m = 0
-	if m == roothandle: 
-   	    s = " " + str(m) + " " + fsconf 
+	if m == roothandle:
+   	    s = " " + str(m) + " " + fsconf
 	else:
 	    s = " "
 	#print pvfs_init + " " + n + " " + str(d) + " " + str(m) + s

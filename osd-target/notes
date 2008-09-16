@@ -1,0 +1,79 @@
+#vim : ft=cfg
+
+IMPORTANT
+append
+create
+create and write
+create collection
+create partition
+read
+read buffer
+write
+write buffer
+list
+list collection
+format osd
+get attributes
+set attributes
+remove
+remove collection
+remove partition
+report luns
+set key
+set master key
+
+inquiry
+flush
+flush collection
+flush osd
+flush partition
+receive diagnostic results
+report supported operation codes
+
+
+OPTIONAL
+log select
+log sense
+mode select
+mode sense
+perform scsi command
+perform task management function
+persistent reserve in
+persistent reserve out
+prevent allow medium removal
+report supported task management functions
+report target port groups
+request sense
+send diagnostic
+set target port groups
+test unit ready
+
+
+========================================
+root object
+	partition
+		collection
+		object
+		or any osd object type
+
+
+questions:
+-	how to create osd? flat file? what will be blocks?
+-	how is collection populated?
+-	where will be attributes stored for an object?
+-	
+
+design:
+root directory for the root object
+each partition is a directory within the root directory
+objects are stored within the partition
+collection objects are stored within the directory
+
+# Wed Dec  6 11:54:17 EST 2006
+What is the meaning of the following (p21):
+
+With the exception of attributes pages in the attributes page number range
+assigned to any OSD object types, the same attributes page shall not be
+associated with more than one OSD object type.
+Two object types cannot share same page number but two objects can.
+

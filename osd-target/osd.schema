@@ -35,6 +35,7 @@ CREATE TABLE object_collection (
 -- CREATE INDEX obj_ind ON obj (pid,oid);
 -- CREATE INDEX attr_ind ON attr (pid,oid,page,number);
 -- CREATE INDEX pgnum_ind ON attr (page,number);
+-- CREATE INDEX type_ind ON obj (type);
 
 -- index on value helps OSD_QUERY 
 CREATE INDEX val_ind ON attr (value);

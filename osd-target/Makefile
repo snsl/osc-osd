@@ -38,7 +38,7 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../osd-util
 
 .SUFFIXES: .c .o .i
 
-all :: tgtd
+all :: $(OSDTARGETLIB)
 
 # Need -whole-archive this to get the constructors for the various device
 # types.  Another way would be to force a ref to an object in the file
@@ -77,11 +77,20 @@ $(DEP) : osd-schema.c
 	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > $(DEP)
 
 clean:
-	make -C $(UTILDIR) clean
 	rm -f tgtd $(OSDTARGETLIB) $(OBJ) $(DEP) osd-schema.c
-	make -C $(TESTDIR) clean
 
 tags: FORCE osd-schema.c
 	ctags -R $(SRC) $(INC) $(TESTDIR) $(UTILDIR) $(INITDIR) osd-schema.c
 
 FORCE:;
+
+# distribution tarball
+.PHONY: dist
+MV := osd-target-$(shell date +%Y%m%d)
+dist:
+	rm -rf $(MV)
+	mkdir $(MV)
+	svn list -R | grep -v '/$$' | rsync --files-from=/dev/stdin ./ $(MV)/
+	tar cf - $(MV) | bzip2 -9c > $(MV).tar.bz2
+	rm -rf $(MV)
+

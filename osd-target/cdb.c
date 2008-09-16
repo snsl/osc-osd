@@ -29,20 +29,27 @@ static int verify_enough_input_data(uint64_t datalen, uint64_t cdblen,
 	return ret;
 }
 
-uint16_t get_list_item(uint8_t list, int num)
+static uint16_t get_list_item(uint8_t *list, int num)
 {
-	return ( ntohl( &list[3+(num*2)] ) );
+	return ntohl(&list[3 + num*2]);
 }
 
-int get_attributes(struct osd_device *osd, uint8_t *cdb,
-                   uint8_t *data_in, uint64_t data_in_len,
-		   uint8_t **data_out, uint64_t *data_out_len,
-		   uint8_t **sense_out, uint8_t *senselen_out, uint8_t cdbfmt)
+/*
+ * Return 0 if all okay.  Return >0 if some sense data was created,
+ * this is the length of the sense data.  The input sense buffer is
+ * known to be sized large enough to hold anything (MAX_SENSE_LEN).
+ * Output data goes into data_out, and puts the length in data_out_len, up to
+ * the data_out_len_max.
+ */
+static int get_attributes(struct osd_device *osd, uint8_t *cdb,
+		          uint8_t *data_out, uint64_t *data_out_len,
+			  uint64_t data_out_len_max,
+		          uint8_t *sense, uint8_t cdbfmt)
 {	
 	int ret = 0;
 	uint64_t pid = ntohll(&cdb[16]);
 	uint64_t oid = ntohll(&cdb[24]);
-		
+
 	/* if =2, get an attribute page and set an attribute value */
 	if( cdbfmt==2 )
 	{
@@ -60,7 +67,7 @@ int get_attributes(struct osd_device *osd, uint8_t *cdb,
 		       		foo_out_len, 1, sense);
 			/*XXX: Check for errors/sense */
 
-			&data_out_len = foo_out_len;
+			*data_out_len = foo_out_len;
 		}
 	}
 	/* else if =3, get attributes using lists */
@@ -74,12 +81,12 @@ int get_attributes(struct osd_device *osd, uint8_t *cdb,
 			uint32_t get_allocation_len = ntohl(&cdb[60]);
 			uint32_t retrieved_attr_offset = ntohl(&cdb[64]);
 
-			int tmp = 0;
+			uint32_t tmp = 0;
 			uint16_t list_item;
 	
 			for( tmp=0; tmp<get_list_len; tmp++ )
 			{
-				list_item = get_list_item(data_in, tmp);
+				list_item = get_list_item(data_out, tmp);
 				/*XXX: get list item attr */
 				/*XXX: Check for errors/sense */
 			}
@@ -96,10 +103,9 @@ int get_attributes(struct osd_device *osd, uint8_t *cdb,
 	return ret;
 }
 
-int set_attributes(struct osd_device *osd, uint8_t *cdb,
-                   uint8_t *data_in, uint64_t data_in_len,
-		   uint8_t **data_out, uint64_t *data_out_len,
-		   uint8_t **sense_out, uint8_t *senselen_out)
+static int set_attributes(struct osd_device *osd, uint8_t *cdb,
+                          uint8_t *data_in, uint64_t data_in_len,
+		          uint8_t *sense, uint8_t cdbfmt)
 {
 	int ret = 0;
 	uint64_t pid = ntohll(&cdb[16]);
@@ -116,8 +122,8 @@ int set_attributes(struct osd_device *osd, uint8_t *cdb,
 			uint32_t set_offset = ntohl(&cdb[76]);
 			
 			ret = osd_set_attributes(osd, pid, oid,
-                      	 	set_page, set_num, &dataout[set_offset],
-		       		set_len, sense)
+                      	 	set_page, set_num, &data_in[set_offset],
+		       		set_len, sense);
 			/*XXX: Check for errors/sense */
 		}
 	}
@@ -131,10 +137,10 @@ int set_attributes(struct osd_device *osd, uint8_t *cdb,
 
 			uint32_t set_list_offset = ntohl(&cdb[72]);
 			
-			int tmp = 0;
+			uint32_t tmp;
 			uint16_t list_item;
 	
-			for( tmp=0; tmp<get_list_len; tmp++ )
+			for( tmp=0; tmp<set_list_len; tmp++ )
 			{
 				list_item = get_list_item(data_in, tmp);
 				/*XXX - set list item attr */
@@ -149,6 +155,7 @@ int set_attributes(struct osd_device *osd, uint8_t *cdb,
 			__func__, cdbfmt);
 		ret = osd_error_bad_cdb(sense);
 	}
+	return ret;
 } 
 
 /*
@@ -171,29 +178,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 
 	switch (action) {
 	case OSD_APPEND: {
-		uint64_t pid = ntohll(&c		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
-		
-		/* if =2, get an attribute page and set an attribute value */
-		if( cdbfmt==2 ){
-			
-			uint32_t page = ntohl(&cdb[52]);
-		
-			/* if page = 0, no attributes are to be gotten */
-			if( page != 0){
-				/* XXX: what are these?
-				uint32_t number = 0;
-				void *outbuf = NULL;
-				uint16_t len = 0;
-				int getpage = 0;*/
-
-				uint32_t get_alloc_len = ntohl(&cdb[56]);
-				uint32_t retrived_attr_offset = ntohl(&cdb[60]);
-
-				/*ret = osd_get_attributes(osd, pid, oid, page, 
-					number, outbuf, len, getpage, sense); */
-			    /* XXX: need to get attributes page*/
-			}db[16]);
+		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
 		ret = verify_enough_input_data(data_in_len, len, sense);
@@ -266,10 +251,18 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 
-		// ret = get_attributes();
+		// malloc(dataout) first based on passed-in expected length
+		// from user, pass this to the functions
+		//
+		// dataout = malloc(expected_from_initiator);
+		// ret = get_attributes(..., dataout, data_out_len, sense);
 		// Check for errors, return debug/sense
+		//
 		// ret = set_attributes();
 		// Check for errors, return debug/sense
+		//
+		// return this new array to initiator
+		// *data_out = dataout;
 		
 		
 		

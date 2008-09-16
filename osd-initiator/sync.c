@@ -416,7 +416,7 @@ int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	}
 	size = get_ntohll(command.attr[0].val);
 
-	osd_debug("Object Data Size is %llu\n", llu(size));
+	osd_debug("Object Data Size is now %llu", llu(size));
 
 	osd_command_attr_free(&command);
 

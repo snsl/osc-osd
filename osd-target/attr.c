@@ -837,7 +837,6 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 			 * the objects from the collection, once they are
 			 * selected
 			 */
-			osd_debug("%llx", sqlite3_column_int64(stmt, 0));
 			set_htonll(p, sqlite3_column_int64(stmt, 0));
 			*used_outlen += 8;
 		}

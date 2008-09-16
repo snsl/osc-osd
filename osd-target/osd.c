@@ -2029,8 +2029,8 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint8_t obj_type = 0;
 
-	osd_debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid),
-		  llu(oid));
+/*	osd_debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid),
+		  llu(oid)); */
 
 	if (obj_ispresent(osd->db, pid, oid) == 0) /* object not present! */
 		goto out_cdb_err;

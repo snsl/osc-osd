@@ -1600,6 +1600,44 @@ mutiplex_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 
 /*
+ * Treatment of undefined attributes: Sec 7.1.3.1. The ver 2 draft changed
+ * the semantics of handling undefined attributed from ver 1. Instead of
+ * sending null attributes entry, list entry with attribute length 0 is sent
+ * (Sec 7.1.1). If attr page is undefined then null attributes page is
+ * returned (7.1.2.25)
+ *
+ * XXX:SD There is ambiguity wrt actions taken for "undefined page".  If the
+ * "undefined page" means a page with no defined attributes, then a get all
+ * attr on that page can either send a null attributes page (7.1.2.25) or one
+ * can send list with list length 0 (7.1.3.1). We choose the latter option.
+ *
+ * XXX:SD Since we don't give names to pages when the pages are created
+ * (doing so would increase complexity of set attr), when all attributes of a
+ * page is requested we don't have attr num 0, which defines name of the
+ * page. However, if the user has explicitly defined the name of the page,
+ * then it would be returned if all the attributes of the page are requested.
+ */
+static int fill_null_attr(struct osd_device *osd, uint64_t pid, uint64_t oid,
+			  uint32_t page, uint32_t number, uint8_t *outbuf,
+			  uint32_t outlen, uint8_t listfmt)
+{
+	int ret;
+
+	if (page != GETALLATTR_PG && number != ATTRNUM_GETALL) {
+		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
+						    page, number, 0, NULL);
+		else
+			ret = le_pack_attr(outbuf, outlen, page, number, 0,
+					   NULL);
+	} else {
+		ret = 0;
+	}
+
+	return ret;
+}
+
+/*
  * returns:
  * == OSD_OK: success, used_outlen modified
  *  >0: failed, sense set accordingly
@@ -1650,37 +1688,8 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_param_list;
 
 	if (ret == -ENOENT) {
-		/*
-		 * Treatment of undefined attributes: Sec 7.1.3.1. The ver 2
-		 * draft changed the semantics of handling undefined
-		 * attributed from ver 1. Instead of sending null attributes
-		 * entry, list entry with attribute length 0 is sent (Sec
-		 * 7.1.1). If attr page is undefined then null attributes
-		 * page is returned (7.1.2.25)
-		 *
-		 * XXX:SD There is ambiguity wrt actions taken for "undefined
-		 * page".  If the "undefined page" means a page with no
-		 * defined attributes, then a get all attr on that page can
-		 * either send a null attributes page (7.1.2.25) or one can
-		 * send list with list length 0 (7.1.3.1). We choose the
-		 * latter option.
-		 *
-		 * XXX:SD Since we don't give names to pages when the pages
-		 * are created (doing so would increase complexity of set
-		 * attr), when all attributes of a page is requested we don't
-		 * have attr num 0, which defines name of the page. However,
-		 * if the user has explicitly defined the name of the page,
-		 * then it would be returned if all the attributes of the
-		 * page are requested.
-		 */
-
-		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
-			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
-						    page, number, 0, NULL);
-		else
-			ret = le_pack_attr(outbuf, outlen, page, number, 0,
-					   NULL);
-
+		ret = fill_null_attr(osd, pid, oid, page, number, outbuf,
+				     outlen, listfmt);
 		assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
 		if (ret == -EOVERFLOW)
 			*used_outlen = 0; /* not an error, Sec 5.2.2.2 */

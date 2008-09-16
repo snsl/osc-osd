@@ -17,6 +17,7 @@ int main()
 		return ret;
 	void *dbh = osd.db;
 
+	ret = attrdb_creat_object_attr_tab(dbh, 1, USEROBJECT);
 	if (ret != 0)
 		return ret;
 

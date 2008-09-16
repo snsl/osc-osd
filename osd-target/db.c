@@ -118,9 +118,7 @@ int db_open(const char *path, struct osd_device *osd)
 	}
 
 	/* initialize dbc fields */
-	ret = 0;
-	ret |= coll_initialize(osd->dbc);
-	ret |= obj_initialize(osd->dbc);
+	ret = db_initialize(osd->dbc);
 	if (ret != OSD_OK) {
 		ret = OSD_ERROR;
 		goto out;
@@ -138,22 +136,50 @@ int db_close(struct db_context *dbc)
 {
 	int ret = 0;
 
-	if (dbc == NULL)
-		return -EINVAL;
-
-	ret = 0;
-	ret |= coll_finalize(dbc);
-	ret |= obj_finalize(dbc);
+	ret = db_finalize(dbc);
 	if (ret != OSD_OK)
-		return OSD_ERROR;
-
+		return ret;
 	ret = sqlite3_close(dbc->db);
 	if (ret != SQLITE_OK) {
 		osd_error("Failed to close db %s", sqlite3_errmsg(dbc->db));
 		return ret;
 	}
 
-	return SQLITE_OK;
+	return OSD_OK;
+}
+
+
+int db_initialize(struct db_context *dbc)
+{
+	int ret = 0;
+
+	if (dbc == NULL)
+		return -EINVAL;
+
+	ret = coll_initialize(dbc);
+	if (ret != OSD_OK)
+		return ret;
+	ret = obj_initialize(dbc);
+	if (ret != OSD_OK)
+		return ret;
+	return OSD_OK;
+}
+
+
+int db_finalize(struct db_context *dbc)
+{
+	int ret = 0;
+
+	if (dbc == NULL)
+		return -EINVAL;
+
+	ret |= coll_finalize(dbc);
+	if (ret != OSD_OK)
+		return ret;
+	ret |= obj_finalize(dbc);
+	if (ret != OSD_OK)
+		return ret;
+	return OSD_OK;
 }
 
 
@@ -268,5 +294,84 @@ error_sql(sqlite3 *db, const char *fmt, ...)
     vfprintf(stderr, fmt, ap);
     va_end(ap);
     fprintf(stderr, ": %s.\n", sqlite3_errmsg(db));
+}
+
+
+/*
+ * exec_dms: executes prior prepared and bound data manipulation statement.
+ * Only SQL statements with 'insert' or 'delete' may call this helper
+ * function.
+ *
+ * returns:
+ * OSD_ERROR: in case of error
+ * OSD_OK: on success
+ * OSD_REPEAT: in case of sqlite_schema error, statements are prepared again,
+ * 	hence values need to be bound again.
+ */
+int db_exec_dms(struct db_context *dbc, sqlite3_stmt *stmt, int ret, 
+		const char *func)
+{
+	if (ret != SQLITE_OK) {
+		error_sql(dbc->db, "%s: bind failed", func);
+		goto out_reset;
+	}
+
+	while ((ret = sqlite3_step(stmt)) == SQLITE_BUSY);
+
+out_reset:
+	return db_reset_stmt(dbc, stmt, func);
+}
+
+
+/*
+ * this function executes id retrieval statement. Only the functions
+ * retireiving a list of oids, cids or pids may use this function
+ *
+ * returns:
+ * OSD_ERROR: in case of any error
+ * OSD_OK: on success
+ * OSD_REPEAT: in case of sqlite_schema error, statements are prepared again,
+ * 	hence values need to be bound again.
+ */
+int db_exec_id_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt, 
+			  int ret, const char *func, uint64_t alloc_len, 
+			  uint8_t *outdata, uint64_t *used_outlen, 
+			  uint64_t *add_len, uint64_t *cont_id)
+{
+	uint64_t len = 0;
+
+	if (ret != SQLITE_OK) {
+		error_sql(dbc->db, "%s: bind failed", func);
+		goto out_reset;
+	}
+
+	len = 0;
+	*add_len = 0;
+	*cont_id = 0;
+	*used_outlen = 0;
+	while (1) {
+		ret = sqlite3_step(stmt);
+		if (ret == SQLITE_ROW) {
+			if ((alloc_len - len) >= 8) {
+				set_htonll(outdata, 
+					   sqlite3_column_int64(stmt, 0));
+				outdata += 8;
+				len += 8;
+			} else if (*cont_id == 0) {
+				*cont_id = sqlite3_column_int64(stmt, 0);
+			}
+			*add_len += 8;
+		} else if (ret == SQLITE_BUSY) {
+			continue;
+		} else {
+			break;
+		}
+	}
+
+out_reset:
+	ret = db_reset_stmt(dbc, stmt, func);
+	if (ret == OSD_OK)
+		*used_outlen = len;
+	return ret;
 }
 

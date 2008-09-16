@@ -31,17 +31,6 @@ struct coll_tab {
 	sqlite3_stmt *getoids;  /* get objects in a collection */
 };
 
-static void sqfinalize(sqlite3 *db, sqlite3_stmt *stmt, const char *SQL)
-{
-	int ret = 0;
-
-	if (SQL[0] != '\0')
-		error_sql(db, "prepare of %s failed", SQL);
-	
-	ret = sqlite3_finalize(stmt);
-	if (ret != SQLITE_OK)
-		error_sql(db, "%s: insert finalize failed", __func__);
-}
 
 /*
  * returns:
@@ -127,25 +116,25 @@ int coll_initialize(struct db_context *dbc)
 	goto out;
 
 out_finalize_getoids:
-	sqfinalize(dbc->db, dbc->coll->getoids, SQL);
+	db_sqfinalize(dbc->db, dbc->coll->getoids, SQL);
 	SQL[0] = '\0';
 out_finalize_getcid:
-	sqfinalize(dbc->db, dbc->coll->getcid, SQL);
+	db_sqfinalize(dbc->db, dbc->coll->getcid, SQL);
 	SQL[0] = '\0';
 out_finalize_emptycid:
-	sqfinalize(dbc->db, dbc->coll->emptycid, SQL);
+	db_sqfinalize(dbc->db, dbc->coll->emptycid, SQL);
 	SQL[0] = '\0';
 out_finalize_deloid:
-	sqfinalize(dbc->db, dbc->coll->deloid, SQL);
+	db_sqfinalize(dbc->db, dbc->coll->deloid, SQL);
 	SQL[0] = '\0';
 out_finalize_delcid:
-	sqfinalize(dbc->db, dbc->coll->delcid, SQL);
+	db_sqfinalize(dbc->db, dbc->coll->delcid, SQL);
 	SQL[0] = '\0';
 out_finalize_delete:
-	sqfinalize(dbc->db, dbc->coll->delete, SQL);
+	db_sqfinalize(dbc->db, dbc->coll->delete, SQL);
 	SQL[0] = '\0';
 out_finalize_insert:
-	sqfinalize(dbc->db, dbc->coll->insert, SQL);
+	db_sqfinalize(dbc->db, dbc->coll->insert, SQL);
 	ret = -EIO;
 out:
 	return ret;
@@ -180,44 +169,6 @@ const char *coll_getname(struct db_context *dbc)
 	return dbc->coll->name;
 }
 
-/*
- * exec_dms: executes prior prepared and bound data manipulation statement.
- * Only SQL statements with 'insert' or 'delete' may call this helper
- * function.
- *
- * returns:
- * OSD_ERROR: in case of error
- * OSD_OK: on success
- * OSD_REPEAT: in case of sqlite_schema error, statements are prepared again,
- * 	hence values need to be bound again.
- */
-static int exec_dms(struct db_context *dbc, sqlite3_stmt *stmt, int ret, 
-		    const char *func)
-{
-	if (ret != SQLITE_OK) {
-		error_sql(dbc->db, "%s: bind failed", func);
-		goto out_reset;
-	}
-
-	while ((ret = sqlite3_step(stmt)) == SQLITE_BUSY);
-	if (ret != SQLITE_DONE) {
-		error_sql(dbc->db, "%s: exec failed", func);
-	}
-
-out_reset:
-	ret = sqlite3_reset(stmt);
-	if (ret == SQLITE_OK) {
-		return OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		if (coll_finalize(dbc) != OSD_OK)
-			return OSD_ERROR;
-		if (coll_initialize(dbc) != OSD_OK)
-			return OSD_ERROR;
-		return OSD_REPEAT;
-	} else {
-		return OSD_ERROR;
-	}
-}
 
 /* 
  * @pid: partition id 
@@ -244,7 +195,7 @@ repeat:
 	ret |= sqlite3_bind_int64(dbc->coll->insert, 2, cid);
 	ret |= sqlite3_bind_int64(dbc->coll->insert, 3, oid);
 	ret |= sqlite3_bind_int(dbc->coll->insert, 4, number);
-	ret = exec_dms(dbc, dbc->coll->insert, ret, __func__);
+	ret = db_exec_dms(dbc, dbc->coll->insert, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -271,7 +222,7 @@ repeat:
 	ret |= sqlite3_bind_int64(dbc->coll->delete, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->coll->delete, 2, cid);
 	ret |= sqlite3_bind_int64(dbc->coll->delete, 3, oid);
-	ret = exec_dms(dbc, dbc->coll->delete, ret, __func__);
+	ret = db_exec_dms(dbc, dbc->coll->delete, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -296,7 +247,7 @@ repeat:
 	ret = 0;
 	ret |= sqlite3_bind_int64(dbc->coll->delcid, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->coll->delcid, 2, cid);
-	ret = exec_dms(dbc, dbc->coll->delcid, ret, __func__);
+	ret = db_exec_dms(dbc, dbc->coll->delcid, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -321,12 +272,13 @@ repeat:
 	ret = 0;
 	ret |= sqlite3_bind_int64(dbc->coll->deloid, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->coll->deloid, 2, oid);
-	ret = exec_dms(dbc, dbc->coll->deloid, ret, __func__);
+	ret = db_exec_dms(dbc, dbc->coll->deloid, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
 	return ret;
 }
+
 
 /*
  * tests whether collection is empty. 
@@ -359,26 +311,13 @@ repeat:
 	}
 
 	while ((ret = sqlite3_step(dbc->coll->emptycid)) == SQLITE_BUSY);
-	if (ret == SQLITE_ROW) {
+	if (ret == SQLITE_ROW)
 		*isempty = (0 == sqlite3_column_int(dbc->coll->emptycid, 0));
-	} else {
-		error_sql(dbc->db, "%s: exec failed", __func__);
-	}
 
 out_reset:
-	ret = sqlite3_reset(dbc->coll->emptycid);
-	if (ret == SQLITE_OK) {
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		coll_finalize(dbc);
-		ret = coll_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
+	ret = db_reset_stmt(dbc, dbc->coll->emptycid, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 out:
 	return ret;
 }
@@ -409,38 +348,15 @@ repeat:
 	}
 
 	while ((ret = sqlite3_step(dbc->coll->getcid)) == SQLITE_BUSY);
-	if (ret == SQLITE_ROW) {
+	if (ret == SQLITE_ROW)
 		*cid = sqlite3_column_int64(dbc->coll->getcid, 0);
-	} else {
-		error_sql(dbc->db, "%s: exec failed", __func__);
-	}
 
 out_reset:
-	ret = sqlite3_reset(dbc->coll->getcid);
-	if (ret == SQLITE_OK) {
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		coll_finalize(dbc);
-		ret = coll_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
+	ret = db_reset_stmt(dbc, dbc->coll->getcid, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 out:
 	return ret;
-}
-
-/*
- * Collection Attributes Page (CAP) of a userobject stores its membership in 
- * collections osd2r01 Sec 7.1.2.19.
- */
-int coll_get_cap(sqlite3 *db, uint64_t pid, uint64_t oid, void *outbuf, 
-	       uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen)
-{
-	return -1;
 }
 
 
@@ -459,10 +375,8 @@ int coll_get_oids_in_cid(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	uint64_t len = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->getoids) {
-		ret = -EINVAL;
-		goto out;
-	}
+	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->getoids)
+		return -EINVAL;
 
 repeat:
 	ret = 0;
@@ -470,53 +384,22 @@ repeat:
 	ret |= sqlite3_bind_int64(stmt, 1, pid);
 	ret |= sqlite3_bind_int64(stmt, 2, cid);
 	ret |= sqlite3_bind_int64(stmt, 3, initial_oid);
-	if (ret != SQLITE_OK) {
-		error_sql(dbc->db, "%s: bind failed", __func__);
-		goto out_reset;
-	}
-	
-	len = 0;
-	*add_len = 0;
-	*cont_id = 0;
-	*used_outlen = 0;
-	while (1) {
-		ret = sqlite3_step(stmt);
-		if (ret == SQLITE_ROW) {
-			if ((alloc_len - len) >= 8) {
-				set_htonll(outdata, 
-					   sqlite3_column_int64(stmt, 0));
-				outdata += 8;
-				len += 8;
-			} else if (*cont_id == 0) {
-				*cont_id = sqlite3_column_int64(stmt, 0);
-			}
-			*add_len += 8;
-		} else if (ret == SQLITE_DONE) {
-			break;
-		} else if (ret == SQLITE_BUSY) {
-			continue;
-		} else {
-			error_sql(dbc->db, "%s: exec failed", __func__);
-			goto out_reset;
-		}
-	}
+	ret = db_exec_id_rtrvl_stmt(dbc, stmt, ret, __func__, alloc_len,
+				    outdata, used_outlen, add_len, cont_id);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 
-out_reset:
-	ret = sqlite3_reset(stmt);
-	if (ret == SQLITE_OK) {
-		*used_outlen = len;
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		coll_finalize(dbc);
-		ret = coll_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
-out:
 	return ret;
+}
+
+
+/*
+ * Collection Attributes Page (CAP) of a userobject stores its membership in 
+ * collections osd2r01 Sec 7.1.2.19.
+ */
+int coll_get_cap(sqlite3 *db, uint64_t pid, uint64_t oid, void *outbuf, 
+		 uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen)
+{
+	return OSD_ERROR;
 }
 

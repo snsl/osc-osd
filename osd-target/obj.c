@@ -11,9 +11,8 @@
 #include "obj.h"
 #include "db.h"
 
-/*
- * obj table tracks the presence of objects in the OSD
- */
+/* obj table tracks the presence of objects in the OSD */
+
 static const char *obj_tab_name = "obj";
 struct obj_tab {
 	char *name;             /* name of the table */
@@ -30,17 +29,6 @@ struct obj_tab {
 	sqlite3_stmt *getpids;  /* get pids in db */
 };
 
-static void sqfinalize(sqlite3 *db, sqlite3_stmt *stmt, const char *SQL)
-{
-	int ret = 0;
-
-	if (SQL[0] != '\0')
-		error_sql(db, "prepare of %s failed", SQL);
-	
-	ret = sqlite3_finalize(stmt);
-	if (ret != SQLITE_OK)
-		error_sql(db, "%s: finalize failed", __func__);
-}
 
 /*
  * returns:
@@ -148,37 +136,37 @@ int obj_initialize(struct db_context *dbc)
 	goto out;
 
 out_finalize_getpids:
-	sqfinalize(dbc->db, dbc->obj->getpids, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->getpids, SQL);
 	SQL[0] = '\0';
 out_finalize_getcids:
-	sqfinalize(dbc->db, dbc->obj->getcids, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->getcids, SQL);
 	SQL[0] = '\0';
 out_finalize_getoids:
-	sqfinalize(dbc->db, dbc->obj->getoids, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->getoids, SQL);
 	SQL[0] = '\0';
 out_finalize_gettype:
-	sqfinalize(dbc->db, dbc->obj->gettype, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->gettype, SQL);
 	SQL[0] = '\0';
 out_finalize_emptypid:
-	sqfinalize(dbc->db, dbc->obj->emptypid, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->emptypid, SQL);
 	SQL[0] = '\0';
 out_finalize_isprsnt:
-	sqfinalize(dbc->db, dbc->obj->isprsnt, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->isprsnt, SQL);
 	SQL[0] = '\0';
 out_finalize_nextpid:
-	sqfinalize(dbc->db, dbc->obj->nextpid, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->nextpid, SQL);
 	SQL[0] = '\0';
 out_finalize_nextoid:
-	sqfinalize(dbc->db, dbc->obj->nextoid, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->nextoid, SQL);
 	SQL[0] = '\0';
 out_finalize_delpid:
-	sqfinalize(dbc->db, dbc->obj->delpid, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->delpid, SQL);
 	SQL[0] = '\0';
 out_finalize_delete:
-	sqfinalize(dbc->db, dbc->obj->delete, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->delete, SQL);
 	SQL[0] = '\0';
 out_finalize_insert:
-	sqfinalize(dbc->db, dbc->obj->insert, SQL);
+	db_sqfinalize(dbc->db, dbc->obj->insert, SQL);
 	ret = -EIO;
 out:
 	return ret;
@@ -210,55 +198,11 @@ int obj_finalize(struct db_context *dbc)
 }
 
 
-static inline int reset_stmt(struct db_context *dbc, sqlite3_stmt *stmt)
+const char *obj_getname(struct db_context *dbc)
 {
-	int ret = sqlite3_reset(stmt);
-	if (ret == SQLITE_OK) {
-		return OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		obj_finalize(dbc);
-		ret = obj_initialize(dbc);
-		if (ret == OSD_OK)
-			return OSD_REPEAT;
-	} 
-	return OSD_ERROR;
-}
-
-/*
- * exec_dms: executes prior prepared and bound data manipulation statement.
- * Only SQL statements with 'insert' or 'delete' may call this helper
- * function.
- *
- * returns:
- * OSD_ERROR: in case of error
- * OSD_OK: on success
- * OSD_REPEAT: in case of sqlite_schema error, statements are prepared again,
- * 	hence values need to be bound again.
- */
-static int exec_dms(struct db_context *dbc, sqlite3_stmt *stmt, int ret, 
-		    const char *func)
-{
-	if (ret != SQLITE_OK) {
-		error_sql(dbc->db, "%s: bind failed", func);
-		goto out_reset;
-	}
-
-	while ((ret = sqlite3_step(stmt)) == SQLITE_BUSY);
-
-out_reset:
-	ret = sqlite3_reset(stmt);
-	if (ret == SQLITE_OK) {
-		return OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		if (obj_finalize(dbc) != OSD_OK)
-			return OSD_ERROR;
-		if (obj_initialize(dbc) != OSD_OK)
-			return OSD_ERROR;
-		return OSD_REPEAT;
-	} else {
-		error_sql(dbc->db, "%s: stmt failed: ", func);
-		return OSD_ERROR;
-	}
+	if (dbc == NULL || dbc->coll == NULL)
+		return NULL;
+	return dbc->obj->name;
 }
 
 
@@ -281,7 +225,7 @@ repeat:
 	ret |= sqlite3_bind_int64(dbc->obj->insert, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->obj->insert, 2, oid);
 	ret |= sqlite3_bind_int(dbc->obj->insert, 3, type);
-	ret = exec_dms(dbc, dbc->obj->insert, ret, __func__);
+	ret = db_exec_dms(dbc, dbc->obj->insert, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -308,7 +252,7 @@ repeat:
 	ret = 0;
 	ret |= sqlite3_bind_int64(dbc->obj->delete, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->obj->delete, 2, oid);
-	ret = exec_dms(dbc, dbc->obj->delete, ret, __func__);
+	ret = db_exec_dms(dbc, dbc->obj->delete, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -331,23 +275,13 @@ int obj_delete_pid(struct db_context *dbc, uint64_t pid)
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->delpid, 1, pid);
-	ret = exec_dms(dbc, dbc->obj->delpid, ret, __func__);
+	ret = db_exec_dms(dbc, dbc->obj->delpid, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
 	return ret;
 }
 
-
-static int exec_int_rtrvl_stmt(struct db_context *dbc, int *val)
-{
-	return 0;
-}
-
-static int exec_int64_rtrvl_stmt(struct db_context *dbc, int *val)
-{
-	return 0;
-}
 
 /*
  * return values
@@ -374,26 +308,13 @@ repeat:
 	}
 
 	while ((ret = sqlite3_step(dbc->obj->nextoid)) == SQLITE_BUSY);
-	if (ret == SQLITE_ROW) {
+	if (ret == SQLITE_ROW)
 		*oid = sqlite3_column_int64(dbc->obj->nextoid, 0) + 1;
-	} else {
-		error_sql(dbc->db, "%s:exec failed", __func__);
-	}
 
 out_reset:
-	ret = sqlite3_reset(dbc->obj->nextoid);
-	if (ret == SQLITE_OK) {
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		obj_finalize(dbc);
-		ret = obj_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
+	ret = db_reset_stmt(dbc, dbc->obj->nextoid, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 out:
 	return ret;
 }
@@ -418,26 +339,13 @@ int obj_get_nextpid(struct db_context *dbc, uint64_t *pid)
 
 repeat:
 	while ((ret = sqlite3_step(dbc->obj->nextpid)) == SQLITE_BUSY);
-	if (ret == SQLITE_ROW) {
+	if (ret == SQLITE_ROW)
 		*pid = sqlite3_column_int64(dbc->obj->nextpid, 0) + 1;
-	} else {
-		error_sql(dbc->db, "%s:exec failed", __func__);
-	}
 
 out_reset:
-	ret = sqlite3_reset(dbc->obj->nextpid);
-	if (ret == SQLITE_OK) {
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		obj_finalize(dbc);
-		ret = obj_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
+	ret = db_reset_stmt(dbc, dbc->obj->nextpid, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 out:
 	return ret;
 }
@@ -475,26 +383,13 @@ repeat:
 	}
 
 	while ((ret = sqlite3_step(dbc->obj->isprsnt)) == SQLITE_BUSY);
-	if (ret == SQLITE_ROW) {
+	if (ret == SQLITE_ROW)
 		*present = sqlite3_column_int(dbc->obj->isprsnt, 0);
-	} else {
-		error_sql(dbc->db, "%s: exec failed", __func__);
-	}
 
 out_reset:
-	ret = sqlite3_reset(dbc->obj->isprsnt);
-	if (ret == SQLITE_OK) {
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		obj_finalize(dbc);
-		ret = obj_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
+	ret = db_reset_stmt(dbc, dbc->obj->isprsnt, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 out:
 	return ret;
 }
@@ -505,8 +400,8 @@ out:
  *
  * returns:
  * -EINVAL: invalid arg
- * OSD_ERROR: in case of other errors, ignore value of *empty
- * OSD_OK: success, *empty set to:
+ * OSD_ERROR: in case of other errors, ignore value of *isempty
+ * OSD_OK: success, *isempty set to:
  * 	==1: if partition is empty or absent or in case of sqlite error
  * 	==0: if partition is not empty
  */
@@ -528,26 +423,13 @@ repeat:
 	}
 
 	while ((ret = sqlite3_step(dbc->obj->emptypid)) == SQLITE_BUSY);
-	if (ret == SQLITE_ROW) {
+	if (ret == SQLITE_ROW)
 		*isempty = (0 == sqlite3_column_int(dbc->obj->emptypid, 0));
-	} else {
-		error_sql(dbc->db, "%s: exec failed", __func__);
-	}
 
 out_reset:
-	ret = sqlite3_reset(dbc->obj->emptypid);
-	if (ret == SQLITE_OK) {
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		obj_finalize(dbc);
-		ret = obj_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
+	ret = db_reset_stmt(dbc, dbc->obj->emptypid, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 out:
 	return ret;
 }
@@ -586,83 +468,15 @@ repeat:
 	if (ret == SQLITE_ROW) {
 		*obj_type = sqlite3_column_int(dbc->obj->gettype, 0);
 	} else if (ret == SQLITE_DONE) {
-		osd_debug("%s: (%llu %llu) doesn't exist", __func__, 
+		osd_debug("%s: object (%llu %llu) doesn't exist", __func__, 
 			  llu(pid), llu(oid));
-	} else {
-		error_sql(dbc->db, "%s: exec failed", __func__);
-	}
+	} 
 
 out_reset:
-	ret = sqlite3_reset(dbc->obj->gettype);
-	if (ret == SQLITE_OK) {
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		obj_finalize(dbc);
-		ret = obj_initialize(dbc);
-		if (ret == OSD_OK)
-			goto repeat;
-		else
-			ret = OSD_ERROR;
-	} else {
-		ret = OSD_ERROR;
-	}
+	ret = db_reset_stmt(dbc, dbc->obj->gettype, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
 out:
-	return ret;
-}
-
-
-static int exec_id_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt, 
-			      int ret, const char *func, uint64_t alloc_len, 
-			      uint8_t *outdata, uint64_t *used_outlen, 
-			      uint64_t *add_len, uint64_t *cont_id)
-{
-	uint64_t len = 0;
-
-	if (ret != SQLITE_OK) {
-		error_sql(dbc->db, "%s: bind failed", func);
-		goto out_reset;
-	}
-
-	len = 0;
-	*add_len = 0;
-	*cont_id = 0;
-	*used_outlen = 0;
-	while (1) {
-		ret = sqlite3_step(stmt);
-		if (ret == SQLITE_ROW) {
-			if ((alloc_len - len) >= 8) {
-				set_htonll(outdata, 
-					   sqlite3_column_int64(stmt, 0));
-				outdata += 8;
-				len += 8;
-			} else if (*cont_id == 0) {
-				*cont_id = sqlite3_column_int64(stmt, 0);
-			}
-			*add_len += 8;
-		} else if (ret == SQLITE_BUSY) {
-			continue;
-		} else {
-			break;
-		}
-	}
-
-out_reset:
-	ret = sqlite3_reset(stmt);
-	if (ret == SQLITE_OK) {
-		*used_outlen = len;
-		ret = OSD_OK;
-	} else if (ret == SQLITE_SCHEMA) {
-		obj_finalize(dbc);
-		ret = obj_initialize(dbc);
-		if (ret == OSD_OK)
-			ret = OSD_REPEAT;
-		else
-			ret = OSD_ERROR;
-	} else {
-		error_sql(dbc->db, "%s: stmt failed:", func);
-		ret = OSD_ERROR;
-	}
-
 	return ret;
 }
 
@@ -690,8 +504,8 @@ repeat:
 	stmt = dbc->obj->getoids;
 	ret |= sqlite3_bind_int64(stmt, 1, pid);
 	ret |= sqlite3_bind_int64(stmt, 2, initial_oid);
-	ret = exec_id_rtrvl_stmt(dbc, stmt, ret, __func__, alloc_len,
-				 outdata, used_outlen, add_len, cont_id);
+	ret = db_exec_id_rtrvl_stmt(dbc, stmt, ret, __func__, alloc_len,
+				    outdata, used_outlen, add_len, cont_id);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -722,8 +536,8 @@ repeat:
 	stmt = dbc->obj->getcids;
 	ret |= sqlite3_bind_int64(stmt, 1, pid);
 	ret |= sqlite3_bind_int64(stmt, 2, initial_cid);
-	ret = exec_id_rtrvl_stmt(dbc, stmt, ret, __func__, alloc_len,
-				 outdata, used_outlen, add_len, cont_id);
+	ret = db_exec_id_rtrvl_stmt(dbc, stmt, ret, __func__, alloc_len,
+				    outdata, used_outlen, add_len, cont_id);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
@@ -735,7 +549,7 @@ repeat:
  * returns:
  * -EINVAL: invalid arg
  * OSD_ERROR: some other error
- * OSD_OK: success. cids copied into outdata, contid, used_outlen and 
+ * OSD_OK: success. pids copied into outdata, contid, used_outlen and 
  * 	add_len are set accordingly
  */
 int obj_get_all_pids(struct db_context *dbc, uint64_t initial_pid, 
@@ -750,11 +564,12 @@ int obj_get_all_pids(struct db_context *dbc, uint64_t initial_pid,
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->getpids, 1, initial_pid);
-	ret = exec_id_rtrvl_stmt(dbc, dbc->obj->getpids, ret, __func__,
-				 alloc_len, outdata, used_outlen, add_len, 
-				 cont_id);
+	ret = db_exec_id_rtrvl_stmt(dbc, dbc->obj->getpids, ret, __func__,
+				    alloc_len, outdata, used_outlen, add_len, 
+				    cont_id);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
 	return ret;
 }
+

@@ -8,6 +8,8 @@ int obj_initialize(struct db_context *dbc);
 
 int obj_finalize(struct db_context *dbc);
 
+const char *obj_getname(struct db_context *dbc);
+
 int obj_insert(struct db_context *dbc, uint64_t pid, uint64_t oid, 
 	       uint32_t type);
 

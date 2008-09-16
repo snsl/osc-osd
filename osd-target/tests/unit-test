@@ -1,0 +1,27 @@
+#!/bin/bash
+
+./db-test
+[ "$?" -ne 0 ] && echo "db-test failed" && exit 1
+./cdb-test
+[ "$?" -ne 0 ] && echo "cdb-test failed" && exit 1
+./osd-test
+[ "$?" -ne 0 ] && echo "osd-test failed" && exit 1
+./create -o 2 -i 1
+[ "$?" -ne 0 ] && echo "create failed" && exit 1
+./getattr -o 2 -i 1
+[ "$?" -ne 0 ] && echo "getattr failed" && exit 1
+./setattr -o 2 -i 1
+[ "$?" -ne 0 ] && echo "setattr failed" && exit 1
+./list -o 2 -i 1
+[ "$?" -ne 0 ] && echo "list failed" && exit 1
+./list -o 2 -i 1 -a 2 -r 2
+[ "$?" -ne 0 ] && echo "list failed" && exit 1
+./query -i 1 -o 4 -c 2 -m 2 -a 2 -n 2
+[ "$?" -ne 0 ] && echo "query failed" && exit 1
+./set_member_attributes -i 1 -o 4 -c 4 -a 2 -s 2
+[ "$?" -ne 0 ] && echo "set_member_attributes failed" && exit 1
+for t in $(./time-db  2>&1 | sed -n 's/^\s\+\(\w\+\):.*/\1/p')
+do
+	./time-db -o 4 -p 4 -a 2 -i 1 -t $t
+	[ "$?" -ne 0 ] && echo "$t test failed" && exit 1
+done

@@ -90,10 +90,13 @@ This library has been tested with commit
 
     git clone git://git.kernel.org/pub/scm/linux/kernel/git/tomo/tgt.git
 
-5.  Apply the patches from osd-target
+5.  Merge handy patches for OSD support from OSC.  These will use the
+    library in osd-target
 
     cd tgt
-    git am ../osd-target/patch/*
+    git remote add osc git://git.osc.edu/tgt.git
+    git remote update
+    git merge osc/local
     cd usr
     make
 
@@ -101,8 +104,9 @@ This library has been tested with commit
 Running tgt with OSD target
 ---------------------------
 
-The patches you applied above make a few changes to tgt to make it
-easier to deal with for testing scenarios.
+The patches you applied above build the target with OSD support.  They
+also make a few changes to tgt to make it easier to deal with for
+testing scenarios.
 
 It will create or reuse a directory /tmp/tgt-$(id -un) where
 $(id -un) is your username.  It sends logging to stderr, not

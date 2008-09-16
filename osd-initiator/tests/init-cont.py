@@ -23,6 +23,7 @@ osdnodes = []
 compnodes = []
 testdir = os.environ["TMPDIR"];
 id = pwd.getpwuid(os.getuid())[0]
+tgtd = "~/osd/stgt/tgtd"
 
 def usage():
     print >>sys.stderr, "Usage:", sys.argv[0], "<start|stop>"
@@ -56,15 +57,15 @@ def start():
             + "cd " + testdir + " \;"
             + "rm -rf /tmp/tgt-" + id + " \; "
             + "mkdir /tmp/tgt-" + id + " \; "
-            + "~/osd/osd-target/tgtd -d 9 \< /dev/null \&\> tgtd.log")
+            + tgtd + "\< /dev/null \&\> tgtd.log")
     assert compnodes != []
     os.system("all -p " + allify(compnodes) + " "
-	    + "~/osd/osd-initiator/tests/initiator start " + " ".join(osdnodes))
+	    + "~/osd/osd-util/initiator start " + " ".join(osdnodes))
 
 def stop():
     assert osdnodes != []
     os.system("all -p " + allify(compnodes) + " "
-            + "~/osd/osd-initiator/tests/initiator stop; ")
+            + "~/osd/osd-util/initiator stop; ")
 
     assert compnodes != []
     os.system("all -p " + allify(osdnodes) + " "

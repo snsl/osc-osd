@@ -538,30 +538,29 @@ static void expwait(int fd, uint64_t pid, uint64_t oid, int numlocks,
 }
 
 
-static void queueonce(int fd, uint64_t pid, uint64_t oid, int numlocks,
-		      const int dowork, int *my_att, int *my_reqs)
+/* 
+ * trancated binary exponential backoff algo
+ */
+static void beb(int fd, uint64_t pid, uint64_t oid, int numlocks,
+		const int dowork, int *my_att, int *my_reqs, double *latency)
 {
 	int ret;
 	int reqs, attempts;
 	uint64_t start, end;
 	double rtt, pause, mhz = get_mhz();
-	int64_t num_waiters, queued;
+	int64_t backoff, failures;
 
 	struct osd_command cmd;
 
-	reqs = 0, attempts = 0, num_waiters = 0, queued = 0, pause = 0.;
+	reqs = 0, attempts = 0, failures = 0, pause = 0.;
 	while (numlocks) {
+		rdtsc(start);
 		ret = cas(fd, &cmd, pid, oid, 0, 1); /* lock */
+		rdtsc(end);
 		++attempts;
 		++reqs;
 		if (ret == 1) {
-			if (queued) {
-				ret = fa(fd, &cmd, pid, oid, -1, &num_waiters);
-				if (ret == -1)
-					osd_error_fatal("fa failed");
-				++reqs;
-				queued = 0;
-			}
+			failures = 0;
 			--numlocks;
 			if (dowork == 1) 
 				local_work();
@@ -571,31 +570,16 @@ static void queueonce(int fd, uint64_t pid, uint64_t oid, int numlocks,
 			assert(ret == 1);
 			++reqs;
 		} else if (ret == 0) {
-			if (queued == 0) {
-				rdtsc(start);
-				ret = fa(fd, &cmd, pid, oid, 1, &num_waiters);
-				rdtsc(end);
-				queued = 1;
-			} else {
-				rdtsc(start);
-				ret = fa(fd, &cmd, pid, oid, 0, &num_waiters);
-				rdtsc(end);
-			}
-			if (ret == -1)
-				osd_error_fatal("fa error");
-			++reqs;
-
-			if (num_waiters == 0)
-				continue;
-
-			/* speculative delay estimation */
+			if (failures < 5)
+				++failures;
 			rtt = ((double)(end-start))/mhz;
+			backoff = (1UL<< failures) * (rand()/(RAND_MAX+1.));
 			if (dowork == 0) {
-				pause = num_waiters*(2*rtt);
+				pause = backoff*rtt/2.;
 			} else if (dowork == 1) {
-				pause = num_waiters*(2*rtt + WORK_MAX/2.);
+				pause = backoff*(rtt/2. + WORK_MAX/2.);
 			} else if (dowork == 2) {
-				pause = num_waiters*(3*rtt); 
+				pause = backoff*rtt; 
 			}
 			usleep((uint64_t)pause);
 			continue;
@@ -670,7 +654,7 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, int numlocks,
 		expwait(fd, pid, oid, numlocks, dowork, &attempts, &reqs,
 			latency);
 	} else if (scheme == 5) {
-		queueonce(fd, pid, oid, numlocks, dowork, &attempts, &reqs);
+		beb(fd, pid, oid, numlocks, dowork, &attempts, &reqs, latency);
 	}
 
 
@@ -1132,9 +1116,9 @@ int main(int argc, char *argv[])
 			assert(ret == 0);
 		}
 		break;
-	case 22: /* Contention, speculative idling, queueonce no work */
-	case 23: /* Contention, speculative idling, queueonce local work */
-	case 24: /* Contention, speculative idling, queueonce remote work */
+	case 22: /* Contention, beb, no work */
+	case 23: /* Contention, beb, local work */
+	case 24: /* Contention, beb, remote work */
 		if (rank == 0) {
 			osd_command_set_format_osd(&cmd, 1<<30);
 			ret = osd_submit_and_wait(fd, &cmd);

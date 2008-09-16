@@ -170,7 +170,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t list_off = ntohoffset(&cmd->cdb[56]);
 	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
-	uint8_t *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
+	uint8_t *outbuf;
 	uint8_t *cp = NULL;
 
 	if (getattr_list_len == 0)

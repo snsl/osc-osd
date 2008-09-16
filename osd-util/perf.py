@@ -46,6 +46,8 @@ id = pwd.getpwuid(os.getuid())[0]
 
 if id == "pw":
     osd_dir = "/home/pw/src/osd"
+elif id == "dennis":
+	osd_dir = "/home/dennis/Projects/OSD/osd"
 elif id == "alin":
     osd_dir = "/home/alin/research/osd"
 elif id == "ananth":

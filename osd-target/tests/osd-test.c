@@ -15,6 +15,7 @@
 #include "attr.h"
 #include "obj.h"
 #include "util/util.h"
+#include "osd-sense.h"
 
 void test_osd_create(struct osd_device *osd);
 void test_osd_set_attributes(struct osd_device *osd);
@@ -130,7 +131,7 @@ void test_osd_format(struct osd_device *osd)
 void test_osd_read_write(struct osd_device *osd)
 {
 	int ret = 0;
-	void *sense = Calloc(1, 1024);
+	uint8_t *sense = Calloc(1, 1024);
 	void *mybuf = Calloc(1, 256);
 	uint8_t *buf = Calloc(1, 256);
 	uint64_t len;
@@ -147,7 +148,12 @@ void test_osd_read_write(struct osd_device *osd)
 
 	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
 		       256, 0, buf, &len, sense);
-	assert(ret == 0);
+	assert(ret >= 0);
+	if (ret > 0) {
+		assert(sense_test_type(sense, OSD_SSK_RECOVERED_ERROR,
+				       OSD_ASC_READ_PAST_END_OF_USER_OBJECT));
+		assert(ntohll(&sense[44]) == len);
+	}
 	assert(len == strlen(mybuf)+1);
 	assert(strcmp((void *) buf, mybuf) == 0);
 

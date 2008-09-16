@@ -26,7 +26,7 @@ int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
 /*
  * OSD object identification sense data descriptor.  Always need one
  * of these, then perhaps some others.  This goes just beyond the 8
- * byte sense header above.  The length of this is 32.
+ * byte sense header above.  The length of this is 32. osd2r01 Sec 4.14.2.1
  */
 int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 		     uint32_t completed_funcs, uint64_t pid, uint64_t oid)

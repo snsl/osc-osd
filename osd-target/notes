@@ -299,3 +299,6 @@ can be implemented as a sql view on page numbers 0
 -	change return values of db.c and attr.c from SQLITE return to OSD return
 	codes
 +	add pragma 
+
+# Wed Mar 14 17:07:06 EDT 2007
+-	standardize goto labels

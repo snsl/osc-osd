@@ -489,14 +489,46 @@ static int cdb_remove(struct command *cmd)
 	return osd_remove(cmd->osd, pid, oid, cmd->sense);
 }
 
+/*
+ * returns:
+ * ==0: success
+ *  >0: error; either it is a genuine error or it is OSD_SSK_RECOVERED_ERROR.
+ */
+static int cdb_read(struct command *cmd)
+{
+	int ret = 0, rec_err_sense = 0;
+	uint64_t pid = ntohll(&cmd->cdb[16]);
+	uint64_t oid = ntohll(&cmd->cdb[24]);
+	uint64_t len = ntohll(&cmd->cdb[32]);
+	uint64_t offset = ntohll(&cmd->cdb[40]);
+
+	ret = osd_read(cmd->osd, pid, oid, len, offset, cmd->outdata,
+		       &cmd->used_outlen, cmd->sense);
+	if (ret) {
+		/* only tolerate recovered error, return for others */
+		if (!sense_test_type(cmd->sense, OSD_SSK_RECOVERED_ERROR,
+				     OSD_ASC_READ_PAST_END_OF_USER_OBJECT))
+			return ret;
+		rec_err_sense = ret; /* save ret */
+	}
+
+	ret = set_attributes(cmd, pid, oid, 1);
+	if (ret)
+		return ret;
+	ret = get_attributes(cmd, pid, oid, 1);
+	if (ret)
+		return ret;
+	return rec_err_sense; /* return 0 or recoved error sense length */
+}
+
 static inline int std_get_set_attr(struct command *cmd, uint64_t pid, 
 				   uint64_t oid)
 {
-		int ret = set_attributes(cmd, pid, oid, 1);
-		if (ret) 
-			return ret;
+	int ret = set_attributes(cmd, pid, oid, 1);
+	if (ret) 
+		return ret;
 
-		return get_attributes(cmd, pid, oid, 1);
+	return get_attributes(cmd, pid, oid, 1);
 }
 
 static void exec_service_action(struct command *cmd)
@@ -582,6 +614,7 @@ static void exec_service_action(struct command *cmd)
 	case OSD_FORMAT_OSD: {
 		uint64_t capacity = ntohll(&cdb[32]);
 		ret = osd_format_osd(osd, capacity, sense);
+		/* TODO: what is corresponding get/set attr? */
 		break;
 	}
 	case OSD_GET_ATTRIBUTES: {
@@ -624,7 +657,8 @@ static void exec_service_action(struct command *cmd)
 	case OSD_PERFORM_SCSI_COMMAND:
 	case OSD_PERFORM_TASK_MGMT_FUNC:
 		ret = osd_error_unimplemented(cmd->action, sense);
-		// XXX : uncomment get/set attributes block whenever this gets implemented
+		// XXX : uncomment get/set attributes block whenever this
+		// gets implemented
 		/*if (ret)
 			break;
 
@@ -639,12 +673,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_READ: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[32]);
-		uint64_t offset = ntohll(&cdb[40]);
-		ret = osd_read(osd, pid, oid, len, offset, cmd->outdata,
-			       &cmd->used_outlen, sense);
+		ret = cdb_read(cmd);
 		break;
 	}
 	case OSD_REMOVE: {
@@ -712,6 +741,10 @@ static void exec_service_action(struct command *cmd)
 			break;
 		ret = osd_write(osd, pid, oid, len, offset, cmd->indata,
 				sense);
+		if (ret)
+			break;
+
+		ret = std_get_set_attr(cmd, pid, oid);
 		break;
 	}
 	default:

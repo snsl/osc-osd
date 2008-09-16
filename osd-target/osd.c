@@ -834,16 +834,14 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	return OSD_OK; /* success */
 
 out_illegal_req:
-	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
-			      OSD_ASC_INVALID_FIELD_IN_CDB, 
-			      pid, requested_oid);
-	return ret;
+	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+			       OSD_ASC_INVALID_FIELD_IN_CDB, 
+			       pid, requested_oid);
 
 out_hw_err:
-	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
-			      OSD_ASC_INVALID_FIELD_IN_CDB, 
-			      pid, requested_oid);
-	return ret;
+	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+			       OSD_ASC_INVALID_FIELD_IN_CDB, 
+			       pid, requested_oid);
 }
 
 
@@ -893,16 +891,14 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 	return OSD_OK; /* success */
 
 out_cdb_err:
-	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
-			      OSD_ASC_INVALID_FIELD_IN_CDB, 
-			      requested_pid, 0);
-	return ret;
+	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+			       OSD_ASC_INVALID_FIELD_IN_CDB, 
+			       requested_pid, 0);
 
 out_hw_err:
-	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
-			      OSD_ASC_INVALID_FIELD_IN_CDB, 
-			      requested_pid, 0);
-	return ret;
+	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+			       OSD_ASC_INVALID_FIELD_IN_CDB, 
+			       requested_pid, 0);
 }
 
 int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,

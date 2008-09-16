@@ -117,7 +117,7 @@ def usage():
     sys.exit(1)
 
 # filenames
-testdir = os.environ["TMPDIR"];
+testdir = os.environ["TMPDIR"]
 foptions = testdir + "/options"
 fnodes = testdir + "/nodes"
 fcompnodes = testdir + "/compnodes"
@@ -313,7 +313,7 @@ def buildfiles():
     # store the options for status reporting later
     fd = open(foptions, "w")
     writer = csv.writer(fd, dialect='excel-tab')
-    map(writer.writerow, options.items());
+    map(writer.writerow, options.items())
     fd.close()
 
     # store all node lists in files

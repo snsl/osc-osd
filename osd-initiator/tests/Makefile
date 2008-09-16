@@ -35,8 +35,8 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 CFLAGS := $(COPTS) $(CWARN) -I.. -I../..
 
 # for blk-iospeed
-CFLAGS += -Dsg_io_v4=sg_io_v4_v2622
-#CFLAGS += -Dsg_io_v4=sg_io_v4_v2624
+#CFLAGS += -Dsg_io_v4=sg_io_v4_v2622
+CFLAGS += -Dsg_io_v4=sg_io_v4_v2624
 
 all:: $(LIB) $(PROGEXE) $(MPIEXE)
 

@@ -1,0 +1,26 @@
+
+Documentation for OSD Initiator library, Python interface.
+
+Copyright (C) 2007 Dennis Dalessandro (dennis@osc.edu)
+Copyright (C) 2007 Ananth Devulapalli (ananth@osc.edu)
+Copyright (C) 2007 Pete Wyckoff (pw@osc.edu)
+
+This directory contains files that build into a shared module that can
+be used by Python programs to use the OSD initiator C library.
+
+File contents.  Many of these parallel their C versions in the directory
+above this one:
+
+    pyosd.c - Main entry point for Python, some utility functions
+    command.c - A function for each OSD command, plus some getters and
+	setters
+    attr.c - Attribute type
+    device.c - Command submission and retrieval
+    drivelist.c - Device identification
+    const.c - Initialize a bunch of handy constants in a dictionary
+
+See the module help in Python, and the test .py programs for hints
+on how to use this.  It is quite handy for rapidly testing new functions
+when writing a new C program would take longer.
+
+# vim: set tw=72 :

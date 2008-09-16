@@ -169,7 +169,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			uint32_t set_list_len = ntohl(&cdb[68]);
 			
 			if( set_list_len != 0 ){
-				uint32_t set_list_offset = ntohl(%cdb[72]);
+				uint32_t set_list_offset = ntohl(&cdb[72]);
 				/* XXX: need to set attributes */
 			}
 
@@ -286,7 +286,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			
 			uint32_t set_list_len = ntohl(&cdb[68]);
 			if( set_list_len != 0 ){
-				uint32_t set_list_offset = ntohl(%cdb[72]);
+				uint32_t set_list_offset = ntohl(&cdb[72]);
 				/* XXX: need to set attributes */
 			}		
 			

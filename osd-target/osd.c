@@ -1536,7 +1536,7 @@ int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid,
 	int ret = 0;
 	uint64_t cid = 0;
 	int present = 0;
-	int to_do_1, to_do_2, to_do_3;
+	int to_do_1=0, to_do_2=0, to_do_3=0;
 
 	osd_debug("%s: pid %llu requested_cid %llu source_cid %llu cdb_cont_len %u",
 		  __func__, llu(pid), llu(requested_cid), llu(source_cid), cdb_cont_len);
@@ -2237,12 +2237,12 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 
 	memset(outdata, 0, 24);
 
-/* 	if (list_attr == 0 && get_attr->sz != 0) */
-/* 		goto out_cdb_err; /\* XXX: unimplemented *\/ */
-/* 	if (list_attr == 1 && get_attr->sz == 0) */
-/* 		goto out_cdb_err; /\* XXX: this seems like error? *\/ */
+	if (list_attr == 0 && get_attr->sz != 0)
+		goto out_cdb_err; /* XXX: unimplemented */
+	if (list_attr == 1 && get_attr->sz == 0)
+		goto out_cdb_err; /* XXX: this seems like error? */
 
-	if (list_attr == 0 /* && get_attr->sz == 0 */)  {
+	if (list_attr == 0 && get_attr->sz == 0)  {
 		/*
 		 * If list_id is not 0, we are continuing
 		 * an old list, starting from cont_id

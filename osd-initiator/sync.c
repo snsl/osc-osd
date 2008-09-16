@@ -498,6 +498,36 @@ int append_sgl_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	return 0;
 }
 
+int append_vec_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
+	       uint64_t len)
+{
+	int ret;
+	struct osd_command command;
+
+	osd_debug("****** APPEND ******");
+	osd_debug("PID: %llu OID: %llu BUF: %s", llu(pid), llu(oid), buf);
+
+	if (!buf) {
+		osd_error("%s: no data sent", __func__);
+		return 1;
+	}
+
+	osd_command_set_append(&command, pid, oid, len);
+
+	osd_command_set_ddt(&command, DDT_VEC);
+
+
+	command.outdata = buf;
+	command.outlen = len;
+
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
+	return 0;
+}
 
 int read_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *buf, uint64_t len,
 	     uint64_t offset)

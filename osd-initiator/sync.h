@@ -51,6 +51,8 @@ int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	       uint64_t len);
 int append_sgl_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	       uint64_t len);
+int append_vec_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
+	       uint64_t len);
 
 /* Remove */
 int remove_osd(int fd, uint64_t pid, uint64_t requested_oid);

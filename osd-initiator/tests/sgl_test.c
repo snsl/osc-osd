@@ -327,34 +327,21 @@ static void basic_test_vec(int fd, uint64_t pid, uint64_t oid)
 
 	ret = read_vec_osd(fd, pid, oid, buf, size, dbuf, 50, 0);
 
-return;
-
 	/* ---------------------------- */
 	/* Test Append command with SGL */
 	/* ---------------------------- */
 
 	/* 50 bytes of data plus 5 (offset,len) pairs plus the length value */
-	size = 50 + (2*sizeof(uint64_t) * 5) + sizeof(uint64_t);
+	size = 50 + (2*sizeof(uint64_t));
 
-	free(dbuf);
 	dbuf = malloc(size);
 	memset(dbuf, 'A', size);
 
-	set_htonll(dbuf, 5);
+	set_htonll((uint8_t *)dbuf, stride);
 	hdr_offset = sizeof(uint64_t);
+	set_htonll((uint8_t *)dbuf + hdr_offset, length);
 
-	offset = 0;
-	length = 10;
-	for (i=0; i<5; i++ ) {
-		osd_debug("Offset= %llu  Length= %llu", llu(offset), llu(length));
-		set_htonll((uint8_t *)dbuf + hdr_offset, offset);
-		offset += length*2;
-		hdr_offset += sizeof(uint64_t);
-		set_htonll((uint8_t *)dbuf + hdr_offset, length);
-		hdr_offset += sizeof(uint64_t);
-	}
-
-	ret = append_sgl_osd(fd, pid, oid, dbuf, size);
+	ret = append_vec_osd(fd, pid, oid, dbuf, size);
 	assert(ret == 0);
 
 	/* ------------------------------------------------------- */
@@ -374,6 +361,8 @@ return;
 			printf("%c", ch);
 	}
 	printf("\n");
+
+return;
 
 	/* ------------------------------------------------ */
 	/*Test the create and write functionality - non SGL */

@@ -865,7 +865,7 @@ out:
 	return ret;
 }
 
-int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid, 
+int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid, 
 			struct getattr_list *get_attr, uint64_t alloc_len,
 			void *outdata, uint64_t *used_outlen, 
 			uint64_t *add_len, uint64_t *cont_id)
@@ -948,9 +948,10 @@ int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid,
 			if (alloc_len >= 16) {
 				/* start attr list of 'this' ODE */
 				set_htonll(tail, oid);
+				tail[8] = tail[9] = 0;  /* reserved */
 				if (head != tail) {
 					/* fill attr_list_len of prev ODE */
-					set_htonl(head, attr_list_len);
+					set_htons(head, attr_list_len);
 					head = tail;
 					attr_list_len = 0;
 				}
@@ -961,7 +962,7 @@ int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid,
 			} else {
 				if (head != tail) {
 					/* fill attr_list_len of prev ODE */
-					set_htonl(head, attr_list_len);
+					set_htons(head, attr_list_len);
 					head = tail;
 					attr_list_len = 0;
 				}
@@ -995,7 +996,7 @@ int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid,
 					set_htonl(head, attr_list_len);
 					head = tail;
 					attr_list_len = 0;
-					if(*cont_id == 0)
+					if (*cont_id == 0)
 						*cont_id = oid;
 				}
 			} else {

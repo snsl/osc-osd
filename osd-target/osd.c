@@ -1291,7 +1291,7 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *outdata,
-	     uint64_t *outlen, uint8_t *sense)
+	     uint64_t *outlen, uint8_t *sense, int list_attr)
 {
 	int ret = 0;
 	uint64_t addl_length, obj_descriptor, continuation_id, len = 24;

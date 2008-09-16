@@ -649,8 +649,9 @@ static void exec_service_action(struct command *cmd)
 		uint32_t list_id = ntohl(&cdb[48]);
 		uint64_t alloc_len = ntohll(&cdb[32]);
 		uint64_t initial_oid = ntohll(&cdb[40]);
+		int list_attr = (ntohll(&cdb[11]) & 0x40);
 		ret = osd_list(osd, pid, list_id, alloc_len, initial_oid,
-			       cmd->outdata, &cmd->used_outlen, sense);
+			       cmd->outdata, &cmd->used_outlen, sense, list_attr);
 		break;
 	}
 	case OSD_LIST_COLLECTION: {

@@ -157,7 +157,7 @@ static int attr_gather_attr(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
 	if (listfmt == RTRVD_SET_ATTR_LIST)
 		return le_pack_attr(buf, buflen, page, number, len, 
 				    attr_blob.buf);
-	else if (listfmt == RTRVD_CREATE_ATTR_LIST)
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
 		return le_multiobj_pack_attr(buf, buflen, oid, page, number, 
 					     len, attr_blob.buf);
 	else

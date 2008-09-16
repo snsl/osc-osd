@@ -224,7 +224,7 @@ out:
 /*
  * Fill current command attributes page (osd2r00 Sec 7.1.2.24) attributes. 
  *
- * NOTE: since RTRVD_CREATE_ATTR_LIST listfmt is set only when multiple
+ * NOTE: since RTRVD_CREATE_MULTIOBJ_LIST listfmt is set only when multiple
  * objects are created, and CCAP has room for only one (pid, oid), the
  * retrieved attributes are always in RTRVD_SET_ATTR_LIST format described in
  * osd2r00 Sec 7.1.3.3
@@ -453,7 +453,7 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			return OSD_ERROR;
 	}
 
-	if (listfmt == RTRVD_CREATE_ATTR_LIST)
+	if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
 		ret = le_multiobj_pack_attr(outbuf, outlen, oid, 
 					    USER_TMSTMP_PG,number, len, val);
 	else
@@ -528,7 +528,7 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	if (listfmt == RTRVD_SET_ATTR_LIST)
 		ret = le_pack_attr(outbuf, outlen, page, number, len, val);
-	else if (listfmt == RTRVD_CREATE_ATTR_LIST)
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
 		ret = le_multiobj_pack_attr(outbuf, outlen, oid, page, number,
 					    len, val);
 	else
@@ -1033,7 +1033,7 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_param_list;
 
 	if (ret == -ENOENT) {
-		if (listfmt == RTRVD_CREATE_ATTR_LIST)
+		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
 			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
 						    page, number,
 						    NULL_ATTR_LEN, NULL);
@@ -1074,7 +1074,7 @@ out_cdb_err:
  *    current command
  *    null
  *
- * NOTE: since RTRVD_CREATE_ATTR_LIST listfmt can only be used when 
+ * NOTE: since RTRVD_CREATE_MULTIOBJ_LIST listfmt can only be used when 
  * cdbfmt == GETLIST_SETLIST, osd_getattr_page always generates list in
  * RTRVD_SET_ATTR_LIST. hence there is no listfmt arg.
  *
@@ -1399,17 +1399,20 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 
 	/* 
-	 * len == 0 is equivalent to deleting the attr. osd2r00 4.7.4 second
-	 * last paragraph. only attributes with non zero length are
+	 * XXX:SD len == 0 is equivalent to deleting the attr. osd2r00 4.7.4
+	 * second last paragraph. only attributes with non zero length are
 	 * retrieveable 
 	 */
-	if (len == 0) {
-		ret = attr_delete_attr(osd->db, pid, oid, page, number);
-		if (ret != 0)
-			goto out_cdb_err;
-		else 
-			goto out_success; 
+	if (len == 0) { 
+		ret = attr_delete_attr(osd->db, pid, oid, page, number); 
+		if (ret != 0) 
+			goto out_cdb_err; 
+		else goto 
+			out_success; 
 	}
+
+	if (len > ATTR_LEN_UB)
+		goto out_param_list;
 
 	ret = attr_set_attr(osd->db, pid, oid, page, number, val, len);
 	if (ret != 0) {

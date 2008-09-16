@@ -191,7 +191,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		goto out_param_list_err;
 
 	if (numoid > 1)
-		listfmt = RTRVD_CREATE_ATTR_LIST;
+		listfmt = RTRVD_CREATE_MULTIOBJ_LIST;
 	outbuf[0] = listfmt; /* fill list header */
 	outbuf[1] = outbuf[2] = outbuf[3] = 0;
 
@@ -807,105 +807,3 @@ out:
  * attributes offset.  Just fill it up to _max and report how much you
  * used.
  */
-#if 0
-static void get_attributes_(struct command *cmd)
-{	
-	int ret;
-	uint64_t pid = ntohll(&cmd->cdb[16]);
-	uint64_t oid = ntohll(&cmd->cdb[24]);
-	uint8_t *outdata = cmd->outdata + cmd->retrieved_attr_off;
-	uint64_t outlen = cmd->outlen - cmd->retrieved_attr_off;
-
-	/* if =2, get an attribute page and set an attribute value */
-	if (cmd->getset_cdbfmt == 2)
-	{
-		uint32_t page = ntohl(&cmd->cdb[52]);
-
-		/* if page = 0, no attributes are to be gotten */
-		if (page != 0)
-		{
-			ret = osd_get_attributes(cmd->osd, pid, oid,
-						 page, 0, outdata, outlen, 1, TRUE,
-						 cmd->sense, &cmd->get_used_outlen);
-			if (ret > 0)
-				cmd->senselen = ret;
-		}
-	}
-
-	/* else if =3, get attributes using lists */
-	if (cmd->getset_cdbfmt == 3)
-	{
-		uint32_t get_list_len = ntohl(&cmd->cdb[52]);
-		uint64_t get_list_offset = ntohoffset(&cmd->cdb[56]);
-		const uint8_t *list_header;
-		uint8_t list_type;
-		uint32_t i, num_list_items;
-
-		if (get_list_len < 4) {
-			cmd->senselen = sense_basic_build(cmd->sense,
-							  OSD_SSK_ILLEGAL_REQUEST,
-							  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
-							  pid, oid);
-			return;
-		}
-		if (get_list_offset + get_list_len > cmd->inlen) {
-			cmd->senselen = sense_basic_build(cmd->sense,
-							  OSD_SSK_ILLEGAL_REQUEST,
-							  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
-							  pid, oid);
-			return;
-		}
-		list_header = cmd->indata + get_list_offset;
-		list_type = list_header[0] & 0xf;
-		if (list_type != 1) {
-			cmd->senselen = sense_basic_build(cmd->sense,
-							  OSD_SSK_ILLEGAL_REQUEST,
-							  OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
-							  pid, oid);
-			return;
-		}
-		num_list_items = ntohs(&list_header[2]);
-		if (num_list_items & (8-1)) {
-			cmd->senselen = sense_basic_build(cmd->sense,
-							  OSD_SSK_ILLEGAL_REQUEST,
-							  OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
-							  pid, oid);
-			return;
-		}
-		num_list_items /= 8;
-		if (4 + num_list_items * 8 != get_list_len) {
-			cmd->senselen = sense_basic_build(cmd->sense,
-							  OSD_SSK_ILLEGAL_REQUEST,
-							  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
-							  pid, oid);
-			return;
-		}
-		for (i=0; i<num_list_items; i++) {
-			uint32_t page = ntohl(&list_header[4 + i*8 + 0]);
-			uint32_t number = ntohl(&list_header[4 + i*8 + 4]);
-			/*
-			 * XXX: call into attr to get this
-			 */
-			uint16_t attr_len = 8;
-			uint8_t attr_val[8];
-
-			uint32_t need_len = 10 + attr_len;
-
-			osd_debug("%s: page 0x%x num 0x%x len %hx", __func__,
-				  page, number, attr_len);
-			set_htonll(attr_val, 42);  /* hack */
-			if (need_len > outlen - cmd->get_used_outlen)
-				break;
-
-			memcpy(&outdata[cmd->get_used_outlen + 0],
-			       &list_header[4 + i*8 + 0], 8);
-			set_htons(&outdata[cmd->get_used_outlen + 8],
-				  need_len - 10);
-			memcpy(&outdata[cmd->get_used_outlen + 10],
-			       &attr_val, attr_len);
-			cmd->get_used_outlen += need_len;
-		}
-	}
-}
-
-#endif

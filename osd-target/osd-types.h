@@ -46,7 +46,8 @@ enum {
 };
 
 #define MIN_LIST_LEN (8) /* XXX: osd-errata */
-#define LIST_LEN_UB (0xFFFEU)
+#define ATTR_LEN_UB (0xFFFEU) /* undefined attr have length 0xFFFF, hence max
+				 length is 0xFFFE */
 #define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
 #define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
 
@@ -54,7 +55,7 @@ enum {
 enum {
 	RTRV_ATTR_LIST = 0x01,
 	RTRVD_SET_ATTR_LIST = 0x09,
-	RTRVD_CREATE_ATTR_LIST = 0x0F
+	RTRVD_CREATE_MULTIOBJ_LIST = 0x0F
 };
 
 /*

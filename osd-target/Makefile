@@ -11,6 +11,7 @@ OBJ := $(SRC:.c=.o)
 TESTDIR := ./tests/
 UTILDIR := ../util/
 STGTDIR := ../stgt/
+INITDIR := ../osd_initiator/
 OSDTARGETLIB := libosd.a
 
 STGTLIB := ../stgt/libstgt.a
@@ -70,6 +71,6 @@ clean:
 	make -C $(TESTDIR) clean
 
 tags: FORCE
-	ctags -R $(SRC) $(INC) $(TESTDIR) $(UTILDIR)
+	ctags -R $(SRC) $(INC) $(TESTDIR) $(UTILDIR) $(INITDIR)
 
 FORCE:;

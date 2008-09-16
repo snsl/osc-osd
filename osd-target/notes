@@ -215,19 +215,19 @@ can be implemented as a sql view on page numbers 0
 -	include root info page struct in osd_device
 -	osd error precision ??
 -	append
--	split get_attr in cdb.c, handle command ordering, write test cases
--	parse list
++	split get_attr in cdb.c, handle command ordering, write test cases
++	parse list
 -	separate function to handle each command in cdb
 
 # Wed Feb 28 12:30:56 EST 2007
--	break each into individual functions
--	change embeded to true/false
++	break each into individual functions
++	change embeded to true/false
 -	replace magic numbers in calculating cdb offset 
--	test cases for cdb
--	get_attr_page needs to be changes to get pages like ccap. to get all
++	test cases for cdb
++	get_attr_page needs to be changes to get pages like ccap. to get all
 	contents of a page, another command has to be added
 -	ntoh* functions need to be properly aligned
--	attr_page values are aligned to 8-byte boundary
++	attr_page values are aligned to 8-byte boundary
 
 # Thu Mar  1 13:03:27 EST 2007
 -	design and implement collections
@@ -235,37 +235,37 @@ can be implemented as a sql view on page numbers 0
 -	collections as a chunk of memory representing array of oids/cids
 -	collections containing objects across partitions?
 -	design with quota in pic
--	add attribute list header
--	clean interface for getting multiple attributes
--	for create with > 1 objects:
++	add attribute list header
++	clean interface for getting multiple attributes
++	for create with > 1 objects:
 		set attr value, set attr list: attr for each object will be set
 		get attr list: attr for each object in attr list of type 0xF.
 		get attr page: ?
--	new function: osd_getattr_page
++	new function: osd_getattr_page
 -	move page related osd funcs to a new file
 
 # Fri Mar  2 11:19:42 EST 2007
--	conflicting goals:
++	conflicting goals:
 	one function to pack attributes, but that requires double copies? how to
 	solve this?
--	while getting attr in list, in case of overflow, dont overwrite/ignore
++	while getting attr in list, in case of overflow, dont overwrite/ignore
 	copied attrs
 -	ispresent_attr, ispresent_attrpage functions
 -	null attributes page for page not found. for non existing attribute, list
 	entry format with len == 0xFFFFFFFF 
 -	optimize sql query setup
--	change ATTR_VAL_OFFSET to VAL_OFFSET(x)
++	change ATTR_VAL_OFFSET to VAL_OFFSET(x)
 -	creating a new page, automatically creates page 0. 
 -	page directory related functions
--	get_all_attr for object function
--	let attr_gather_attr returns EOVERFLOW, but attr is absent, what will be
++	get_all_attr for object function
++	let attr_gather_attr returns EOVERFLOW, but attr is absent, what will be
 	returned in that case? 
 		it will not be treated as an error
--	mark all sematic decisions as XXX:SD
++	mark all sematic decisions as XXX:SD
 
 # Sun Mar  4 14:56:45 EST 2007
 -	separate return for sqlite calls in attr_get_attr
--	rename RTRVD_CREATE_ATTR_LIST  RTRVD_CREATE_MUTIOBJ_LIST
++	rename RTRVD_CREATE_ATTR_LIST  RTRVD_CREATE_MUTIOBJ_LIST
 -	if setattr with length zero, don't delete it, since that attr still has
 	definition. this situation is different from where attr has no definition
 	XXX:SD modifiy query.
@@ -274,5 +274,9 @@ can be implemented as a sql view on page numbers 0
 
 # Mon Mar  5 16:42:31 EST 2007
 -	directory page: sql query to generate a directory page
--	get attribute list length in 5.2.2.3, is list length in bytes
++	get attribute list length in 5.2.2.3, is list length in bytes
 -	still to test getpage_setvalue, setvalue part in cdb.c
+-	implement sense to report the stage where command failed.
+
+# Tue Mar  6 13:08:16 EST 2007
+-	outdata/indata notation different from spec XXX:SD

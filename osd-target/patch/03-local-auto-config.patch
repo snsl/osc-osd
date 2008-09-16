@@ -1,0 +1,208 @@
+local auto config
+
+From: Pete Wyckoff <pw@osc.edu>
+
+Hack in auto-configuration of an OSD emulation LUN with a big hardcoded
+section in mgmt.c.  It uses /tmp/tgt-<username> for the storage directory.
+---
+
+ usr/mgmt.c |  164 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 files changed, 164 insertions(+), 0 deletions(-)
+
+
+diff --git a/usr/mgmt.c b/usr/mgmt.c
+index 287c03c..e54d83e 100644
+--- a/usr/mgmt.c
++++ b/usr/mgmt.c
+@@ -24,6 +24,7 @@
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <inttypes.h>
++#include <pwd.h>
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
+@@ -40,6 +41,7 @@
+ #include "tgtadm.h"
+ #include "driver.h"
+ #include "util.h"
++#include "scsi.h"
+ 
+ enum mgmt_task_state {
+ 	MTASK_STATE_HDR_RECV,
+@@ -488,6 +490,164 @@ out:
+ 	return;
+ }
+ 
++/*
++ * Hack in the equivalent of these four admin commands for easier
++ * debugging:
++ *   ./tgtadm --lld iscsi --mode target
++ *            --op new --tid 1 --targetname $(hostname)
++ *   ./tgtadm --lld iscsi --mode target
++ *            --op bind --tid 1 --initiator-address ALL
++ *   ./tgtadm --lld iscsi --mode logicalunit
++ *            --op new --tid 1 --lun 1 --backing-store /tmp/tgt-$(id -nu)
++ *            --device-type osd
++ *   ./tgtadm --lld iscsi --mode logicalunit
++ *            --op update --tid 1 --lun 1 --name=scsi_sn --value=$(hostname)
++ * Change the define here to 0 to create a disk target instead.
++ *
++ * There are also hacks in iscsi/target.c to increase various transfer
++ * sizes.  You could do them by hand instead:
++ *   ./tgtadm --lld iscsi --mode target --op update --tid 1 \
++ *            --name MaxRecvDataSegmentLength --value 262144
++ *   ./tgtadm --lld iscsi --mode target --op update --tid 1 \
++ *            --name FirstBurstLength --value 262144
++ */
++#define TARGET_OSD 1
++static int autoconf_iscsi(void)
++{
++#if TARGET_OSD
++	int device_type = TYPE_OSD;
++	const char *path_pfx = "/tmp/tgt-";
++#else
++	int device_type = TYPE_DISK;
++	const char *path_pfx = "/tmp/tgt-disk-";
++	struct stat sb;
++	const off_t size = 10ULL << 30;  /* some GB */
++#endif
++
++	struct mgmt_task mtask;
++	char hostname[256];
++	char *s;
++	int ret;
++	struct passwd *pwd;
++
++	dprintf("auto-adding a target and %s device\n",
++		TARGET_OSD ? "OSD" : "disk");
++
++	/* for all requests */
++	strcpy(mtask.req.lld, "iscsi");
++
++	/* target new */
++	mtask.req.mode = MODE_TARGET;
++	mtask.req.op = OP_NEW;
++	mtask.req.tid = 1;
++	gethostname(hostname, sizeof(hostname));
++	s = malloc(strlen("targetname=") + strlen(hostname) + 1);
++	if (s == NULL)
++		goto out;
++	strcpy(s, "targetname=");
++	strcat(s, hostname);
++	mtask.buf = s;
++	ret = tgt_mgmt(&mtask);
++	if (ret)
++		goto out;
++	free(s);
++
++	/* target bind */
++	mtask.req.mode = MODE_TARGET;
++	mtask.req.op = OP_BIND;
++	mtask.req.tid = 1;
++	mtask.req.host_no = 0;
++	s = strdup("initiator-address=ALL");
++	if (s == NULL)
++		goto out;
++	mtask.buf = s;
++	mtask.req.len = 0;  /* work around req->len bug above */
++	ret = tgt_mgmt(&mtask);
++	if (ret)
++		goto out;
++	free(s);
++
++	/* logicalunit new */
++	mtask.req.mode = MODE_DEVICE;
++	mtask.req.op = OP_NEW;
++	mtask.req.tid = 1;
++	mtask.req.lun = 1;
++	mtask.req.device_type = device_type;
++	pwd = getpwuid(getuid());
++	if (!pwd)
++		goto out;
++	s = malloc(strlen("backing-store=") + strlen(path_pfx)
++		   + strlen(pwd->pw_name) + 1);
++	if (!s)
++		goto out;
++#if !TARGET_OSD
++	/* pre-create it and fill */
++	strcpy(s, path_pfx);
++	strcat(s, pwd->pw_name);
++	int fd = open(s, O_RDWR|O_CREAT, 0644);
++	if (fd < 0) {
++		eprintf("open %s\n", s);
++		goto out;
++	}
++	ret = fstat(fd, &sb);
++	if (ret)
++		goto out;
++	if (sb.st_size < size) {
++		char *buf;
++		off_t bufsize = 1024 * 1024;
++		off_t len = 0, thislen;
++		eprintf("creating backing store, %lu MB\n",
++			(unsigned long) (size >> 20));
++		ret = ftruncate(fd, 0);
++		if (ret)
++			goto out;
++		buf = malloc(bufsize);
++		if (!buf)
++			goto out;
++		memset(buf, 0xa5, bufsize);
++		while (len < size) {
++			thislen = size - len;
++			if (thislen > bufsize)
++				thislen = bufsize;
++			ret = write(fd, buf, thislen);
++			if (ret != thislen)
++				goto out;
++			len += thislen;
++		}
++		free(buf);
++		eprintf("done\n");
++	}
++	close(fd);
++#endif
++	strcpy(s, "backing-store=");
++	strcat(s, path_pfx);
++	strcat(s, pwd->pw_name);
++	mtask.buf = s;
++	ret = tgt_mgmt(&mtask);
++	if (ret)
++		goto out;
++	free(s);
++
++	/* logicalunit update */
++	mtask.req.mode = MODE_DEVICE;
++	mtask.req.op = OP_UPDATE;
++	mtask.req.tid = 1;
++	mtask.req.lun = 1;
++	s = malloc(strlen("scsi_sn=") + strlen(hostname) + 1);
++	if (s == NULL)
++		goto out;
++	strcpy(s, "scsi_sn=");
++	strcat(s, hostname);
++	mtask.buf = s;
++	ret = tgt_mgmt(&mtask);
++	if (ret)
++		goto out;
++	free(s);
++	return 0;
++out:
++	return 1;
++}
++
+ int ipc_init(void)
+ {
+ 	int fd, err;
+@@ -520,6 +680,10 @@ int ipc_init(void)
+ 	if (err)
+ 		goto out;
+ 
++	err = autoconf_iscsi();
++	if (err)
++		goto out;
++
+ 	return 0;
+ out:
+ 	close(fd);

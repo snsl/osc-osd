@@ -1,0 +1,43 @@
+iscsi increase dlength
+
+From: Pete Wyckoff <pw@osc.edu>
+
+Change recv dlength and first burst from 64k to 256k for better
+performance.  You can instead do something like:
+
+    ./tgtadm --lld iscsi --mode target --op update --tid 1 \
+             --name MaxRecvDataSegmentLength --value 262144
+    ./tgtadm --lld iscsi --mode target --op update --tid 1 \
+             --name MaxXmitDataSegmentLength --value 262144
+    ./tgtadm --lld iscsi --mode target --op update --tid 1 \
+             --name FirstBurstLength --value 262144
+
+And get the same effect without a patch.
+---
+
+ usr/iscsi/target.c |    6 +++---
+ 1 files changed, 3 insertions(+), 3 deletions(-)
+
+
+diff --git a/usr/iscsi/target.c b/usr/iscsi/target.c
+index 0471d15..e5ea968 100644
+--- a/usr/iscsi/target.c
++++ b/usr/iscsi/target.c
+@@ -264,14 +264,14 @@ int iscsi_target_create(struct target *t)
+ 	int tid = t->tid;
+ 	struct iscsi_target *target;
+ 	struct param default_tgt_session_param[] = {
+-		[ISCSI_PARAM_MAX_RECV_DLENGTH] = {0, 8192},
+-		[ISCSI_PARAM_MAX_XMIT_DLENGTH] = {0, 8192},  /* do not edit */
++		[ISCSI_PARAM_MAX_RECV_DLENGTH] = {0, 262144},
++		[ISCSI_PARAM_MAX_XMIT_DLENGTH] = {0, 262144},
+ 		[ISCSI_PARAM_HDRDGST_EN] = {0, DIGEST_NONE},
+ 		[ISCSI_PARAM_DATADGST_EN] = {0, DIGEST_NONE},
+ 		[ISCSI_PARAM_INITIAL_R2T_EN] = {0, 1},
+ 		[ISCSI_PARAM_MAX_R2T] = {0, 1},
+ 		[ISCSI_PARAM_IMM_DATA_EN] = {0, 1},
+-		[ISCSI_PARAM_FIRST_BURST] = {0, 65536},
++		[ISCSI_PARAM_FIRST_BURST] = {0, 262144},
+ 		[ISCSI_PARAM_MAX_BURST] = {0, 262144},
+ 		[ISCSI_PARAM_PDU_INORDER_EN] = {0, 1},
+ 		[ISCSI_PARAM_DATASEQ_INORDER_EN] = {0, 1},

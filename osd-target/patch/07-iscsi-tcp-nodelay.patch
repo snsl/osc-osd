@@ -1,0 +1,43 @@
+iscsi tcp nodelay
+
+From: Pete Wyckoff <pw@osc.edu>
+
+Set TCP_NODELAY to avoid big latency between sending data-in and sending
+command response.
+---
+
+ usr/iscsi/iscsi_tcp.c |   13 +++++++++++++
+ 1 files changed, 13 insertions(+), 0 deletions(-)
+
+
+diff --git a/usr/iscsi/iscsi_tcp.c b/usr/iscsi/iscsi_tcp.c
+index 1e818a0..9c09558 100644
+--- a/usr/iscsi/iscsi_tcp.c
++++ b/usr/iscsi/iscsi_tcp.c
+@@ -78,6 +78,15 @@ static int set_keepalive(int fd)
+ 	return 0;
+ }
+ 
++static int set_nodelay(int fd)
++{
++	int ret, opt;
++
++	opt = 1;
++	ret = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
++	return ret;
++}
++
+ static void accept_connection(int afd, int events, void *data)
+ {
+ 	struct sockaddr_storage from;
+@@ -99,6 +108,10 @@ static void accept_connection(int afd, int events, void *data)
+ 	if (ret)
+ 		goto out;
+ 
++	ret = set_nodelay(fd);
++	if (ret)
++		goto out;
++
+ 	tcp_conn = zalloc(sizeof(*tcp_conn));
+ 	if (!tcp_conn)
+ 		goto out;

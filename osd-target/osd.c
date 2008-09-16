@@ -875,7 +875,7 @@ int osd_error_bad_cdb(uint8_t *sense)
 /*
  * Sec 6.2 in osd2r01.pdf
  */
-int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
+static int contig_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	       uint64_t len, const uint8_t *appenddata, uint8_t *sense)
 {
 	int fd;
@@ -923,6 +923,105 @@ out_cdb_err:
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 }
+
+static int sgl_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
+	       uint64_t len, const uint8_t *appenddata, uint8_t *sense)
+{
+	int fd;
+	int ret;
+	off64_t off;
+	char path[MAXNAMELEN];
+	uint64_t pairs, data_offset, offset_val, hdr_offset, length;
+	unsigned int i;
+
+	osd_debug("%s: pid %llu oid %llu len %llu data %p", __func__,
+		  llu(pid), llu(oid), llu(len), appenddata);
+
+	if (!osd || !osd->root || !osd->dbc || !appenddata || !sense)
+		goto out_cdb_err;
+
+	pairs = get_ntohll(appenddata);
+	data_offset = (pairs * sizeof(uint64_t) * 2) + sizeof(uint64_t);
+	assert(pairs != 0);
+
+	osd_debug("%s: offset,len pairs %llu", __func__, llu(pairs));
+	osd_debug("%s: data offset %llu", __func__, llu(data_offset));
+
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_WRONLY|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+	/* seek to the end of logical length: current size of the object */
+	off = lseek(fd, 0, SEEK_END);
+	if (off < 0)
+		goto out_hw_err;
+
+	hdr_offset = sizeof(uint64_t); /* skip count of offset/len pairs */
+
+	for (i=0; i<pairs; i++) {
+		offset_val = get_ntohll(appenddata + hdr_offset); /* offset into dest */
+		hdr_offset += sizeof(uint64_t);
+
+		length = get_ntohll(appenddata + hdr_offset);   /* length */
+		hdr_offset += sizeof(uint64_t);
+
+		osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val+off),
+			llu(length));
+
+		osd_debug("%s: Position in data buffer: %llu", __func__, llu(data_offset));
+
+		osd_debug("%s: ------------------------------", __func__);
+		ret = pwrite(fd, appenddata+data_offset, length, offset_val+off);
+		data_offset += length;
+		osd_debug("%s: return value is %d", __func__, ret);
+		if (ret < 0 || (uint64_t)ret != length)
+			goto out_hw_err;
+	}
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, off);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}
+
+int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
+	       uint64_t len, const uint8_t *appenddata, uint8_t *sense, uint8_t ddt)
+{
+	/*figure out what kind of write it is based on ddt and call appropriate
+	write function*/
+
+	switch(ddt) {
+		case DDT_CONTIG: {
+			return contig_append(osd, pid, oid, len, appenddata, sense);
+		}
+		case DDT_SGL: {
+			return sgl_append(osd, pid, oid, len, appenddata, sense);
+
+		}
+		default: {
+			return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			               OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+		}
+	}
+}
+
 
 static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 			       uint64_t oid)
@@ -2017,7 +2116,7 @@ static int sgl_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t
 		osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val + offset),
 			llu(length));
 
-		osd_debug("%s: Position in data buffer: %llu", __func__, llu(data_offset));
+		osd_debug("%s: Position in data buffer: %llu master offset %llu", __func__, llu(data_offset), llu(offset));
 
 		osd_debug("%s: ------------------------------", __func__);
 		ret = pread(fd, outdata+data_offset, length, offset_val+offset);

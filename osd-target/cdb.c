@@ -1125,6 +1125,7 @@ static void exec_service_action(struct command *cmd)
 	osd_debug("%s: start 0x%04x", __func__, cmd->action);
 	switch (cmd->action) {
 	case OSD_APPEND: {
+		uint8_t ddt = cdb[10];
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
@@ -1133,7 +1134,7 @@ static void exec_service_action(struct command *cmd)
 		if (ret)
 			break;
 
-		ret = osd_append(osd, pid, oid, len, cmd->indata, sense);
+		ret = osd_append(osd, pid, oid, len, cmd->indata, sense, ddt);
 		if (ret)
 			break;
 

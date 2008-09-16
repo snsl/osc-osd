@@ -26,7 +26,7 @@ int osd_end_txn(struct osd_device *osd);
  *   sense response data, if any
  */
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
-	       uint64_t len, const uint8_t *data, uint8_t *sense);
+	       uint64_t len, const uint8_t *data, uint8_t *sense, uint8_t ddt);
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t num, uint8_t *sense);
 int osd_create_and_write(struct osd_device *osd, uint64_t pid,

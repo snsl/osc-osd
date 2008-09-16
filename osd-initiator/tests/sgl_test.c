@@ -63,11 +63,13 @@ static void obj_remove(int fd, uint64_t pid, uint64_t oid)
 static void test_sgl(int fd, uint64_t pid, uint64_t oid)
 {
 
-	/*format of the data buff is:
+	/* format of the data buff is:
 	|#offset,len pairs| |offset| |length|....[DATA]
-	all values are 8 bytes*/
+	all values are 8 bytes */
 
 	void *dbuf;
+	void *xbuf;
+	void *buf;
 	uint64_t length = 10;
 	int size;
 	int ret;
@@ -75,7 +77,18 @@ static void test_sgl(int fd, uint64_t pid, uint64_t oid)
 	int offset = 0;
 	int i;
 
-	/*50 bytes of data plus 5 (offset,len) pairs plus the length value*/
+	/* -------------------------- */
+	/*  write a buffer of 100 Xs  */
+	/* -------------------------- */
+	xbuf = malloc(100);
+	memset(xbuf, 'X', 100);
+	write_osd(fd, pid, oid, xbuf, 100, 0);
+
+	/* --------------------------------------------------------------- */
+	/*  use scatter and fill in with Ds every other chunk of 10 chars  */
+	/* --------------------------------------------------------------- */
+
+	/* 50 bytes of data plus 5 (offset,len) pairs plus the length value */
 	size = 50 + (2*sizeof(uint64_t) * 5) + sizeof(uint64_t);
 
 	dbuf = malloc(size);
@@ -95,6 +108,42 @@ static void test_sgl(int fd, uint64_t pid, uint64_t oid)
 
 	ret = write_sgl_osd(fd, pid, oid, dbuf, size, 0);
 	assert(ret == 0);
+
+	/* ------------------------------------------------------- */
+	/* Now check what we just wrote with existing read command */
+	/* ------------------------------------------------------- */
+	memset(xbuf, 'Z', 100);
+	read_osd(fd, pid, oid, xbuf, 100, 0);
+	printf("%s\n", (char *)xbuf);
+
+	/* ---------------------------------------------- */
+	/*  Now try to gather the Ds we wrote previously  */
+	/* ---------------------------------------------- */
+
+	size = (2*sizeof(uint64_t) * 5) + sizeof(uint64_t);
+	buf = malloc(size);
+	memset(dbuf, 'Z', size);
+
+	set_htonll(buf, 5);
+	hdr_offset = 0;
+	hdr_offset += sizeof(uint64_t);
+	offset = 0;
+	for (i=0; i<5; i++) {
+		osd_debug("Offset= %llu  Length= %llu", llu(offset), llu(length));
+		set_htonll((uint8_t *)buf + hdr_offset, offset);
+		offset += length*2;
+		hdr_offset += sizeof(uint64_t);
+		set_htonll((uint8_t *)buf + hdr_offset, length);
+		hdr_offset += sizeof(uint64_t);
+	}
+	dbuf = malloc(50);  /* return buffer */
+	ret = read_sgl_osd(fd, pid, oid, buf, size, dbuf, 50, 0);
+	printf("%s\n", (char *)buf);
+
+
+
+
+
 
 }
 

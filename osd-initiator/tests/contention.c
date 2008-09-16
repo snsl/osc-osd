@@ -44,7 +44,7 @@
 static int rank, numprocs;
 static const int WORK_MAX = 600;
 static const int test_lb = 1;
-static const int test_ub = 18;
+static const int test_ub = 24;
 
 static void usage(void)
 {
@@ -381,22 +381,23 @@ static void queueback(int fd, uint64_t pid, uint64_t oid, int numlocks,
 				osd_error_fatal("fa error");
 			++reqs;
 			++queued;
-			if (num_waiters == 0) {
-				/* hires_pause((end-start)/2); */
-				continue;
-			}
 
 			/* speculative delay estimation */
 			rtt = ((double)(end-start))/mhz;
 			//println("num waiters %u rtt %7.3lf", num_waiters, rtt);
+			if (num_waiters == 0) {
+				if (dowork != 2)
+					hires_pause(rtt*mhz/2.);
+				continue;
+			}
 			if (dowork == 0) {
-				pause = (num_waiters - .5)*(rtt);
+				pause = (num_waiters + .5)*(rtt);
 			} else if (dowork == 1) {
-				pause = (num_waiters - .5)*(rtt) + WORK_MAX/2.;
+				pause = (num_waiters + .5)*(rtt) + WORK_MAX/2.;
 			} else if (dowork == 2) {
 				pause = (num_waiters + .5)*(rtt); 
 			}
-			usleep((uint64_t)pause);
+			usleep((uint64_t)(pause));
 			continue;
 		} else {
 			osd_error_fatal("cas error");
@@ -471,6 +472,103 @@ static void fixed_spin(int fd, uint64_t pid, uint64_t oid, int numlocks,
 				pause = (num_waiters + .5)*(rtt); 
 			}
 			usleep((uint64_t)pause);
+			continue;
+		} else {
+			osd_error_fatal("cas error");
+		}
+	}
+	*my_att = attempts;
+	*my_req = reqs;
+}
+
+
+static void expwait(int fd, uint64_t pid, uint64_t oid, int numlocks,
+		    int dowork, int *my_att, int *my_req, double *latency)
+{
+	int ret;
+	int reqs, attempts;
+	int locks = 0;
+	int64_t num_waiters, queued;
+	int first_attempt;
+	double rtt, pause, mhz = get_mhz();
+	uint64_t start, end, lat_beg, lat_end;
+	struct osd_command cmd;
+
+	reqs = 0, attempts = 0, num_waiters = 0, queued = 0, first_attempt = 1;
+	while (locks < numlocks) {
+		if (first_attempt) {
+			rdtsc(lat_beg);
+			first_attempt = 0;
+		}
+		ret = cas(fd, &cmd, pid, oid, 0, 1); /* lock */
+		++attempts;
+		++reqs;
+		if (ret == 1) {
+			rdtsc(lat_end);
+			latency[locks] = ((double)(lat_end - lat_beg)/mhz);
+			first_attempt = 1;
+			if (queued) {
+				ret = fa(fd, &cmd, pid, oid, -1, &num_waiters);
+				if (ret == -1)
+					osd_error_fatal("fa failed");
+				++reqs;
+				queued = 0;
+			}
+			++locks;
+			if (dowork == 1) 
+				local_work();
+			else if (dowork == 2)
+				remote_work(fd, pid, oid);
+			ret = cas(fd, &cmd, pid, oid, 1, 0); /* unlock */
+			assert(ret == 1);
+			++reqs;
+		} else if (ret == 0) {
+			if (!queued) {
+				rdtsc(start);
+				ret = fa(fd, &cmd, pid, oid, 1, &num_waiters);
+				rdtsc(end);
+				if (ret == -1)
+					osd_error_fatal("fa error");
+				++reqs;
+				queued = 1;
+			} else {
+				rdtsc(start);
+				ret = fa(fd, &cmd, pid, oid, 0, &num_waiters);
+				rdtsc(end);
+				if (ret == -1)
+					osd_error_fatal("fa error");
+			}
+			rtt = ((double)(end-start))/mhz;
+
+			/* 
+			 * Expected pause duration is determined by assuming
+			 * uniform distribution of the events. The interval
+			 * depends on the cases:
+			 * N == 0 && dowork == 0: [0, 1*rtt]
+			 * N  > 0 && dowork == 0: [0, 2*N*rtt]
+			 * N  > 0 && dowork == 1: [0, (2*rtt + W)*N]
+			 * N  > 0 && dowork == 2: [0, 3*N*rtt]
+			 * 
+			 * pause = E(delay) = 1/2 of width of interval
+			 */
+			if (dowork == 0) {
+				if (num_waiters == 0)
+					pause = rtt/2.;
+				else
+					pause = num_waiters*rtt;
+			} else if (dowork == 1) {
+				if (num_waiters == 0)
+					pause = (rtt + WORK_MAX/2.);
+				else
+					pause = (rtt + WORK_MAX/2.) 
+						* num_waiters;
+			} else if (dowork == 2) {
+				if (num_waiters == 0)
+					pause = rtt;
+				else 
+					pause = 1.5*rtt*num_waiters; 
+			}
+			hires_pause((uint64_t)(pause*mhz));
 			continue;
 		} else {
 			osd_error_fatal("cas error");
@@ -610,8 +708,12 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, int numlocks,
 		fixed_spin(fd, pid, oid, numlocks, dowork, &attempts, &reqs,
 			   latency);
 	} else if (scheme == 4) {
+		expwait(fd, pid, oid, numlocks, dowork, &attempts, &reqs,
+			latency);
+	} else if (scheme == 5) {
 		queueonce(fd, pid, oid, numlocks, dowork, &attempts, &reqs);
 	}
+
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	if (rank == 0) {
@@ -688,9 +790,9 @@ static void lin_backoff(int fd, uint64_t pid, uint64_t oid,
 	int ret;
 	int reqs, attempts;
 	int locks = numlocks;
-	double *global_req, *global_att;
-	int *gather;
-	uint64_t exp_beg, exp_end, start, end;
+	double *global_req = NULL, *global_att = NULL;
+	int *gather = NULL;
+	uint64_t exp_beg=0, exp_end=0, start, end;
 	double mu_req, sd_req, mu_att, sd_att;
 	double rtt, exp_time, mhz = get_mhz();
 	struct osd_command cmd;
@@ -822,7 +924,7 @@ int main(int argc, char *argv[])
 	}
 
 	i = 0;
-	osd_debug("drive %s name %s", drives[i].chardev, drives[i].targetname);
+	//osd_debug("drive %s name %s", drives[i].chardev, drives[i].targetname);
 	fd = open(drives[i].chardev, O_RDWR);
 	if (fd < 0) {
 		osd_error_errno("%s: open %s", __func__, drives[i].chardev);
@@ -1026,6 +1128,74 @@ int main(int argc, char *argv[])
 			spec_idle(fd, pid, oid, 100, 1, 3);
 		else if (test == 18)
 			spec_idle(fd, pid, oid, 100, 2, 3);
+		
+		if (rank == 0) {
+			osd_command_set_remove(&cmd, pid, oid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_remove_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+		break;
+	case 19: /* Contention, speculative idling, expwait no work */
+	case 20: /* Contention, speculative idling, expwait local work */
+	case 21: /* Contention, speculative idling, expwait remote work */
+		if (rank == 0) {
+			osd_command_set_format_osd(&cmd, 1<<30);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_create_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_create(&cmd, pid, oid, 1);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+
+		if (test == 19)
+			spec_idle(fd, pid, oid, 100, 0, 4);
+		else if (test == 20)
+			spec_idle(fd, pid, oid, 100, 1, 4);
+		else if (test == 21)
+			spec_idle(fd, pid, oid, 100, 2, 4);
+		
+		if (rank == 0) {
+			osd_command_set_remove(&cmd, pid, oid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_remove_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+		break;
+	case 22: /* Contention, speculative idling, queueonce no work */
+	case 23: /* Contention, speculative idling, queueonce local work */
+	case 24: /* Contention, speculative idling, queueonce remote work */
+		if (rank == 0) {
+			osd_command_set_format_osd(&cmd, 1<<30);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_create_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_create(&cmd, pid, oid, 1);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+
+		if (test == 22)
+			spec_idle(fd, pid, oid, 100, 0, 5);
+		else if (test == 23)
+			spec_idle(fd, pid, oid, 100, 1, 5);
+		else if (test == 24)
+			spec_idle(fd, pid, oid, 100, 2, 5);
 		
 		if (rank == 0) {
 			osd_command_set_remove(&cmd, pid, oid);

@@ -60,8 +60,10 @@ static int calc_max_out_len(struct command *cmd)
 	case OSD_LIST:
 	case OSD_LIST_COLLECTION:
 	case OSD_READ:
+		cmd->outlen = ntohll(&cmd->cdb[32]);
+		break;
 	case OSD_SET_MASTER_KEY:
-		cmd->outlen = ntohll(&cmd->cdb[36]);
+		cmd->outlen = ntohl(&cmd->cdb[36]);
 		break;
 	default:
 		cmd->outlen = 0;
@@ -526,7 +528,7 @@ static void exec_service_action(struct command *cmd)
 	case OSD_CREATE_AND_WRITE: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t requested_oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[36]);
+		uint64_t len = ntohll(&cdb[32]);
 		uint64_t offset = ntohll(&cdb[40]);
 
 		ret = verify_enough_input_data(cmd, len);

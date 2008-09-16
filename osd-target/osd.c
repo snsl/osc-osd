@@ -1269,18 +1269,16 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 
 	*used_outlen = readlen;
 
-#if 0   /* Causes scsi transport problems.  Will debug later.  --pw */
 	/* valid, but return a sense code */
-	if (retlen < len) {
+	if ((size_t) readlen < len) {
 		ret = sense_build_sdd(sense, OSD_SSK_RECOVERED_ERROR,
 				      OSD_ASC_READ_PAST_END_OF_USER_OBJECT,
 				      pid, oid);
-		ret += sense_csi_build(sense+ret, OSD_MAX_SENSE-ret, retlen);
+		ret += sense_csi_build(sense+ret, OSD_MAX_SENSE-ret, readlen);
 	}
-#endif
 
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
-	return OSD_OK; /* success */
+	return ret;
 
 out_hw_err:
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,

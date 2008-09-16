@@ -22,7 +22,10 @@ struct list_entry {
 	uint32_t page;
 	uint32_t number;
 	uint16_t len;
-	void *val;
+	union {
+		void *val;
+		const void *cval;
+	};
 } __attribute__((packed));
 
 enum {

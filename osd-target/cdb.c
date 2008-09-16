@@ -621,34 +621,39 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	if (list_type != RTRVD_SET_ATTR_LIST)
 		goto out_param_list_err;
 
-	list_len = ntohl(&list_hdr[4]); /* XXX: osd errata */
+	list_len = ntohl(&list_hdr[4]);
 	if ((list_len + 8) != setattr_list_len)
 		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8, values are padded */
 		goto out_param_list_err;
 
 	if (list_len > 0) {
-		cmd->set_attr.sz = list_len/10; /* overcompensate */
+		/* This malloc provides for the maximum number of attrs,
+		 * but it can be much smaller if the attrs have any
+		 * values. */
+		cmd->set_attr.sz = list_len/10;
 		cmd->set_attr.le = Malloc(cmd->set_attr.sz *
 					  sizeof(*(cmd->set_attr.le)));
-		if (!cmd->get_attr.le)
+		if (!cmd->set_attr.le)
 			goto out_hw_err;
 	}
 
 	i = 0;
 	pad = 0;
-	list_hdr = &list_hdr[8]; /* XXX: osd errata */
+	list_hdr += 8;
+	cmd->set_attr.sz = 0;  /* start counting again */
 	while (list_len > 0) {
 		cmd->set_attr.le[i].page = ntohl(&list_hdr[LE_PAGE_OFF]);
 		cmd->set_attr.le[i].number = ntohl(&list_hdr[LE_NUMBER_OFF]);
 		cmd->set_attr.le[i].len = ntohs(&list_hdr[LE_LEN_OFF]);
-		cmd->set_attr.le[i].val = &list_hdr[LE_VAL_OFF];
+		cmd->set_attr.le[i].cval = &list_hdr[LE_VAL_OFF];
 
 		pad = (0x8 - ((LE_VAL_OFF + cmd->set_attr.le[i].len) & 0x7)) & 
 			0x7;
 		list_hdr += LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
 		list_len -= LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
 		i++;
+		++cmd->set_attr.sz;
 	}
 
 	return 0;

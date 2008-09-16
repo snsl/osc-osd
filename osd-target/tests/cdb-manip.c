@@ -12,6 +12,7 @@
 
 #include "cdb-manip.h"
 #include "osd-defs.h"
+#include "osd.h"
 
 #define OSD_CDB_SIZE 200
 #define VARLEN_CDB 0x7f
@@ -343,25 +344,91 @@ int set_cdb_osd_write(uint8_t *cdb, uint64_t pid, uint64_t oid, uint64_t len,
 /*
  * Attribute list get/set functions.
  */
-void set_cdb_get_attr_page(uint8_t *cdb, uint32_t page, uint32_t len,
-                           uint32_t retrieved_offset)
+int set_cdb_getpage_setvalue(uint8_t *cdb, uint32_t getpage, 
+			     uint32_t alloclen, uint32_t retrieved_offset,
+			     uint32_t setpage, uint32_t setnumber,
+			     uint32_t setlen, uint32_t setattr_offset)
 {
 	cdb[11] = (cdb[11] & ~(3 << 4)) | (2 << 4);
-	set_htonl(&cdb[52], page);
-	set_htonl(&cdb[56], len);
-	set_htonl(&cdb[60], retrieved_offset);
+	set_htonl(&cdb[52], getpage);
+	set_htonl(&cdb[56], alloclen);
+	set_htonoffset(&cdb[60], retrieved_offset);
+	set_htonl(&cdb[64], setpage);
+	set_htonl(&cdb[68], setnumber);
+	set_htonl(&cdb[72], setlen);
+	set_htonoffset(&cdb[76], setattr_offset);
+	return 0;
 }
 
 /*
  * Attribute list get/set functions.
  */
-void set_cdb_get_attr_list(uint8_t *cdb, uint32_t list_len,
-                           uint32_t list_offset, uint32_t alloc_len,
-                           uint32_t retrieved_offset)
+int set_cdb_getlist_setlist(uint8_t *cdb, uint32_t getlist_len,
+			    uint32_t getlist_offset, uint32_t alloc_len,
+			    uint32_t retrieved_offset, uint32_t setlist_len,
+			    uint32_t setlist_offset)
 {
 	cdb[11] = cdb[11] | (3 << 4);
-	set_htonl(&cdb[52], list_len);
-	set_htonl(&cdb[56], list_offset);
+	set_htonl(&cdb[52], getlist_len);
+	set_htonoffset(&cdb[56], getlist_offset);
 	set_htonl(&cdb[60], alloc_len);
-	set_htonl(&cdb[64], retrieved_offset);
+	set_htonoffset(&cdb[64], retrieved_offset);
+	set_htonl(&cdb[68], setlist_len);
+	set_htonoffset(&cdb[72], setlist_offset);
+	return 0;
+}
+
+int set_cdb_setattr_list(void *buf, struct list_entry *le, uint32_t numle)
+{
+	uint32_t i = 0;
+	uint32_t len = 0;
+	uint8_t *cp = buf;
+	cp[0] = RTRVD_SET_ATTR_LIST;
+	cp[1] = cp[2] = cp[3] = 0;
+
+	cp = &cp[8];
+	len = 8;
+	for (i = 0; i < numle; i++) {
+		uint8_t pad = 0;
+		set_htonl(cp, le->page);
+		cp += sizeof(le->page), len += sizeof(le->page);
+		set_htonl(cp, le->number);
+		cp += sizeof(le->number), len += sizeof(le->number);
+		set_htons(cp, le->len);
+		cp += sizeof(le->len), len += sizeof(le->len);
+		memcpy(cp, le->val, le->len);
+		cp += le->len, len += le->len;
+
+		pad = (0x8 - ((le->len + LE_VAL_OFF) & 0x7)) & 0x7; 
+		len += pad;
+		while (pad--)
+			*cp++ = 0;
+		le++;
+	}
+	cp = buf;
+	set_htonl_le(&cp[4], len-8);
+	return len;
+}
+
+int set_cdb_getattr_list(void *buf, struct getattr_list_entry *gl, 
+			 uint32_t numgl)
+{
+	uint32_t i = 0;
+	uint32_t len = 0;
+	uint8_t *cp = buf;
+	cp[0] = RTRV_ATTR_LIST;
+	cp[1] = cp[2] = cp[3] = 0;
+
+	cp = &cp[8];
+	len = 8;
+	for (i = 0; i < numgl; i++) {
+		set_htonl_le(cp, gl->page);
+		cp += sizeof(gl->page), len += sizeof(gl->page);
+		set_htonl_le(cp, gl->number);
+		cp += sizeof(gl->number), len += sizeof(gl->number);
+		gl++;
+	}
+	cp = buf;
+	set_htonl_le(&cp[4], len-8);
+	return len;
 }

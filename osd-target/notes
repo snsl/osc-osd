@@ -271,3 +271,8 @@ can be implemented as a sql view on page numbers 0
 	XXX:SD modifiy query.
 -	after opening db, check if all tables exist
 -	cdb tests, tests for new osd-functions
+
+# Mon Mar  5 16:42:31 EST 2007
+-	directory page: sql query to generate a directory page
+-	get attribute list length in 5.2.2.3, is list length in bytes
+-	still to test getpage_setvalue, setvalue part in cdb.c

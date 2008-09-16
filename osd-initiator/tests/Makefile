@@ -3,7 +3,7 @@
 #
 
 PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c atomic.c \
-	   attr-all.c
+	   attr-all.c iospeed2.c
 PROGSRC += blk-iospeed.c sgl_test.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)

@@ -478,6 +478,13 @@ int write_vec_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 {
 	int ret;
 	struct osd_command command;
+	struct attribute_list attr = {
+		.type = ATTR_GET,
+		.page = USER_INFO_PG,
+		.number = UIAP_LOGICAL_LEN,
+		.len = 8,
+	};
+	uint64_t size;
 
 	osd_debug("****** WRITE VEC ******");
 	osd_debug("PID: %llu OID: %llu LEN: %llu", llu(pid), llu(oid), llu(len));
@@ -496,11 +503,23 @@ int write_vec_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	command.outdata = buf;
 	command.outlen = len;
 
+	osd_command_attr_build(&command, &attr, 1);
+
 	ret = osd_submit_command(fd, &command);
 	check_response(ret, &command, NULL);
 
 	ret = osd_wait_this_response(fd, &command);
 	check_response(ret, &command, NULL);
+
+	ret = osd_command_attr_resolve(&command);
+	if (ret) {
+		osd_error_xerrno(ret, "%s: attr_resolve failed", __func__);
+		exit(1);
+	}
+	size = get_ntohll(command.attr[0].val);
+
+	osd_debug("Object Data Size is %llu\n", llu(size));
+
 
 	return 0;
 }

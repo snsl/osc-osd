@@ -41,6 +41,21 @@ int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 }
 
 /*
+ * SPC-3 command-specific information sense data descriptor.  p. 33.
+ */
+int sense_csi_build(uint8_t *data, int len, uint64_t csi)
+{
+	if (len < 12)
+		return 0;
+	data[0] = 0x1;
+	data[1] = 0xa;
+	/* ditto...
+	htonll_set(&data[4], csi);
+	*/
+	return 12;
+}
+
+/*
  * Helper to create sense data where no processing was initiated or completed,
  * and just a header and basic info descriptor are required.  Assumes full 252
  * byte sense buffer.

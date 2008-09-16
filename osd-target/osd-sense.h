@@ -112,6 +112,7 @@ int sense_header_build(uint8_t *data, int len, uint8_t key, uint8_t asc,
 					   uint8_t ascq, uint8_t additional_len);
 int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 					 uint32_t completed_funcs, uint64_t pid, uint64_t oid);
+int sense_csi_build(uint8_t *data, int len, uint64_t csi);
 int sense_basic_build(uint8_t *sense, uint8_t key, uint8_t asc, uint8_t ascq,
 					  uint64_t pid, uint64_t oid);
 int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t sense_code,

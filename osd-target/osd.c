@@ -88,6 +88,7 @@ int osd_open(const char *root, struct osd_device *osd)
 	int ret;
 	char path[MAXNAMELEN];
 
+	progname = "osd-target";  /* for debug messages from libosdutil */
 	if (strlen(root) > MAXROOTLEN) {
 		ret = -ENAMETOOLONG;
 		goto out;
@@ -456,8 +457,8 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	     uint64_t offset, uint8_t **doutbuf, uint64_t *outlen, 
 	     uint8_t *sense)
 {
-	int ret = 0;
-	int fd = 0;
+	ssize_t retlen;
+	int ret, fd;
 	char path[MAXNAMELEN];
 	void *buf = NULL;
 
@@ -474,17 +475,29 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 		goto out_cdb_err;
 
 	buf = Malloc(len); /* freed in iSCSI layer */
-	ret = pread(fd, buf, len, offset);
-	if (ret < 0 || (uint64_t)ret != len)
+	retlen = pread(fd, buf, len, offset);
+	if (retlen < 0) {
+		close(fd);
 		goto out_hw_err;
+	}
 
 	ret = close(fd);
 	if (ret != 0)
 		goto out_hw_err;
 
-	*outlen = len;
+	*outlen = retlen;
 	*doutbuf = buf;
-	return 0; /* success */
+
+#if 0   /* Causes scsi transport problems.  Will debug later.  --pw */
+	/* valid, but return a sense code */
+	if (retlen < len) {
+		ret = sense_build_sdd(sense, OSD_SSK_RECOVERED_ERROR,
+		                      OSD_ASC_READ_PAST_END_OF_USER_OBJECT,
+				      pid, oid);
+		ret += sense_csi_build(sense+ret, MAX_SENSE_LEN-ret, retlen);
+	}
+#endif
+	return ret; /* success */
 
 out_hw_err:
 	if (buf)

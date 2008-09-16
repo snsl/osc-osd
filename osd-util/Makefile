@@ -42,3 +42,13 @@ tags: FORCE
 
 FORCE:;
 
+# distribution tarball
+.PHONY: dist
+MV := osd-util-$(shell date +%Y%m%d)
+dist:
+	rm -rf $(MV)
+	mkdir $(MV)
+	svn list -R | rsync --files-from=/dev/stdin --exclude=.svn ./ $(MV)/
+	tar cf - $(MV) | bzip2 -9c > $(MV).tar.bz2
+	rm -rf $(MV)
+

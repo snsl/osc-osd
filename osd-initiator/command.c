@@ -1129,11 +1129,8 @@ void osd_command_attr_free(struct osd_command *command)
  */
 int osd_command_attr_all_build(struct osd_command *command, uint32_t page)
 {
-	struct attribute_list attr = {
-		.type = ATTR_GET,
-		.page = page,
-		.number = ATTRNUM_GETALL,
-	};
+	struct attr_malloc_header *header;
+	uint8_t *p, *extra_out_buf, *extra_in_buf;
 
 	/*
 	 * In some of the later OSD specs, max space for a returned list
@@ -1141,15 +1138,58 @@ int osd_command_attr_all_build(struct osd_command *command, uint32_t page)
 	 * if we can't list all the items, there is no way to start the list
 	 * again from the middle.
 	 */
-	int len = 128 << 20;  /* 128 MB is ridiculously large */
+	int len = 512 << 10;  /* 512k is the most BSG will let us do */
 
 	/*
-	 * Subtract 10 so we can borrow the ATTR_GET code from the normal
-	 * attr build function.
+	 * Cannot use normal attr build as it caps the lengths of items at
+	 * 16 bits.  We're asking for a whole bunch of items, each of which
+	 * will be shorter than 16 bits, but together will exceed that.
 	 */
-	attr.len = len - 10;
 
-	return osd_command_attr_build(command, &attr, 1);
+	/* not build to handle other in or out data */
+	if (command->inlen_alloc || command->outlen)
+		return 1;
+
+	p = Malloc(roundup8(sizeof(*header)) + 16 + len);
+	if (!p)
+		return 1;
+
+	/* to free it later */
+	command->attr_malloc = p;
+
+	header = (void *) p;
+	p += roundup8(sizeof(*header));
+
+	extra_out_buf = p;
+	p += 16;
+	extra_in_buf = p;
+
+	/*
+	 * Build the getlist.
+	 */
+	p = extra_out_buf;
+	p[0] = 0x1;
+	p[1] = p[2] = p[3] = 0;
+	set_htonl(&p[4], 8);
+	set_htonl(&p[8], page);
+	set_htonl(&p[12], 0xffffffff);
+
+	p = extra_in_buf;
+	header->retrieved_buf = p;
+
+	/*
+	 * Fill the CDB bits.  List format.
+	 */
+	set_htonl(&command->cdb[52], 16);  /* size getlist */
+	set_htonl(&command->cdb[60], len);  /* size retrieved */
+
+	command->outdata = extra_out_buf;
+	command->outlen = 16;
+
+	command->indata = extra_in_buf;
+	command->inlen_alloc = len;
+
+	return 0;
 }
 
 /*
@@ -1164,11 +1204,8 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 	uint32_t list_len;
 	int ret = -EINVAL;
 
-	if (command->inlen < header->start_retrieved)
-		goto unwind;
-
 	p = header->retrieved_buf;
-	len = command->inlen - header->start_retrieved;
+	len = command->inlen;
 	VALGRIND_MAKE_MEM_DEFINED(p, len);
 
 	/*
@@ -1251,10 +1288,14 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 		avail_len = item_len;
 
 		/*
-		 * Ran off the end of the allocated buffer?
+		 * Ran off the end of the allocated buffer?  Just return
+		 * the full entries and complain to caller.
 		 */
-		if (avail_len > len)
+		if (avail_len > len) {
 			avail_len = len;
+			ret = -E2BIG;
+			break;
+		}
 
 		command->attr[command->numattr].val = p;
 		command->attr[command->numattr].page = page;

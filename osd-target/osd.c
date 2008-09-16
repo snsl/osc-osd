@@ -242,6 +242,7 @@ static int get_ccap_aslist(struct osd_device *osd, uint32_t number,
 	char name[CCAP_PAGEID_LEN] = {'\0'};
 	void *val = NULL;
 	uint8_t *cp = outbuf;
+	uint8_t ll[8];
 
 	if (osd == NULL || outbuf == NULL || used_outlen == NULL)
 		return -EINVAL;
@@ -261,16 +262,19 @@ static int get_ccap_aslist(struct osd_device *osd, uint32_t number,
 		val = &osd->ccap.obj_type;
 		break;
 	case CCAP_PID_ATTR:
+		set_htonll(ll, osd->ccap.pid);
 		len = CCAP_PID_LEN;
-		val = &osd->ccap.pid;
+		val = ll;
 		break;
 	case CCAP_OID_ATTR:
+		set_htonll(ll, osd->ccap.oid);
 		len = CCAP_OID_LEN;
-		val = &osd->ccap.oid;
+		val = ll;
 		break;
 	case CCAP_APPADDR_ATTR:
+		set_htonll(ll, osd->ccap.append_off);
 		len = CCAP_APPADDR_LEN;
-		val = &osd->ccap.append_off;
+		val = ll;
 		break;
 	default:
 		return OSD_ERROR;

@@ -550,10 +550,8 @@ void test_osd_query(struct osd_device *osd)
 	uint64_t oid = 0;
 	uint64_t pid = 0;
 	uint8_t *cp = NULL;
-	uint32_t number = 0;
-	uint32_t len = 0;
 	uint64_t min = 0, max = 0;
-	uint64_t usedlen = 0, add_len = 0;
+	uint64_t usedlen = 0;
 	uint32_t page = COLLECTIONS_PG;
 	uint32_t qll = 0;
 	void *buf = Calloc(1, 1024);

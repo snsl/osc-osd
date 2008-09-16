@@ -488,7 +488,6 @@ int osd_command_attr_build(struct osd_command *command,
 	int i;
 	int neediov;
 	int setattr_index;
-	int max_set_one_attr_len = 18;
 	uint64_t extra_out, extra_in;
 	uint32_t header_space, attr_space, iov_space, getmulti_result_space;
 
@@ -877,7 +876,7 @@ int osd_command_attr_build(struct osd_command *command,
 		        set_htonl(&command->cdb[52], attr[0].page);
 		        set_htonl(&command->cdb[56], attr[0].number);
 			set_htonl(&command->cdb[60], attr[0].len);
-			memcpy(&command->cdb[62], attr[0].val, max_set_one_attr_len+1);
+			memcpy(&command->cdb[62], attr[0].val, attr[0].len);
 	}
 	
 	else if (use_getpage) {

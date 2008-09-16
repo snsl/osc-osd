@@ -11,15 +11,15 @@
 #include <assert.h>
 
 #include "osd.h"
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 #include "target-sense.h"
 #include "db.h"
 #include "attr.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "obj.h"
 #include "coll.h"
 #include "mtq.h"
-#include "util/osd-sense.h"
+#include "osd-util/osd-sense.h"
 #include "list-entry.h"
 
 struct incits_page_id {

@@ -4,14 +4,14 @@
 #include <string.h>
 #include <assert.h>
 
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 #include "osd-types.h"
 #include "osd.h"
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
 #include "coll.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 
 static void test_obj(struct osd_device *osd)
 {

@@ -7,10 +7,10 @@
 #include <sys/stat.h>
 
 #include "osd-types.h"
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 #include "db.h"
 #include "coll.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "list-entry.h"
 
 /*

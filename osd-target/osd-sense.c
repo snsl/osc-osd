@@ -3,9 +3,9 @@
 #include <stdint.h>
 
 #include "target-sense.h"
-#include "util/osd-sense.h"
-#include "util/osd-util.h"
-#include "util/osd-defs.h"
+#include "osd-util/osd-sense.h"
+#include "osd-util/osd-util.h"
+#include "osd-util/osd-defs.h"
 
 /*
  * Descriptor format sense data.  See spc3 p 31.  Returns length of

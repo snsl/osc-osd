@@ -9,13 +9,13 @@ INC += coll.h mtq.c
 DEP := .depend
 OBJ := $(SRC:.c=.o)
 TESTDIR := ./tests/
-UTILDIR := ../util/
+UTILDIR := ../osd-util/
 STGTDIR := ../stgt/
 INITDIR := ../osd-initiator/
 OSDTARGETLIB := libosdtgt.a
 
 STGTLIB := ../stgt/libstgt.a
-UTILLIB := ../util/libosdutil.a
+UTILLIB := ../osd-util/libosdutil.a
 
 IB_HW_OF_LIBS= -L/usr/local/openib-iser/lib
 
@@ -32,7 +32,7 @@ COPTS += -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../util
+CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../osd-util
 
 .PHONY: UTIL TESTS STGT
 

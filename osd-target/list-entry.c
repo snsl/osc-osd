@@ -3,10 +3,10 @@
 #include <assert.h>
 #include <string.h>
 
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 #include "osd.h"
 #include "list-entry.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 
 /* 
  * retrieve attr in list entry format; tab 129 Sec 7.1.3.3

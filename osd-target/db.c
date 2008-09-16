@@ -5,13 +5,13 @@
 #include <errno.h>
 #include <sys/stat.h>
 
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 #include "osd-types.h"
 #include "osd.h"
 #include "db.h"
 #include "obj.h"
 #include "coll.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "attr.h"
 
 extern const char osd_schema[];

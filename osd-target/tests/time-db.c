@@ -4,14 +4,14 @@
 #include <string.h>
 #include <assert.h>
 
-#include "util/osd-defs.h"
+#include "osd-util/osd-defs.h"
 #include "osd-types.h"
 #include "osd.h"
 #include "db.h"
 #include "coll.h"
 #include "obj.h"
 #include "attr.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 
 static void time_coll_insert(struct osd_device *osd, int numobj, int numiter, 
 			     int testone)

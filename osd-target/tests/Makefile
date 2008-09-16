@@ -21,7 +21,7 @@ TMG_SRC := $(addprefix $(TMG_DIR), $(TMG_TEST))
 TMG_OBJ := $(TMG_TEST:.c=.o)
 TMG_EXE := $(TMG_TEST:.c=)
 
-LIBOSD := ../libosdtgt.a ../../util/libosdutil.a 
+LIBOSD := ../libosdtgt.a ../../osd-util/libosdutil.a 
 
 include ../../Makedefs
 OPT := $(filter-out -DNDEBUG,$(OPT)) # don't turn off asserts!

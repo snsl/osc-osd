@@ -10,11 +10,11 @@
 #include <assert.h>
 
 #include "osd.h"
-#include "util/osd-sense.h"
-#include "util/osd-defs.h"
+#include "osd-util/osd-sense.h"
+#include "osd-util/osd-defs.h"
 #include "target-sense.h"
 #include "cdb.h"
-#include "util/osd-util.h"
+#include "osd-util/osd-util.h"
 #include "list-entry.h"
 
 /*

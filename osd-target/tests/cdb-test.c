@@ -11,9 +11,9 @@
 #include "osd-types.h"
 #include "osd.h"
 #include "cdb.h"
-#include "util/osd-defs.h"
-#include "util/osd-util.h"
-#include "util/osd-sense.h"
+#include "osd-util/osd-defs.h"
+#include "osd-util/osd-util.h"
+#include "osd-util/osd-sense.h"
 #include "osd-initiator/command.h"
 
 void test_partition(struct osd_device *osd);

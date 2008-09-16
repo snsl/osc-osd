@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "osd.h"
 #include "util/osd-sense.h"
@@ -1053,7 +1054,15 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 
 	/* Allocate total possible output size. */
 	if (cmd.outlen) {
-		cmd.outdata = Malloc(cmd.outlen); /* XXX: stgt will free it */
+		/* XXX: stgt will free the allocated bufs */
+		osd_debug("%s: outlen %d, data_out_len %d", __func__, 
+			  cmd.outlen, *data_out_len);
+		if(cmd.outlen < *data_out_len)
+			goto out_hw_err;
+		if (*data_out_len == 0)
+			cmd.outdata = Malloc(cmd.outlen); 
+		else
+			cmd.outdata = *data_out;
 		if (!cmd.outdata)
 			goto out_hw_err;
 	}
@@ -1076,6 +1085,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 
 	/* Return the data buffer and get attributes. */
 	if (cmd.outlen > 0) {
+		assert(cmd.used_outlen <= cmd.outlen);
 		if (cmd.used_outlen > 0) {
 			*data_out = cmd.outdata;
 			*data_out_len = cmd.used_outlen;

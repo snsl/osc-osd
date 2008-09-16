@@ -615,3 +615,79 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
 -   change osd.c to reflect changes in return values of coll, obj, attr
 -   what if it fails to bind but reset is successfull?
     
+# Mon Jun  4 14:40:59 EDT 2007
+-   call trace for login PDU
+    __session_mainloop
+    __session_poll
+    iscsi_login_req
+        iscsi_make_login_pdu
+    ksend_pdu_end
+    (netlink)
+    .
+    .
+    iscsi_prep_scsi_cmd_pdu: sets ISCSI_FLAG_CMD_WRITE
+    .
+    .
+    iscsi_conn_send_pdu 
+    iscsi_conn_send_generic: changes itt and cmdsn
+    scsi_queue_work
+    queue_work
+    __queue_work
+    .
+    .
+    iscsi_xmitworker
+    iscsi_data_xmit
+    iscsi_iser_ctask_xmit
+    iser_send_command
+    iser_prepare_write_cmd
+        iser_post_recv
+    iser_post_send
+
+
+-   change unit tests from hardcoded test cases to a file with test
+    combinations.
+  
+# Fri Jun  8 19:58:59 EDT 2007
+ -  set header and data digests to None
+
+# Sun Jun 10 00:25:15 EDT 2007
+-   iscsi api for iser
+    iscsi_iser_event_handler
+    iscsi_iser_rx_handler
+    iscsi_iser_tx_handler
+    data_ack_notify
+    data_comp_notify
+    conn_term_notify
+
+    by ISER
+    ep_write_begin(hndl, *buf, size)
+    ep_write_end(hndl)
+    nbytes ep_read(hndl, **buf)
+    get_data(hndl) == ep_read()
+    alloc_conn_rsrc()
+    dealloc_conn_rsrc()
+    dealloc_task_rsrc(hndl)
+    ep_close(hndl)
+
+-   iSCSI impl for RDMAExt
+    return scsi status in a separate scsi response pdu
+    must support login keys: RDMAExt, Digests set to None, 
+    ORD affects qp caps
+    max outstanding unexpected pdus
+
+-   First message is hello: 
+    the message from initiator does not appear to be it!!
+
+-   completion queue events must be handled in iscsi_iser
+-   status field in iser conn
+
+-   how to control iscsid state transitions?
+
+-   event_loop
+-   rdma low level
+-   list of ready tasks
+-   api change
+
+# Thu Jun 14 00:29:01 EDT 2007
+-   deregister rdmal
+-   handle close conn

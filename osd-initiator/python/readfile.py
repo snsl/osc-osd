@@ -39,23 +39,29 @@ def compare(buf1, buf2):
 			sys.exit(1)
 
 def readfile(pid, oid):
-	len = 1 << 20  # 1 MB chunk size
+	len = 1 << 10  # 1 kB chunk size
 	pos = 0
 	while True:
 		command = OSDCommand()
 		command.set_read(pid, oid, len, pos)
-		run(command)
-		if command.inlen == 0:
+		dev.submit_and_wait(command)
+		# read past end of object, okay
+		if command.status == 2 and command.sense_key == 1 \
+		   and command.sense_code == 0x3b17:
+			sys.stdout.write(command.indata)
 			break
-		stdout.write(command.indata)
+		if command.status != 0:
+			print "Command failed:", command.show_sense(),
+			assert 0 == 1
+		sys.stdout.write(command.indata)
 		pos += command.inlen
 
 def writefile(pid, oid):
 	len = 1 << 20  # 1 MB chunk size
 	pos = 0
 	while True:
-		buf = stdin.read(len)
-		if len(buf) == 0:
+		buf = sys.stdin.read(len)
+		if buf == "":
 			break
 		command = OSDCommand()
 		command.set_write(pid, oid, buf, pos)

@@ -1105,7 +1105,7 @@ static void test_attr_vals(uint8_t *cp, struct attribute_list *attrs,
 				assert(get_ntohll((uint8_t *)attrs[i].val) == 
 				       get_ntohll(cp));
 			} else if (len != NULL_ATTR_LEN) {
-				assert(!memcmp(attrs[i].val, cp, len));
+				assert(memcmp(attrs[i].val, cp, len) == 0);
 			}
 			break;
 		}
@@ -1412,6 +1412,56 @@ void test_atomics(struct osd_device *osd)
 	assert(ret == 0);
 	assert(data_out != NULL);
 	test_attr_vals(data_out, &attr1[2], 1);
+	osd_command_attr_free(&cmd);
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
+	/* cond setattr */
+	ret = osd_command_set_cond_setattr(&cmd, USEROBJECT_PID_LB,
+					   USEROBJECT_OID_LB);
+	assert(ret == 0);
+	char str3[MAXNAMELEN];
+	sprintf(str3, "setattr str");
+	struct attribute_list attr2[] = {
+		{ATTR_SET, USEROBJECT_PG+LUN_PG_LB, 1, str2, strlen(str2)+1,
+			0
+		}, /* cmp */
+		{ATTR_SET, USEROBJECT_PG+LUN_PG_LB, 1, str1, strlen(str1)+1,
+			0
+		}, /* swap */
+		{ATTR_SET, USEROBJECT_PG+LUN_PG_LB+100, 23, str3, 
+			strlen(str3)+1, 0
+		},
+		{ATTR_RESULT, USEROBJECT_PG+LUN_PG_LB, 1, str2, strlen(str2)+1,
+			0
+		}
+	};
+	ret = osd_command_attr_build(&cmd, attr2, 4);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen, 
+				&data_out, &data_out_len, sense_out, 
+				&senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	test_attr_vals(data_out, &attr2[3], 1);
+	osd_command_attr_free(&cmd);
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
+	attr2[2].type = ATTR_GET;
+	ret = osd_command_set_get_attributes(&cmd, USEROBJECT_PID_LB,
+					     USEROBJECT_OID_LB);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, &attr2[2], 1);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen, 
+				&data_out, &data_out_len, sense_out, 
+				&senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	test_attr_vals(data_out, &attr2[2], 1);
 	osd_command_attr_free(&cmd);
 	free(data_out);
 	data_out = NULL;

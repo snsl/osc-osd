@@ -849,119 +849,140 @@ out_cdb_err:
 	return ret;
 }
 
-/*
- * OSD_GEN_CAS: the CAS operation is applied to the first attribute being
- * set. Even when there is only attribute, the set attribute value format
- * *CANNOT* be used, since initiator needs to pass two values: 'cmp' and
- * 'swap'. The 'cmp' and 'swap' will always be first and second values in
- * the set attribute list format.
- */
-static int cdb_gen_cas(struct command *cmd)
+static int exec_gen_cas(struct command *cmd, uint64_t pid, uint64_t oid,
+			const uint8_t **setattr_list, uint32_t *orig_page, 
+			uint32_t *orig_number, uint8_t **orig, 
+			uint16_t *orig_len, uint32_t *list_len, 
+			uint8_t *cas_res)
 {
 	int ret;
-	uint8_t *cdb = cmd->cdb;
-	uint64_t pid = get_ntohll(&cdb[16]);
-	uint64_t oid = get_ntohll(&cdb[24]);
-	uint8_t list_type;
-	uint32_t setattr_list_len = get_ntohl(&cdb[68]);
-	uint32_t list_len;
-	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
-	const uint8_t *list_hdr = &cmd->indata[list_off];
-	const uint8_t *cmp, *swap;
-	uint8_t *orig;
-	uint16_t cmp_len, swap_len, orig_len;
-	uint8_t pad;
-	uint8_t *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
+	uint8_t pad, list_type;
 	uint32_t page, number;
-	uint32_t alloc_len = get_ntohl(&cdb[60]);
-	uint32_t used_outlen;
-	uint16_t len;
-	uint8_t *cp, *sp;
-	uint64_t old_retr_attr_off;
-	uint32_t orig_le_len;
-
-	if (cmd->getset_cdbfmt != GETLIST_SETLIST) 
-		goto out_cdb_err;
+	const uint8_t *cmp, *swap;
+	uint16_t cmp_len, swap_len;
+	const uint8_t *list = *setattr_list;
+	uint32_t setattr_list_len = get_ntohl(&cmd->cdb[68]);
 
 	if (setattr_list_len < LIST_HDR_LEN) /* need atleast cmp & swap */
 		goto out_param_list_err;
 
-	list_type = list_hdr[0] & 0xF;
+	list_type = list[0] & 0xF;
 	if (list_type != RTRVD_SET_ATTR_LIST)
 		goto out_param_list_err;
 
-	list_len = get_ntohl(&list_hdr[4]); /* XXX: osd errata */
-	if ((list_len + 8) != setattr_list_len)
+	*list_len = get_ntohl(&list[4]); /* XXX: osd errata */
+	if ((*list_len + 8) != setattr_list_len)
 		goto out_param_list_err;
-	if (list_len & 0x7) /* multiple of 8, values are padded */
+	if (*list_len & 0x7) /* multiple of 8, values are padded */
 		goto out_param_list_err;
 
 	/* grab cmp & swap */
-	list_hdr = &list_hdr[8]; /* XXX: osd errata */
-	page = get_ntohl(&list_hdr[0]);
-	number = get_ntohl(&list_hdr[4]);
-	cmp_len = get_ntohs(&list_hdr[8]);
-	cmp = &list_hdr[10];
+	list = &list[8]; /* XXX: osd errata */
+	page = get_ntohl(&list[0]);
+	number = get_ntohl(&list[4]);
+	cmp_len = get_ntohs(&list[8]);
+	cmp = &list[10];
 	pad = (0x8 - ((LE_VAL_OFF + cmp_len) & 0x7)) & 0x7;
-	list_hdr += LE_VAL_OFF + cmp_len + pad;
-	list_len -= LE_VAL_OFF + cmp_len + pad;
-	if (list_len < LE_VAL_OFF)
+	list += LE_VAL_OFF + cmp_len + pad;
+	*list_len -= LE_VAL_OFF + cmp_len + pad;
+	if (*list_len < LE_VAL_OFF)
 		goto out_cdb_err; /* need both cmp & swap */
-	assert(page == get_ntohl(&list_hdr[0]));
-	assert(number == get_ntohl(&list_hdr[4]));
-	swap_len = get_ntohs(&list_hdr[8]);
-	swap = &list_hdr[10];
+	assert(page == get_ntohl(&list[0]));
+	assert(number == get_ntohl(&list[4]));
+	swap_len = get_ntohs(&list[8]);
+	swap = &list[10];
 	pad = (0x8 - ((LE_VAL_OFF + swap_len) & 0x7)) & 0x7;
-	list_hdr += LE_VAL_OFF + swap_len + pad;
-	list_len -= LE_VAL_OFF + swap_len + pad;
+	list += LE_VAL_OFF + swap_len + pad;
+	*list_len -= LE_VAL_OFF + swap_len + pad;
+	*setattr_list = list;
 
-	orig = NULL;
+	*orig = NULL;
+	*cas_res = 0;
 	ret = osd_gen_cas(cmd->osd, pid, oid, page, number, cmp, cmp_len,
-			  swap, swap_len, &orig, &orig_len, cmd->sense);
+			  swap, swap_len, orig, orig_len, cmd->sense);
 	if (ret != OSD_OK) {
 		cmd->senselen = ret;
 		goto out_err;
 	}
 
-	/* set remaining attributes */
-	if (list_len == 0) /* no more attrs to set */
-		goto get_attr;
+	printf("%d\n", memcmp(cmp, *orig, cmp_len));
+	if (*orig_len == cmp_len && memcmp(cmp, *orig, cmp_len) == 0)
+		*cas_res = 1;
+	*orig_page = page;
+	*orig_number = number;
+	return OSD_OK;
+
+out_cdb_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+out_param_list_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
+				 oid);
+out_err:
+	return ret;
+}
+
+
+static int exec_cas_setattr(struct command *cmd, uint64_t pid, uint64_t oid,
+			    const uint8_t *list, uint32_t list_len)
+{
+	int ret;
+	uint32_t page, number;
+	uint16_t len;
+	uint8_t pad;
 
 	if (list_len < LE_VAL_OFF) /* need atleast one list entry */
 		goto out_cdb_err;
 
 	while (list_len > 0) {
-		page = get_ntohl(&list_hdr[0]);
-		number = get_ntohl(&list_hdr[4]);
-		len = get_ntohs(&list_hdr[8]);
+		page = get_ntohl(&list[0]);
+		number = get_ntohl(&list[4]);
+		len = get_ntohs(&list[8]);
 		pad = 0;
 
 		ret = osd_set_attributes(cmd->osd, pid, oid, page, number,
-					 &list_hdr[10], len, TRUE,
-					 cmd->sense);
+					 &list[10], len, TRUE, cmd->sense);
 		if (ret != 0) {
 			cmd->senselen = ret;
 			goto out_err;
 		}
 
 		pad = (0x8 - ((LE_VAL_OFF + len) & 0x7)) & 0x7;
-		list_hdr += LE_VAL_OFF + len + pad;
+		list += LE_VAL_OFF + len + pad;
 		list_len -= LE_VAL_OFF + len + pad;
 	}
+	return OSD_OK;
 
-get_attr:
-	/* 
-	 * Following the order of the indata where cmp and swap values are
-	 * the first entries in the list, in the retrieved attributes case
-	 * also, the first entry will be the original value returned by the
-	 * CAS operation. But if there are more attributes to be fetched,
-	 * then we need to call get_attributes function. Since get_attributes
-	 * creates the whole list along with header, we need a way to stuff
-	 * original value in the front of the list. To do this we tamper with
-	 * the retrieved_attr_off so that get_attributes creates its list at
-	 * an offset. Then we stuff the original value from CAS op after the
-	 * list header making it the first entry.
-	 */
+out_cdb_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+out_err:
+	return ret;
+}
+
+
+/* 
+ * Following the order of the indata where cmp and swap values are the first
+ * entries in the list, in the retrieved attributes case also, the first
+ * entry will be the original value returned by the CAS operation. But if
+ * there are more attributes to be fetched, then we need to call
+ * get_attributes function. Since get_attributes creates the whole list along
+ * with header, we need a way to stuff original value in the front of the
+ * list. To do this we tamper with the retrieved_attr_off so that
+ * get_attributes creates its list at an offset. Then we stuff the original
+ * value from CAS op after the list header making it the first entry.
+ */
+static int exec_getattr(struct command *cmd, uint64_t pid, uint64_t oid,
+			uint32_t orig_page, uint32_t orig_number,
+			uint8_t *orig, uint16_t orig_len)
+{
+	int ret;
+	uint8_t *cp, *sp;
+	uint8_t *cdb = cmd->cdb;
+	uint64_t old_retr_attr_off;
+	uint32_t alloc_len = get_ntohl(&cdb[60]);
+	uint32_t list_len, orig_le_len;
 
 	/* modify retrieved_attr_off, ignore 1st and then get attr */
 	old_retr_attr_off = cmd->retrieved_attr_off;
@@ -987,13 +1008,13 @@ get_attr:
 
 	/* stuff original value from CAS operation */
 	if (orig != NULL && orig_len > 0) {
-		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, page, number, 
-				   orig_len, orig);
+		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, orig_page, 
+				   orig_number, orig_len, orig);
 		free(orig);
 		orig = NULL;
 	} else {
-		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, page, number, 
-				   NULL_ATTR_LEN, NULL);
+		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, orig_page, 
+				   orig_number, NULL_ATTR_LEN, NULL);
 	}
 	if (ret <= 0) {
 		goto out_cdb_err;
@@ -1012,17 +1033,64 @@ get_attr:
 	return OSD_OK;
 
 out_cdb_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+out_err:
+	return ret;
+}
+
+
+/*
+ * OSD_GEN_CAS: the CAS operation is applied to the first attribute being
+ * set. Even when there is only attribute, the set attribute value format
+ * *CANNOT* be used, since initiator needs to pass two values: 'cmp' and
+ * 'swap'. The 'cmp' and 'swap' will always be first and second values in
+ * the set attribute list format.
+ */
+static int cdb_gen_cas(struct command *cmd, int osd_cmd)
+{
+	int ret;
+	uint8_t *cdb = cmd->cdb;
+	uint64_t pid = get_ntohll(&cdb[16]);
+	uint64_t oid = get_ntohll(&cdb[24]);
+	uint32_t list_len;
+	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
+	const uint8_t *list = &cmd->indata[list_off];
+	const uint8_t *list_pos;
+	uint8_t *orig;
+	uint16_t orig_len;
+	uint32_t orig_page, orig_number;
+	uint8_t cas_res;
+
+	if (cmd->getset_cdbfmt != GETLIST_SETLIST) 
+		goto out_cdb_err;
+
+	ret = exec_gen_cas(cmd, pid, oid, &list, &orig_page, &orig_number,
+			   &orig, &orig_len, &list_len, &cas_res);
+	if (ret != OSD_OK)
+		goto out_err;
+
+	if (osd_cmd == OSD_GEN_CAS && list_len == 0)
+		goto get_attr;
+	else if (osd_cmd == OSD_COND_SETATTR && 
+		 (list_len == 0 || cas_res == 0)) /* cas failed */
+		goto get_attr;
+
+	/* set remaining attributes */
+	ret = exec_cas_setattr(cmd, pid, oid, list, list_len);
+	if (ret != OSD_OK)
+		goto out_err;
+get_attr:
+	ret = exec_getattr(cmd, pid, oid, orig_page, orig_number, orig, 
+			   orig_len);
+	if (ret == OSD_OK)
+		return ret;
+
+out_cdb_err:
 	if (orig)
 		free(orig);
 	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
-
-out_param_list_err:
-	if (orig)
-		free(orig);
-	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
-				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
-				 oid);
 out_err:
 	if (orig)
 		free(orig);
@@ -1279,7 +1347,11 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_GEN_CAS: {
-		ret = cdb_gen_cas(cmd);
+		ret = cdb_gen_cas(cmd, OSD_GEN_CAS);
+		break;
+	}
+	case OSD_COND_SETATTR: {
+		ret = cdb_gen_cas(cmd, OSD_COND_SETATTR);
 		break;
 	}
 	default:

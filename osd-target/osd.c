@@ -18,6 +18,7 @@
 #include "util/util.h"
 #include "obj.h"
 #include "coll.h"
+#include "mtq.h"
 #include "util/osd-sense.h"
 #include "list-entry.h"
 
@@ -693,7 +694,7 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	cid = ntohll(val);
 	/* cid = *((uint64_t *)val);  *//* XXX: endian of cid?? */
-	ret = obj_ispresent(osd->db, pid, cid);
+	ret = obj_ispresent(osd->dbc, pid, cid);
 	if (ret <= 0)
 		return OSD_ERROR;
 
@@ -724,7 +725,7 @@ static int osd_initialize_db(struct osd_device *osd)
 	memset(&osd->idl, 0, sizeof(osd->idl));
 
 	/* tables already created by db_open, so insertions can be done */
-	ret = obj_insert(osd->db, ROOT_PID, ROOT_OID, ROOT);
+	ret = obj_insert(osd->dbc, ROOT_PID, ROOT_OID, ROOT);
 	if (ret != SQLITE_OK)
 		goto out;
 
@@ -971,7 +972,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	within_txn = 1;
 
 	/* Make sure partition is present. */
-	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
+	if (obj_ispresent(osd->dbc, pid, PARTITION_OID) == 0)
 		goto out_illegal_req;
 
 	if (numoid > 1 && requested_oid != 0)
@@ -986,7 +987,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			oid = osd->ic.next_id;
 			osd->ic.next_id++;
 		} else {
-			ret = obj_get_nextoid(osd->db, pid, &oid);
+			ret = obj_get_nextoid(osd->dbc, pid, &oid);
 			if (ret != 0)
 				goto out_hw_err;
 			osd->ic.cur_pid = pid;
@@ -997,7 +998,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			osd->ic.next_id = oid + 1;
 		}
 	} else {
-		ret = obj_ispresent(osd->db, pid, requested_oid);
+		ret = obj_ispresent(osd->dbc, pid, requested_oid);
 		if (ret == 1)
 			goto out_illegal_req; /* requested_oid exists! */
 		oid = requested_oid; /* requested_oid works! */
@@ -1010,7 +1011,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		numoid = 1; /* create atleast one object */
 
 	for (i = oid; i < (oid + numoid); i++) {
-		ret = obj_insert(osd->db, pid, i, USEROBJECT);
+		ret = obj_insert(osd->dbc, pid, i, USEROBJECT);
 		if (ret != 0) {
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
@@ -1018,7 +1019,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 
 		ret = osd_create_datafile(osd, pid, i);
 		if (ret != 0) {
-			obj_delete(osd->db, pid, i);
+			obj_delete(osd->dbc, pid, i);
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
@@ -1030,7 +1031,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			char path[MAXNAMELEN];
 			get_dfile_name(path, osd->root, pid, i);
 			unlink(path);
-			obj_delete(osd->db, pid, i);
+			obj_delete(osd->dbc, pid, i);
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
@@ -1090,7 +1091,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 		goto out_cdb_err;
 
 	/* Make sure partition is present */
-	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
+	if (obj_ispresent(osd->dbc, pid, PARTITION_OID) == 0)
 		goto out_cdb_err;
 
 	/*
@@ -1106,7 +1107,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 			cid = osd->ic.next_id;
 			osd->ic.next_id++;
 		} else {
-			ret = obj_get_nextoid(osd->db, pid, &cid);
+			ret = obj_get_nextoid(osd->dbc, pid, &cid);
 			if (ret != 0)
 				goto out_hw_err;
 			osd->ic.cur_pid = pid;
@@ -1118,7 +1119,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 		}
 	} else {
 		/* Make sure requested_cid doesn't already exist */
-		ret = obj_ispresent(osd->db, pid, requested_cid);
+		ret = obj_ispresent(osd->dbc, pid, requested_cid);
 		if (ret == 1)
 			goto out_cdb_err;
 		cid = requested_cid;
@@ -1128,7 +1129,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 	}
 
 	/* if cid already exists, obj_insert will fail */
-	ret = obj_insert(osd->db, pid, cid, COLLECTION);
+	ret = obj_insert(osd->dbc, pid, cid, COLLECTION);
 	if (ret)
 		goto out_cdb_err;
 
@@ -1160,7 +1161,7 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 		goto out_cdb_err;
 
 	if (requested_pid == 0) {
-		ret = obj_get_nextpid(osd->db, &pid);
+		ret = obj_get_nextpid(osd->dbc, &pid);
 		if (ret != 0)
 			goto out_hw_err;
 		if (pid == 1)
@@ -1170,7 +1171,7 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 	}
 
 	/* if pid already exists, obj_insert will fail */
-	ret = obj_insert(osd->db, pid, PARTITION_OID, PARTITION);
+	ret = obj_insert(osd->dbc, pid, PARTITION_OID, PARTITION);
 	if (ret)
 		goto out_cdb_err;
 
@@ -1561,11 +1562,11 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		 * unless we want attrs
 		 */
 		ret = (pid == 0 ? 
-		       obj_get_all_pids(osd->db, initial_oid, alloc_len,
+		       obj_get_all_pids(osd->dbc, initial_oid, alloc_len,
 					&outdata[24], used_outlen, &add_len,
 					&cont_id) 
 		       :
-		       obj_get_oids_in_pid(osd->db, pid, initial_oid,
+		       obj_get_oids_in_pid(osd->dbc, pid, initial_oid,
 					   alloc_len, &outdata[24],
 					   used_outlen, &add_len, &cont_id)
 		       );
@@ -1580,9 +1581,9 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 			initial_oid = cont_id;
 		outdata[23] = (0x22 << 2);
 		alloc_len -= 24;
-		ret = attr_list_oids_attr(osd->db, pid, initial_oid,
-					  get_attr, alloc_len, &outdata[24], 
-					  used_outlen, &add_len, &cont_id);
+		ret = mtq_list_oids_attr(osd->db, pid, initial_oid,
+					 get_attr, alloc_len, &outdata[24], 
+					 used_outlen, &add_len, &cont_id);
 		if (ret)
 			goto out_hw_err;
 		*used_outlen += 24;
@@ -1653,7 +1654,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		 * unless we want attrs
 		 */
 		ret = (cid == 0 ? 
-		       obj_get_cids_in_pid(osd->db, pid, initial_oid,
+		       obj_get_cids_in_pid(osd->dbc, pid, initial_oid,
 					   alloc_len, &outdata[24],
 					   used_outlen, &add_len, &cont_id)
 		       :
@@ -1782,7 +1783,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	if (pid < USEROBJECT_PID_LB)
 		goto out_cdb_err;
 
-	if (!obj_ispresent(osd->db, pid, cid))
+	if (!obj_ispresent(osd->dbc, pid, cid))
 		goto out_cdb_err;
 
 	if (query_list_len < MINQLISTLEN)
@@ -1803,8 +1804,8 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 
 	memset(cp+8, 0, 4);  /* reserved area */
 	cp[12] = (0x21 << 2);
-	ret = attr_run_query(osd->db, pid, cid, &qc, outdata, alloc_len,
-			     used_outlen);
+	ret = mtq_run_query(osd->dbc, pid, cid, &qc, outdata, alloc_len,
+			    used_outlen);
 	if (ret != OSD_OK)
 		goto out_hw_err;
 
@@ -1917,11 +1918,11 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_hw_err;
 
 	/* delete all collection memberships */
-	ret = coll_remove_oid(osd->dbc, pid, oid);
+	ret = coll_delete_oid(osd->dbc, pid, oid);
 	if (ret != 0)
 		goto out_hw_err;
 
-	ret = obj_delete(osd->db, pid, oid);
+	ret = obj_delete(osd->dbc, pid, oid);
 	if (ret != 0)
 		goto out_hw_err;
 
@@ -1959,7 +1960,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 		goto out_cdb_err;
 
 	/* make sure collection object is present */
-	if (!obj_ispresent(osd->db, pid, cid))
+	if (!obj_ispresent(osd->dbc, pid, cid))
 		goto out_cdb_err;
 
 	/* XXX: invalidate ic_cache */
@@ -1973,7 +1974,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 		if (fcr == 0)
 			goto out_not_empty;
 
-		ret = coll_remove_cid(osd->dbc, pid, cid);
+		ret = coll_delete_cid(osd->dbc, pid, cid);
 		if (ret != 0)
 			goto out_hw_err;
 	}
@@ -1982,7 +1983,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	if (ret != 0)
 		goto out_hw_err;
 
-	ret = obj_delete(osd->db, pid, cid);
+	ret = obj_delete(osd->dbc, pid, cid);
 	if (ret != 0)
 		goto out_hw_err;
 
@@ -2028,7 +2029,7 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 	if (pid == 0)
 		goto out_cdb_err;
 
-	if (obj_pid_isempty(osd->db, pid) != 1)
+	if (obj_isempty_pid(osd->dbc, pid) != 1)
 		goto out_not_empty;
 
 	/* XXX: invalidate ic_cache */
@@ -2038,7 +2039,7 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 	if (ret != 0)
 		goto out_err;
 
-	ret = obj_delete(osd->db, pid, PARTITION_OID);
+	ret = obj_delete(osd->dbc, pid, PARTITION_OID);
 	if (ret != 0)
 		goto out_err;
 
@@ -2087,7 +2088,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert(ret == 0);
 	within_txn = 1;
 
-	if (obj_ispresent(osd->db, pid, oid) == 0) /* object not present! */
+	if (obj_ispresent(osd->dbc, pid, oid) == 0) /* object not present! */
 		goto out_cdb_err;
 
 	obj_type = get_obj_type(osd, pid, oid);
@@ -2224,7 +2225,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 	assert(ret == 0);
 	within_txn = 1;
 
-	if (obj_ispresent(osd->db, pid, cid) == 0) /* collection absent! */
+	if (obj_ispresent(osd->dbc, pid, cid) == 0) /* collection absent! */
 		goto out_cdb_err;
 
 	obj_type = get_obj_type(osd, pid, cid);
@@ -2240,7 +2241,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 			goto out_param_list;
 	}
 	
-	ret = attr_set_member_attrs(osd->db, pid, cid, set_attr);
+	ret = mtq_set_member_attrs(osd->dbc, pid, cid, set_attr);
 	if (ret != 0)
 		goto out_hw_err;
 

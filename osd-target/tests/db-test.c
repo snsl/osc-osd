@@ -17,10 +17,10 @@ static void test_obj(struct osd_device *osd)
 {
 	int ret = 0;
 
-	ret = obj_insert(osd->db, 1, 2, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
 	assert(ret == 0);
 
-	ret = obj_delete(osd->db, 1, 2);
+	ret = obj_delete(osd->dbc, 1, 2);
 	assert(ret == 0);
 }
 
@@ -28,14 +28,14 @@ static void test_dup_obj(struct osd_device *osd)
 {
 	int ret = 0;
 
-	ret = obj_insert(osd->db, 1, 2, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
 	assert(ret == 0);
 
 	/* duplicate insert must fail */
-	ret = obj_insert(osd->db, 1, 2, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
 	assert(ret != 0);
 
-	ret = obj_delete(osd->db, 1, 2);
+	ret = obj_delete(osd->dbc, 1, 2);
 	assert(ret == 0);
 }
 
@@ -82,38 +82,38 @@ static void test_obj_manip(struct osd_device *osd)
 	uint64_t oid = 0;
 
 	for (i =0; i < 4; i++) {
-		ret = obj_insert(osd->db, 1, 1<<i, USEROBJECT);
+		ret = obj_insert(osd->dbc, 1, 1<<i, USEROBJECT);
 		assert(ret == 0);
 	}
 
-	ret = obj_get_nextoid(osd->db, 1, &oid);
+	ret = obj_get_nextoid(osd->dbc, 1, &oid);
 	assert(ret == 0);
 	/* nextoid for partition 1 is 9 */
 	assert(oid == 9);
 
 	/* get nextoid for new (pid, oid) */
-	ret = obj_get_nextoid(osd->db, 4, &oid);
+	ret = obj_get_nextoid(osd->dbc, 4, &oid);
 	assert(ret == 0);
 	/* nextoid for new partition == 1 */
 	assert(oid == 1);
 
 	for (i =0; i < 4; i++) {
-		ret = obj_delete(osd->db, 1, 1<<i);
+		ret = obj_delete(osd->dbc, 1, 1<<i);
 		assert(ret == 0);
 	}
 
-	ret = obj_insert(osd->db, 1, 235, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 235, USEROBJECT);
 	assert(ret == 0);
 
 	/* existing object, ret == 1 */
-	ret = obj_ispresent(osd->db, 1, 235);
+	ret = obj_ispresent(osd->dbc, 1, 235);
 	assert(ret == 1);
 
-	ret = obj_delete(osd->db, 1, 235);
+	ret = obj_delete(osd->dbc, 1, 235);
 	assert(ret == 0);
 
 	/* non-existing object, ret == 0 */
-	ret = obj_ispresent(osd->db, 1, 235);
+	ret = obj_ispresent(osd->dbc, 1, 235);
 	assert(ret == 0);
 }
 
@@ -121,18 +121,18 @@ static void test_pid_isempty(struct osd_device *osd)
 {
 	int ret = 0;
 
-	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
 	assert(ret == 0);
 
 	/* pid is not empty, ret should be 0 */
-	ret = obj_pid_isempty(osd->db, 1);
+	ret = obj_isempty_pid(osd->dbc, 1);
 	assert(ret == 0);
 
-	ret = obj_delete(osd->db, 1, 1);
+	ret = obj_delete(osd->dbc, 1, 1);
 	assert(ret == 0);
 
 	/* pid is empty, ret should be 1 */
-	ret = obj_pid_isempty(osd->db, 1);
+	ret = obj_isempty_pid(osd->dbc, 1);
 	assert(ret == 1);
 }
 
@@ -140,13 +140,13 @@ static void test_get_obj_type(struct osd_device *osd)
 {
 	int ret = 0;
 
-	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
 	assert(ret == 0);
 
-	ret = obj_insert(osd->db, 2, 2, COLLECTION);
+	ret = obj_insert(osd->dbc, 2, 2, COLLECTION);
 	assert(ret == 0);
 
-	ret = obj_insert(osd->db, 3, 0, PARTITION);
+	ret = obj_insert(osd->dbc, 3, 0, PARTITION);
 	assert(ret == 0);
 
 	ret = obj_get_type(osd->db, 0, 0);
@@ -161,13 +161,13 @@ static void test_get_obj_type(struct osd_device *osd)
 	ret = obj_get_type(osd->db, 3, 0);
 	assert(ret == PARTITION);
 
-	ret = obj_delete(osd->db, 3, 0);
+	ret = obj_delete(osd->dbc, 3, 0);
 	assert(ret == 0);
 
-	ret = obj_delete(osd->db, 2, 2);
+	ret = obj_delete(osd->dbc, 2, 2);
 	assert(ret == 0);
 
-	ret = obj_delete(osd->db, 1, 1);
+	ret = obj_delete(osd->dbc, 1, 1);
 	assert(ret == 0);
 
 	/* non-existing object's type must be ILLEGAL_OBJ */
@@ -179,7 +179,7 @@ static inline void delete_obj(struct osd_device *osd, uint64_t pid,
 			      uint64_t oid)
 {
 	int ret = 0;
-	ret = obj_delete(osd->db, pid, oid);
+	ret = obj_delete(osd->dbc, pid, oid);
 	assert (ret == 0);
 	ret = attr_delete_all(osd->db, pid, oid);
 	assert (ret == 0);
@@ -199,7 +199,7 @@ static void test_dir_page(struct osd_device *osd)
 
 	delete_obj(osd, 1, 1);
 
-	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
 	assert(ret == 0);
 
 	val = 44;
@@ -298,15 +298,27 @@ static void test_coll(struct osd_device *osd)
 	 */
 	assert(ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); 
 
+	/* test empty cid */
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1);
+	assert(ret == 0);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x2);
+	assert(ret == 0);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x3);
+	assert(ret == 1);
+
 	/* 
-	 * next fill in 16k rows in coll_tab and empty it to see if vaccum
+	 * TODO: fill in 16k rows in coll_tab and empty it to see if vaccum
 	 * affects prepared statements
 	 */
 
-	ret = coll_remove_cid(osd->dbc, 0x20, 0x1);
+	ret = coll_delete_cid(osd->dbc, 0x20, 0x1);
 	assert(ret == 0);
-	ret = coll_remove_cid(osd->dbc, 0x20, 0x2);
+	ret = coll_delete_cid(osd->dbc, 0x20, 0x2);
 	assert(ret == 0);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1);
+	assert(ret == 1);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x2);
+	assert(ret == 1);
 }
 
 

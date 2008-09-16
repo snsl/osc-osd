@@ -29,7 +29,9 @@ class runtests:
         self.listattr = listattr(self.cur, "listattr", ref, "list")
         self.query = query(self.cur, "query", ref, "query")
         self.sma = sma(self.cur, "sma", ref, "set_member_attributes")
-        self.timecoll = timecoll(self.cur, "timecoll", ref, "time-coll")
+        self.coll = coll(self.cur, "coll", ref, "time-db")
+        self.obj = obj(self.cur, "obj", ref, "time-db")
+        self.attr = attr(self.cur, "attr", ref, "time-db")
         self.date = time.strftime('%F-%T')
         v = commands.getoutput('svn info | grep "^Rev" | cut -f2 -d\ ')
         self.version = int(v)
@@ -44,7 +46,9 @@ class runtests:
         self.listattr.create()
         self.query.create()
         self.sma.create()
-        self.timecoll.create()
+        self.coll.create()
+        self.obj.create()
+        self.attr.create()
         self.con.commit()
 
     def drop_tests(self):
@@ -55,7 +59,9 @@ class runtests:
         self.listattr.drop()
         self.query.drop()
         self.sma.drop()
-        self.timecoll.drop()
+        self.coll.drop()
+        self.obj.drop()
+        self.attr.drop()
         self.results.drop()
         self.gentestid.drop()
         self.con.commit()
@@ -69,13 +75,18 @@ class runtests:
         self.listattr.populate()
         self.query.populate()
         self.sma.populate()
-        self.timecoll.populate()
+        self.coll.populate()
+        self.obj.populate()
+        self.attr.populate()
         self.con.commit()
 
     def populate_results(self):
         self.con.isolation_level = "DEFERRED"
-        tests = [self.create, self.setattr, self.getattr, self.list,
-                self.listattr, self.query, self.sma, self.timecoll]
+        tests = [
+                self.create, self.setattr, self.getattr, self.list,
+                self.listattr, self.query, self.sma, self.coll, 
+                self.obj, self.attr
+                ]
         for t in tests:
             for tid, mu, sd, u in t.runall():
                 self.results.insert(self.date, self.version, tid, mu, sd, 
@@ -104,15 +115,39 @@ class runtests:
 
 if __name__ == "__main__":
     rt = runtests()
-#   rt.drop_tests()
-#   rt.create_tests()
-#   rt.populate_tests()
-#   rt.populate_results()
-#   rt.timecoll.drop()
-#   rt.timecoll.create()
-#   rt.timecoll.populate()
-    rt.timecoll.runall()
-#   for tid, mu, sd, u in rt.timecoll.runall():
-#       rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
-#   rt.con.commit()
+    #rt.drop_tests()
+    #rt.create_tests()
+    #rt.populate_tests()
+    #rt.populate_results()
+
+    #rt.timedb.drop()
+    #rt.timedb.create()
+    #rt.timedb.populate()
+    #rt.timedb.populateobj()
+    #rt.timedb.runall()
+    #rt.timedb.runobj()
+    #for tid, mu, sd, u in rt.timedb.runobj():
+    #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
+
+    rt.coll.drop()
+    rt.coll.create()
+    rt.coll.populate()
+    rt.coll.runall()
+    #for tid, mu, sd, u in rt.coll.runall():
+    #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
+
+    rt.obj.drop()
+    rt.obj.create()
+    rt.obj.populate()
+    rt.obj.runall()
+    #for tid, mu, sd, u in rt.obj.runall():
+    #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
+
+    #rt.attr.drop()
+    #rt.attr.create()
+    #rt.attr.populate()
+    #for tid, mu, sd, u in rt.attr.runall():
+    #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
+
+    rt.con.commit()
 

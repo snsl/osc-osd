@@ -17,9 +17,9 @@ int coll_insert(struct db_context *dbc, uint64_t pid, uint64_t cid,
 int coll_delete(struct db_context *dbc, uint64_t pid, uint64_t cid, 
 		uint64_t oid);
 
-int coll_remove_cid(struct db_context *dbc, uint64_t pid, uint64_t cid);
+int coll_delete_cid(struct db_context *dbc, uint64_t pid, uint64_t cid);
 
-int coll_remove_oid(struct db_context *dbc, uint64_t pid, uint64_t oid);
+int coll_delete_oid(struct db_context *dbc, uint64_t pid, uint64_t oid);
 
 int coll_isempty_cid(struct db_context *dbc, uint64_t pid, uint64_t cid);
 

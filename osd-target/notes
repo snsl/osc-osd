@@ -583,3 +583,27 @@ time_insert numiter 10 numobj 64 testone 0 avg 6558.988791 +- 43.907721 us
 time_insert numiter 10 numobj 128 testone 0 avg 12947.509450 +- 30.651306 us
 time_insert numiter 10 numobj 256 testone 0 avg 27491.428278 +- 67.486652 us
 time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
+
+!	SQLITE_SCHEMA errors happen mostly in sqlite_reset or sqlite_finalize.
+	When fedora updates sqlite to 3.3.9 or later, we can use *_v2 functions
+	which can handle schema changes for us automatically. auto_vaccum may
+	also cause SQLITE_SCHEMA errors, so all calls to sqlite3_step,
+	sqlite3_bind and sqlite3_finalize must be tested for it.
+
+# Thu May 17 16:44:09 EDT 2007
+-	analyze query plan of MAX(oid) and speed it up from O(N) to O(logN)
+-	just get a summary from valgrind and write a unit test for it
+-	find . -regextype posix-egrep -regex '.*Makefile|.*\.[ch]|.*\.py|.*notes|.*todo|.*\.schema' | xargs wc -l | sort -n
+
+# Fri May 18 13:18:32 EDT 2007
+-	a single SQL query to insert default attributes for an object.
+-	try to remember the readline convineance to ease the editing of shell
+	commands on commandline, for e.g. when we use C-r to go back into
+	history, how to get to begining or end of history, general history
+	browsing
+-	how to configure assert that it catched '=' errors
+-	generic debug print statements
+-	where are bash options set
+-	get profile/bashprofile cleared up
+-	oprofile the whole stack
+-	function to set attrs in bulk

@@ -3,9 +3,9 @@
 #
 
 SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c list-entry.c
-SRC += osd-schema.c coll.c
+SRC += osd-schema.c coll.c mtq.c
 INC := attr.h db.h obj.h osd-types.h osd.h cdb.h list-entry.h target-sense.h
-INC += coll.h
+INC += coll.h mtq.c
 DEP := .depend
 OBJ := $(SRC:.c=.o)
 TESTDIR := ./tests/
@@ -23,9 +23,7 @@ include ../Makedefs
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := $(OPT) -fPIC -foptimize-sibling-calls 
-#COPTS := $(OPT) -fPIC -fomit-frame-pointer 
-COPTS += -D_GNU_SOURCE
+COPTS := $(OPT) -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs 

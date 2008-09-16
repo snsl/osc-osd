@@ -1,4 +1,3 @@
-/* #include <stdlib.h> */
 #include <stdint.h>
 #include <errno.h>
 #include <assert.h>
@@ -18,7 +17,7 @@
  * >0: success. returns number of bytes copied into buf.
  */
 int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
-		 uint16_t valen, void *val)
+		 uint16_t valen, const void *val)
 {
 	uint8_t pad = 0;
 	uint8_t *cp = buf;
@@ -27,7 +26,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	/* 
 	 * XXX: osd-errata: buf and buflen must be 8B aligned cannot ensure
 	 * alignment: XXX:SD  LIST with list_attr does not follow the spec,
-	 * see the comment in attr.c:attr_list_oids_attr. 
+	 * see the comment in mtq.c:mtq_list_oids_attr. 
 	 */
 	if ((buflen & 0x7) || ((uintptr_t) buf & 0x7))
 		return -EINVAL;
@@ -70,7 +69,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
  */
 int le_multiobj_pack_attr(void *buf, uint32_t buflen, uint64_t oid, 
 			  uint32_t page, uint32_t number, uint16_t valen,
-			  void *val)
+			  const void *val)
 {
 	int ret = 0;
 	uint8_t *cp = buf;

@@ -2452,10 +2452,10 @@ static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_
 			llu(length));
 
 		osd_debug("%s: Position in data buffer: %llu", __func__, llu(data_offset));
-		data_offset += length;
 
 		osd_debug("%s: ------------------------------", __func__);
 		ret = pwrite(fd, dinbuf+data_offset, length, offset_val+offset);
+		data_offset += length;
 		osd_debug("%s: return value is %d", __func__, ret);
 		if (ret < 0 || (uint64_t)ret != length)
 			goto out_hw_err;

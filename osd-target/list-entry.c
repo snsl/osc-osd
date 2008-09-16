@@ -63,7 +63,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 			valen = buflen;
 		memcpy(&cp[LE_VAL_OFF], val, valen);
 	} else {
-		assert(valen == NULL_ATTR_LEN);
+		assert(valen == 0); /* osd2r02, null attr len == 0, 7.1.3.1 */
 		valen = 0;
 	}
 

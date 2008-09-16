@@ -1850,24 +1850,23 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	isempty = oc_isempty_cid(osd->db, pid, cid);
 	if (isempty < 0)
 		goto out_hw_err;
-	if (fcr == 0 && !isempty)
-		goto out_not_empty;
 
-	if (fcr == 1) {
-		if (!isempty) {
-			ret = oc_delete_all_cid(osd->db, pid, cid);
-			if (ret != 0)
-				goto out_hw_err;
-		}
+	if (!isempty) {
+		if (fcr == 0)
+			goto out_not_empty;
 
-		ret = attr_delete_all(osd->db, pid, cid);
-		if (ret != 0)
-			goto out_hw_err;
-
-		ret = obj_delete(osd->db, pid, cid);
+		ret = oc_delete_all_cid(osd->db, pid, cid);
 		if (ret != 0)
 			goto out_hw_err;
 	}
+
+	ret = attr_delete_all(osd->db, pid, cid);
+	if (ret != 0)
+		goto out_hw_err;
+
+	ret = obj_delete(osd->db, pid, cid);
+	if (ret != 0)
+		goto out_hw_err;
 
 	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
 	return OSD_OK; /* success */

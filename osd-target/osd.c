@@ -1596,15 +1596,14 @@ static inline int alloc_qc(struct query_criteria *qc)
 	return OSD_OK;
 }
 
-static int parse_query_criteria(const uint8_t *qlf, uint32_t qll,
+static int parse_query_criteria(const uint8_t *cp, uint32_t qll,
 				struct query_criteria *qc)
 {
 	int ret = 0;
-	const uint8_t *cp = NULL;
-	qc->query_type = qlf[0] & 0xF;
 
-	cp = &qlf[4];
+	qc->query_type = cp[0] & 0xF;
 	qc->qc_cnt = 0;
+	cp += 4;
 	qll -= 4; /* remove query list header */
 	while (qll) {
 		qc->qce_len[qc->qc_cnt] = ntohs(&cp[2]);
@@ -1618,11 +1617,12 @@ static int parse_query_criteria(const uint8_t *qlf, uint32_t qll,
 		qc->number[qc->qc_cnt] = ntohl(&cp[8]);
 		qc->min_len[qc->qc_cnt] = ntohs(&cp[12]);
 		qc->min_val[qc->qc_cnt] = &cp[14];
-		cp += (14 + qc->min_len[qc->qc_cnt]);
+		cp += 14 + qc->min_len[qc->qc_cnt];
+		qll -= 14 + qc->min_len[qc->qc_cnt];
 		qc->max_len[qc->qc_cnt] = ntohs(&cp[0]);
 		qc->max_val[qc->qc_cnt] = &cp[2];
-		cp += (2 + qc->max_len[qc->qc_cnt]);
-		qll -= (16 + qc->max_len[qc->qc_cnt] + qc->max_len[qc->qc_cnt]);
+		cp += 2 + qc->max_len[qc->qc_cnt];
+		qll -= 2 + qc->max_len[qc->qc_cnt];
 		qc->qc_cnt++;
 
 		if (qc->qc_cnt == qc->qc_cnt_limit) {

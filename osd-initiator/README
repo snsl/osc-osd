@@ -59,6 +59,16 @@ attach an OSD device.  Most of the codes will operate on the first
 device of TYPE_OSD that they find.  You'll have to read through them
 all to see what they do.
 
+Udev
+----
+User processes that wish to write BSG must use /dev/bsg/<file>.  It is
+convenient not to have to do all this as root.  On fedora-ish systems,
+you can add a udev rule to set the perms on BSG character devices
+automatically.  Add a file /etc/udev/rules.d/20-bsg.rules (or some
+other number, as long as it is in front of the default bsg rule in
+50-udev-default.rules), with a single line:
+
+    SUBSYSTEM="bsg",  NAME="bsg/%k", MODE="0666"
 
 Contents
 --------

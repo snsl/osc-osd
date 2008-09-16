@@ -128,7 +128,7 @@ static PyObject *pyosd_attr_print(PyObject *self)
 	else if (attr->type == ATTR_GET_MULTI)
 		type = "ATTR_GET_MULTI";
 	else if (attr->type == ATTR_SET)
-		type = "ATTR_GET_SET";
+		type = "ATTR_SET";
 	o = PyString_FromFormat(
 		"type %s page 0x%x number 0x%x len %d outlen %d",
 				type, attr->page, attr->number, attr->len,

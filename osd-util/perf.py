@@ -34,6 +34,7 @@ options = {
     "one_config_file" : "yes",
     "mirror": "",
     "pvfs_osd_integrated": "no",
+    "rdma": "no",
 }
 
 # locations of external codes
@@ -120,6 +121,7 @@ def usage():
     print >>sys.stderr, "  -mirror <ionodes> : use given ionodes file to", \
     			"build a mirror MD setup"
     print >>sys.stderr, "  -poi : for PVFS_OSD_INTEGRATED, connect to OSDs"
+    print >>sys.stderr, "  -rdma : connect to OSDs using iSER"
     sys.exit(1)
 
 # filenames
@@ -500,7 +502,6 @@ def allify(n):
 
 
 def start():
-    global ibosdnodes
     # don't mess with io nodes if just a mirror
     mypvfsnodes = pvfsnodes
     if options["mirror"] != "":
@@ -557,24 +558,24 @@ def start():
 		+ "TZ=EST5EDT pvfs2-server fs.conf server.conf")
 
     # compnodes
-    ibosdnodes = []
     myosdnodes = osdnodes
     if options["pvfs_osd_integrated"] == "yes":
 	myosdnodes = osdnodes + pvfsnodes
 
-    for n in range(0,len(myosdnodes)):
-	ibosdnodes.append(myosdnodes[n])
-
     # append "-ib" to the osdnodes. we probably need a new option here so that
     # we append "-ib" to the nodes only if we'e using IB.
-    for n in range(0,len(ibosdnodes)):
-	ibosdnodes[n] = ibosdnodes[n] + "-ib"
+    if options["rdma"] == "yes":
+	myibosdnodes = [ n + "-ib" for n in myosdnodes ]
+	startcmd = "start --rdma"
+    else:
+	myibosdnodes = myosdnodes
+	startcmd = "start"
 
-    if len(myosdnodes) > 0:
+    if len(myibosdnodes) > 0:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile + " \; "
-	    + "sudo " + initiator + " start " + " --rdma "
-	    + " ".join(ibosdnodes))
+	    + "sudo " + initiator + " " + startcmd + " "
+	    + " ".join(myibosdnodes))
     else:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile)
@@ -705,6 +706,9 @@ while i < len(sys.argv):
 	i += 2
     elif sys.argv[i] == "-poi":
 	options["pvfs_osd_integrated"] = "yes"
+	i += 1
+    elif sys.argv[i] == "-rdma":
+	options["rdma"] = "yes"
 	i += 1
     else:
 	break

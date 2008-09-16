@@ -537,7 +537,7 @@ def start():
     # start osd targets
     if len(osdnodes) > 0:
 	if options["storage"] == "tmpfs":
-	    mountup = "sudo mount -t tmpfs none /tmp/tgt-" + id + " \; "
+	    mountup = "sudo mount -t tmpfs -o size=1800m none /tmp/tgt-" + id + " \; "
 	else:
 	    mountup = ""
 
@@ -550,7 +550,7 @@ def start():
 
     if len(mypvfsnodes) > 0:
 	if options["storage"] == "tmpfs":
-	    mountup = "sudo mount -t tmpfs none " + testdir + "/storage \;"
+	    mountup = "sudo mount -t tmpfs -o size=1800m none " + testdir + "/storage \;"
 	else:
 	    mountup = ""
 
@@ -589,7 +589,7 @@ def start():
 	startcmd = "start"
 
     if len(myibosdnodes) > 0:
-	os.system("all -p " + allify(compnodes) + " "
+	os.system("all " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile + " \; "
 	    + "sudo " + initiator + " " + startcmd + " "
 	    + " ".join(myibosdnodes))

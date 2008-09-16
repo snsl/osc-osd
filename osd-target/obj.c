@@ -57,7 +57,7 @@ int obj_initialize(struct db_context *dbc)
 		}
 	}
 
-	dbc->obj = Malloc(sizeof(*dbc->obj));
+	dbc->obj = Calloc(1, sizeof(*dbc->obj));
 	if (!dbc->obj) {
 		ret = -ENOMEM;
 		goto out;

@@ -59,7 +59,7 @@ int coll_initialize(struct db_context *dbc)
 		}
 	}
 
-	dbc->coll = Malloc(sizeof(*dbc->coll));
+	dbc->coll = Calloc(1, sizeof(*dbc->coll));
 	if (!dbc->coll) {
 		ret = -ENOMEM;
 		goto out;

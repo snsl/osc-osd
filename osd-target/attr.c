@@ -60,7 +60,7 @@ int attr_initialize(struct db_context *dbc)
 		}
 	}
 
-	dbc->attr = Malloc(sizeof(*dbc->attr));
+	dbc->attr = Calloc(1, sizeof(*dbc->attr));
 	if (!dbc->attr) {
 		ret = -ENOMEM;
 		goto out;
@@ -120,7 +120,7 @@ int attr_initialize(struct db_context *dbc)
 	 * 'N' is the total number of defined attributes of the object.
 	 * Further the statement executes 3 iterations over all the
 	 * attributes of the object, hence the constant term is also
-	 * significant. There is some advantage of adding an index on
+	 * significant. There is some advantage in adding an index on
 	 * (pid,oid,number) but that will hit performance of insertions and
 	 * deletions which are more critical than dirpage.
 	 */

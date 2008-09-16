@@ -1,16 +1,16 @@
 # vim: set ft=conf
 
 Optimizations:
--   prepare frequently used statements and store them. 
++   prepare frequently used statements and store them. 
 
 Potential Bugs:
--   put sqlite_step statemnts in infinite loop.
++   put sqlite_step statemnts in infinite loop.
 +   inconsistent return codes in osd.c
 +   loosing return value due to finalize
-    sqlite3_finalize grabs error code in case of failure
+   		sqlite3_finalize grabs error code in case of failure
 
 Misc todos:
--   magic constants for return values in db.c, attr.c, obj.c
++   magic constants for return values in db.c, attr.c, obj.c
     
 
 # Thu May 10 21:25:53 EDT 2007
@@ -63,6 +63,8 @@ Research:
 -   flexible handle allocation in PVFS
 -   efficient way of generating next id
         a table to store ranges, to plug the holes in handles
+		currently there is a bug in insert, it generates id by incrementing
+		the oid. But that may not work when dealing with large no. of objects
 -   A tech paper about all the complex attribute operations and their
     translations into efficient SQL statements.
 
@@ -90,7 +92,7 @@ Long term:
 -   a new db backend?
 
 Misc:
--   change return values of db.c and attr.c from SQLITE return to OSD return
++   change return values of db.c and attr.c from SQLITE return to OSD return
     codes
 -   composing multiple objects into a file
 

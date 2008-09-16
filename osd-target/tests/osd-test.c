@@ -313,6 +313,9 @@ static void test_osd_get_utsap(struct osd_device *osd)
 
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
 	assert(ret == 0);
+
+	free(sense);
+	free(buf);
 }
 
 static void test_osd_get_attributes(struct osd_device *osd)
@@ -398,6 +401,7 @@ static void test_osd_get_attributes(struct osd_device *osd)
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
 	assert(ret == 0);
 
+	free(getval);
 	free(sense);
 	free(val);
 }

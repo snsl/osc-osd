@@ -371,9 +371,11 @@ class dbtest(test):
             numiter = %d; """ % (self.name, numobj, test, numiter)
         self.deletetest(str(q))
 
-    def gettests(self, test):
-        #q = "SELECT * FROM %s WHERE testid >= 333;" % self.name
-        q = "SELECT * FROM %s WHERE test LIKE '%s%%';" % (self.name, test)
+    def gettest(self, test):
+        assert test != None
+        # q = "SELECT * FROM %s WHERE testid >= 333;" % self.name
+        # q = "SELECT * FROM %s WHERE test LIKE '%s%%';" % (self.name, test)
+        q = "SELECT * FROM %s WHERE test = '%s';" % (self.name, test)
         self.cur.execute(str(q))
         return self.cur.fetchall()
 
@@ -435,7 +437,7 @@ class obj(dbtest):
                 self.insert(1 << no, t, 10)
 
 
-class attr(test):
+class attr(dbtest):
     def __init__(self, cur, name, ref, cmd):
         test.__init__(self, cur, name, ref, cmd)
     
@@ -470,12 +472,6 @@ class attr(test):
                 numattr, test, numiter)
         self.deletetest(str(q))
 
-    def gettest(self, test):
-        assert test != None
-        q = "SELECT * FROM %s WHERE test = '%s';" % (self.name, test)
-        self.cur.execute(str(q))
-        return self.cur.fetchall()
-
     def populate(self):
         test = [
                 'attrsetone', #time to set one attr after numobj*numattr
@@ -509,7 +505,4 @@ class attr(test):
             t = sp.split(o)
             results.append((tid, float(t[-4]), float(t[-2]), t[-1]))
         return results
-
-    def runall(self):
-        return self.runtests(self.getall())
 

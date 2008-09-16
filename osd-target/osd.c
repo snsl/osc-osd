@@ -779,6 +779,8 @@ int osd_open(const char *root, struct osd_device *osd)
 		goto out;
 	}
 
+	memset(osd, 0, sizeof(*osd));
+
 	/* test if root exists and is a directory */
 	ret = create_dir(root);
 	if (ret != 0)
@@ -810,13 +812,14 @@ int osd_open(const char *root, struct osd_device *osd)
 	if (ret != 0)
 		goto out;
 
-	/* auto-creates db if necessary, and sets osd->db */
 	osd->root = strdup(root);
 	if (!osd->root) {
 		ret = -ENOMEM;
 		goto out;
 	}
 	get_dbname(path, root);
+
+	/* auto-creates db if necessary, and sets osd->dbc */
 	ret = db_open(path, osd);
 	if (ret != 0 && ret != 1) 
 		goto out;
@@ -839,6 +842,7 @@ int osd_close(struct osd_device *osd)
 	if (ret != 0)
 		osd_error("%s: db_close", __func__);
 	free(osd->root);
+	osd->root = NULL;
 	return ret;
 }
 
@@ -1282,7 +1286,7 @@ int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
 int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 {
 	int ret;
-	char *root;
+	char *root = NULL;
 	char path[MAXNAMELEN];
 	struct stat sb;
 
@@ -1300,7 +1304,7 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 		goto create;
 	}
 
-	ret = db_close(osd);
+	ret = osd_close(osd);
 	if (ret) {
 		osd_error("%s: DB close failed, ret %d", __func__, ret);
 		goto out_sense;
@@ -1755,11 +1759,24 @@ static inline int alloc_qc(struct query_criteria *qc)
 	qc->max_len = realloc(qc->max_len, sizeof(*(qc->max_len))*limit);
 	qc->max_val = realloc(qc->max_val, sizeof(void *)*limit);
 
-	if (!qc->page || !qc->number || !qc->min_len || !qc->min_val ||
-	    !qc->max_len || !qc->max_val)
+	if (!qc->qce_len || !qc->page || !qc->number || !qc->min_len || 
+	    !qc->min_val || !qc->max_len || !qc->max_val)
 		return -ENOMEM;
 
 	return OSD_OK;
+}
+
+static inline void free_qc(struct query_criteria *qc)
+{
+	if (!qc)
+		return;
+	free(qc->qce_len);
+	free(qc->page);
+	free(qc->number);
+	free(qc->min_len);
+	free(qc->min_val);
+	free(qc->max_len);
+	free(qc->max_val);
 }
 
 static int parse_query_criteria(const uint8_t *cp, uint32_t qll,
@@ -1855,6 +1872,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	cp[12] = (0x21 << 2);
 	ret = mtq_run_query(osd->dbc, pid, cid, &qc, outdata, alloc_len,
 			    used_outlen);
+	free_qc(&qc);
 	if (ret != OSD_OK)
 		goto out_hw_err;
 

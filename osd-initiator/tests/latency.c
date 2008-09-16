@@ -431,6 +431,98 @@ static void get_set_attr(int fd, uint64_t pid)
 	free(v);
 }
 
+/*
+ * Non-database OSD command.  Open a file, fdatasync, close.
+ */
+static void flush_test(int fd, uint64_t pid)
+{
+	int i, ret;
+	uint64_t start, end, delta;
+	double mu, stdev;
+	double *v;
+	struct osd_command command;
+	uint64_t oid = USEROBJECT_OID_LB;
+	const int iter = 10000;
+	/* const int iter = 1; */
+
+	v = malloc(iter * sizeof(*v));
+	if (!v)
+		osd_error_fatal("out of memory");
+
+	osd_command_set_create(&command, pid, oid, 1);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
+
+	osd_command_set_flush(&command, pid, oid, 0);
+
+	/* warm up */
+	for (i=0; i<50; i++) {
+		ret = osd_submit_and_wait(fd, &command);
+		assert(ret == 0);
+	}
+
+	for (i=0; i<iter; i++) {
+		rdtsc(start);
+		ret = osd_submit_and_wait(fd, &command);
+		rdtsc(end);
+		assert(ret == 0);
+		delta = end - start;
+		v[i] = (double) delta / mhz;  /* time in usec */
+	}
+
+	osd_command_set_remove(&command, pid, oid);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
+
+	mu = mean(v, iter);
+	stdev = stddev(v, mu, iter);
+	printf("flush   %9.3lf +- %8.3lf\n", mu, stdev);
+	free(v);
+}
+
+/*
+ * Noop OSD command.  Returns as soon as the unimplemented action is detected.
+ */
+static void unimplemented_test(int fd, uint64_t pid)
+{
+	int i, ret;
+	uint64_t start, end, delta;
+	double mu, stdev;
+	double *v;
+	struct osd_command command;
+	uint64_t oid = USEROBJECT_OID_LB;
+	const int iter = 10000;
+	/* const int iter = 1; */
+
+	v = malloc(iter * sizeof(*v));
+	if (!v)
+		osd_error_fatal("out of memory");
+
+	osd_command_set_flush(&command, pid, oid, 0);
+	command.cdb[8] = 0xf0;  /* garbage, not flush */
+	command.cdb[9] = 0xf0;
+
+	/* warm up */
+	for (i=0; i<50; i++) {
+		ret = osd_submit_and_wait(fd, &command);
+		assert(ret == 0);
+	}
+
+	for (i=0; i<iter; i++) {
+		rdtsc(start);
+		ret = osd_submit_and_wait(fd, &command);
+		rdtsc(end);
+		assert(ret == 0);
+		delta = end - start;
+		v[i] = (double) delta / mhz;  /* time in usec */
+	}
+
+	mu = mean(v, iter);
+	stdev = stddev(v, mu, iter);
+	printf("unimpl  %9.3lf +- %8.3lf\n", mu, stdev);
+	free(v);
+}
+
 int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
@@ -461,14 +553,16 @@ int main(int argc, char *argv[])
 	create_partition(fd, PARTITION_PID_LB);
 
 	noop_test(fd);
+#if 0
 	create_test(fd, PARTITION_PID_LB);
 	remove_test(fd, PARTITION_PID_LB);
 	getattr_test(fd, PARTITION_PID_LB);
 	setattr_test(fd, PARTITION_PID_LB);
-#if 0
 	create_remove_test(fd, PARTITION_PID_LB);
 	get_set_attr(fd, PARTITION_PID_LB);
 #endif
+	unimplemented_test(fd, PARTITION_PID_LB);
+	flush_test(fd, PARTITION_PID_LB);
 
 	close(fd);
 	return 0;

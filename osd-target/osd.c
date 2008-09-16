@@ -602,7 +602,10 @@ static int osd_initialize_db(struct osd_device *osd)
 	if (!osd)
 		return -EINVAL;
 
-	/* Build tables from schema file.  */
+	memset(&osd->ccap, 0, sizeof(osd->ccap));
+	memset(&osd->ic, 0, sizeof(osd->ic));
+
+	/* build tables from schema file */
 	ret = sqlite3_exec(osd->db, osd_schema, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		sqlite3_free(err);
@@ -649,7 +652,7 @@ int osd_open(const char *root, struct osd_device *osd)
 	char path[MAXNAMELEN];
 	
 	progname = "osd-target";  /* for debug messages from libosdutil */
-	mhz = get_mhz();
+	mhz = get_mhz(); /* XXX: find a better way of profiling */
 
 	if (strlen(root) > MAXROOTLEN) {
 		ret = -ENAMETOOLONG;
@@ -807,11 +810,24 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		goto out_illegal_req;
 
 	if (requested_oid == 0) {
-		ret = obj_get_nextoid(osd->db, pid, &oid);
-		if (ret != 0) 
-			goto out_hw_err;
-		if (oid == 1)
+		/* 
+		 * XXX: there should be a better way of getting next maximum
+		 * oid using SQL itself
+		 */
+		if (osd->ic.cur_pid == pid) { /* cache hit */
+			oid = osd->ic.next_oid;
+			osd->ic.next_oid++;
+		} else {
+			ret = obj_get_nextoid(osd->db, pid, &oid);
+			if (ret != 0) 
+				goto out_hw_err;
+			osd->ic.cur_pid = pid;
+			osd->ic.next_oid = oid + 1;
+		}
+		if (oid == 1) {
 			oid = USEROBJECT_OID_LB; /* first oid in partition */
+			osd->ic.next_oid = oid + 1;
+		}
 	} else {
 		/* rdtsc(start); */
 		ret = obj_ispresent(osd->db, pid, requested_oid);
@@ -860,6 +876,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
+		osd->ic.next_oid++;
 	}
 
 	ret = db_end_txn(osd);
@@ -879,6 +896,7 @@ out_illegal_req:
 			       pid, requested_oid);
 
 out_hw_err:
+	memset(&osd->ic, 0, sizeof(osd->ic)); /* invalidate cache */
 	if (within_txn) {
 		ret = db_end_txn(osd);
 		assert(ret == 0);
@@ -1377,6 +1395,9 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
 
+	/* XXX: invalidate ic_cache immediately */
+	memset(&osd->ic, 0, sizeof(osd->ic));
+
 	get_dfile_name(path, osd->root, pid, oid);
 	ret = unlink(path);
 	if (ret != 0) 
@@ -1443,6 +1464,9 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 
 	if (obj_pid_isempty(osd->db, pid) != 1)
 		goto out_not_empty;
+
+	/* XXX: invalidate ic_cache */
+	memset(&osd->ic, 0, sizeof(osd->ic));
 
 	ret = attr_delete_all(osd->db, pid, PARTITION_OID);
 	if (ret != 0)

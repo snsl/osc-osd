@@ -76,8 +76,7 @@ struct init_attr {
 #define TIME_SZ (6) 
 
 struct id_cache {
-	uint64_t next_pid; /* next free pid */
-	uint64_t cur_pid;  /* last pid referenced */
+	uint64_t cur_pid; /* last pid referenced */
 	uint64_t next_oid; /* next free oid within partition (cur_pid) */
 };
 
@@ -95,6 +94,7 @@ struct osd_device {
 	char *root;
 	sqlite3 *db;
 	struct cur_cmd_attr_pg ccap;
+	struct id_cache ic;
 };
 
 #endif /* __OSD_TYPES_H */

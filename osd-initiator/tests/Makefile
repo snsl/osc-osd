@@ -2,7 +2,8 @@
 # OSD initiator tests
 #
 
-PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c atomic.c
+PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c atomic.c \
+	   attr-all.c
 PROGSRC += blk-iospeed.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)

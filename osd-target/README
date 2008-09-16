@@ -41,6 +41,13 @@ by default.  Edit $(UTILDIR) in the Makefile if not.
 
 Type "make" to build the osd target library, libosdtgt.a.
 
+If you have a file called ../Makedefs, it will be used during
+the build to set variables in make.  A couple of useful lines to
+put in that file are:
+    OPT := -g
+or
+    OPT := -O3 -DNDEBUG
+
 
 Building a SCSI target
 ----------------------
@@ -63,23 +70,27 @@ This library has been tested with commit
 0.  Assuming you will put all of osd-target, osd-util, and tgt in one
     directory, else adjust paths.
 
-1.  Build osd-util
+1.  Set up for debugging (optional)
+
+    echo "OPT := -g" > Makedefs
+
+2.  Build osd-util
 
     cd osd-util
     make
     cd ..
 
-2.  Build osd-target
+3.  Build osd-target
 
     cd osd-target
     make
     cd ..
 
-3.  Download tgt.
+4.  Download tgt.
 
     git clone git://git.kernel.org/pub/scm/linux/kernel/git/tomo/tgt.git
 
-4.  Apply the patches from osd-target
+5.  Apply the patches from osd-target
 
     cd tgt
     git am ../osd-target/patch/*

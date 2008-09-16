@@ -546,6 +546,86 @@ double stddev(double *v, double mu, int N)
 	return sd;
 }
 
+
+static double partition(double *a, int left, int right, int pi)
+{
+	int i, ind;
+	double pv, tmp;
+	
+	pv = a[pi];
+
+	tmp = a[right];
+	a[right] = a[pi];
+	a[pi] = tmp;
+
+	ind = left;
+	for (i = left; i <= right; i++) {
+		if (a[i] < pv) {
+			tmp = a[ind];
+			a[ind] = a[i];
+			a[i] = tmp;
+			++ind;
+		}
+	}
+	tmp = a[right];
+	a[right] = a[ind];
+	a[ind] = tmp;
+
+	return ind;
+}
+
+static double selectmedian(double *a, int k, int left, int right)
+{
+	int pi;
+	int ind;
+
+	while (1) {
+		pi = left + (int)((right - left)*rand()/(RAND_MAX+1.));
+		ind = partition(a, left, right, pi);
+		if (ind == k)
+			return a[k];
+		else if (ind < k)
+			left = ind + 1;
+		else
+			right = ind - 1;
+	}
+}
+
+/* 
+ * Median algo is based on selection algorithm by Blum et. al. Psuedo-code is
+ * availble at: http://en.wikipedia.org/wiki/Selection_algorithm
+ */
+double median(double *v, int N)
+{
+	int mindx;
+	double median;
+	double *a;
+	
+	a = Malloc(sizeof(*a)*N);
+	if (!a)
+		osd_error_fatal("Out of memory");
+
+	memcpy(a, v, sizeof(*a)*N);
+	osd_srand();
+
+	if (N == 0)
+		return 0.;
+	if ((N%2) == 1) {
+		mindx = (N+1)/2 - 1;
+		median = selectmedian(a, mindx, 0, N-1);
+	} else {
+		double m1, m2;
+		mindx = N/2;
+		m1 = selectmedian(a, mindx, 0, N-1);
+		mindx = N/2 - 1;
+		m2 = selectmedian(a, mindx, 0, N-1);
+		median = (m1 + m2)/2.;
+	}
+
+	free(a);
+	return median;
+}
+
 double get_mhz(void)
 {
 	FILE *fp;

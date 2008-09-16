@@ -52,6 +52,7 @@ size_t osd_safewrite(int fd, const void *buf, size_t num);
 void osd_hexdump(const void *dv, size_t len);
 double mean(double *v, int N);
 double stddev(double *v, double mu, int N);
+double median(double *v, int N);
 double get_mhz(void);
 uint32_t jenkins_one_at_a_time_hash(uint8_t *key, size_t key_len);
 

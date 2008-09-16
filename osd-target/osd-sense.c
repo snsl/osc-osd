@@ -1,6 +1,9 @@
+
+#include <sys/types.h>
 #include <stdint.h>
 
 #include "osd-sense.h"
+#include "util/util.h"
 
 /*
  * Descriptor format sense data.  See spc3 p 31.  Returns length of
@@ -31,12 +34,10 @@ int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 		return 0;
 	data[0] = 0x6;
 	data[1] = 0x1e;
-	/* XXX: get interface split up properly...
-	   htonl_set(&data[8], not_init_funcs);
-	   htonl_set(&data[12], completed_funcs);
-	   htonll_set(&data[16], pid);
-	   htonll_set(&data[24], oid);
-	 */
+	set_htonl(&data[8], not_init_funcs);
+	set_htonl(&data[12], completed_funcs);
+	set_htonll(&data[16], pid);
+	set_htonll(&data[24], oid);
 	return 32;
 }
 
@@ -49,9 +50,7 @@ int sense_csi_build(uint8_t *data, int len, uint64_t csi)
 		return 0;
 	data[0] = 0x1;
 	data[1] = 0xa;
-	/* ditto...
-	htonll_set(&data[4], csi);
-	*/
+	set_htonll(&data[4], csi);
 	return 12;
 }
 

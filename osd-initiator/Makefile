@@ -50,7 +50,7 @@ MV := osd-initiator-$(shell date +%Y%m%d)
 dist:
 	rm -rf $(MV)
 	mkdir $(MV)
-	svn list -R | rsync --files-from=/dev/stdin --exclude=.svn ./ $(MV)/
+	svn list -R | grep -v '/$$' | rsync --files-from=/dev/stdin ./ $(MV)/
 	tar cf - $(MV) | bzip2 -9c > $(MV).tar.bz2
 	rm -rf $(MV)
 

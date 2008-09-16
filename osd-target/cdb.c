@@ -873,6 +873,7 @@ static void exec_service_action(struct command *cmd)
 	uint8_t *sense = cmd->sense;
 	int ret;
 
+	osd_debug("%s: start 0x%04x", __func__, cmd->action);
 	switch (cmd->action) {
 	case OSD_APPEND: {
 		uint64_t pid = get_ntohll(&cdb[16]);
@@ -1100,6 +1101,7 @@ static void exec_service_action(struct command *cmd)
 	default:
 		ret = osd_error_unimplemented(cmd->action, sense);
 	}
+	osd_debug("%s: done  0x%04x", __func__, cmd->action);
 
 	/*
 	 * All the above return bytes of sense data put into sense[]
@@ -1198,8 +1200,6 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	if (ret < 0)
 		goto out_cdb_err;
 
-	osd_debug("%s: outlen %llu, data_out_len %llu", __func__, 
-		  llu(cmd.outlen), llu(*data_out_len));
 	if (*data_out != NULL) {
 		cmd.outdata = *data_out;  /* use buffer from iscsi */
 		/* verify sane initiator, but should give underflow instead */

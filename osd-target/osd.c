@@ -1401,8 +1401,10 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint8_t obj_type = 0;
 
+#if 0
 	osd_debug("%s: get attr for (%llu, %llu) page %u number %u", __func__,
 		  llu(pid), llu(oid), page, number);
+#endif
 
 	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen || 
 	    !sense)

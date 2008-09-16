@@ -6,12 +6,12 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 2 of the License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -407,6 +407,12 @@ void osd_command_set_ddt(struct osd_command *command, uint8_t type)
 {
 	/*need a sep function, might not always be 00 for the default*/
 	command->cdb[10] = type;  /*using last 2 bits of option byte see 5.2.5*/
+}
+
+
+uint8_t osd_command_get_ddt(struct osd_command *command)
+{
+	return command->cdb[10];
 }
 
 /*

@@ -6,12 +6,12 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 2 of the License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -147,6 +147,7 @@ int osd_command_set_set_member_attributes(struct osd_command *command,
 int osd_command_set_write(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
 void osd_command_set_ddt(struct osd_command *command, uint8_t type);
+uint8_t osd_command_get_ddt(struct osd_command *command);
 /*
  * Extensions, not yet in T10 or SNIA OSD spec.
  */

@@ -6,11 +6,13 @@
 
 SRC := $(wildcard *.c)
 INC := $(wildcard *.h)
+DEP := .depend
 OBJ := $(SRC:.c=.o)
 EXE := $(SRC:.c=)
 LIBOSD := ../libosd.a ../../util/libosdutil.a
 
 CC := gcc
+CPP_M := -MM
 COPTS := -g
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
@@ -28,5 +30,14 @@ $(EXE): %: %.o $(LIBOSD)
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
+#depend
+ifneq (clean, $(MAKECMDGOALS))
+-include $(DEP)
+endif
+
+all :: $(DEP)
+$(DEP) :
+	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > $(DEP) 
+	
 clean:
-	rm -f $(EXE) $(OBJ)
+	rm -f $(EXE) $(OBJ) $(DEP)

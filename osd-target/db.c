@@ -77,3 +77,18 @@ int db_close(struct osd_device *osd)
 	return SQLITE_OK;
 }
 
+/*
+ * print sqlite errmsg 
+ */
+void __attribute__((format(printf,2,3)))
+error_sql(sqlite3 *db, const char *fmt, ...)
+{
+    va_list ap;
+
+    fprintf(stderr, "osd: ");
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, ": %s.\n", sqlite3_errmsg(db));
+}
+

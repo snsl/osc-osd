@@ -5,7 +5,11 @@
 SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c
 SRC += osd-schema.c
 INC := attr.h db.h obj.h osd-types.h osd.h osd-sense.h cdb.h osd-defs.h
+DEP := .depend
 OBJ := $(SRC:.c=.o)
+TESTDIR := ./tests/
+UTILDIR := ../util/
+STGTDIR := ../stgt/
 OSDTARGETLIB := libosd.a
 
 STGTLIB := ../stgt/libstgt.a
@@ -15,7 +19,7 @@ LIBS := -lcrypto -lsqlite3 -laio
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g -D_GNU_SOURCE
+COPTS := -g -fPIC -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs 
@@ -25,7 +29,7 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused
 
 .SUFFIXES: .c .o .i
 
-all: TESTS UTIL tgtd
+all :: TESTS UTIL tgtd
 
 tgtd: $(STGTLIB) $(OSDTARGETLIB) $(UTILLIB)
 	$(LD) -o $@ $^ $(LIBS)
@@ -34,13 +38,13 @@ $(OSDTARGETLIB): $(OBJ)
 	ar cr $@ $^
 
 $(STGTLIB):
-	make -C ../stgt
+	make -C $(STGTDIR)
 
 $(UTILLIB) UTIL:
-	make -C ../util/
+	make -C $(UTILDIR)
 
 TESTS: UTIL $(OSDTARGETLIB)
-	make -C ./tests/
+	make -C $(TESTDIR)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -50,14 +54,21 @@ osd-schema.c: osd.schema
 	  sed 's/^/"/; s/$$/\\n"/' < $< ;\
 	  echo ";" ) > $@
 
-$(OBJ): $(INC)
+#depend
+ifneq (clean, $(MAKECMDGOALS))
+-include $(DEP)
+endif
+
+all :: $(DEP)
+$(DEP) :
+	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > $(DEP) 
 
 clean:
-	make -C ../util clean
-	rm -f tgtd $(OSDTARGETLIB) $(OBJ) osd-schema.c
-	make -C ./tests clean
+	make -C $(UTILDIR) clean
+	rm -f tgtd $(OSDTARGETLIB) $(OBJ) $(DEP)
+	make -C $(TESTDIR) clean
 
 tags: FORCE
-	ctags -R $(SRC) $(INC) ./tests/
+	ctags -R $(SRC) $(INC) $(TESTDIR) $(UTILDIR)
 
 FORCE:;

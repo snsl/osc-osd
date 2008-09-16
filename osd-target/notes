@@ -191,8 +191,8 @@ can be implemented as a sql view on page numbers 0
 # Wed Feb 14 11:41:45 EST 2007
 +	osd specific return codes, 
 -	db, obj and attr specific return codes
-+	mv error_sql into ../util/util.c
++	mv error_sql into db.c
 ?	what happens on removal of non existent obj
 		sqlite successfully complete removal of non existent object
 +	gettype func in obj.c
-
+-	make depend targets

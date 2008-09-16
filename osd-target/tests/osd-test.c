@@ -300,9 +300,9 @@ void test_osd_get_attributes(struct osd_device *osd)
 	assert(ntohl_le((uint8_t *)&le->number) == 1);
 	assert(ntohs_le((uint8_t *)&le->len) == strlen("Madhuri Dixit")+1);
 	assert(strcmp((char *)le +  LE_VAL_OFF, "Madhuri Dixit") == 0);
-	len = strlen("Madhuri Dixit")+1;
+	len = LE_VAL_OFF + strlen("Madhuri Dixit")+1;
 	len += (0x8 - (len & 0x7)) & 0x7;
-	assert(used_len == len+LE_VAL_OFF);
+	assert(used_len == len);
 
 	/* run different get attr tests */
 	test_osd_get_ccap(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB); 

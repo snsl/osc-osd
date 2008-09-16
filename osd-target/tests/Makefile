@@ -4,12 +4,16 @@
 # $Id: $
 #
 
-SRC := $(wildcard *.c)
-INC := $(wildcard *.h)
 DEP := .depend
-OBJ := $(SRC:.c=.o)
 TESTS := $(wildcard *test.c)
+OBJ := $(TESTS:.c=.o)
 EXE := $(TESTS:.c=)
+
+CMD := command.c
+CMD_OBJ := $(CMD:.c=.o)
+CMD_SRC := ../../osd_initiator/$(CMD)
+CMD_INC := $(CMD_SRC:.c=.h)
+
 LIBOSD := ../libosd.a ../../util/libosdutil.a
 
 CC := gcc
@@ -25,10 +29,13 @@ CFLAGS := $(COPTS) $(CWARN) -I. -I.. -I../../
 # default target
 all :: $(EXE)
 
-$(EXE): %: %.o cdb-manip.o $(LIBOSD) 
+$(EXE): %: %.o $(CMD_OBJ) $(LIBOSD) 
 	$(CC) -o $@ $^ -lsqlite3
 
 %.o : %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(CMD_OBJ): $(CMD_SRC)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 #depend
@@ -38,7 +45,7 @@ endif
 
 all :: $(DEP)
 $(DEP) :
-	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > $(DEP) 
+	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) $(CMD_SRC) > $(DEP) 
 	
 clean:
-	rm -f $(EXE) $(OBJ) $(DEP)
+	rm -f $(EXE) $(OBJ) $(CMD_OBJ) $(DEP)

@@ -39,11 +39,11 @@ def compare(buf1, buf2):
 			sys.exit(1)
 
 def readfile(pid, oid):
-	len = 1 << 10  # 1 kB chunk size
+	length = 256 << 10  # 256 kB chunk size
 	pos = 0
 	while True:
 		command = OSDCommand()
-		command.set_read(pid, oid, len, pos)
+		command.set_read(pid, oid, length, pos)
 		dev.submit_and_wait(command)
 		# read past end of object, okay
 		if command.status == 2 and command.sense_key == 1 \
@@ -57,16 +57,22 @@ def readfile(pid, oid):
 		pos += command.inlen
 
 def writefile(pid, oid):
-	len = 1 << 20  # 1 MB chunk size
+	length = 256 << 10  # 1 kB chunk size
 	pos = 0
 	while True:
-		buf = sys.stdin.read(len)
+		buf = sys.stdin.read(length)
 		if buf == "":
 			break
 		command = OSDCommand()
 		command.set_write(pid, oid, buf, pos)
 		run(command)
 		pos += len(buf)
+	# truncate to exactly this length, could have been longer
+	command = OSDCommand()
+	command.set_set_attributes(pid, oid)
+	command.attr_build(OSDAttr(ATTR_SET, USER_INFO_PG, UIAP_LOGICAL_LEN, \
+				   htonll(pos)))
+	run(command)
 
 parser = optparse.OptionParser()
 parser.add_option("-t", "--target", dest="target",

@@ -380,6 +380,8 @@ static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != 0)
 		return OSD_ERROR;
 
+	/* XXX: not exactly accurate to stat the entire db for the
+	 * access/mod time of one object */
 	get_dbname(path, osd->root);
 	memset(&asb, 0, sizeof(asb));
 	ret = stat(path, &asb);

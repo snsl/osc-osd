@@ -182,7 +182,8 @@ enum {
 
 enum {
 	OSD_ERROR = -1,
-	OSD_OK = 0
+	OSD_OK = 0,
+	OSD_REPEAT = 1
 };
 
 #endif /* __OSD_TYPES_H */

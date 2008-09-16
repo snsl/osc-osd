@@ -568,7 +568,9 @@ static inline int dir_page_drop_v2(sqlite3 *db, char *SQL)
 }
 
 /*
- * packs contents of an attribute of dir page
+ * packs contents of an attribute of dir page. Note that even though the
+ * query select 'page', the resultant rows are actually rows 'numbers' within
+ * directory page.
  * 
  * returns:
  * -ENOMEM: out of memory
@@ -576,8 +578,9 @@ static inline int dir_page_drop_v2(sqlite3 *db, char *SQL)
  * -EOVERFLOW: buflen too small
  * >0: success, number of bytes copied into buf
  */
-static int attr_gather_dir_page(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
-				uint64_t oid, uint32_t page, uint8_t listfmt)
+static int attr_gather_dir_page(sqlite3_stmt *stmt, void *buf, 
+				uint32_t buflen, uint64_t oid, uint32_t page,
+				uint8_t listfmt)
 {
 	int ret = 0;
 	uint32_t number = sqlite3_column_int(stmt, 0);
@@ -625,12 +628,13 @@ int attr_get_dir_page(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	ret = dir_page_create_v1(db, pid, oid, SQL);
 	if (ret != 0)
 		goto out;
-
+/* 
 	ret = dir_page_create_v2(db, pid, oid, SQL);
 	if (ret != 0)
 		goto out_drop_v1;
 
 	sprintf(SQL, "SELECT page, ? FROM v2 UNION SELECT * FROM v1;");
+
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: sqlite3_prepare", __func__);
@@ -643,7 +647,44 @@ int attr_get_dir_page(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		error_sql(db, "%s: sqlite3_prepare", __func__);
 		goto out_finalize;
 	}
-
+ */
+/* 	sprintf(SQL,
+		" SELECT page, value FROM attr "
+		"   WHERE pid = %llu AND oid = %llu AND number = 0 "
+		" UNION ALL "
+		" SELECT page, ? FROM attr "
+		"   WHERE page IN "
+		"     (SELECT page FROM attr WHERE pid = %llu AND oid = %llu "
+		"      EXCEPT "
+		"      SELECT page FROM attr "
+		"         WHERE pid = %llu AND oid = %llu AND number = 0) "
+		" GROUP BY page ORDER BY page; ", llu(pid), llu(oid), 
+		llu(pid), llu(oid), llu(pid), llu(oid)); */
+	sprintf(SQL, 
+		" SELECT page, ?  FROM attr "
+		"   WHERE pid = %llu AND oid  = %llu GROUP BY page "
+		" EXCEPT "
+		" SELECT page, ?  FROM attr "
+		"   WHERE pid = %llu AND oid = %llu AND number = 0 "
+		" UNION ALL "
+		" SELECT page, value FROM attr "
+		"   WHERE  pid = %llu AND  oid = %llu AND number = 0;", 
+		llu(pid), llu(oid), llu(pid), llu(oid), llu(pid), llu(oid));
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: sqlite3_prepare", __func__);
+		goto out;
+	}
+	ret |= sqlite3_bind_blob(stmt, 1, unidentified_page_identification, 
+				 sizeof(unidentified_page_identification), 
+				 SQLITE_TRANSIENT);
+	ret |= sqlite3_bind_blob(stmt, 2, unidentified_page_identification, 
+				 sizeof(unidentified_page_identification), 
+				 SQLITE_TRANSIENT);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: sqlite3_prepare", __func__);
+		goto out_finalize;
+	}
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		ret = attr_gather_dir_page(stmt, outbuf, outlen, oid, page, 
@@ -680,14 +721,14 @@ out_finalize:
 		error_sql(db, "%s: finalize", __func__);
 	}
 
-out_drop_v2:
-	dir_page_drop_v2(db, SQL); /* ignore ret */
-
-out_drop_v1:
-	dir_page_drop_v1(db, SQL); /* ignore ret */
-
 out:
 	return ret;
+/* 
+out_drop_v2:
+	dir_page_drop_v2(db, SQL);  *//* ignore ret */
+/* 
+out_drop_v1:
+	dir_page_drop_v1(db, SQL);  *//* ignore ret */
 }
 
 /*

@@ -535,3 +535,51 @@ to the cid
 -   can empty partition or collection be determined w/o actually counting the
     rows?
 -   timing test for object_collection before and after optimization
+
+# Mon May 14 19:33:48 EDT 2007
+-	in attr_gather * no need to copy blob values. Can pass of directly as a
+	pointer to list-entry funcs
+-	using helper function exec_dml adds about 4% overhead to execution time
+	compared to infunction implementation.
+
+# Tue May 15 17:05:17 EDT 2007
+-	x86_64 assembly resources:
+-	http://www.amd.com/us-en/assets/content_type/white_papers_and_tech_docs/40546.pdf
+-	http://www.x86-64.org/documentation.html
+-	http://www.cs.cmu.edu/~fp/courses/15213-s06/misc/asm64-handout.pdf
+-	http://www.amd.com/us-en/Processors/TechnicalResources/
+-	AMD64 Architecture Programmer's Manual Volume 1: Application Programming
+	http://www.amd.com/us-en/assets/content_type/white_papers_and_tech_docs/24592.pdf
+-	http://developer.amd.com/devguides.jsp
+-	the 4% overhead
+	times without exec_dml:
+	time_insert numiter 10 numobj 10 testone 0 avg 969.802714 +- 3.611856 us
+	time_insert numiter 10 numobj 100 testone 0 avg 9841.456688 +- 17.105755 us
+	time_insert numiter 10 numobj 1000 testone 0 avg 107513.349058 +- 331.922371 us
+	time_insert numiter 10 numobj 1000 testone 0 avg 109118.424264 +- 1139.760928 us
+
+	times with exec_dml:
+	time_insert numiter 10 numobj 10 testone 0 avg 991.425623 +- 3.349941 us
+	time_insert numiter 10 numobj 100 testone 0 avg 10016.951044 +- 22.943269 us
+	time_insert numiter 10 numobj 1000 testone 0 avg 108450.038074 +- 298.843333 us
+	time_insert numiter 10 numobj 1000 testone 0 avg 111032.684933 +- 829.166728 us
+
+-	prama not working
+-	why are we getting SQLITE_SCHEMA error
+	since attr_get_dir_page creates views, it changes db schema and raise
+	SQLITE_SCHEMA error.
+
+# Wed May 16 15:05:32 EDT 2007
+-	change return code names from OSD_OK, they might conflict with OSD_CREATE
+	etc namespace
+-	more evidence of function call overhead:
+	w/o overhead
+time_insert numiter 10 numobj 64 testone 0 avg 6288.029060 +- 25.669674 us
+time_insert numiter 10 numobj 128 testone 0 avg 12248.685379 +- 25.123183 us
+time_insert numiter 10 numobj 256 testone 0 avg 25899.749742 +- 53.774744 us
+time_insert numiter 10 numobj 512 testone 0 avg 54303.741797 +- 4332.570774 us
+ 	with overhead
+time_insert numiter 10 numobj 64 testone 0 avg 6558.988791 +- 43.907721 us
+time_insert numiter 10 numobj 128 testone 0 avg 12947.509450 +- 30.651306 us
+time_insert numiter 10 numobj 256 testone 0 avg 27491.428278 +- 67.486652 us
+time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us

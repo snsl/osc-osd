@@ -13,7 +13,7 @@
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
-#include "object-collection.h"
+#include "coll.h"
 #include "util/util.h"
 #include "util/osd-sense.h"
 #include "target-sense.h"

@@ -10,8 +10,11 @@
 #include "osd.h"
 #include "db.h"
 #include "obj.h"
+#include "coll.h"
 #include "util/util.h"
 #include "attr.h"
+
+extern const char osd_schema[];
 
 static int check_membership(void *arg, int count, char **val, 
 			    char **colname)
@@ -37,7 +40,7 @@ static int db_check_tables(struct osd_device *osd)
 	int ret = 0;
 	char SQL[MAXSQLEN];
 	char *err = NULL;
-	const char *tables[] = {"attr", "obj", "object_collection"};
+	const char *tables[] = {"attr", "obj", "coll"};
 	struct array arr = {ARRAY_SIZE(tables), tables};
 
 	sprintf(SQL, "SELECT name FROM sqlite_master WHERE type='table' "
@@ -54,9 +57,9 @@ static int db_check_tables(struct osd_device *osd)
 
 
 /*
- * < 0: error
- * = 0: success
- * = 1: new db opened
+ *  <0: error
+ * ==0: success
+ * ==1: new db opened, caller must initialize tables
  */
 int db_open(const char *path, struct osd_device *osd)
 {
@@ -87,20 +90,68 @@ int db_open(const char *path, struct osd_device *osd)
 	ret = sqlite3_open(path, &(osd->db));
 	if (ret != SQLITE_OK) {
 		osd_error("%s: open db %s", __func__, path);
+		ret = OSD_ERROR;
 		goto out;
 	}
+
+	osd->dbc = Calloc(1, sizeof(*osd->dbc));
+	if (!osd->dbc) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	osd->dbc->db = osd->db; /* TODO: unnecessary if dbc is default */
 
 	if (is_new_db) {
-		ret = 1;
+		/* build tables from schema file */
+		ret = sqlite3_exec(osd->dbc->db, osd_schema, NULL, NULL, &err);
+		if (ret != SQLITE_OK) {
+			sqlite3_free(err);
+			ret = OSD_ERROR;
+			goto out;
+		}
+	} else {
+		/* existing db, check for tables */
+		ret = db_check_tables(osd);
+		if (ret != OSD_OK)
+			goto out;
+	}
+
+	/* initialize dbc fields */
+	ret = coll_initialize(osd->dbc);
+	if (ret != OSD_OK) {
+		ret = OSD_ERROR;
 		goto out;
 	}
 
-	/* existing db, check for tables */
-	ret = db_check_tables(osd);
+	if (is_new_db) 
+		ret = 1;
 
 out:
 	return ret;
 }
+
+
+int db_close(struct db_context *dbc)
+{
+	int ret = 0;
+
+	if (dbc == NULL)
+		return -EINVAL;
+
+	ret = coll_finalize(dbc);
+	if (ret != OSD_OK)
+		return OSD_ERROR;
+
+	ret = sqlite3_close(dbc->db);
+	if (ret != SQLITE_OK) {
+		osd_error("Failed to close db %s", sqlite3_errmsg(dbc->db));
+		return ret;
+	}
+
+	return SQLITE_OK;
+}
+
 
 int db_begin_txn(struct osd_device *osd)
 {
@@ -116,6 +167,7 @@ int db_begin_txn(struct osd_device *osd)
 	return ret;
 }
 
+
 int db_end_txn(struct osd_device *osd)
 {
 	int ret = 0;
@@ -130,21 +182,6 @@ int db_end_txn(struct osd_device *osd)
 	return ret;
 }
 
-int db_close(struct osd_device *osd)
-{
-	int ret = 0;
-
-	if (osd->db == NULL)
-		return -EINVAL;
-
-	ret = sqlite3_close(osd->db);
-	if (ret != SQLITE_OK) {
-		osd_error("Failed to close db %s", sqlite3_errmsg(osd->db));
-		return ret;
-	}
-
-	return SQLITE_OK;
-}
 
 int db_exec_pragma(struct osd_device *osd)
 {
@@ -185,11 +222,13 @@ out:
 	return ret;
 }
 
+
 static int callback(void *ignore, int count, char **val, char **colname)
 {
 	printf("%s: PRAGMA %s = %s\n", __func__, colname[0], val[0]);
 	return 0;
 }
+
 
 int db_print_pragma(struct osd_device *osd)
 {
@@ -210,6 +249,7 @@ int db_print_pragma(struct osd_device *osd)
 	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
 	return ret;
 }
+
 
 /*
  * print sqlite errmsg 

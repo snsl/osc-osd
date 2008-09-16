@@ -10,19 +10,10 @@
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
-#include "object-collection.h"
+#include "coll.h"
 #include "util/util.h"
 
-void test_obj(struct osd_device *osd);
-void test_dup_obj(struct osd_device *osd);
-void test_obj_manip(struct osd_device *osd);
-void test_pid_isempty(struct osd_device *osd);
-void test_get_obj_type(struct osd_device *osd);
-void test_attr(struct osd_device *osd);
-void test_dir_page(struct osd_device *osd);
-void test_object_collection(struct osd_device *osd);
-
-void test_obj(struct osd_device *osd)
+static void test_obj(struct osd_device *osd)
 {
 	int ret = 0;
 
@@ -33,7 +24,7 @@ void test_obj(struct osd_device *osd)
 	assert(ret == 0);
 }
 
-void test_dup_obj(struct osd_device *osd)
+static void test_dup_obj(struct osd_device *osd)
 {
 	int ret = 0;
 
@@ -48,7 +39,7 @@ void test_dup_obj(struct osd_device *osd)
 	assert(ret == 0);
 }
 
-void test_attr(struct osd_device *osd)
+static void test_attr(struct osd_device *osd)
 {
 	int ret= 0;
 	const char *attr = "This is first attr";
@@ -84,7 +75,7 @@ void test_attr(struct osd_device *osd)
 	free(val);
 }
 
-void test_obj_manip(struct osd_device *osd)
+static void test_obj_manip(struct osd_device *osd)
 {
 	int i = 0;
 	int ret = 0;
@@ -110,7 +101,7 @@ void test_obj_manip(struct osd_device *osd)
 		ret = obj_delete(osd->db, 1, 1<<i);
 		assert(ret == 0);
 	}
-	
+
 	ret = obj_insert(osd->db, 1, 235, USEROBJECT);
 	assert(ret == 0);
 
@@ -126,7 +117,7 @@ void test_obj_manip(struct osd_device *osd)
 	assert(ret == 0);
 }
 
-void test_pid_isempty(struct osd_device *osd)
+static void test_pid_isempty(struct osd_device *osd)
 {
 	int ret = 0;
 
@@ -145,7 +136,7 @@ void test_pid_isempty(struct osd_device *osd)
 	assert(ret == 1);
 }
 
-void test_get_obj_type(struct osd_device *osd)
+static void test_get_obj_type(struct osd_device *osd)
 {
 	int ret = 0;
 
@@ -194,7 +185,7 @@ static inline void delete_obj(struct osd_device *osd, uint64_t pid,
 	assert (ret == 0);
 }
 
-void test_dir_page(struct osd_device *osd)
+static void test_dir_page(struct osd_device *osd)
 {
 	int ret= 0;
 	uint8_t buf[1024];
@@ -260,73 +251,91 @@ void test_dir_page(struct osd_device *osd)
 	delete_obj(osd, 1, 1);
 }
 
-void test_object_collection(struct osd_device *osd)
+static void test_coll(struct osd_device *osd)
 {
 	int ret = 0;
-	uint64_t oids[64];
 	uint64_t usedlen;
 	uint64_t addlen;
+	uint64_t oids[64] = {0};
 	uint64_t cont_id = 0xFUL;
 
-	ret = oc_insert_row(osd->db, 0x20, 0x1, 0x1111111111111111, 2);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x2222, 2);
 	assert(ret == 0);
-	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x2222, 2);
+	ret = coll_insert(osd->dbc, 0x20, 0x1, 0x1111111111111111, 2);
 	assert(ret == 0);
-	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x3333333333333333, 2);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x3333333333333333, 2);
 	assert(ret == 0);
-	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x7888888888888888, 2);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x7888888888888888, 2);
 	assert(ret == 0);
-	ret = oc_insert_row(osd->db, 0x20, 0x2, 0x7AAAAAAAAAAAAAAA, 2);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x7AAAAAAAAAAAAAAA, 2);
 	assert(ret == 0);
-	ret = oc_insert_row(osd->db, 0x20, 0x2, 0xFFFFFFFFFFFFFFFF, 2);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0xFFFFFFFFFFFFFFFF, 2);
 	assert(ret == 0);
-	ret = oc_insert_row(osd->db, 0x20, 0x1, 0x111, 2);
+	ret = coll_insert(osd->dbc, 0x20, 0x1, 0x111, 2);
 	assert(ret == 0);
 
-	ret = oc_get_oids_in_cid(osd->db, 0x20, 0x2, 0, 64*8, (uint8_t *)oids, 
-				 &usedlen, &addlen, &cont_id); 
+	ret = coll_get_oids_in_cid(osd->dbc, 0x20, 0x2, 0, 64*8, 
+				   (uint8_t *)oids, &usedlen, &addlen,
+				   &cont_id); 
 	assert(ret == 0);
-	assert(usedlen == 5*8);
-	assert(addlen == 5*8);
+
+	/* 
+	 * XXX: the following is sqlite bug. sqlite converts uint64_t to
+	 * double due to which 0xFFFFFFFFFFFFFFFF is interpreted as -1 and
+	 * fails to be selected
+	 */
+	assert(usedlen == 4*8);
+	assert(addlen == 4*8);
 	assert(cont_id == 0);
 	assert(ntohll((uint8_t *)&oids[0]) == 0x2222);
 	assert(ntohll((uint8_t *)&oids[1]) == 0x3333333333333333);
 	assert(ntohll((uint8_t *)&oids[2]) == 0x7888888888888888);
 	assert(ntohll((uint8_t *)&oids[3]) == 0x7AAAAAAAAAAAAAAA);
-	assert(ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); /* XXX: sqlite bug */
 
-	ret = oc_delete_all_cid(osd->db, 0x20, 0x1);
+	/* 
+	 * XXX: following is sqlite bug. sqlite converts uint64_t to double
+	 * and looses precision 
+	 */
+	assert(ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); 
+
+	/* 
+	 * next fill in 16k rows in coll_tab and empty it to see if vaccum
+	 * affects prepared statements
+	 */
+
+	ret = coll_remove_cid(osd->dbc, 0x20, 0x1);
 	assert(ret == 0);
-	ret = oc_delete_all_cid(osd->db, 0x20, 0x2);
+	ret = coll_remove_cid(osd->dbc, 0x20, 0x2);
 	assert(ret == 0);
 }
 
 
 int main()
 {
-	char path[]="/tmp/osd/md/osd.db";
 	int ret = 0;
 	struct osd_device osd;
+	const char *root = "/tmp/osd/";
 
-	ret = db_open(path, &osd);
+	system("rm -rf /tmp/osd/");
+	ret = osd_open(root, &osd);
 	assert(ret == 0);
 
-	ret = db_exec_pragma(&osd);
-	assert(ret == 0);
+ 	ret = db_exec_pragma(&osd);
+	assert(ret == 0); 
 
-/*	test_obj(&osd);
+     	test_obj(&osd);
 	test_dup_obj(&osd);
 	test_obj_manip(&osd);
 	test_pid_isempty(&osd);
 	test_get_obj_type(&osd);
-	test_attr(&osd);
-	test_dir_page(&osd);*/
-	test_object_collection(&osd);
+	test_attr(&osd);  
+ 	test_dir_page(&osd); 
+	test_coll(&osd);
 
 	ret = db_print_pragma(&osd);
 	assert(ret == 0);
 
-	ret = db_close(&osd);
+	ret = osd_close(&osd);
 	assert(ret == 0);
 
 	return 0;

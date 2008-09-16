@@ -23,7 +23,7 @@ CREATE TABLE attr (
 
 -- object_collection table is used as an intersection table to hold
 -- many-to-many mappings between userobjects and collections.
-CREATE TABLE object_collection (
+CREATE TABLE coll (
 	pid INTEGER NOT NULL,
 	cid INTEGER NOT NULL,
 	oid INTEGER NOT NULL,

@@ -40,7 +40,7 @@ CFLAGS := $(COPTS) $(CWARN) -I. -I.. -I../../
 all :: $(EXE) $(TMG_EXE)
 
 $(EXE): %: %.o $(CMD_OBJ) $(LIBOSD) 
-	$(CC) -o $@ $^ -lsqlite3 -lm
+	$(CC) -o $@ $^ -lsqlite3 -lm 
 
 $(TMG_EXE): %: %.o $(CMD_OBJ) $(LIBOSD) 
 	$(CC) -o $@ $^ -lsqlite3 -lm

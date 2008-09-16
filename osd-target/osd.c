@@ -17,7 +17,7 @@
 #include "attr.h"
 #include "util/util.h"
 #include "obj.h"
-#include "object-collection.h"
+#include "coll.h"
 #include "util/osd-sense.h"
 #include "list-entry.h"
 
@@ -74,8 +74,6 @@ static const char *md = "md";
 static const char *dbname = "osd.db";
 static const char *dfiles = "dfiles";
 static const char *stranded = "stranded";
-
-extern const char osd_schema[];
 
 static struct init_attr partition_info[] = {
 	{PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory"},
@@ -679,11 +677,11 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		 * Other queries might have to be modified to reflect this
 		 * development
 		 */
-		ret = oc_get_cid(osd->db, pid, oid, number, &cid);
+		ret = coll_get_cid(osd->dbc, pid, oid, number, &cid);
 		if (ret != 0)
 			return OSD_ERROR;
 
-		ret = oc_delete_row(osd->db, pid, cid, oid);
+		ret = coll_delete(osd->dbc, pid, cid, oid);
 		if (ret != 0)
 			return OSD_ERROR;
 
@@ -699,7 +697,7 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret <= 0)
 		return OSD_ERROR;
 
-	ret = oc_insert_row(osd->db, pid, cid, oid, number);
+	ret = coll_insert(osd->dbc, pid, cid, oid, number);
 	if (ret != 0)
 		return OSD_ERROR;
 
@@ -725,13 +723,7 @@ static int osd_initialize_db(struct osd_device *osd)
 	memset(&osd->ic, 0, sizeof(osd->ic));
 	memset(&osd->idl, 0, sizeof(osd->idl));
 
-	/* build tables from schema file */
-	ret = sqlite3_exec(osd->db, osd_schema, NULL, NULL, &err);
-	if (ret != SQLITE_OK) {
-		sqlite3_free(err);
-		return -1;
-	}
-
+	/* tables already created by db_open, so insertions can be done */
 	ret = obj_insert(osd->db, ROOT_PID, ROOT_OID, ROOT);
 	if (ret != SQLITE_OK)
 		goto out;
@@ -813,8 +805,14 @@ int osd_open(const char *root, struct osd_device *osd)
 
 	/* auto-creates db if necessary, and sets osd->db */
 	osd->root = strdup(root);
+	if (!osd->root) {
+		ret = -ENOMEM;
+		goto out;
+	}
 	get_dbname(path, root);
 	ret = db_open(path, osd);
+	if (ret != 0 && ret != 1) 
+		goto out;
 	if (ret == 1) {
 		ret = osd_initialize_db(osd);
 		if (ret != 0)
@@ -830,7 +828,7 @@ int osd_close(struct osd_device *osd)
 {
 	int ret;
 
-	ret = db_close(osd);
+	ret = db_close(osd->dbc);
 	if (ret != 0)
 		osd_error("%s: db_close", __func__);
 	free(osd->root);
@@ -1276,7 +1274,7 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 		goto create;
 	}
 
-	ret = db_close(osd);
+	ret = db_close(osd->dbc);
 	if (ret) {
 		osd_error("%s: DB close failed, ret %d", __func__, ret);
 		goto out_sense;
@@ -1655,13 +1653,13 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		 * unless we want attrs
 		 */
 		ret = (cid == 0 ? 
-		       oc_get_cids_in_pid(osd->db, pid, initial_oid,
-					  alloc_len, &outdata[24],
-					  used_outlen, &add_len, &cont_id) 
+		       obj_get_cids_in_pid(osd->db, pid, initial_oid,
+					   alloc_len, &outdata[24],
+					   used_outlen, &add_len, &cont_id)
 		       :
-		       oc_get_oids_in_cid(osd->db, pid, cid, initial_oid,
-					  alloc_len, &outdata[24],
-					  used_outlen, &add_len, &cont_id));
+		       coll_get_oids_in_cid(osd->dbc, pid, cid, initial_oid,
+					    alloc_len, &outdata[24],
+					    used_outlen, &add_len, &cont_id));
 		if (ret)
 			goto out_hw_err;
 		*used_outlen += 24;
@@ -1919,7 +1917,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_hw_err;
 
 	/* delete all collection memberships */
-	ret = oc_delete_all_oid(osd->db, pid, oid);
+	ret = coll_remove_oid(osd->dbc, pid, oid);
 	if (ret != 0)
 		goto out_hw_err;
 
@@ -1967,7 +1965,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	/* XXX: invalidate ic_cache */
 	osd->ic.cur_pid = osd->ic.next_id = 0;
 
-	isempty = oc_isempty_cid(osd->db, pid, cid);
+	isempty = coll_isempty_cid(osd->dbc, pid, cid);
 	if (isempty < 0)
 		goto out_hw_err;
 
@@ -1975,7 +1973,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 		if (fcr == 0)
 			goto out_not_empty;
 
-		ret = oc_delete_all_cid(osd->db, pid, cid);
+		ret = coll_remove_cid(osd->dbc, pid, cid);
 		if (ret != 0)
 			goto out_hw_err;
 	}

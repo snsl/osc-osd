@@ -8,14 +8,11 @@
 #include <unistd.h>
 #include <time.h>
 
-#include "util/osd-defs.h"
 #include "osd-types.h"
 #include "osd.h"
-#include "db.h"
-#include "attr.h"
-#include "obj.h"
-#include "util/util.h"
 #include "cdb.h"
+#include "util/osd-defs.h"
+#include "util/util.h"
 #include "util/osd-sense.h"
 #include "osd_initiator/command.h"
 

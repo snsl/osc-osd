@@ -343,6 +343,38 @@ int create_and_write_sgl_osd(int fd, uint64_t pid, uint64_t requested_oid,
 	return 0;
 }
 
+int create_and_write_vec_osd(int fd, uint64_t pid, uint64_t requested_oid,
+			 const uint8_t *buf, uint64_t len, uint64_t offset)
+{
+	int ret;
+	struct osd_command command;
+
+	osd_debug("****** CREATE / WRITE VEC ******");
+	osd_debug("PID: %llu OID: %llu BUF: %s", llu(pid), llu(requested_oid),
+		  buf);
+
+	if (!buf) {
+		osd_error("%s: no data sent", __func__);
+		return 1;
+	}
+
+	osd_command_set_create_and_write(&command, pid, requested_oid, len,
+					 offset);
+
+	osd_command_set_ddt(&command, DDT_VEC);
+
+	command.outdata = buf;
+	command.outlen = len;
+
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
+	return 0;
+}
+
 int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	      uint64_t len, uint64_t offset)
 {

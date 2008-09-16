@@ -34,6 +34,8 @@ int create_and_write_osd(int fd, uint64_t pid, uint64_t requested_oid,
 			 const uint8_t *buf, uint64_t len, uint64_t offset);
 int create_and_write_sgl_osd(int fd, uint64_t pid, uint64_t requested_oid,
 			 const uint8_t *buf, uint64_t len, uint64_t offset);
+int create_and_write_vec_osd(int fd, uint64_t pid, uint64_t requested_oid,
+			 const uint8_t *buf, uint64_t len, uint64_t offset);
 /* Read/Write */
 int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	      uint64_t len, uint64_t offset);

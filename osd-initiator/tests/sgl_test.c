@@ -312,31 +312,22 @@ static void basic_test_vec(int fd, uint64_t pid, uint64_t oid)
 	memset(xbuf, '0', 100);
 	read_osd(fd, pid, oid, xbuf, 100, 0);
 
-return;
-
-
 	/* ---------------------------------------------- */
 	/*  Now try to gather the Ds we wrote previously  */
 	/* ---------------------------------------------- */
+	free(dbuf);
+	dbuf = malloc(50);
+	memset(dbuf, 'Z', 50);
 
-	size = (2*sizeof(uint64_t) * 5) + sizeof(uint64_t);
+	size = 2*sizeof(uint64_t);
 	buf = malloc(size);
-	memset(dbuf, 'Z', size);
+	set_htonll((uint8_t *)buf, stride);
+	hdr_offset = sizeof(uint64_t);
+	set_htonll((uint8_t *)buf + hdr_offset, length);
 
-	set_htonll(buf, 5);
-	hdr_offset = 0;
-	hdr_offset += sizeof(uint64_t);
-	offset = 0;
-	for (i=0; i<5; i++) {
-		osd_debug("Offset= %llu  Length= %llu", llu(offset), llu(length));
-		set_htonll((uint8_t *)buf + hdr_offset, offset);
-		offset += length*2;
-		hdr_offset += sizeof(uint64_t);
-		set_htonll((uint8_t *)buf + hdr_offset, length);
-		hdr_offset += sizeof(uint64_t);
-	}
-	dbuf = malloc(50);  /* return buffer */
-	ret = read_sgl_osd(fd, pid, oid, buf, size, dbuf, 50, 0);
+	ret = read_vec_osd(fd, pid, oid, buf, size, dbuf, 50, 0);
+
+return;
 
 	/* ---------------------------- */
 	/* Test Append command with SGL */

@@ -555,6 +555,34 @@ int read_sgl_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *ddt_buf,
 	return 0;
 }
 
+int read_vec_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *ddt_buf,
+			uint64_t ddt_len, uint8_t *buf, uint64_t len, uint64_t offset)
+{
+	int ret;
+	struct osd_command command;
+
+	osd_debug("****** READ ******");
+	osd_debug("PID: %llu OID: %llu", llu(pid), llu(oid));
+	osd_debug("ddt len: %llu len: %llu", llu(ddt_len), llu(len));
+
+	osd_command_set_read(&command, pid, oid, len, offset);
+
+	osd_command_set_ddt(&command, DDT_VEC);
+
+	command.indata = buf;
+	command.inlen_alloc = len;
+
+	command.outdata = ddt_buf;
+	command.outlen = ddt_len;
+
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, buf);
+
+	return 0;
+}
 
 int format_osd(int fd, int capacity)
 {

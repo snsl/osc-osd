@@ -2240,37 +2240,6 @@ static int vec_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t
 			  llu(bytes));
 	}
 
-
-
-
-
-
-
-	//~ hdr_offset = sizeof(uint64_t);
-	//~ data_offset = 0;
-	//~ readlen = 0;
-
-	//~ for (i=0; i<pairs; i++) {
-		//~ offset_val = get_ntohll(indata + hdr_offset); /* offset into dest */
-		//~ hdr_offset += sizeof(uint64_t);
-
-		//~ length = get_ntohll(indata + hdr_offset);   /* length */
-		//~ hdr_offset += sizeof(uint64_t);
-
-		//~ osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val + offset),
-			//~ llu(length));
-
-		//~ osd_debug("%s: Position in data buffer: %llu master offset %llu", __func__, llu(data_offset), llu(offset));
-
-		//~ osd_debug("%s: ------------------------------", __func__);
-		//~ ret = pread(fd, outdata+data_offset, length, offset_val+offset);
-		//~ data_offset += length;
-		//~ osd_debug("%s: return value is %d", __func__, ret);
-		//~ if (ret < 0 || (uint64_t)ret != length)
-			//~ goto out_hw_err;
-		//~ readlen += ret;
-	//~ }
-
 	ret = close(fd);
 	if (ret != 0)
 		goto out_hw_err;

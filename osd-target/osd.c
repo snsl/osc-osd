@@ -3106,7 +3106,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int present;
 	uint8_t obj_type;
 	uint8_t *val;
-	uint32_t usedlen;
+	uint32_t valen;
 
 	assert(osd && osd->dbc && cmp && swap && orig_val && orig_len &&
 	       sense);
@@ -3124,14 +3124,24 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_cdb_err;
 
 	ret = attr_get_val(osd->dbc, pid, oid, page, number, ATTR_LEN_UB,
-			   val, &usedlen);
+			   val, &valen);
 	if (ret != OSD_OK && ret != -ENOENT)
 		goto out_hw_err;
 
-	if (ret == -ENOENT ||
-	    (usedlen == cmp_len && memcmp(cmp, val, cmp_len) == 0)) {
+	/*
+	 * swap_len determines if the new entry is being inserted or original
+	 * entry is to be removed.
+	 */
+	if ((swap_len > 0 && swap != NULL) &&
+	    (ret == -ENOENT || 
+	     (valen == cmp_len && memcmp(cmp, val, valen) == 0))) {
 		ret = attr_set_attr(osd->dbc, pid, oid, page, number, swap,
 				    swap_len);
+		if (ret != OSD_OK)
+			goto out_hw_err;
+	} else if ((swap_len == 0 && swap != NULL) &&
+		   (valen == cmp_len && memcmp(cmp, val, valen) == 0)) {
+		ret = attr_delete_attr(osd->dbc, pid, oid, page, number);
 		if (ret != OSD_OK)
 			goto out_hw_err;
 	}
@@ -3145,7 +3155,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		*orig_len = 0;
 	} else {
 		*orig_val = val;
-		*orig_len = usedlen;
+		*orig_len = valen;
 	}
 	return OSD_OK;
 

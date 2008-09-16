@@ -896,7 +896,10 @@ static int exec_gen_cas(struct command *cmd, uint64_t pid, uint64_t oid,
 	page = get_ntohl(&list[0]);
 	number = get_ntohl(&list[4]);
 	cmp_len = get_ntohs(&list[8]);
-	cmp = &list[10];
+	if (cmp_len == 0)
+		cmp = NULL;
+	else
+		cmp = &list[10];
 	pad = (0x8 - ((LE_VAL_OFF + cmp_len) & 0x7)) & 0x7;
 	list += LE_VAL_OFF + cmp_len + pad;
 	*list_len -= LE_VAL_OFF + cmp_len + pad;
@@ -905,7 +908,10 @@ static int exec_gen_cas(struct command *cmd, uint64_t pid, uint64_t oid,
 	assert(page == get_ntohl(&list[0]));
 	assert(number == get_ntohl(&list[4]));
 	swap_len = get_ntohs(&list[8]);
-	swap = &list[10];
+	if (swap_len == 0)
+		swap = NULL;
+	else
+		swap = &list[10];
 	pad = (0x8 - ((LE_VAL_OFF + swap_len) & 0x7)) & 0x7;
 	list += LE_VAL_OFF + swap_len + pad;
 	*list_len -= LE_VAL_OFF + swap_len + pad;
@@ -1068,14 +1074,14 @@ static int cdb_gen_cas(struct command *cmd, int osd_cmd)
 	uint8_t *cdb = cmd->cdb;
 	uint64_t pid = get_ntohll(&cdb[16]);
 	uint64_t oid = get_ntohll(&cdb[24]);
-	uint32_t list_len;
+	uint32_t list_len = 0;
 	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
 	const uint8_t *list = &cmd->indata[list_off];
 	const uint8_t *list_pos;
 	uint8_t *orig;
 	uint16_t orig_len;
-	uint32_t orig_page, orig_number;
-	uint8_t cas_res;
+	uint32_t orig_page = 0, orig_number = 0;
+	uint8_t cas_res = 0;
 
 	if (cmd->getset_cdbfmt != GETLIST_SETLIST)
 		goto out_cdb_err;

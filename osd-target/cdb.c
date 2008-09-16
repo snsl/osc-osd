@@ -1160,6 +1160,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_CREATE_AND_WRITE: {
+		uint8_t ddt = cdb[10];
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t requested_oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
@@ -1169,7 +1170,7 @@ static void exec_service_action(struct command *cmd)
 		if (ret)
 			break;
 		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
+					   offset, cmd->indata, sense, ddt);
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {

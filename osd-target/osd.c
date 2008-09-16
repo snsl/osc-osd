@@ -6,12 +6,12 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 2 of the License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -1208,12 +1208,30 @@ out_hw_err:
 }
 
 
+
+
+
 int osd_create_and_write(struct osd_device *osd, uint64_t pid,
-			 uint64_t requested_oid, uint64_t len, uint64_t offset,
-			 const uint8_t *data, uint8_t *sense)
+			 uint64_t oid, uint64_t len, uint64_t offset,
+			 const uint8_t *data, uint8_t *sense, uint8_t ddt)
 {
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
+	int ret;
+
+	ret = osd_create(osd, pid, oid, 1, sense);
+	if (ret) {
+		return ret;
+	}
+
+	ret = osd_write(osd, pid, oid, len, offset, data, sense, ddt);
+	//~ if (ret) {
+		//~ osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		//~ uint8_t *sense);
+		//~ return ret;
+	//~ }
+
+	return ret;
+
+	/* XXX What to do when create succeeds but write fails, remove object? */
 }
 
 /* osd2r01 sec. 6.5 */

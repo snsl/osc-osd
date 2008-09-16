@@ -166,34 +166,62 @@ def allbut(nodes, numservers):
 
 
 def handle_alloc():
-    global osdnodes, pvfsnodes, metanodes, ionodes
+    global options, osdnodes, pvfsnodes, metanodes, ionodes
     global datahandles, metahandles, roothandle, roothandle_node
 
     # Keep handle ranges >= 0x10000 to avoid OSD reserved OID space
     # and use pretty numbers for easier debugging rather than worrying
     # about filling the space.
     h = 1000000
-    step = 1000000
+    datastep = 1000000
+    metastep = 1000000
     roothandle = 0
+
+    # When caching, make sure handle range on cache side can accommodate
+    # all handles at the data side.  When they have different number of
+    # servers, for example, this is an issue.  Hope everything divides.
+    if options["mirror"] == "data-cache":
+	fd = open(mirror_ionodes)
+	num = 0
+	while True:
+	    line = fd.readline()
+	    if line == "":
+		break
+	    num += 1
+	fd.close()
+	datastep = num * datastep / len(ionodes)
 
     datahandles = {}
     for n in ionodes:
-	datahandles[n] = (h, h + step-1)
-	h += step
+	datahandles[n] = (h, h + datastep-1)
+	h += datastep
 
     # if directories are being handled by OSDs, put the root handle there
     if len(metanodes) == 0:
 	print >>sys.stderr, "No metanodes to alloc."
 	sys.exit(1)
+
+    if options["mirror"] == "meta-mirror" or \
+       options["mirror"] == "data-cache":
+	fd = open(mirror_metanodes)
+	num = 0
+	while True:
+	    line = fd.readline()
+	    if line == "":
+		break
+	    num += 1
+	fd.close()
+	metastep = num * metastep / len(metanodes)
+
     metahandles = {}
     for n in metanodes:
-	metahandles[n] = (h, h + step-1)
+	metahandles[n] = (h, h + metastep-1)
 	if roothandle == 0:
 	    if (options["dirtype"] == "pvfs" and n in pvfsnodes) or \
 	       (options["dirtype"] != "pvfs" and n in osdnodes):
 		roothandle = h
 		roothandle_node = n
-	h += step
+	h += metastep
 
 
 def buildfiles():
@@ -778,14 +806,19 @@ while i < len(sys.argv):
 	options["mirror"] = sys.argv[i][1:]
 	i += 3
     elif sys.argv[i] == "-meta-mirror":
-	if i+1 == len(sys.argv):
+	if i+2 >= len(sys.argv):
 	    usage()
-	mirror_ionodes = sys.argv[i+1]
+	mirror_metanodes = sys.argv[i+1]
+	mirror_ionodes = sys.argv[i+2]
 	options["mirror"] = sys.argv[i][1:]
-	i += 2
+	i += 3
     elif sys.argv[i] == "-data-cache":
+	if i+2 >= len(sys.argv):
+	    usage()
+	mirror_metanodes = sys.argv[i+1]
+	mirror_ionodes = sys.argv[i+2]
 	options["mirror"] = sys.argv[i][1:]
-	i += 1
+	i += 3
     elif sys.argv[i] == "-poi":
 	options["pvfs_osd_integrated"] = "yes"
 	i += 1

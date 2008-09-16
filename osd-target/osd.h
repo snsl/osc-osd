@@ -40,10 +40,14 @@ int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense);
 int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
                         uint8_t *sense);
 int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense);
-int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
-                       uint32_t page, uint32_t number, void *outbuf, 
-		       uint64_t outlen, int getpage, uint8_t cmd_type,
-		       uint8_t *sense, uint32_t *used_outlen);
+int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		     uint32_t page, void *outbuf, uint64_t outlen, 
+		     uint8_t isembedded, uint32_t *used_outlen, 
+		     uint8_t *sense);
+int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		     uint32_t page, uint32_t number, uint8_t *outbuf,
+		     uint32_t outlen, uint8_t isembedded, uint8_t listfmt,
+		     uint32_t *used_outlen,  uint8_t *sense);
 int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
@@ -77,5 +81,15 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
 	      uint64_t offset, const uint8_t *data, uint8_t *sense);
+
+/* helper functions */
+static inline uint64_t osd_get_created_oid(struct osd_device *osd, 
+					   uint32_t numoid)
+{
+	uint64_t oid =  osd->ccap.oid;
+	if (numoid > 0)
+		oid -= (numoid - 1);
+	return oid;
+}
 
 #endif /* __OSD_H */

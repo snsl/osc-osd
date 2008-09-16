@@ -17,6 +17,7 @@
 #include "util/util.h"
 #include "obj.h"
 #include "osd-sense.h"
+#include "list-entry.h"
 
 static const char *dbname = "osd.db";
 static const char *dfiles = "dfiles";
@@ -166,12 +167,11 @@ static inline void get_dbname(char *path, const char *root)
 	sprintf(path, "%s/%s", root, dbname);
 }
 
-static inline void fill_ccap(struct cur_cmd_attr_pg *ccap, uint16_t srvc_act,
-			     uint8_t *ricv, uint8_t obj_type, uint64_t pid,
-			     uint64_t oid, uint64_t append_off) 
+static inline void fill_ccap(struct cur_cmd_attr_pg *ccap, uint8_t *ricv,
+			     uint8_t obj_type, uint64_t pid, uint64_t oid,
+			     uint64_t append_off) 
 {
 	memset(ccap, 0, sizeof(*ccap));
-	ccap->cdb_srvc_act = srvc_act;
 	if (ricv)
 		memcpy(ccap->ricv, ricv, sizeof(ccap->ricv));
 	ccap->obj_type = obj_type;
@@ -180,22 +180,12 @@ static inline void fill_ccap(struct cur_cmd_attr_pg *ccap, uint16_t srvc_act,
 	ccap->append_off = append_off;
 }
 
-static inline void fill_attr(void *buf, uint32_t page, uint32_t number, 
-			     uint16_t len, void *val)
-{
-	list_entry_t *le = (list_entry_t *)buf;
-	set_htonl_le((uint8_t *)&(le->page),  page);
-	set_htonl_le((uint8_t *)&(le->number), number);
-	set_htons_le((uint8_t *)&(le->len), len);
-	memcpy((uint8_t *)le + ATTR_VAL_OFFSET, val, len);
-}
-
 /*
- * Fill current command attributes page (osd2r00 Sec 7.1.2.24) in retrieved
- * attribute format described in osd2r00 Sec 7.1.3.3
+ * Fill current command attributes page  in retrieved page format (osd2r00
+ * Sec 7.1.2.24).
  *
  * returns:
- * < 0: if error
+ * -EINVAL: generic error
  * ==0: OSD_OK (success), used_outlen stores consumed outbuf len
  */
 static int get_ccap(struct osd_device *osd, void *outbuf, uint64_t outlen,
@@ -208,9 +198,9 @@ static int get_ccap(struct osd_device *osd, void *outbuf, uint64_t outlen,
 		return -EINVAL;
 
 	/*
-	 * If len < CCAP_LIST_LEN, i.e. the buffer size is not sufficient to
-	 * fill in all attributes, then it is not an error. osd2r00 Sec
-	 * 5.2.2.2
+	 * XXX:SD we are treating the case of len < CCAP_TOTAL_LEN as
+	 * overflow error. 
+	 * overflow is not considered error. osd2r00 sec 5.2.2.2
 	 */
 	if (outlen < CCAP_TOTAL_LEN) {
 		*used_outlen = 0;
@@ -231,11 +221,79 @@ out:
 	return OSD_OK;
 }
 
+/*
+ * Fill current command attributes page (osd2r00 Sec 7.1.2.24) attributes. 
+ *
+ * NOTE: since RTRVD_CREATE_ATTR_LIST listfmt is set only when multiple
+ * objects are created, and CCAP has room for only one (pid, oid), the
+ * retrieved attributes are always in RTRVD_SET_ATTR_LIST format described in
+ * osd2r00 Sec 7.1.3.3
+ *
+ * returns:
+ * -EINVAL: if error, used_outlen not modified
+ * ==0: OSD_OK (success), used_outlen stores consumed outbuf len
+ */
+static int get_ccap_aslist(struct osd_device *osd, uint32_t number,
+			   void *outbuf, uint64_t outlen, 
+			   uint32_t *used_outlen)
+{
+	int ret = 0;
+	uint16_t len = 0;
+	char name[CCAP_PAGEID_LEN] = {'\0'};
+	void *val = NULL;
+	uint8_t *cp = outbuf;
+
+	if (osd == NULL || outbuf == NULL || used_outlen == NULL)
+		return -EINVAL;
+
+	switch (number) {
+		case CCAP_PAGEID_ATTR:
+			len = CCAP_PAGEID_LEN;
+			sprintf(name, "INCITS  T10 Current Command");
+			val = name;
+			break;
+		case CCAP_RICV_ATTR:
+			len = CCAP_RICV_LEN;
+			val = osd->ccap.ricv;
+			break;
+		case CCAP_OBJT_ATTR:
+			len = CCAP_OBJT_LEN;
+			val = &osd->ccap.obj_type;
+			break;
+		case CCAP_PID_ATTR:
+			len = CCAP_PID_LEN;
+			val = &osd->ccap.pid;
+			break;
+		case CCAP_OID_ATTR:
+			len = CCAP_OID_LEN;
+			val = &osd->ccap.oid;
+			break;
+		case CCAP_APPADDR_ATTR:
+			len = CCAP_APPADDR_LEN;
+			val = &osd->ccap.append_off;
+			break;
+		default:
+			return OSD_ERROR;
+	}
+
+	ret = le_pack_attr(outbuf, outlen, CUR_CMD_ATTR_PG, number, len, val);
+	assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
+	if (ret == -EOVERFLOW)
+		*used_outlen = 0;
+	else if (ret > 0)
+		*used_outlen = ret;
+	else 
+		return ret;
+
+	return OSD_OK;
+}
+
 static inline int set_hton_time(uint8_t *dest, time_t t, time_t tnsec)
 {	
 	/* millisec; osd2r00 sec 7.1.2.8 clock description */
 	time_t time = t*1e3 + tnsec/1e6; 
 
+	/* only have 48 bits. bits in 48-63 will be lost */
 	if ((time & (0xFFFFULL << 48)) != 0)
 		return OSD_ERROR;
 
@@ -245,20 +303,27 @@ static inline int set_hton_time(uint8_t *dest, time_t t, time_t tnsec)
 	return OSD_OK;
 }
 
+/*
+ * returns:
+ * -EINVAL: generic errors, used_outlen not modified
+ * OSD_ERROR: generic system errors, used_outlen not modified
+ * ==0: OSD_OK (success), used_outlen stores consumed outbuf len
+ */
 static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		     void *outbuf, uint64_t outlen, uint32_t *used_outlen)
 {
 	int ret = 0;
 	uint8_t *cp = outbuf;
-	struct stat sb;
+	struct stat asb, dsb;
 	char path[MAXNAMELEN];
 
 	if (osd == NULL || outbuf == NULL || used_outlen == NULL)
 		return -EINVAL;
 
 	/*
-	 * if len < UTSAP_TOTAL_LEN, it is not considered error. osd2r00 
-	 * sec 5.2.2.2
+	 * XXX:SD we are treating the case of len < UTSAP_TOTAL_LEN as
+	 * overflow error. 
+	 * overflow is not considered error. osd2r00 sec 5.2.2.2
 	 */
 	if (outlen < UTSAP_TOTAL_LEN) {
 		*used_outlen = 0;
@@ -266,35 +331,41 @@ static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 
 	memset(cp, 0, UTSAP_TOTAL_LEN);
-	set_htonl_le(&cp[UTSAP_PAGE_OFF], USER_TS_PG);
+	set_htonl_le(&cp[UTSAP_PAGE_OFF], USER_TMSTMP_PG);
 	set_htonl_le(&cp[UTSAP_LEN_OFF], UTSAP_LEN);
 
-	get_dbname(path, osd->root);
-	memset(&sb, 0, sizeof(sb));
-	ret = stat(path, &sb);
-	if (ret != 0)
-		return OSD_ERROR;
-
-	ret = set_hton_time(&cp[UTSAP_ATTR_ATIME_OFF], sb.st_atime, 
-			    sb.st_atim.tv_nsec);
-	if (ret != OSD_OK)
-		return ret;
-	ret = set_hton_time(&cp[UTSAP_ATTR_MTIME_OFF], sb.st_mtime,
-			    sb.st_mtim.tv_nsec);
-	if (ret != OSD_OK)
-		return ret;
-
 	get_dfile_name(path, osd->root, pid, oid);
-	ret = stat(path, &sb);
+	memset(&dsb, 0, sizeof(dsb));
+	ret = stat(path, &dsb);
 	if (ret != 0)
 		return OSD_ERROR;
 
-	ret = set_hton_time(&cp[UTSAP_DATA_ATIME_OFF], sb.st_atime,
-			    sb.st_atim.tv_nsec);
+	get_dbname(path, osd->root);
+	memset(&asb, 0, sizeof(asb));
+	ret = stat(path, &asb);
+	if (ret != 0)
+		return OSD_ERROR;
+
+	ret = set_hton_time(&cp[UTSAP_CTIME_OFF], dsb.st_ctime,
+			    dsb.st_ctim.tv_nsec);
 	if (ret != OSD_OK)
 		return ret;
-	ret = set_hton_time(&cp[UTSAP_DATA_MTIME_OFF], sb.st_mtime,
-			    sb.st_mtim.tv_nsec);
+
+	ret = set_hton_time(&cp[UTSAP_ATTR_ATIME_OFF], asb.st_atime, 
+			    asb.st_atim.tv_nsec);
+	if (ret != OSD_OK)
+		return ret;
+	ret = set_hton_time(&cp[UTSAP_ATTR_MTIME_OFF], asb.st_mtime,
+			    asb.st_mtim.tv_nsec);
+	if (ret != OSD_OK)
+		return ret;
+
+	ret = set_hton_time(&cp[UTSAP_DATA_ATIME_OFF], dsb.st_atime,
+			    dsb.st_atim.tv_nsec);
+	if (ret != OSD_OK)
+		return ret;
+	ret = set_hton_time(&cp[UTSAP_DATA_MTIME_OFF], dsb.st_mtime,
+			    dsb.st_mtim.tv_nsec);
 	if (ret != OSD_OK)
 		return ret;
 
@@ -306,76 +377,170 @@ out:
 
 /*
  * returns:
- * -EOVERFLOW: buffer not sufficient
- * OSD_ERROR: in case of error, does not set used_outlen
+ * -EINVAL: generic error, used_outlen not set
+ * OSD_ERROR: used_outlen not set
  * OSD_OK: on success, sets used_outlen
  */
-static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
-		    uint32_t page, uint32_t number, void *outbuf, 
-		    uint64_t outlen, uint32_t *used_outlen) 
+static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
+			    uint32_t number, void *outbuf, uint64_t outlen,
+			    uint8_t listfmt, uint32_t *used_outlen)
 {
 	int ret = 0;
-	uint16_t len = 0, cplen = 0;
-	off_t sz = 0;
-	list_entry_t *le = outbuf;
+	uint16_t len = 0;
+	void *val = NULL;
+	uint64_t time = 0;
+	char name[UTSAP_PAGE_LEN] = {'\0'};
 	char path[MAXNAMELEN];
 	struct stat sb;
-	
-	if (outlen < ATTR_VAL_OFFSET)
-		return -EOVERFLOW;
-	outlen -= ATTR_VAL_OFFSET;
 
-	set_htonl_le((uint8_t *)&le->page, page);
-	set_htonl_le((uint8_t *)&le->number, number);
+	if (osd == NULL || outbuf == NULL || used_outlen == NULL)
+		return -EINVAL;
 
 	switch (number) {
-		case UIAP_PAGEID:
-			cplen = len = UIAP_PAGEID_SZ;
-			if (outlen < len)
-				cplen = outlen;
-			strncpy((char *)le + ATTR_VAL_OFFSET, 
-			       "INCITS  T10 User Object Information", cplen);
+		case UTSAP_PAGE_ATTR:
+			len = UTSAP_PAGE_LEN;
+			sprintf(name, "INCITS  T10 User Object Timestamps");
+			val = name;
 			break;
-		case UIAP_PID:
-			cplen = len = UIAP_PID_SZ;
-			if (outlen < len)
-				cplen = outlen;
-			memcpy((uint8_t *)le + ATTR_VAL_OFFSET, &pid, cplen);
-			break;
-		case UIAP_OID:
-			cplen = len = UIAP_OID_SZ;
-			if (outlen < len)
-				cplen = outlen;
-			memcpy((uint8_t *)le + ATTR_VAL_OFFSET, &oid, cplen);
-			break;
-		case UIAP_USED_CAP:
-			cplen = len = UIAP_USED_CAP_SZ;
-			if (outlen < len)
-				cplen = outlen;
+		case UTSAP_CTIME_ATTR:
+		case UTSAP_DATA_MTIME_ATTR:
+		case UTSAP_DATA_ATIME_ATTR:
 			get_dfile_name(path, osd->root, pid, oid);
+			memset(&sb, 0, sizeof(sb));
 			ret = stat(path, &sb);
 			if (ret != 0)
 				return OSD_ERROR;
-			sz = sb.st_blocks*BLOCK_SZ;
-			memcpy((uint8_t *)le + ATTR_VAL_OFFSET, &sz, cplen);
+			if (number == UTSAP_CTIME_ATTR) {
+				len = UTSAP_CTIME_LEN;
+				time = sb.st_ctime*1e3 + 
+					sb.st_ctim.tv_nsec/1e6;
+			} else if (number == UTSAP_DATA_ATIME_ATTR) {
+				len = UTSAP_DATA_ATIME_LEN;
+				time = sb.st_atime*1e3 + 
+					sb.st_atim.tv_nsec/1e6;
+			} else {
+				len = UTSAP_DATA_MTIME_LEN;
+				time = sb.st_mtime*1e3 + 
+					sb.st_mtim.tv_nsec/1e6;
+			}
+			if ((time & (0xFFFFULL << 48)) != 0)
+				return OSD_ERROR;
+			time = time << 16;
+			val = &time;
 			break;
-		case UIAP_LGCL_LEN:
-			cplen = len = UIAP_LGCL_LEN_SZ;
-			if (outlen < len)
-				cplen = outlen;
-			get_dfile_name(path, osd->root, pid, oid);
+		case UTSAP_ATTR_ATIME_ATTR:
+		case UTSAP_ATTR_MTIME_ATTR:
+			get_dbname(path, osd->root);
+			memset(&sb, 0, sizeof(sb));
 			ret = stat(path, &sb);
 			if (ret != 0)
 				return OSD_ERROR;
-			memcpy((uint8_t *)le + ATTR_VAL_OFFSET,
-			       &sb.st_size, cplen);
+			if (number == UTSAP_ATTR_ATIME_ATTR) {
+				len = UTSAP_ATTR_ATIME_LEN;
+				time = sb.st_atime*1e3 + 
+					sb.st_atim.tv_nsec/1e6;
+			} else {
+				len = UTSAP_ATTR_MTIME_LEN;
+				time = sb.st_mtime*1e3 + 
+					sb.st_mtim.tv_nsec/1e6;
+			}
+			if ((time & (0xFFFFULL << 48)) != 0)
+				return OSD_ERROR;
+			time = time << 16;
+			val = &time;
 			break;
 		default:
 			return OSD_ERROR;
 	}
 
-	set_htons_le((uint8_t *)&le->len, len);
-	*used_outlen = cplen + ATTR_VAL_OFFSET;
+	if (listfmt == RTRVD_CREATE_ATTR_LIST)
+		ret = le_multiobj_pack_attr(outbuf, outlen, oid, 
+					    USER_TMSTMP_PG,number, len, val);
+	else
+		ret = le_pack_attr(outbuf, outlen, USER_TMSTMP_PG, number, 
+				   len, val);
+
+	assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
+	if (ret == -EOVERFLOW)
+		*used_outlen = 0;
+	else if (ret > 0)
+		*used_outlen = ret;
+	else 
+		return ret;
+
+	return OSD_OK;
+}
+
+
+
+/*
+ * returns:
+ * -EINVAL: generic error
+ * OSD_ERROR: in case of error, does not set used_outlen
+ * OSD_OK: on success, sets used_outlen
+ */
+static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		    uint32_t page, uint32_t number, void *outbuf, 
+		    uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen)
+{
+	int ret = 0;
+	void *val = NULL;
+	uint16_t len = 0;
+	char name[UIAP_PAGEID_SZ] = {'\0'};
+	char path[MAXNAMELEN];
+	struct stat sb;
+	off_t sz = 0;
+	
+	switch (number) {
+		case UIAP_PAGEID:
+			len = UIAP_PAGEID_SZ;
+			sprintf(name, "INCITS  T10 User Object Information");
+			val = name;
+			break;
+		case UIAP_PID:
+			len = UIAP_PID_SZ;
+			val = &pid;
+			break;
+		case UIAP_OID:
+			len = UIAP_OID_SZ;
+			val = &oid;
+			break;
+		case UIAP_USED_CAP:
+			len = UIAP_USED_CAP_SZ;
+			get_dfile_name(path, osd->root, pid, oid);
+			ret = stat(path, &sb);
+			if (ret != 0)
+				return OSD_ERROR;
+			sz = sb.st_blocks*BLOCK_SZ;
+			val = &sz;
+			break;
+		case UIAP_LGCL_LEN:
+			len = UIAP_LGCL_LEN_SZ;
+			get_dfile_name(path, osd->root, pid, oid);
+			ret = stat(path, &sb);
+			if (ret != 0)
+				return OSD_ERROR;
+			val = &sb.st_size;
+			break;
+		default:
+			return OSD_ERROR;
+	}
+
+	if (listfmt == RTRVD_SET_ATTR_LIST)
+		ret = le_pack_attr(outbuf, outlen, page, number, len, val);
+	else if (listfmt == RTRVD_CREATE_ATTR_LIST)
+		ret = le_multiobj_pack_attr(outbuf, outlen, oid, page, number,
+					    len, val);
+	else
+		return OSD_ERROR;
+
+	assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
+	if (ret == -EOVERFLOW)
+		*used_outlen = 0;
+	else if (ret > 0)
+		*used_outlen = ret;
+	else 
+		return ret;
 
 	return OSD_OK;
 }
@@ -547,18 +712,28 @@ static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 	return 0;
 }
 
+static inline void osd_remove_tmp_objects(struct osd_device *osd, uint64_t pid,
+					  uint64_t start_oid, uint64_t end_oid,
+					  uint8_t *sense)
+{
+	uint64_t j = 0;
+	for (j = start_oid; j < end_oid; j++)
+		osd_remove(osd, pid, j, sense); /* ignore ret */
+	obj_delete(osd->db, pid, end_oid); 
+}
+
 /*
  * XXX: get/set attributes to be handled in cdb.c
  */
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
-	       uint16_t num, uint8_t *sense)
+	       uint16_t numoid, uint8_t *sense)
 {
 	int ret = 0;
 	uint64_t i = 0;
 	uint64_t oid = 0;
 
-	osd_debug("%s: pid %llu requested oid %llu num %hu", __func__, llu(pid),
-	      llu(requested_oid), num);
+	osd_debug("%s: pid %llu requested oid %llu numoid %hu", __func__, 
+		  llu(pid), llu(requested_oid), numoid);
 
 	if (pid == 0 || pid < USEROBJECT_PID_LB) 	
 		goto out_illegal_req;
@@ -570,7 +745,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
 		goto out_illegal_req;
 
-	if (num > 1 && requested_oid != 0) 
+	if (numoid > 1 && requested_oid != 0) 
 		goto out_illegal_req;
 
 	if (requested_oid == 0) {
@@ -586,10 +761,10 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		oid = requested_oid; /* requested_oid works! */
 	}
 
-	if (num == 0)
-		num = 1; /* create atleast one object */
+	if (numoid == 0)
+		numoid = 1; /* create atleast one object */
 
-	for (i = oid; i < (oid + num); i++) {
+	for (i = oid; i < (oid + numoid); i++) {
 		ret = obj_insert(osd->db, pid, i, USEROBJECT);
 		if (ret != 0) {
 			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
@@ -599,8 +774,8 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		}
 		ret = osd_create_datafile(osd, pid, i);
 		if (ret != 0) {
-			/* TODO: delete previously created objects */
-			obj_delete(osd->db, pid, i); 
+			/* delete previously created objects */
+			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
 					      OSD_ASC_INVALID_FIELD_IN_CDB, 
 					      pid, i);
@@ -608,7 +783,8 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		}
 	}
 
-	fill_ccap(&(osd->ccap), OSD_CREATE, NULL, USEROBJECT, pid, oid, 0);
+	/* fill CCAP with highest oid, osd2r00 Sec 6.3, 3rd last para */
+	fill_ccap(&(osd->ccap), NULL, USEROBJECT, pid, (oid+numoid-1), 0);
 	return OSD_OK; /* success */
 	
 out_illegal_req:
@@ -667,8 +843,7 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 	if (ret)
 		goto out_cdb_err;
 
-	fill_ccap(&(osd->ccap), OSD_CREATE_PARTITION, NULL, PARTITION, pid, 
-		  PARTITION_OID, 0);
+	fill_ccap(&(osd->ccap), NULL, PARTITION, pid, PARTITION_OID, 0);
 	return OSD_OK; /* success */
 
 out_cdb_err:
@@ -779,23 +954,45 @@ out:
 	return ret;
 }
 
+static inline int 
+mutiplex_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		      uint32_t page, uint32_t number, uint8_t *outbuf, 
+		      uint32_t outlen, uint8_t isembedded, uint8_t listfmt,
+		      uint32_t *used_outlen, uint8_t *sense) 
+{
+	if (page == GETALLATTR_PG && number == ATTRNUM_GETALL) {
+		return attr_get_all_attrs(osd->db, pid, oid, outbuf, outlen,
+					  listfmt, used_outlen);
+	} else if (page != GETALLATTR_PG && number == ATTRNUM_GETALL) {
+		return attr_get_page_as_list(osd->db, pid, oid, page, outbuf,
+					     outlen, listfmt, used_outlen);
+	} else if (page == GETALLATTR_PG && number != ATTRNUM_GETALL) {
+		return attr_get_for_all_pages(osd->db, pid, oid, number,
+					      outbuf, outlen, listfmt,
+					      used_outlen);
+	} else {
+		return attr_get_attr(osd->db, pid, oid, page, number, outbuf,
+				     outlen, listfmt, used_outlen);
+	}
+}
+
 /*
- * return values:
+ * returns:
  * == OSD_OK: success, used_outlen modified
  *  >0: failed, sense set accordingly
  */
-int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
-                       uint32_t page, uint32_t number, void *outbuf, 
-		       uint64_t outlen, int getpage, uint8_t cmd_type,
-		       uint8_t *sense, uint32_t *used_outlen)
+int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		     uint32_t page, uint32_t number, uint8_t *outbuf,
+		     uint32_t outlen, uint8_t isembedded, uint8_t listfmt,
+		     uint32_t *used_outlen,  uint8_t *sense) 
 {
 	int ret = 0;
 	uint8_t obj_type = 0;
 
-	osd_debug("%s: get attr for (%llu, %llu)", __func__, llu(pid), 
-		  llu(oid));
+	osd_debug("%s: get attr for (%llu, %llu) page %u number %u", __func__, 
+		  llu(pid), llu(oid), page, number);
 	
-	if (outbuf == NULL || sense == NULL)
+	if (!osd || !outbuf || !sense || !used_outlen)
 		goto out_param_list;
 
 	obj_type = get_obj_type(osd, pid, oid);
@@ -805,53 +1002,137 @@ int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (isgettable_page(obj_type, page) == FALSE)
 		goto out_param_list;
 
-	if (getpage == 0) {
-		if (page == USER_INFO_PG) {
-			if (obj_type != USEROBJECT)
-				goto out_cdb_err;
-			ret =  get_uiap(osd, pid, oid, page, number, outbuf,
-					outlen, used_outlen);
-		} else {
-			ret = attr_get_attr(osd->db, pid, oid, page, number,
-					    outbuf, outlen, used_outlen);
-		}
-		if (ret < 0) {
-			if (ret == -EOVERFLOW) {
-				/* overflow is not an error, Sec 5.2.2.2 */
-				*used_outlen = 0;
-				goto out_success;
-			}
-			goto out_param_list;
-		}
-	} else if (getpage == 1) {
-		if (page == CUR_CMD_ATTR_PG) {
-			/* 
-			 * XXX: it is possible to read stale ccap, or ccap
-			 * of another object 
-			 */
-			ret = get_ccap(osd, outbuf, outlen, used_outlen);
-		} else if (page == USER_TS_PG) {
-			ret = get_utsap(osd, pid, oid, outbuf, outlen,
-					used_outlen);
-		} else {
-			ret = attr_get_attr_page(osd->db, pid, oid, page, 
-						 outbuf, outlen, used_outlen);
-		}
-		if (ret != 0) 
-			goto out_param_list;
-	} else {
-		goto out_param_list;
+	if (!isembedded)
+		fill_ccap(&osd->ccap, NULL, obj_type, pid, oid, 0);
+
+	switch (page) {
+	case CUR_CMD_ATTR_PG:
+		ret = get_ccap_aslist(osd, number, outbuf, outlen,
+				      used_outlen);
+		break;
+	case USER_TMSTMP_PG:
+		ret = get_utsap_aslist(osd, pid, oid, number, outbuf, 
+				       outlen, listfmt, used_outlen);
+		break;
+	case USER_INFO_PG:
+		ret = get_uiap(osd, pid, oid, page, number, outbuf,
+			       outlen, listfmt, used_outlen);
+		break;
+	default:
+		ret = mutiplex_getattr_list(osd, pid, oid, page,
+					    number, outbuf, outlen,
+					    isembedded, listfmt,
+					    used_outlen, sense);
+		break;
 	}
 
-out_success:
-	if (cmd_type == STANDALONE)
-		fill_ccap(&osd->ccap, OSD_GET_ATTRIBUTES, NULL, obj_type, 
-			  pid, oid, 0);
+	assert (ret == -ENOENT || ret == -EIO || ret == -EINVAL || 
+		ret == OSD_ERROR || ret == OSD_OK);
+
+	if (ret == -ENOENT) {
+		/* TODO: BUG IN STANDARD */
+		if (listfmt == RTRVD_CREATE_ATTR_LIST)
+			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
+						    page, number,
+						    NULL_ATTR_LEN, NULL);
+		else
+			ret = le_pack_attr(outbuf, outlen, page, number,
+					   NULL_ATTR_LEN, NULL);
+
+		assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
+		if (ret == -EOVERFLOW)
+			*used_outlen = 0; /* not an error, Sec 5.2.2.2 */
+		else if (ret > 0)
+			*used_outlen = ret;
+		else
+			goto out_param_list;
+	}
+
+	if (ret == -EIO || ret == -EINVAL || ret == OSD_ERROR)
+		goto out_param_list;
+
 	return OSD_OK; /* success */
 
 out_param_list:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
-			      OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST, 
+			      OSD_ASC_INVALID_FIELD_IN_PARAM_LIST, 
+			      pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}
+
+/*
+ * This function can only be used for pages that have a defined
+ * format.  Those appear to be only:
+ *    quotas:          root,partition,userobj
+ *    timestamps:      root,partition,collection,userobj
+ *    policy/security: root,partition,collection,userobj
+ *    collection attributes: userobj (shows membership)
+ *    current command
+ *    null
+ *
+ * NOTE: since RTRVD_CREATE_ATTR_LIST listfmt can only be used when 
+ * cdbfmt == GETLIST_SETLIST, osd_getattr_page always generates list in
+ * RTRVD_SET_ATTR_LIST. hence there is no listfmt arg.
+ *
+ * returns:
+ * == OSD_OK: success, used_outlen modified
+ *  >0: failed, sense set accordingly
+ */
+int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		     uint32_t page, void *outbuf, uint64_t outlen, 
+		     uint8_t isembedded, uint32_t *used_outlen, 
+		     uint8_t *sense)
+{
+	int ret = 0;
+	uint8_t obj_type = 0;
+
+	osd_debug("%s: get attr for (%llu, %llu) page %u", __func__,
+		  llu(pid), llu(oid), page);
+	
+	if (!osd || !outbuf || !sense || !used_outlen)
+		goto out_param_list;
+
+	obj_type = get_obj_type(osd, pid, oid);
+	if (obj_type == ILLEGAL_OBJ)
+		goto out_cdb_err;
+
+	if (isgettable_page(obj_type, page) == FALSE)
+		goto out_param_list;
+
+	if (!isembedded)
+		fill_ccap(&osd->ccap, NULL, obj_type, pid, oid, 0);
+
+	switch (page) {
+	case CUR_CMD_ATTR_PG:
+		ret = get_ccap(osd, outbuf, outlen, used_outlen);
+		break;
+	case USER_TMSTMP_PG:
+		ret = get_utsap(osd, pid, oid, outbuf, outlen, 
+				used_outlen);
+		break;
+	case GETALLATTR_PG:
+		ret = attr_get_all_attrs(osd->db, pid, oid, outbuf,
+					 outlen, RTRVD_SET_ATTR_LIST,
+					 used_outlen);
+		break;
+	default:
+		goto out_cdb_err;
+	}
+	assert (ret == -EIO || ret == -EINVAL || ret == OSD_ERROR || 
+		ret == OSD_OK);
+	if (ret == -EIO || ret == -EINVAL || ret == OSD_ERROR)
+		goto out_param_list;
+
+	return OSD_OK; /* success */
+
+out_param_list:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_PARAM_LIST, 
 			      pid, oid);
 	return ret;
 
@@ -952,7 +1233,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	}
 #endif
 
-	fill_ccap(&osd->ccap, OSD_READ, NULL, USEROBJECT, pid, oid, 0);
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return OSD_OK; /* success */
 
 out_hw_err:
@@ -993,7 +1274,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != 0)
 		goto out_hw_err;
 
-	fill_ccap(&osd->ccap, OSD_REMOVE, NULL, USEROBJECT, pid, oid, 0);
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return OSD_OK; /* success */
 
 out_cdb_err:
@@ -1044,8 +1325,7 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 	if (ret != 0)
 		goto out_err;
 
-	fill_ccap(&osd->ccap, OSD_REMOVE_PARTITION, NULL, PARTITION, pid,
-		  PARTITION_OID, 0);
+	fill_ccap(&osd->ccap, NULL, PARTITION, pid, PARTITION_OID, 0);
 	return OSD_OK; /* success */
 
 out_cdb_err:
@@ -1076,7 +1356,7 @@ out_not_empty:
  */
 int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
                        uint32_t page, uint32_t number, const void *val,
-		       uint16_t len, uint8_t cmd_type, uint8_t *sense)
+		       uint16_t len, uint8_t isembedded, uint8_t *sense)
 {
 	int ret = 0;
 	uint8_t obj_type = 0;
@@ -1134,14 +1414,13 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		return ret;
 	}
 
-	if (cmd_type == STANDALONE)
-		fill_ccap(&osd->ccap, OSD_SET_ATTRIBUTES, NULL, obj_type, 
-			  pid, oid, 0);
+	if (!isembedded)
+		fill_ccap(&osd->ccap, NULL, obj_type, pid, oid, 0);
 	return OSD_OK; /* success */
 	
 out_param_list:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
-			      OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST, 
+			      OSD_ASC_INVALID_FIELD_IN_PARAM_LIST, 
 			      pid, oid);
 	return ret;
 
@@ -1216,7 +1495,7 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	if (ret != 0)
 		goto out_hw_err;
 
-	fill_ccap(&osd->ccap, OSD_WRITE, NULL, USEROBJECT, pid, oid, 0);
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return OSD_OK; /* success */
 
 out_hw_err:

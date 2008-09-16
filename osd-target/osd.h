@@ -64,7 +64,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
 	     uint8_t *sense);
 int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
                uint8_t *sense);
-int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
+int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid, int force_removal,
                           uint8_t *sense);
 int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);

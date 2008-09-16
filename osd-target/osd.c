@@ -915,12 +915,61 @@ int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 	return osd_error_unimplemented(0, sense);
 }
 
-
+/* osd2r01 sec. 6.5 */
 int osd_create_collection(struct osd_device *osd, uint64_t pid,
 			  uint64_t requested_cid, uint8_t *sense)
 {
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
+	int ret = 0;
+	uint64_t cid = 0;
+
+	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid), llu(requested_cid));
+
+	if (pid == 0 || pid < COLLECTION_PID_LB)
+		goto out_cdb_err;
+
+	if (requested_cid != 0 && requested_cid < COLLECTION_OID_LB) 
+		goto out_cdb_err;
+
+	/* Make sure partition is present */
+	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
+		goto out_cdb_err;
+
+	/* 
+	 * It's my understanding that oid's and cid's share
+	 * identifiers (sec 4.6.2), so I used
+	 * things like get_nextoid, and replaced parameters
+	 * that normally call for oid's with cid's 
+	 */
+	if (requested_cid == 0) {
+		ret = obj_get_nextoid(osd->db, &cid);
+		if (ret != 0)
+			goto out_hw_err;
+		if (cid == 1) 
+			cid = COLLECTION_OID_LB; /* firstever cid */
+	} else {
+		/* Make sure requested_cid doesn't already exist */ 
+		ret = obj_ispresent(osd->db, pid, requested_cid);
+		if (ret == 1)
+			goto out_cdb_err;
+		cid = requested_cid;
+	}
+
+	/* if cid already exists, obj_insert will fail */
+	ret = obj_insert(osd->db, pid, cid, COLLECTION);
+	if (ret)
+		goto out_cdb_err;
+
+	fill_ccap(&(osd->ccap), NULL, COLLECTION, pid, cid, 0);
+	return OSD_OK; /* success */
+
+out_cdb_err:
+	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+			       OSD_ASC_INVALID_FIELD_IN_CDB, 
+			       requested_cid, 0);
+out_hw_err:
+	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+			       OSD_ASC_INVALID_FIELD_IN_CDB, 
+			       requested_cid, 0);
 }
 
 int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
@@ -1515,7 +1564,7 @@ out_hw_err:
 }
 
 
-int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
+int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid, int force_removal,
 			  uint8_t *sense)
 {
 	osd_debug(__func__);

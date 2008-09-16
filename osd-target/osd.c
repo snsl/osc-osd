@@ -708,7 +708,6 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		return OSD_ERROR;
 
 	cid = get_ntohll(val);
-	/* cid = *((uint64_t *)val);  *//* XXX: endian of cid?? */
 	ret = obj_ispresent(osd->dbc, pid, cid, &present);
 	if (ret != OSD_OK || !present)
 		return OSD_ERROR;

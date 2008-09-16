@@ -507,6 +507,64 @@ static void test_osd_create_collection(struct osd_device *osd)
 		assert(ret == 0);
 	}
 
+	/* create 3 collections */
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, 0, sense);
+	assert(ret == 0);
+	assert(osd->ccap.oid == COLLECTION_OID_LB);
+
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, 0, sense);
+	assert(ret == 0);
+	assert(osd->ccap.oid == COLLECTION_OID_LB + 1);
+
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, 0, sense);
+	assert(ret == 0);
+	assert(osd->ccap.oid == COLLECTION_OID_LB + 2);
+
+	/* create object */
+	ret = osd_create(osd, USEROBJECT_PID_LB, 0, 1, sense);
+	assert(ret == 0);
+	assert(osd->ccap.oid == (USEROBJECT_OID_LB + 3));
+	oid = osd->ccap.oid;
+
+	/* add object to COLLECTION_OID_LB */
+	cid = COLLECTION_OID_LB;
+	set_htonll(buf, cid);
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, oid, USER_COLL_PG,
+				 1, buf, sizeof(cid), 0, sense);
+	assert(ret == 0);
+	
+	/* add object to COLLECTION_OID_LB+1 */
+	cid = COLLECTION_OID_LB + 1;
+	set_htonll(buf, cid);
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, oid, USER_COLL_PG,
+				 2, buf, sizeof(cid), 0, sense);
+	assert(ret == 0);
+
+	/* 
+	 * add object to COLLECTION_OID_LB+2 and 
+	 * remove it from COLLECTION_OID_LB+1 
+	 */
+	cid = COLLECTION_OID_LB + 2;
+	set_htonll(buf, cid);
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, oid, USER_COLL_PG,
+				 2, buf, sizeof(cid), 0, sense);
+	assert(ret == 0);
+
+	/* remove collections */
+	cid = COLLECTION_OID_LB;
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, cid, 1, sense);
+	assert(ret == 0);
+	cid = COLLECTION_OID_LB+1;
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, cid, 1, sense);
+	assert(ret == 0);
+	cid = COLLECTION_OID_LB+2;
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, cid, 1, sense);
+	assert(ret == 0);
+
+	/* remove object */
+	ret = osd_remove(osd, USEROBJECT_PID_LB, oid, sense);
+	assert(ret == 0);
+
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
 	assert(ret == 0);
 

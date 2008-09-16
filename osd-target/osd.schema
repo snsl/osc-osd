@@ -37,12 +37,26 @@ CREATE TABLE attr (
 
 -- object_collection table is used as an intersection table to hold
 -- many-to-many mappings between userobjects and collections.
+-- The conflict condition handles the point mentioned in 7.1.2.19
+-- osd2r02.pdf:
+
+--   If the collection type attribute in the Collection Information attributes
+--   page contains 00h, a user object is removed from the membership of a
+--   collection by:
+--     a) Changing the collection pointer attribute identifying that
+--     collection to have a length of zero; or 
+--     b) Setting the collection pointer attribute identifying that 
+--     collection to the Collection_Object_ID of a different collection.
+
+
+
 CREATE TABLE coll (
 	pid INTEGER NOT NULL,
 	cid INTEGER NOT NULL,
 	oid INTEGER NOT NULL,
 	number INTEGER NOT NULL,
-	PRIMARY KEY (pid, cid, oid)
+	PRIMARY KEY (pid, cid, oid),
+	UNIQUE (pid, oid, number) ON CONFLICT REPLACE
 );
 
 -- Add index on most varying fields for performance

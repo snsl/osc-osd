@@ -1184,13 +1184,13 @@ static void test_attr_vals(uint8_t *cp, struct attribute_list *attrs,
 			if (len == 8) {
 				assert(get_ntohll((uint8_t *)attrs[i].val) == 
 				       get_ntohll(cp));
-			} else if (len != NULL_ATTR_LEN) {
+			} else if (len != 0) {
 				assert(memcmp(attrs[i].val, cp, len) == 0);
 			}
 			break;
 		}
 		assert(i < sz);
-		if (len == NULL_ATTR_LEN) {
+		if (len == 0) {
 			cp += (roundup8(10) - 10);
 			list_len -= roundup8(4+4+2);
 		} else {
@@ -1493,7 +1493,7 @@ void test_atomics(struct osd_device *osd)
 	assert(ret == 0);
 	assert(data_out != NULL);
 	assert(data_out_len == 24);
-	attr[2].len = NULL_ATTR_LEN;
+	attr[2].len = 0;
 	test_attr_vals(data_out, &attr[2], 1);
 	osd_command_attr_free(&cmd);
 	free(data_out);

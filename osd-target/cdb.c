@@ -1035,7 +1035,7 @@ static int exec_getattr(struct command *cmd, uint64_t pid, uint64_t oid,
 		orig = NULL;
 	} else {
 		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, orig_page,
-				   orig_number, NULL_ATTR_LEN, NULL);
+				   orig_number, 0, NULL);
 	}
 	if (ret <= 0) {
 		goto out_cdb_err;

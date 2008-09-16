@@ -5,8 +5,8 @@
 #include <sqlite3.h>
 
 #include "osd-types.h"
+#include "osd-defs.h"
 #include "osd.h"
-#include "util.h"
 #include "util/util.h"
 #include "obj.h"
 #include "db.h"
@@ -65,6 +65,10 @@ out:
 	return ret;
 }
 
+/*
+ * on success returns 0. 
+ * If the object is not present, the function completes successfully.
+ */
 int obj_delete(sqlite3 *db, uint64_t pid, uint64_t oid)
 {
 	int ret = 0;
@@ -223,3 +227,92 @@ out_finalize:
 out:
 	return present;
 }
+
+
+/*
+ * tests whether partition is empty. 
+ * = 1: if partition is empty or absent or in case of sqlite error
+ * = 0: if full
+ */
+int obj_pid_isempty(sqlite3 *db, uint64_t pid)
+{
+	int ret = 0;
+	int count = -1;
+	char SQL[MAXSQLEN];
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "SELECT COUNT (*) FROM obj WHERE pid = ? AND oid != 0;");
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret) {
+		error_sql(db, "%s: prepare", __func__);
+		goto out;
+	}
+	ret = sqlite3_bind_int64(stmt, 1, pid);
+	if (ret) {
+		error_sql(db, "%s: bind pid", __func__);
+		goto out_finalize;
+	}
+
+	while((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		count = sqlite3_column_int(stmt, 0);
+	}
+	if (ret != SQLITE_DONE) 
+		error_sql(db, "%s: count query failed pid %llu", __func__, 
+			  llu(pid));
+
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) 
+		error_sql(db, "%s: finalize", __func__);
+
+out:
+	return (count == 0);
+}
+
+int obj_get_type(sqlite3 *db, uint64_t pid, uint64_t oid)
+{
+	int ret = 0;
+	uint8_t obj_type = ILLEGAL_OBJ;
+	char SQL[MAXSQLEN];
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "SELECT type FROM obj WHERE pid = ? AND oid = ?;");
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret) {
+		error_sql(db, "%s: prepare", __func__);
+		goto out;
+	}
+	ret = sqlite3_bind_int64(stmt, 1, pid);
+	if (ret) {
+		error_sql(db, "%s: bind pid", __func__);
+		goto out_finalize;
+	}
+	ret = sqlite3_bind_int64(stmt, 2, oid);
+	if (ret) {
+		error_sql(db, "%s: bind oid", __func__);
+		goto out_finalize;
+	}
+
+	while((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		obj_type = sqlite3_column_int(stmt, 0);
+	}
+	if (ret != SQLITE_DONE)
+		error_sql(db, "%s: count query failed pid %llu", __func__, 
+			  llu(pid));
+	
+
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) 
+		error_sql(db, "%s: finalize", __func__);
+out:
+	return obj_type;
+
+}
+

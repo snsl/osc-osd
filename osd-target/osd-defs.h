@@ -1,3 +1,5 @@
+#ifndef __OSD_DEFS_H
+#define __OSD_DEFS_H
 /*
  * The osd commands.  And other stuff that should perhaps go elsewhere.
  */
@@ -60,7 +62,8 @@ enum {
 	ROOT = 0x01,
 	PARTITION = 0x02,
 	COLLECTION = 0x40,
-	USEROBJECT = 0x80
+	USEROBJECT = 0x80,
+	ILLEGAL_OBJ = 0x00 /* XXX: this is not in standard */
 };
 
 /* osd2r00 Section 4.7.3 */
@@ -113,3 +116,19 @@ enum {
 	ROOT_DIR_PG = (ROOT_PG + 0x0)
 };
 
+enum {
+	INVALID_PAGE = 0,
+	VALID_PAGE = 1
+};
+
+enum {
+	OSD_ERROR = -1,
+	OSD_OK = 0
+};
+
+enum {
+	EMBEDDED = 1,
+	STANDALONE = 2
+};
+
+#endif /* __OSD_DEFS_H */

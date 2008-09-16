@@ -2,9 +2,9 @@
 # OSD target makefile
 #
 
-SRC := attr.c db.c obj.c osd-schema.c osd.c util.c cdb.c osd-sense.c
+SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c
 SRC += osd-schema.c
-INC := attr.h db.h obj.h osd-types.h osd.h util.h osd-sense.h cdb.h osd-defs.h
+INC := attr.h db.h obj.h osd-types.h osd.h osd-sense.h cdb.h osd-defs.h
 OBJ := $(SRC:.c=.o)
 OSDTARGETLIB := libosd.a
 
@@ -58,6 +58,6 @@ clean:
 	make -C ./tests clean
 
 tags: FORCE
-	ctags $(SRC) $(INC)
+	ctags -R $(SRC) $(INC) ./tests/
 
 FORCE:;

@@ -42,7 +42,8 @@ int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
 int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense);
 int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
                        uint32_t page, uint32_t number, void *outbuf, 
-		       uint16_t len, int getpage, uint8_t *sense);
+		       uint16_t len, int getpage, uint8_t cmd_type,
+		       uint8_t *sense);
 int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
@@ -63,7 +64,7 @@ int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
 int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense);
 int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
                        uint32_t page, uint32_t number, const void *val,
-		       uint16_t len, uint8_t *sense);
+		       uint16_t len, uint8_t cmd_type, uint8_t *sense);
 int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
 		uint64_t key, uint8_t seed[20], uint8_t *sense);
 int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,

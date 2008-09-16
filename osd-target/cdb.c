@@ -64,7 +64,7 @@ static int get_attributes(struct osd_device *osd, uint8_t *cdb,
 			uint16_t foo_out_len = 0;
 
 			ret =  osd_get_attributes(osd, pid, oid, page, 0, data_out, 
-		       		foo_out_len, 1, sense);
+		       		foo_out_len, 1, EMBEDDED, sense);
 			/*XXX: Check for errors/sense */
 
 			*data_out_len = foo_out_len;
@@ -123,7 +123,7 @@ static int set_attributes(struct osd_device *osd, uint8_t *cdb,
 			
 			ret = osd_set_attributes(osd, pid, oid,
                       	 	set_page, set_num, &data_in[set_offset],
-		       		set_len, sense);
+		       		set_len, EMBEDDED, sense);
 			/*XXX: Check for errors/sense */
 		}
 	}

@@ -9,13 +9,14 @@
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
-#include "util.h"
 #include "util/util.h"
 
 void test_obj(struct osd_device *osd);
 void test_dup_obj(struct osd_device *osd);
 void test_attr(struct osd_device *osd);
 void test_obj_manip(struct osd_device *osd);
+void test_pid_isempty(struct osd_device *osd);
+void test_get_obj_type(struct osd_device *osd);
 void test_osd_interface(void);
 
 void test_obj(struct osd_device *osd)
@@ -123,6 +124,64 @@ void test_obj_manip(struct osd_device *osd)
 	printf("obj_ispresent = %d\n", present);
 }
 
+void test_pid_isempty(struct osd_device *osd)
+{
+	int ret = 0;
+
+	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
+	if (ret != 0)
+		error_fatal("obj_insert failed");
+
+	ret = obj_pid_isempty(osd->db, 1);
+	debug("full pid ret %d", ret);
+
+	ret = obj_delete(osd->db, 1, 1);
+	if (ret != 0)
+		error_fatal("obj_delete failed");
+
+	ret = obj_pid_isempty(osd->db, 1);
+	debug("empty pid ret %d", ret);
+}
+
+void test_get_obj_type(struct osd_device *osd)
+{
+	int ret = 0;
+
+	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
+	if (ret != 0)
+		error_fatal("obj_insert failed");
+
+	ret = obj_insert(osd->db, 2, 2, COLLECTION);
+	if (ret != 0)
+		error_fatal("obj_insert failed");
+
+	ret = obj_insert(osd->db, 3, 0, PARTITION);
+	if (ret != 0)
+		error_fatal("obj_insert failed");
+
+	ret = obj_get_type(osd->db, 0, 0);
+	debug("type of root %d", ret);
+	ret = obj_get_type(osd->db, 1, 1);
+	debug("type of userobject %d", ret);
+	ret = obj_get_type(osd->db, 2, 2);
+	debug("type of collection %d", ret);
+	ret = obj_get_type(osd->db, 3, 0);
+	debug("type of partition %d", ret);
+
+	ret = obj_delete(osd->db, 3, 0);
+	if (ret)
+		error_fatal("deletion of 3, 0 failed");
+	ret = obj_delete(osd->db, 2, 2);
+	if (ret)
+		error_fatal("deletion of 2, 2 failed");
+	ret = obj_delete(osd->db, 1, 1);
+	if (ret)
+		error_fatal("deletion of 1, 1 failed");
+
+	ret = obj_get_type(osd->db, 1, 1);
+	debug("type of non existing object %d", ret);
+}
+
 void test_osd_interface(void)
 {
 	int ret = 0;
@@ -151,10 +210,12 @@ int main()
 	if (ret != 0)
 		return ret;
 
-	/*test_obj(&osd);*/
+	test_obj(&osd);
 	test_attr(&osd);
-	/*test_dup_obj(&osd);*/
-	/*test_obj_manip(&osd);*/
+	test_dup_obj(&osd);
+	test_obj_manip(&osd);
+	test_pid_isempty(&osd);
+	test_get_obj_type(&osd);
 
 	ret = db_close(&osd);
 	if (ret != 0)

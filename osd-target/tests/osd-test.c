@@ -9,7 +9,6 @@
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
-#include "util.h"
 #include "util/util.h"
 
 void test_osd_create(struct osd_device *osd);
@@ -34,12 +33,24 @@ void test_osd_create(struct osd_device *osd)
 	if (ret != 0)
 		error("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 2 failed as "
 		      "expected");
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_fatal("osd_create_partition PARTITION_PID_LB failed");
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0, sense);
 	if (ret != 0)
-		error_errno("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
+		error_fatal("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, sense);
 	if (ret != 0)
-		error_errno("USEROBJECT_PID_LB, USEROBJECT_PID_LB");
+		error_fatal("USEROBJECT_PID_LB, USEROBJECT_PID_LB");
+	/* remove non-existing object */
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, sense);
+	if (ret == 0)
+		debug("removal of non-existing object succeeded");
+	else
+		debug("removal of non-existing object failed");
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_fatal("osd_remove_partition PARTITION_PID_LB failed");
 
 	free(sense);
 }
@@ -50,44 +61,51 @@ void test_osd_set_attributes(struct osd_device *osd)
 	void *sense = Calloc(1, 1024);
 	void *val = Calloc(1, 1024);
 
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_fatal("osd_create_partition PARTITION_PID_LB failed");
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
 	if (ret != 0)
-		error_errno("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0 failed");
+		error_fatal("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0 failed");
 
 	ret = osd_set_attributes(osd, ROOT_PID, ROOT_OID, 0, 0, 
-				 NULL, 0, sense);
+				 NULL, 0, EMBEDDED, sense);
 	if (ret != 0)
 		error("osd_set_attributes root failed as expected");
 	ret = osd_set_attributes(osd, PARTITION_PG_LB, PARTITION_OID, 0, 0, 
-				 NULL, 0, sense);
+				 NULL, 0, EMBEDDED, sense);
 	if (ret != 0)
 		error("osd_set_attributes partition failed as expected");
 	ret = osd_set_attributes(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 0, 
-				 0, NULL, 0, sense);
+				 0, NULL, 0, EMBEDDED, sense);
 	if (ret != 0)
 		error("osd_set_attributes collection failed as expected");
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0,
-				 0, NULL, 0, sense);
+				 0, NULL, 0, EMBEDDED, sense);
 	if (ret != 0)
 		error("osd_set_attributes userobject failed as expected");
 
 	sprintf(val, "This is test, long test more than forty bytes");
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
 				 USEROBJECT_PG_LB, 0, val, strlen(val)+1, 
-				 sense);
+				 EMBEDDED, sense);
 	if (ret != 0)
 		error("osd_set_attributes number failed as expected");
 
 	sprintf(val, "Madhuri Dixit");
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
 				 USEROBJECT_PG_LB, 1, val, strlen(val)+1, 
-				 sense);
+				 EMBEDDED, sense);
 	if (ret != 0)
-		error_errno("osd_set_attributes failed for mad dix");
+		error_fatal("osd_set_attributes failed for mad dix");
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	if (ret != 0)
-		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+		error_fatal("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_fatal("osd_remove_partition PARTITION_PID_LB failed");
 
 	free(sense);
 	free(val);
@@ -113,6 +131,9 @@ void test_osd_read_write(struct osd_device *osd)
 	void *buf = NULL;
 	uint64_t len = 0;
 
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_fatal("osd_create_partition PARTITION_PID_LB failed");
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
 	if (ret != 0)
 		error_errno("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0 failed");
@@ -137,6 +158,9 @@ void test_osd_read_write(struct osd_device *osd)
 	if (ret != 0)
 		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
 
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_fatal("osd_remove_partition PARTITION_PID_LB failed");
 	free(sense);
 	free(mybuf);
 }
@@ -152,6 +176,15 @@ void test_osd_create_partition(struct osd_device *osd)
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
 	if (ret != 0)
 		error("PARTITION_PID_LB osd_create_partition failed as exp.");
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_errno("osd_remove_partition PARTITION_PID_LB");
+	/* remove non-existing object */
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	if (ret == 0)
+		debug("removal of non-existing partition succeeded");
+	else
+		debug("removal of non-existing partition failed");
 
 	free(sense);
 }
@@ -175,13 +208,14 @@ void test_osd_get_attributes(struct osd_device *osd)
 	sprintf(val, "Madhuri Dixit");
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
 				 USEROBJECT_PG_LB, 1, val, strlen(val)+1, 
-				 sense);
+				 EMBEDDED, sense);
 	if (ret != 0)
 		error_errno("osd_set_attributes failed for mad dix");
 
 	le = val;
 	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-				 USEROBJECT_PG_LB, 1, le, 1024, 0, sense);
+				 USEROBJECT_PG_LB, 1, le, 1024, 0, EMBEDDED, 
+				 sense);
 	if (ret != 0)
 		error_fatal("osd_get_attributes failed");
 	printf("page %x, number %x, len %d, val %s\n", 
@@ -189,7 +223,8 @@ void test_osd_get_attributes(struct osd_device *osd)
 	       ntohs_le((uint8_t *)&le->len), (uint8_t *)le + ATTR_VAL_OFFSET);
 
 	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-				 CUR_CMD_ATTR_PG, 0, val, 1024, 1, sense);
+				 CUR_CMD_ATTR_PG, 0, val, 1024, 1, 
+				 EMBEDDED, sense);
 	if (ret != 0)
 		error_fatal("osd_get_attributes ccap failed");
 
@@ -223,10 +258,13 @@ void test_osd_get_attributes(struct osd_device *osd)
 	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
 	       llu(*(uint64_t *)(cp + ATTR_VAL_OFFSET)));
 
-	/*ret = osd_remove_partition();*/
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	if (ret != 0)
 		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_errno("osd_remove_partition PARTITION_PID_LB");
 
 	free(sense);
 	free(val);

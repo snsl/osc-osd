@@ -176,7 +176,7 @@ can be implemented as a sql view on page numbers 0
 -	set initial attributes on every object when it is created
 +	mv initial_populate into osd.c
 -	get_next* funcs assume monotonic increase in ids, resulting in holes
--	implement remove partition
++	implement remove partition
 +	new oid should start from USEROBJECT_OID_LB and pid from PARTITION_PID_LB
 ?	how are contents within attr page returned?
 		retrieved attributes returned in list format: Section 7.1.3.[2,3]
@@ -187,4 +187,12 @@ can be implemented as a sql view on page numbers 0
 	accordingly.
 +	devise a clean way to assign values to pointers within struct
 -	stale values of ccap
+
+# Wed Feb 14 11:41:45 EST 2007
++	osd specific return codes, 
+-	db, obj and attr specific return codes
++	mv error_sql into ../util/util.c
+?	what happens on removal of non existent obj
+		sqlite successfully complete removal of non existent object
++	gettype func in obj.c
 

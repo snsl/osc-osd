@@ -210,3 +210,7 @@ can be implemented as a sql view on page numbers 0
 # Tue Feb 20 15:34:32 EST 2007
 -	get size, atime, mtime attr
 -	write get page for other pages like timestamps
+
+# Fri Feb 23 15:07:22 EST 2007
+-	include root info page struct in osd_device
+-	osd error precision

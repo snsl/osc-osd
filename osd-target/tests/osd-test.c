@@ -3,6 +3,9 @@
 #include <errno.h>
 #include <string.h>
 #include <assert.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "osd-defs.h"
 #include "osd-types.h"
@@ -17,6 +20,8 @@ void test_osd_set_attributes(struct osd_device *osd);
 void test_osd_format(struct osd_device *osd);
 void test_osd_read_write(struct osd_device *osd);
 void test_osd_create_partition(struct osd_device *osd);
+void test_osd_get_ccap(struct osd_device *osd);
+void test_osd_get_utsap(struct osd_device *osd);
 void test_osd_get_attributes(struct osd_device *osd);
 
 void test_osd_create(struct osd_device *osd)
@@ -178,14 +183,98 @@ void test_osd_create_partition(struct osd_device *osd)
 	free(sense);
 }
 
-void test_osd_get_attributes(struct osd_device *osd)
+void test_osd_get_ccap(struct osd_device *osd)
 {
 	int ret = 0, i = 0;
+	void *sense = Calloc(1, 1024);
+	void *val = Calloc(1, 1024);
+	uint8_t *cp = NULL;
+	uint32_t used_len = 0;
+	uint64_t len = 0;
+
+	len = 1024;
+	used_len = 0;
+	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 CUR_CMD_ATTR_PG, 0, val, len, 1, EMBEDDED,
+				 sense, &used_len);
+	assert(ret == 0);
+
+	cp = val;
+	assert(ntohl_le(&cp[CCAP_PAGEID_OFF]) == CUR_CMD_ATTR_PG);
+	assert(ntohl_le(&cp[CCAP_LEN_OFF]) == CCAP_LEN);
+	for (i = CCAP_RICV_OFF; i < CCAP_RICV_OFF + CCAP_RICV_LEN; i++)
+		assert(cp[i] == 0);
+	assert(cp[CCAP_OBJT_OFF] == USEROBJECT);
+	assert(ntohll_le(&cp[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
+	assert(ntohll_le(&cp[CCAP_OID_OFF]) == USEROBJECT_OID_LB);
+	assert(ntohll_le(&cp[CCAP_APPADDR_OFF]) == 0);
+	assert(used_len == CCAP_TOTAL_LEN);
+
+	free(sense);
+	free(val);
+}
+
+static inline time_t ntoh_time(void *buf)
+{
+	time_t t = ntohll_le((uint8_t *)buf) & ~0xFFFFULL;
+	return (t >> 16);
+}
+
+void test_osd_get_utsap(struct osd_device *osd)
+{
+	int ret = 0;
+	void *sense = Calloc(1, 1024);
+	void *buf = Calloc(1, 1024);
+	uint8_t *cp = NULL;
+	uint32_t used_getlen = 0;
+	uint64_t used_len = 0;
+	uint64_t len = 0;
+
+	sprintf(buf, "Hello World! Get life blah blah blah\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
+			strlen(buf)+1, 0, buf, sense);
+	assert(ret == 0);
+
+	sleep(1);
+	used_len = 0;
+	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+		       strlen(buf)+1, 0, buf, &used_len, sense);
+	assert(ret == 0);
+	assert(used_len = strlen(buf)+1);
+
+	/*sleep(1);*/
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
+				 USEROBJECT_PG + LUN_PG_LB, 2, buf, 
+				 strlen(buf)+1, EMBEDDED, sense);
+	assert(ret == 0);
+
+	len = 1024;
+	used_getlen = 0;
+	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USER_TS_PG, 0, buf, len, 1, STANDALONE,
+				 sense, &used_getlen);
+	assert(ret == 0);
+
+	cp = buf;
+	assert(ntohl_le(&cp[UTSAP_PAGE_OFF]) == USER_TS_PG);
+	assert(ntohl_le(&cp[UTSAP_LEN_OFF]) == UTSAP_LEN);
+
+	time_t atime = ntoh_time(&cp[UTSAP_DATA_ATIME_OFF]);
+	time_t mtime = ntoh_time(&cp[UTSAP_DATA_MTIME_OFF]);
+	assert(atime != 0 && mtime != 0 && mtime < atime);
+
+	atime = ntoh_time(&cp[UTSAP_ATTR_ATIME_OFF]);
+	mtime = ntoh_time(&cp[UTSAP_ATTR_MTIME_OFF]);
+	assert(atime != 0 && mtime != 0 && mtime == atime);
+}
+
+void test_osd_get_attributes(struct osd_device *osd)
+{
+	int ret = 0;
 	uint32_t used_len = 0;
 	uint64_t len = 0;
 	void *sense = Calloc(1, 1024);
 	void *val = Calloc(1, 1024);
-	uint8_t *cp = NULL;
 	list_entry_t *le = NULL;
 
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
@@ -214,23 +303,9 @@ void test_osd_get_attributes(struct osd_device *osd)
 	       == 0);
 	assert(used_len == strlen("Madhuri Dixit")+1+ATTR_VAL_OFFSET);
 
-	len = 1024;
-	used_len = 0;
-	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-				 CUR_CMD_ATTR_PG, 0, val, len, 1, 
-				 EMBEDDED, sense, &used_len);
-	assert(ret == 0);
-
-	cp = val;
-	assert(ntohl_le(&cp[CCAP_PAGEID_OFF]) == CUR_CMD_ATTR_PG);
-	assert(ntohl_le(&cp[CCAP_LEN_OFF]) == CCAP_LEN);
-	for (i = CCAP_RICV_OFF; i < CCAP_RICV_OFF + CCAP_RICV_LEN; i++)
-		assert(cp[i] == 0);
-	assert(cp[CCAP_OBJT_OFF] == USEROBJECT);
-	assert(ntohll_le(&cp[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
-	assert(ntohll_le(&cp[CCAP_OID_OFF]) == USEROBJECT_OID_LB);
-	assert(ntohll_le(&cp[CCAP_APPADDR_OFF]) == 0);
-	assert(used_len == CCAP_TOTAL_LEN);
+	/* run different get attr tests */
+	test_osd_get_ccap(osd); 
+	test_osd_get_utsap(osd);
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	assert(ret == 0);

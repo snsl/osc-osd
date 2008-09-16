@@ -231,6 +231,20 @@ out:
 	return OSD_OK;
 }
 
+static inline int set_hton_time(uint8_t *dest, time_t t, time_t tnsec)
+{	
+	/* millisec; osd2r00 sec 7.1.2.8 clock description */
+	time_t time = t*1e3 + tnsec/1e6; 
+
+	if ((time & (0xFFFFULL << 48)) != 0)
+		return OSD_ERROR;
+
+	time = time << 16;
+	set_htonll_le((uint8_t *)&time, time);
+	memcpy(dest, &time, TIME_SZ);
+	return OSD_OK;
+}
+
 static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		     void *outbuf, uint64_t outlen, uint32_t *used_outlen)
 {
@@ -256,20 +270,33 @@ static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	set_htonl_le(&cp[UTSAP_LEN_OFF], UTSAP_LEN);
 
 	get_dbname(path, osd->root);
+	memset(&sb, 0, sizeof(sb));
 	ret = stat(path, &sb);
 	if (ret != 0)
 		return OSD_ERROR;
 
-	memcpy(&cp[UTSAP_ATTR_ATIME_OFF], &sb.st_atime, UTSAP_TIME_SZ);
-	memcpy(&cp[UTSAP_ATTR_MTIME_OFF], &sb.st_mtime, UTSAP_TIME_SZ);
+	ret = set_hton_time(&cp[UTSAP_ATTR_ATIME_OFF], sb.st_atime, 
+			    sb.st_atim.tv_nsec);
+	if (ret != OSD_OK)
+		return ret;
+	ret = set_hton_time(&cp[UTSAP_ATTR_MTIME_OFF], sb.st_mtime,
+			    sb.st_mtim.tv_nsec);
+	if (ret != OSD_OK)
+		return ret;
 
 	get_dfile_name(path, osd->root, pid, oid);
 	ret = stat(path, &sb);
 	if (ret != 0)
 		return OSD_ERROR;
 
-	memcpy(&cp[UTSAP_DATA_ATIME_OFF], &sb.st_atime, UTSAP_TIME_SZ);
-	memcpy(&cp[UTSAP_DATA_MTIME_OFF], &sb.st_mtime, UTSAP_TIME_SZ);
+	ret = set_hton_time(&cp[UTSAP_DATA_ATIME_OFF], sb.st_atime,
+			    sb.st_atim.tv_nsec);
+	if (ret != OSD_OK)
+		return ret;
+	ret = set_hton_time(&cp[UTSAP_DATA_MTIME_OFF], sb.st_mtime,
+			    sb.st_mtim.tv_nsec);
+	if (ret != OSD_OK)
+		return ret;
 
 	*used_outlen = UTSAP_TOTAL_LEN;
 
@@ -899,7 +926,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 		goto out_cdb_err;
 	
 	get_dfile_name(path, osd->root, pid, oid);
-	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	fd = open(path, O_RDONLY|O_LARGEFILE); /* fails on non-existent obj */
 	if (fd < 0)
 		goto out_cdb_err;
 
@@ -1167,8 +1194,8 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	int fd = 0;
 	char path[MAXNAMELEN];
 
-	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p", __func__,
-	      llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
+	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p",
+		  __func__, llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
 
 	if (osd == NULL || osd->root == NULL || dinbuf == NULL)
 		goto out_cdb_err;

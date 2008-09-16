@@ -35,6 +35,7 @@ struct init_attr {
 #define MAXNAMELEN (256UL)
 #define MAXROOTLEN (200UL)
 #define BLOCK_SZ (512UL)
+#define TIME_SZ (6) 
 
 struct id_cache {
 	uint64_t next_pid; /* next free pid */

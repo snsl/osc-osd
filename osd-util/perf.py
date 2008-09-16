@@ -500,6 +500,7 @@ def allify(n):
 
 
 def start():
+    global ibosdnodes
     # don't mess with io nodes if just a mirror
     mypvfsnodes = pvfsnodes
     if options["mirror"] != "":
@@ -556,15 +557,24 @@ def start():
 		+ "TZ=EST5EDT pvfs2-server fs.conf server.conf")
 
     # compnodes
+    ibosdnodes = []
     myosdnodes = osdnodes
     if options["pvfs_osd_integrated"] == "yes":
 	myosdnodes = osdnodes + pvfsnodes
 
+    for n in range(0,len(myosdnodes)):
+	ibosdnodes.append(myosdnodes[n])
+
+    # append "-ib" to the osdnodes. we probably need a new option here so that
+    # we append "-ib" to the nodes only if we'e using IB.
+    for n in range(0,len(ibosdnodes)):
+	ibosdnodes[n] = ibosdnodes[n] + "-ib"
+
     if len(myosdnodes) > 0:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile + " \; "
-	    + "sudo " + initiator + " start "
-	    + " ".join(myosdnodes))
+	    + "sudo " + initiator + " start " + " --rdma "
+	    + " ".join(ibosdnodes))
     else:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile)

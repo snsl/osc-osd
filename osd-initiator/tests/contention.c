@@ -375,7 +375,7 @@ static void goback(int fd, uint64_t pid, uint64_t oid, int numlocks,
 
 			/* speculative delay estimation */
 			rtt = ((double)(end-start))/mhz;
-			//println("num waiters %u rtt %7.3lf", num_waiters, rtt);
+			println("num waiters %u rtt %7.3lf", num_waiters, rtt);
 			if (dowork == 0) {
 				usleep((uint64_t)((num_waiters-1)*(rtt) 
 						  + rtt/2));
@@ -490,7 +490,7 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, int numlocks,
 		gather = calloc(numprocs, sizeof(*gather));
 		global_att = calloc(numprocs, sizeof(*global_att));
 		global_req = calloc(numprocs, sizeof(*global_req));
-		global_lat = calloc(numprocs*2, sizeof(*global_lat));
+		global_lat = calloc(numprocs*3, sizeof(*global_lat));
 		if (!gather || !global_req || !global_att || !global_lat) {
 			osd_error_xerrno(-ENOMEM, "out of memory");
 			exit(1);
@@ -556,10 +556,11 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, int numlocks,
 		for (i = 0; i < numprocs; i++)
 			global_att[i] = (double)gather[i];
 
-	double stats[2];
-	stats[0] = mean(latency, numlocks);
-	stats[1] = stddev(latency, stats[0], numlocks);
-	ret = MPI_Gather(stats, 2, MPI_DOUBLE, global_lat, 2, MPI_DOUBLE, 0,
+	double stats[3];
+	stats[0] = median(latency, numlocks);
+	stats[1] = mean(latency, numlocks);
+	stats[2] = stddev(latency, stats[0], numlocks);
+	ret = MPI_Gather(stats, 3, MPI_DOUBLE, global_lat, 3, MPI_DOUBLE, 0,
 			 MPI_COMM_WORLD);
 	if (ret != 0) {
 		osd_error("MPI_Gather failed");
@@ -575,8 +576,9 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, int numlocks,
 
 	for (i = 0; i < numprocs; i++)
 		println("global_reqs[%u] = %lf, global_att[%u] = %lf\n"
-		       "lat[%d]: %8.3lf +- %8.3lf", i, global_req[i], i,
-		       global_att[i], i, global_lat[2*i], global_lat[2*i+1]); 
+		       "lat[%d]: %8.3lf, %8.3lf +- %8.3lf", i, global_req[i],
+		       i, global_att[i], i, global_lat[3*i], global_lat[3*i+1], 
+		       global_lat[3*i+2]); 
 	printf("Numlocks: %u \n"
 	       "Numprocs: %u \n"
 	       "Work: %u \n"
@@ -902,11 +904,11 @@ int main(int argc, char *argv[])
 		}
 
 		if (test == 13)
-			spec_idle(fd, pid, oid, 100, 0, 2);
+			spec_idle(fd, pid, oid, 20, 0, 2);
 		else if (test == 14)
-			spec_idle(fd, pid, oid, 100, 1, 2);
+			spec_idle(fd, pid, oid, 20, 1, 2);
 		else if (test == 15)
-			spec_idle(fd, pid, oid, 100, 2, 2);
+			spec_idle(fd, pid, oid, 20, 2, 2);
 		
 		if (rank == 0) {
 			osd_command_set_remove(&cmd, pid, oid);

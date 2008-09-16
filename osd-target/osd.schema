@@ -22,5 +22,5 @@ CREATE TABLE attr (
 );
 
 -- Add index on most varying fields for performance
-CREATE INDEX OBJ_INDEX ON obj (oid)
-CREATE INDEX ATTR_INDEX ON attr (oid,page)
+CREATE INDEX OBJ_INDEX ON obj (oid);
+CREATE INDEX ATTR_INDEX ON attr (oid,page);

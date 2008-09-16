@@ -389,7 +389,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB) 	
 		goto out_illegal_req;
 
-	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
+	if (obj_ispresent(osd->db, pid, PARTITION_OID) != 0)
 		goto out_illegal_req;
 
 	if (num > 1 && requested_oid != 0) 

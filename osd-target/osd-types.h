@@ -5,15 +5,16 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
-struct object {
-	uint64_t pid;
-	uint64_t oid;
-}; 
-
 struct getattr_list_entry {
 	uint32_t page;
 	uint32_t number;
-}__attribute__((packed));
+} __attribute__((packed));
+
+#define LIST_HDR_LEN (8) /* XXX: osd-errata */
+#define ATTR_LEN_UB (0xFFFEU) /* undefined attr have length 0xFFFF, hence max
+				 length is 0xFFFE */
+#define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
+#define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
 
 struct list_entry {
 	uint32_t page;
@@ -26,7 +27,8 @@ enum {
 	LE_PAGE_OFF = offsetof(struct list_entry, page),
 	LE_NUMBER_OFF = offsetof(struct list_entry, number),
 	LE_LEN_OFF = offsetof(struct list_entry, len),
-	LE_VAL_OFF = offsetof(struct list_entry, val)
+	LE_VAL_OFF = offsetof(struct list_entry, val),
+	LE_MIN_ITEM_LEN = (LE_VAL_OFF + 0x7) & ~0x7
 };
 
 struct multiobj_list_entry {
@@ -42,14 +44,9 @@ enum {
 	MLE_PAGE_OFF = offsetof(struct multiobj_list_entry, page),
 	MLE_NUMBER_OFF = offsetof(struct multiobj_list_entry, number),
 	MLE_LEN_OFF = offsetof(struct multiobj_list_entry, len),
-	MLE_VAL_OFF = offsetof(struct multiobj_list_entry, val)
+	MLE_VAL_OFF = offsetof(struct multiobj_list_entry, val),
+	MLE_MIN_ITEM_LEN = (LE_VAL_OFF + 0x7) & ~0x7
 };
-
-#define MIN_LIST_LEN (8) /* XXX: osd-errata */
-#define ATTR_LEN_UB (0xFFFEU) /* undefined attr have length 0xFFFF, hence max
-				 length is 0xFFFE */
-#define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
-#define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
 
 /* osd2r00 Section 7.1.3.1 tab 127 */
 enum {

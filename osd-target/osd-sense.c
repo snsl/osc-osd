@@ -9,15 +9,15 @@
  * Descriptor format sense data.  See spc3 p 31.  Returns length of
  * buffer used so far.
  */
-int sense_header_build(uint8_t *data, int len, uint8_t key, uint8_t asc,
-		       uint8_t ascq, uint8_t additional_len)
+int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
+		       uint8_t additional_len)
 {
 	if (len < 8)
 		return 0;
 	data[0] = 0x72;  /* current, not deferred */
 	data[1] = key;
-	data[2] = asc;
-	data[3] = ascq;
+	data[2] = ASC(code);
+	data[3] = ASCQ(code);
 	data[7] = additional_len;  /* additional length, beyond these 8 bytes */
 	return 8;
 }
@@ -59,27 +59,26 @@ int sense_csi_build(uint8_t *data, int len, uint64_t csi)
  * and just a header and basic info descriptor are required.  Assumes full 252
  * byte sense buffer.
  */
-int sense_basic_build(uint8_t *sense, uint8_t key, uint8_t asc, uint8_t ascq,
+int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
 		      uint64_t pid, uint64_t oid)
 {
 	uint8_t off = 0;
 	uint8_t len = MAX_SENSE_LEN;
 	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
 
-	off = sense_header_build(sense+off, len-off, key, asc, ascq, 40);
+	off = sense_header_build(sense+off, len-off, key, code, 40);
 	off = sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
 	return off;
 }
 
-int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t sense_code,
+int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
 		    uint64_t pid, uint64_t oid)
 {
 	uint8_t off = 0;
 	uint8_t len = MAX_SENSE_LEN;
 	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
 
-	off = sense_header_build(sense+off, len-off, key, ASC(sense_code), 
-				 ASCQ(sense_code), 40);
+	off = sense_header_build(sense+off, len-off, key, code, 40);
 	off = sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
 	return off;
 }

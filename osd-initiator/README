@@ -1,4 +1,8 @@
-Documentation for initiator library.
+Documentation for OSD Initiator library.
+
+Copyright (C) 2007 Dennis Dalessandro (dennis@osc.edu)
+Copyright (C) 2007 Ananth Devulapalli (ananth@osc.edu)
+Copyright (C) 2007 Pete Wyckoff (pw@osc.edu)
 
 There are five major files here, each of which has a separate header
 file that can be included from user programs:
@@ -180,3 +184,4 @@ return data all in one step.  For example
 creates a new partitition.  Internally it makes three calls to command.h
 with lots of error checking.
 
+# vim: set tw=72 :

@@ -1,0 +1,33 @@
+Documentation for OSD Target library.
+
+Copyright (C) 2007 Dennis Dalessandro (dennis@osc.edu)
+Copyright (C) 2007 Ananth Devulapalli (ananth@osc.edu)
+Copyright (C) 2007 Pete Wyckoff (pw@osc.edu)
+
+This directory contains code to build an OSD command processor that uses
+SQLite as its attribute storage, and a normal file system (such as ext3)
+as its data storage.  It is purely userspace code.  It needs one other
+major component, namely the SCSI transport and processing.  This is
+provided by stgt, and this OSD Target code is a library that is linked
+into stgt's executable.
+
+Major components:
+
+    cdb.c - Main entry point via osdemu_cmd_submit, and parsing for
+	all commands and optional setattr and getattr CDB sections
+    osd.c - One function for every command, plus some helpers.
+
+    obj.c - Object table manipulation
+    attr.c - Attribute manipulation back-end
+
+    coll.c - Collection manipulation
+    db.c - SQLite database open, close, query, error handling
+
+    list-entry.c - Pack attributes in list format, used in a few places.
+    mtq.c - Multitable queries, whenever more than one table is
+	searched
+    osd.schema - The schema used to initialize the SQLite database,
+	converted into a C file during the build process.
+    osd-sense.c - Generating sense (error) return values.
+
+# vim: set tw=72 :

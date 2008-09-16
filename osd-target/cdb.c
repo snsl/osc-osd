@@ -958,7 +958,6 @@ static int exec_gen_cas(struct command *cmd, uint64_t pid, uint64_t oid,
 		goto out_err;
 	}
 
-	printf("%d\n", memcmp(cmp, *orig, cmp_len));
 	if (*orig_len == cmp_len && memcmp(cmp, *orig, cmp_len) == 0)
 		*cas_res = 1;
 	*orig_page = page;

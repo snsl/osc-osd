@@ -1268,6 +1268,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			goto out_hw_err;
 		}
 
+#if 0
 		ret = osd_init_attr(osd, pid, i);
 		if (ret != 0) {
 			char path[MAXNAMELEN];
@@ -1277,6 +1278,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
+#endif
 	}
 	osd->ic.next_id += (numoid - 1);
 
@@ -1647,6 +1649,53 @@ static int fill_null_attr(struct osd_device *osd, uint64_t pid, uint64_t oid,
 }
 
 /*
+ * XXX:SD We do lazy initialization of non-essential attributes to save time
+ * on critical path for core operations like create.  Therefore if any of the
+ * non-essential attributes are gotten then we need to set them before
+ * accessing them.
+ *
+ * returns:
+ * OSD_OK: success
+ * OSD_ERROR: some error
+ * -EINVAL: invalid arg in downstream function
+ */
+static int lazy_init_attr(struct osd_device *osd, uint64_t pid, uint64_t oid,
+			  uint32_t page, uint32_t number)
+{
+	int ret;
+	char val[40];
+	int used_outlen;
+
+	if ((page != GETALLATTR_PG && number != ATTRNUM_GETALL) ||
+	    (page <= USER_ATOMICS_PG && number > 0) ||
+	    (page >  USER_ATOMICS_PG && page != GETALLATTR_PG))
+		return OSD_OK; /* nothing to be done */
+
+	/* check if attrs are already defined */
+	ret = attr_get_val(osd->dbc, pid, oid, USER_TMSTMP_PG, 0, 40, val,
+			   &used_outlen);
+	if (ret == OSD_OK)
+		return OSD_OK; /* attrs already defined */
+	else if (ret != -ENOENT)
+		return ret;
+
+	/* now initialize the attrs */
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_TMSTMP_PG, 0,
+			    incits.user_tmstmp_page,
+			    sizeof(incits.user_tmstmp_page));
+	if (ret != OSD_OK)
+		return ret;
+
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, 0,
+			    incits.user_atomic_page,
+			    sizeof(incits.user_atomic_page));
+	if (ret != OSD_OK)
+		return ret;
+
+	return OSD_OK;
+}
+
+/*
  * returns:
  * == OSD_OK: success, used_outlen modified
  *  >0: failed, sense set accordingly
@@ -1667,6 +1716,10 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	if (isgettable_page(obj_type, page) == FALSE)
 		goto out_param_list;
+
+	ret = lazy_init_attr(osd, pid, oid, page, number);
+	if (ret != OSD_OK)
+		goto out_hw_err;
 
 	switch (page) {
 	case CUR_CMD_ATTR_PG:
@@ -1722,6 +1775,11 @@ out_cdb_err:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
 }
 
 /*
@@ -1774,6 +1832,9 @@ int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
 				used_outlen);
 		break;
 	case GETALLATTR_PG:
+		ret = lazy_init_attr(osd, pid, oid, page, 0);
+		if (ret != OSD_OK)
+			goto out_hw_err;
 		ret = attr_get_all_attrs(osd->dbc, pid, oid, outlen, outbuf,
 					 RTRVD_SET_ATTR_LIST, used_outlen);
 		break;
@@ -1795,6 +1856,11 @@ out_param_list:
 
 out_cdb_err:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 }
@@ -3046,8 +3112,20 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 
 	ret = attr_get_val(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_CAS,
 			   sizeof(val), &val, &usedlen);
-	if (ret != OSD_OK)
+	if (ret != -ENOENT && ret != OSD_OK)
 		goto out_hw_err;
+	/* 
+	 * XXX:SD we do a lazy initialization of atomics page. Hence attr
+	 * might not be defined before. In that case we define it and proceed
+	 * with rest of the operation
+	 */
+	if (ret == -ENOENT) {
+		val = 0;
+		ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, 
+				    UAP_CAS, &val, sizeof(val));
+		if (ret != OSD_OK)
+			goto out_hw_err;
+	}
 
 	osd_debug("cmp %lu swap %lu", cmp, swap);
 
@@ -3101,8 +3179,20 @@ int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, int64_t add,
 
 	ret = attr_get_val(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_FA,
 			   sizeof(val), &val, &usedlen);
-	if (ret != OSD_OK)
+	if (ret != -ENOENT && ret != OSD_OK)
 		goto out_hw_err;
+	/* 
+	 * XXX:SD we do a lazy initialization of atomics page. Hence attr
+	 * might not be defined before. In that case we define it and proceed
+	 * with rest of the operation
+	 */
+	if (ret == -ENOENT) {
+		val = 0;
+		ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, 
+				    UAP_FA, &val, sizeof(val));
+		if (ret != OSD_OK)
+			goto out_hw_err;
+	}
 
 	add += val;
 	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_FA,

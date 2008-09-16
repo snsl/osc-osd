@@ -2,7 +2,8 @@
 # OSD initiator tests
 #
 
-PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c
+PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c 
+PROGSRC += blk-iospeed.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
 LIB :=  ../libosdinit.a ../../util/libosdutil.a
@@ -22,7 +23,7 @@ include ../../Makedefs
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := $(OPT)
+COPTS := $(OPT) -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs

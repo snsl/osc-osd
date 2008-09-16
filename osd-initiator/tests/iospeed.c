@@ -206,7 +206,7 @@ int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
 	struct osd_drive_description *drives;
-	const int iter = 500;
+	const int iter = 100;
 	uint64_t oid;
 	int onesize = 0;
 

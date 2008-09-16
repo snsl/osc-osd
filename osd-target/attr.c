@@ -736,7 +736,7 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 	sqlen = 0;
 
 #undef QUERY_TYPE
-#define QUERY_TYPE (2)
+#define QUERY_TYPE (1)
 
 #if QUERY_TYPE == 1
 	/* This query is fastest */

@@ -1087,7 +1087,8 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	if (cmd.outlen > 0) {
 		assert(cmd.used_outlen <= cmd.outlen);
 		if (cmd.used_outlen > 0) {
-			*data_out = cmd.outdata;
+			if (*data_out_len == 0)
+				*data_out = cmd.outdata;
 			*data_out_len = cmd.used_outlen;
 		} else {
 			goto out_free_resource;
@@ -1114,7 +1115,9 @@ out_hw_err:
 	goto out_free_resource;
 
 out_free_resource:
-	free(cmd.outdata);
+	if (*data_out_len == 0)
+		free(cmd.outdata);
+	*data_out_len = cmd.used_outlen; /* XXX: dirty hack */
 
 out:
 	if (cmd.senselen == 0) {

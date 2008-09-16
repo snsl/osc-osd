@@ -1494,19 +1494,31 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 
 	memset(outdata, 0, 24);
 
-	if (pid == 0)
-		goto out_cdb_err; /* XXX: unimplemented */
 	if (list_attr == 0 && get_attr->sz != 0)
 		goto out_cdb_err; /* XXX: unimplemented */
 	if (list_attr == 1 && get_attr->sz == 0)
 		goto out_cdb_err; /* XXX: this seems like error? */
 
-	if (list_attr == 0 && get_attr->sz == 0 && pid != 0) {
+	if (list_attr == 0 && get_attr->sz == 0)  {
+		/* 
+		 * If list_id is not 0, we are continuing
+		 * an old list, starting from cont_id
+		*/ 
+		if (list_id) 
+			initial_oid = cont_id;
 		outdata[23] = (0x21 << 2);
 		alloc_len -= 24;
-		ret = obj_get_oids_in_pid(osd->db, pid, initial_oid,
-					  alloc_len, &outdata[24], 
-					  used_outlen, &add_len, &cont_id);
+		/*
+		 * Looks like the process is identical except for the
+		 * actual contents of the list, so this should work,
+		 * unless we want attrs
+		*/
+		ret = (pid ? obj_get_all_pids(osd->db, initial_oid,
+				alloc_len, &outdata[24],
+				&used_outlen, &add_len, &cont_id) :
+			     obj_get_oids_in_pid(osd->db, pid,
+				initial_oid, alloc_len, &outdata[24],
+				&used_outlen, &add_len, &cont_id));
 		if (ret)
 			goto out_hw_err;
 		*used_outlen += 24;
@@ -1514,6 +1526,8 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
 	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
+		if (list_id) 
+			initial_oid = cont_id;
 		outdata[23] = (0x22 << 2);
 		alloc_len -= 24;
 		ret = attr_list_oids_attr(osd->db, pid, initial_oid,
@@ -1542,84 +1556,78 @@ out_hw_err:
 	return ret;
 }
 
-#if 0
-int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
-	     uint64_t alloc_len, uint64_t initial_oid, int list_attr,
-             uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
+/*
+ * @outdata: pointer to start of the data-out-buffer: destination of
+ * 	generated list results
+ *
+ * returns:
+ * ==0: success, used_outlen is set
+ * > 0: error, sense is set
+ */
+int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
+                        uint64_t pid, uint64_t cid, uint64_t alloc_len,
+                        uint64_t initial_oid, struct getattr_list *get_attr,
+                        uint32_t list_id, uint8_t *outdata,
+                        uint64_t *used_outlen, uint8_t *sense);
 {
 	int ret = 0;
-	uint64_t addl_length, obj_descriptor, continuation_id, len = 24;
-	int listoid = 0;
+	uint8_t *cp = outdata;
+	uint64_t add_len = 0;
+	uint64_t cont_id = 0;
 
-	if (alloc_len < 24) {
-		/* not an error, but fill with zeroes */
-		memset(outdata, 0, alloc_len);
-		*used_outlen = alloc_len;
+	if (alloc_len == 0)
 		return 0;
+
+	if (alloc_len < 24) /* XXX: currently need atleast the header */
+		goto out_cdb_err;
+
+	memset(outdata, 0, 24);
+
+	if (list_attr == 0 && get_attr->sz != 0)
+		goto out_cdb_err; /* XXX: unimplemented */
+	if (list_attr == 1 && get_attr->sz == 0)
+		goto out_cdb_err; /* XXX: this seems like error? */
+
+	if (list_attr == 0 && get_attr->sz == 0)  {
+		/* 
+		 * If list_id is not 0, we are continuing
+		 * an old list, starting from cont_id
+		*/ 
+		if (list_id) 
+			initial_oid = cont_id;
+		outdata[23] = (0x21 << 2);
+		alloc_len -= 24;
+		/*
+		 * Looks like the process is identical except for the
+		 * actual contents of the list, so this should work,
+		 * unless we want attrs
+		*/
+		ret = (pid ? oc_get_cids_in_pid(osd->db, pid,
+				initial_oid, alloc_len, &outdata[24],
+				&used_outlen, &add_len, &cont_id) :
+			     oc_get_oids_in_cid(osd->db, pid, cid,
+				initial_oid, alloc_len, &outdata[24],
+				&used_outlen, &add_len, &cont_id));
+		if (ret)
+			goto out_hw_err;
+		*used_outlen += 24;
+		add_len += 16;
+		set_htonll(outdata, add_len);
+		set_htonll(&outdata[8], cont_id);
+
+	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
+		if (list_id) 
+			initial_oid = cont_id;
+		goto out_cdb_err; /* XXX: unimplemented */
 	}
 
-	if (pid != 0)
-		listoid = 1;  /* list oids in this pid, not pids */
+	/* XXX: is this correct */
+	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, COLLECTION_OID_LB, 0);
+	return OSD_OK; /* success */
 
-	if (list_id != 0) {
-		/* Need to continue a list that was previously
-		   truncated; initial_oid is the continuation_id
-		   given by the first LIST command call. Do we
-		   need to store list_ids somewhere or just
-		   interpret a nonzero list_id as an indicator to
-		   start our list at continuation_id? */
-		goto out_hw_err;
-
-	} else {
-		/* If pid is zero, list pids; otherwise, list oids in that pid */
-		obj_descriptor = initial_oid;
-		while (len < alloc_len) {
-			/* Hoping obj_get_nextpid() works like I think it
-			   does: takes the given pid/(pid+oid) and finds the next
-			   lowest pid/oid, sending it back by reference. */
-			ret = (listoid ? obj_get_nextoid(osd->db, pid, &obj_descriptor)
-				        : obj_get_nextpid(osd->db, &obj_descriptor));
-			if (ret != 0) {
-				osd_error("%s: error retrieving next oid/pid",
-					  __func__);
-				goto out_hw_err;
-			}
-			/* Fill up the list before we get to the header data */
-			set_htonll(&outdata[len], obj_descriptor);
-			len += 7;
-		}
-		if (listoid)
-			ret = obj_get_nextoid(osd->db, pid, &obj_descriptor);
-		else
-			ret = obj_get_nextpid(osd->db, &obj_descriptor);
-		addl_length = len - 7;
-
-		/* Check to see if more pid/oids exist */
-		if (ret) {
-			continuation_id = obj_descriptor;
-			list_id = 1; /* Any special way to generate list_ids? */
-
-			/* Find out how many more oid/pids, even though we've
-			   decided to truncate */
-			while (ret) {
-				ret = (listoid ? obj_get_nextoid(osd->db, pid, &obj_descriptor)
-					        : obj_get_nextpid(osd->db, &obj_descriptor));
-				addl_length += 7;
-			}
-		} else {
-			continuation_id = 0;
-			list_id = 0;
-		}
-		set_htonll(&outdata[0], addl_length);
-		set_htonll(&outdata[8], continuation_id);
-		set_htonl(&outdata[16], list_id);
-		outdata[20] = 0;
-		outdata[21] = 0;
-		outdata[22] = 0;
-		outdata[23] = ((listoid ? 0x20 : 0) | (list_attr ? 2 : 1)) << 2;
-		*used_outlen = addl_length + 7;
-	}
-
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, initial_oid);
 	return ret;
 
 out_hw_err:
@@ -1627,16 +1635,8 @@ out_hw_err:
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, initial_oid);
 	return ret;
 }
-#endif
 
-int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
-			uint32_t list_id, uint64_t alloc_len,
-			uint64_t initial_oid,  uint8_t *outdata,
-			uint64_t *outlen, uint8_t *sense)
-{
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
-}
+
 
 
 static inline int alloc_qc(struct query_criteria *qc)

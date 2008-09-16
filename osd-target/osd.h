@@ -54,10 +54,11 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 	     uint64_t alloc_len, uint64_t initial_oid, 
 	     struct getattr_list *get_attr, uint32_t list_id, 
 	     uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense);
-int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
-                        uint32_t list_id, uint64_t alloc_len,
-			uint64_t initial_oid,  uint8_t *outdata,
-			uint64_t *outlen, uint8_t *sense);
+int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
+			uint64_t pid, uint64_t cid, uint64_t alloc_len,
+			uint64_t initial_oid, struct getattr_list *get_attr,
+			uint32_t list_id, uint8_t *outdata,
+			uint64_t *used_outlen, uint8_t *sense);
 int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      uint32_t query_list_len, uint64_t alloc_len, const void *indata,
 	      void *outdata, uint64_t *used_outlen, uint8_t *sense);

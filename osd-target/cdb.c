@@ -884,14 +884,16 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_LIST_COLLECTION: {
+		uint8_t list_attr = (cdb[11] & 0x40) >> 6;
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
 		uint32_t list_id = ntohl(&cdb[48]);
 		uint64_t alloc_len = ntohll(&cdb[32]);
 		uint64_t initial_oid = ntohll(&cdb[40]);
-		ret = osd_list_collection(osd, pid, cid, list_id, alloc_len,
-					  initial_oid, cmd->outdata,
-					  &cmd->used_outlen, sense);
+		ret = osd_list_collection(cmd->osd, list_attr, pid, cid,
+					  alloc_len, initial_oid,
+					  &cmd->get_attr, list_id, cmd->outdata,
+					  &cmd->used_outlen, &cmd->sense);
 		if (ret)
 			break;
 

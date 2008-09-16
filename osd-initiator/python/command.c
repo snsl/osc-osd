@@ -26,8 +26,10 @@ static void pyosd_command_dealloc(PyObject *self)
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 
-	if (command->attr)
+	if (command->attr) {
+		osd_command_attr_resolve(command);
 		osd_command_attr_free(command);
+	}
 	PyMem_Free(command->indata);
 	PyMem_Free((void *)(uintptr_t) command->outdata);
 }

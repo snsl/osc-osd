@@ -23,7 +23,7 @@ static inline int attrdb_err(char *err, int ret)
 	return ret;
 }
 
-int attrdb_init(const char *path, osd_t *osd)
+int attrdb_open(const char *path, osd_t *osd)
 {
 	int ret = 0;
 	sqlite3 *dbp = NULL;
@@ -251,6 +251,7 @@ int attrdb_get_attr_page(void *dbh, object_id_t id, attr_pgnum_t pg,
 		if ((ret = attrdb_gather_attr(stmt, len, outbuf)) != 0) {
 			return attrdb_errstmt(sqlite3_errmsg(dbp), stmt, -1);
 		}
+		/* retrieve attr in list entry format; tab 129 Sec 7.1.3.3 */
 		it_len = ((list_entry_t *)outbuf)->len + ATTR_T_DSZ;
 		len -= it_len, outbuf += it_len;
 	}

@@ -50,13 +50,11 @@ typedef  attr_t list_entry_t;
 
 #define MAXSQLEN (2048UL)
 #define MAXNAMELEN (256UL)
+#define MAXROOTLEN (200UL)
 
 typedef struct osd_t {
 	char *root;
 	void *db;
-	usrobject_id_t uid;
-	collection_id_t cid;
-	partition_id_t pid;
 } osd_t;
 
 #endif /* __OBFS_TYPES_H */

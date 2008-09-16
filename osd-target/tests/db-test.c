@@ -12,7 +12,7 @@ int main()
 	int ret = 0;
 	osd_t osd;
 
-	ret = attrdb_init(path, &osd);
+	ret = attrdb_open(path, &osd);
 	if (ret != 0)
 		return ret;
 	void *dbh = osd.db;

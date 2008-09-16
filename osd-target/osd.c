@@ -68,6 +68,8 @@ static inline uint8_t get_obj_type(uint64_t pid, uint64_t oid)
  */
 static inline int isvalid_page(uint8_t obj_type, uint32_t page)
 {
+	if (page == CUR_CMD_ATTR_PG || page == GETALLATTR_PG)
+		return VALID_PAGE;
 	if (obj_type == ROOT) {
 		if (page < ROOT_PG_LB || page == GETALLATTR_PG ||
 		    (page > ROOT_PG_UB && page < ANY_PG))
@@ -203,50 +205,17 @@ static int get_ccap(struct osd_device *osd, void *outbuf, uint16_t len)
 	if (osd == NULL || outbuf == NULL)
 		return -EINVAL;
 
-	sz = (CCAP_ID_LEN + ATTR_VAL_OFFSET);
+	sz = 56;
 	if (len < sz)
 		goto out;
-	sprintf(page_id, "INCITS  T10 Current Command");
-	fill_attr(cp, CUR_CMD_ATTR_PG, 0x0, 40, page_id);
-	cp += sz, len -= sz;
-	
-	sz = (sizeof(osd->ccap.ricv) + ATTR_VAL_OFFSET);
-	if (len < sz)
-		goto out;
-	fill_attr(cp, CUR_CMD_ATTR_PG, 0x1, sizeof(osd->ccap.ricv), 
-		  osd->ccap.ricv);
-	cp += sz, len -= sz;
 
-	sz = (sizeof(osd->ccap.obj_type) + ATTR_VAL_OFFSET);
-	if (len < sz)
-		goto out;
-	fill_attr(cp, CUR_CMD_ATTR_PG, 0x2, sizeof(osd->ccap.obj_type), 
-		  &osd->ccap.obj_type);
-	cp += sz, len -= sz;
-
-	sz = (sizeof(osd->ccap.pid) + ATTR_VAL_OFFSET);
-	if (len < sz)
-		goto out;
-	fill_attr(cp, CUR_CMD_ATTR_PG, 0x3, sizeof(osd->ccap.pid), 
-		  &osd->ccap.pid);
-	cp += sz, len -= sz;
-
-	sz = (sizeof(osd->ccap.oid) + ATTR_VAL_OFFSET);
-	if (len < sz)
-		goto out;
-	fill_attr(cp, CUR_CMD_ATTR_PG, 0x4, sizeof(osd->ccap.oid), 
-		  &osd->ccap.oid);
-	cp += sz, len -= sz;
-
-	sz = (sizeof(osd->ccap.append_off) + ATTR_VAL_OFFSET);
-	if (len < sz)
-		goto out;
-	fill_attr(cp, CUR_CMD_ATTR_PG, 0x5, sizeof(osd->ccap.append_off), 
-		  &osd->ccap.append_off);
-	cp += sz, len -= sz;
-
-	assert(cp - CCAP_LIST_LEN == (uint8_t *)outbuf);
-
+	memset(cp, 0, 56);
+	set_htonl(&cp[0], CUR_CMD_ATTR_PG);
+	set_htonl(&cp[4], 56 - 8);
+	cp[28] = osd->ccap.obj_type;
+	set_htonll(&cp[32], osd->ccap.pid);
+	set_htonll(&cp[40], osd->ccap.oid);
+	set_htonll(&cp[48], osd->ccap.append_off);
 out:
 	return 0;
 }
@@ -367,7 +336,7 @@ int osd_error_unimplemented(uint16_t action, uint8_t *sense)
 	int ret;
 
 	debug(__func__);
-	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0, 0);
+	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0);
 	return ret;
 }
 
@@ -377,7 +346,7 @@ int osd_error_bad_cdb(uint8_t *sense)
 
 	debug(__func__);
 	/* should probably add what part of the cdb was bad */
-	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0, 0);
+	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, 0);
 	return ret;
 }
 
@@ -385,12 +354,12 @@ int osd_error_bad_cdb(uint8_t *sense)
  * Commands
  */
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
-               uint64_t len, uint8_t *data, uint8_t *sense)
+               uint64_t len, const uint8_t *data, uint8_t *sense)
 {
 	int ret;
 
 	debug(__func__);
-	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0, pid, oid);
+	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, pid, oid);
 	return ret;
 }
 
@@ -498,7 +467,7 @@ out_hw_err:
 
 int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 			 uint64_t requested_oid, uint64_t len, uint64_t offset,
-			 uint8_t *data, uint8_t *sense)
+			 const uint8_t *data, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -650,10 +619,13 @@ out:
 	return ret;
 }
 
-
+/*
+ * Returns >=0: valid bytes in sense; ==0: good result, data in outbuf
+ * and len modified to mean outlen; <0: error.
+ */
 int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
                        uint32_t page, uint32_t number, void *outbuf, 
-		       uint16_t len, int getpage, uint8_t cmd_type,
+		       uint16_t *len, int getpage, uint8_t cmd_type,
 		       uint8_t *sense)
 {
 	int ret = 0;
@@ -673,19 +645,27 @@ int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	if (getpage == 0) {
 		ret = attr_get_attr(osd->db, pid, oid, page, number, 
-				    outbuf, len);
-		if (ret != 0)
+				    outbuf, *len);
+		if (ret < 0) {
+			/* not an error, just not enough room */
+			if (ret == -EOVERFLOW) {
+			    *len = 0;
+			    return 0;
+			}
 			goto out_param_list;
+		}
+		*len = ret;  /* bytes filled */
+
 	} else if (getpage == 1) {
 		if (page == CUR_CMD_ATTR_PG) {
 			/* 
 			 * XXX: it is possible to read stale ccap, or ccap
 			 * of another object 
 			 */
-			ret = get_ccap(osd, outbuf, len);
+			ret = get_ccap(osd, outbuf, *len);
 		} else {
 			ret = attr_get_attr_page(osd->db, pid, oid, page, 
-						 outbuf, len);
+						 outbuf, *len);
 		}
 		if (ret != 0) 
 			goto out_param_list;
@@ -720,7 +700,8 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 
 
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
-	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *sense)
+	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *outdata,
+	     uint64_t *outlen, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -729,7 +710,8 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 
 int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                         uint32_t list_id, uint64_t alloc_len,
-			uint64_t initial_oid, uint8_t *sense)
+			uint64_t initial_oid,  uint8_t *outdata,
+			uint64_t *outlen, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;
@@ -751,18 +733,17 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
  */
 
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
-	     uint64_t offset, uint8_t **doutbuf, uint64_t *outlen, 
+	     uint64_t offset, uint8_t *outdata, uint64_t *outlen, 
 	     uint8_t *sense)
 {
 	ssize_t retlen;
 	int ret, fd;
 	char path[MAXNAMELEN];
-	void *buf = NULL;
 
 	debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
 	      llu(pid), llu(oid), llu(len), llu(offset));
 	
-	if (osd == NULL || osd->root == NULL || doutbuf == NULL || 
+	if (osd == NULL || osd->root == NULL || outdata == NULL || 
 	    outlen == NULL)
 		goto out_cdb_err;
 
@@ -774,8 +755,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	if (fd < 0)
 		goto out_cdb_err;
 
-	buf = Malloc(len); /* freed in iSCSI layer */
-	retlen = pread(fd, buf, len, offset);
+	retlen = pread(fd, outdata, len, offset);
 	if (retlen < 0) {
 		close(fd);
 		goto out_hw_err;
@@ -786,7 +766,6 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 		goto out_hw_err;
 
 	*outlen = retlen;
-	*doutbuf = buf;
 
 #if 0   /* Causes scsi transport problems.  Will debug later.  --pw */
 	/* valid, but return a sense code */
@@ -802,15 +781,11 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	return OSD_OK; /* success */
 
 out_hw_err:
-	if (buf)
-		free(buf); /* error, hence free here itself */
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 
 out_cdb_err:
-	if (buf)
-		free(buf); /* error, hence free here itself */
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
@@ -1011,7 +986,8 @@ int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
 
 
 int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
-                       uint32_t param_len, uint32_t alloc_len, uint8_t *sense)
+                       uint32_t param_len, uint32_t alloc_len,
+		       uint8_t *outdata, uint64_t *outlen, uint8_t *sense)
 {
 	debug(__func__);
 	return 0;

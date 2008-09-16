@@ -128,8 +128,8 @@ void test_osd_read_write(struct osd_device *osd)
 	int ret = 0;
 	void *sense = Calloc(1, 1024);
 	void *mybuf = Calloc(1, 256);
-	void *buf = NULL;
-	uint64_t len = 0;
+	uint8_t *buf = Calloc(1, 256);
+	uint64_t len;
 
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
 	if (ret != 0)
@@ -145,11 +145,11 @@ void test_osd_read_write(struct osd_device *osd)
 		error_errno("osd_write failed ret %d", ret);
 
 	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-		       strlen(mybuf)+1, 0, (uint8_t **)&buf, &len, sense);
+		       256, 0, buf, &len, sense);
 	if (ret != 0)
 		error_errno("osd_read failed ret %d", ret);
-	debug("osd_read len %llu buf: %s", llu(len), (char *)buf);
-	if (strcmp(buf, mybuf))
+	debug("osd_read len %llu buf: %s", llu(len), buf);
+	if (strcmp((void *) buf, mybuf))
 		error_fatal("buf and mybuf differ!");
 	if (buf)
 		free(buf);
@@ -196,6 +196,7 @@ void test_osd_get_attributes(struct osd_device *osd)
 	void *val = Calloc(1, 1024);
 	list_entry_t *le = NULL;
 	uint8_t *cp = NULL;
+	uint16_t len;
 
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
 	if (ret != 0)
@@ -213,8 +214,9 @@ void test_osd_get_attributes(struct osd_device *osd)
 		error_errno("osd_set_attributes failed for mad dix");
 
 	le = val;
+	len = 1024;
 	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-				 USEROBJECT_PG_LB, 1, le, 1024, 0, EMBEDDED, 
+				 USEROBJECT_PG_LB, 1, le, &len, 0, EMBEDDED, 
 				 sense);
 	if (ret != 0)
 		error_fatal("osd_get_attributes failed");
@@ -222,8 +224,9 @@ void test_osd_get_attributes(struct osd_device *osd)
 	       ntohl_le((uint8_t *)&le->page), ntohl_le((uint8_t *)&le->number),
 	       ntohs_le((uint8_t *)&le->len), (uint8_t *)le + ATTR_VAL_OFFSET);
 
+	len = 1024;
 	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-				 CUR_CMD_ATTR_PG, 0, val, 1024, 1, 
+				 CUR_CMD_ATTR_PG, 0, val, &len, 1, 
 				 EMBEDDED, sense);
 	if (ret != 0)
 		error_fatal("osd_get_attributes ccap failed");

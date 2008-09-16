@@ -1136,11 +1136,12 @@ int osd_command_attr_all_build(struct osd_command *command, uint32_t page)
 	};
 
 	/*
-	 * Always allocate max possible space for a returned list, i.e.
-	 * 16 bits worth plus an 8 byte header, but since individual entries
-	 * are padded to 8 bytes, round it down here to exactly 64kB.
+	 * In some of the later OSD specs, max space for a returned list
+	 * is a 32-bit field.  Get a big chunk of memory for this, because
+	 * if we can't list all the items, there is no way to start the list
+	 * again from the middle.
 	 */
-	int len = ((1<<16) - 1 + 8) & ~7;
+	int len = 128 << 20;  /* 128 MB is ridiculously large */
 
 	/*
 	 * Subtract 10 so we can borrow the ATTR_GET code from the normal

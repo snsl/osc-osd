@@ -305,3 +305,7 @@ can be implemented as a sql view on page numbers 0
 
 # Wed Apr  4 18:23:26 EDT 2007
 -	rewrite makefiles like pvfs, look at the paper
+
+# Fri Apr  6 11:20:06 EDT 2007
+-	profiling infrastrcture for target
+-	

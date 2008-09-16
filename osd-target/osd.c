@@ -647,8 +647,10 @@ int osd_open(const char *root, struct osd_device *osd)
 {
 	int ret;
 	char path[MAXNAMELEN];
-
+	
 	progname = "osd-target";  /* for debug messages from libosdutil */
+	mhz = get_mhz();
+
 	if (strlen(root) > MAXROOTLEN) {
 		ret = -ENAMETOOLONG;
 		goto out;
@@ -774,10 +776,10 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t numoid, uint8_t *sense)
 {
 	int ret = 0;
+	int within_txn = 0;
 	uint64_t i = 0;
 	uint64_t oid = 0;
-	uint64_t start, end;
-	double mhz = get_mhz();
+	/* uint64_t start, end; */
 
 	osd_debug("%s: pid %llu requested oid %llu numoid %hu", __func__, 
 		  llu(pid), llu(requested_oid), numoid);
@@ -788,9 +790,18 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB) 	
 		goto out_illegal_req;
 
+	/* encapsulate all db ops in txn */
+	ret = db_begin_txn(osd);
+	assert(ret == 0);
+	within_txn = 1;
+
 	/* Make sure partition is present. */
+	/* rdtsc(start); */
 	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
 		goto out_illegal_req;
+/*	rdtsc(end);
+	printf("ispresent pid: %lf\n", ((double)(end - start))/mhz);*/
+
 
 	if (numoid > 1 && requested_oid != 0) 
 		goto out_illegal_req;
@@ -802,7 +813,11 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		if (oid == 1)
 			oid = USEROBJECT_OID_LB; /* first oid in partition */
 	} else {
+		/* rdtsc(start); */
 		ret = obj_ispresent(osd->db, pid, requested_oid);
+/*		rdtsc(end);
+		printf("ispresent oid %lf\n", ((double)(end - start))/mhz);*/
+
 		if (ret == 1) 
 			goto out_illegal_req; /* requested_oid exists! */
 		oid = requested_oid; /* requested_oid works! */
@@ -812,38 +827,31 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		numoid = 1; /* create atleast one object */
 
 	for (i = oid; i < (oid + numoid); i++) {
-		ret = db_begin_txn(osd);
-		assert(ret == 0);
-
 		/* rdtsc(start); */
 		ret = obj_insert(osd->db, pid, i, USEROBJECT);
-		/* rdtsc(end); */
+/*		rdtsc(end);
+		printf("insert: %lf\n", ((double)(end - start))/mhz);*/
 		if (ret != 0) {
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
-		/* osd_info("%s OI: %lf",  __func__, ((double)(end - start))/mhz); */
 
 		/* rdtsc(start); */
 		ret = osd_create_datafile(osd, pid, i);
-		/* rdtsc(end); */
+/*		rdtsc(end);
+		printf("datafile: %lf\n", ((double)(end - start))/mhz);*/
 		if (ret != 0) {
 			obj_delete(osd->db, pid, i);
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
-		/* osd_info("%s FS: %lf",  __func__, ((double)(end - start))/mhz); */
 				
 		/* rdtsc(start); */
 		ret = attr_set_attr(osd->db, pid, i, USER_TMSTMP_PG, 0,
 				    incits.user_tmstmp_page,
 				    sizeof(incits.user_tmstmp_page));
-		/* rdtsc(end); */
-		/* osd_info("%s SA: %lf",  __func__, ((double)(end - start))/mhz); */
-
-		ret = db_end_txn(osd);
-		assert(ret == 0);
-
+/*		rdtsc(end);
+		printf("setattr: %lf\n", ((double)(end - start))/mhz);*/
 		if (ret != 0) {
 			char path[MAXNAMELEN];
 			get_dfile_name(path, osd->root, pid, i);
@@ -854,16 +862,27 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		}
 	}
 
+	ret = db_end_txn(osd);
+	assert(ret == 0);
+
 	/* fill CCAP with highest oid, osd2r00 Sec 6.3, 3rd last para */
 	fill_ccap(&(osd->ccap), NULL, USEROBJECT, pid, (oid+numoid-1), 0);
 	return OSD_OK; /* success */
 
 out_illegal_req:
+	if (within_txn) {
+		ret = db_end_txn(osd);
+		assert(ret == 0);
+	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
 			       OSD_ASC_INVALID_FIELD_IN_CDB, 
 			       pid, requested_oid);
 
 out_hw_err:
+	if (within_txn) {
+		ret = db_end_txn(osd);
+		assert(ret == 0);
+	}
 	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
 			       OSD_ASC_INVALID_FIELD_IN_CDB, 
 			       pid, requested_oid);

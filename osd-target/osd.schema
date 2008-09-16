@@ -21,3 +21,6 @@ CREATE TABLE attr (
 	PRIMARY KEY (pid, oid, page, number)
 );
 
+-- Add index on most varying fields for performance
+CREATE INDEX OBJ_INDEX ON obj (oid)
+CREATE INDEX ATTR_INDEX ON attr (oid,page)

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <assert.h>
 
 #include "osd-defs.h"
 #include "osd-types.h"
@@ -23,34 +24,33 @@ void test_osd_create(struct osd_device *osd)
 	int ret = 0;
 	void *sense = Calloc(1, 1024);
 
+	/* invalid pid/oid, test must fail */
 	ret = osd_create(osd, 0, 1, 0, sense);
-	if (ret != 0)
-		osd_error("0, 1, 0 failed as expected");
+	assert(ret != 0);
+
+	/* invalid oid test must fail */
 	ret = osd_create(osd, USEROBJECT_PID_LB, 1, 0, sense);
-	if (ret != 0)
-		osd_error("USEROBJECT_PID_LB, 1, 0 failed as expected");
+	assert(ret != 0);
+
+	/* num > 1 cannot request oid, test must fail */
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 2, sense);
-	if (ret != 0)
-		osd_error("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 2 failed as "
-		      "expected");
+	assert(ret != 0);
+
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_create_partition PARTITION_PID_LB failed");
-	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0, sense);
-	if (ret != 0)
-		osd_error_fatal("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
-	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("USEROBJECT_PID_LB, USEROBJECT_PID_LB");
-	/* remove non-existing object */
-	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, sense);
-	if (ret == 0)
-		osd_debug("removal of non-existing object succeeded");
-	else
-		osd_debug("removal of non-existing object failed");
+	assert(ret == 0);
+
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	assert(ret == 0);
+
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
+	assert(ret == 0);
+
+	/* remove non-existing object, test must fail succeed */
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
+	assert(ret != 0);
+
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_remove_partition PARTITION_PID_LB failed");
+	assert(ret == 0);
 
 	free(sense);
 }
@@ -62,50 +62,49 @@ void test_osd_set_attributes(struct osd_device *osd)
 	void *val = Calloc(1, 1024);
 
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_create_partition PARTITION_PID_LB failed");
+	assert(ret == 0);
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
-	if (ret != 0)
-		osd_error_fatal("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0 failed");
+	assert(ret == 0);
 
+	/* setting root attr must fail */
 	ret = osd_set_attributes(osd, ROOT_PID, ROOT_OID, 0, 0, 
 				 NULL, 0, EMBEDDED, sense);
-	if (ret != 0)
-		osd_error("osd_set_attributes root failed as expected");
-	ret = osd_set_attributes(osd, PARTITION_PG_LB, PARTITION_OID, 0, 0, 
+	assert(ret != 0);
+
+	/* unsettable page modification must fail */
+	ret = osd_set_attributes(osd, PARTITION_PID_LB, PARTITION_OID, 0, 0, 
 				 NULL, 0, EMBEDDED, sense);
-	if (ret != 0)
-		osd_error("osd_set_attributes partition failed as expected");
+	assert(ret != 0);
+
+	/* unsettable collection page must fail */
 	ret = osd_set_attributes(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 0, 
 				 0, NULL, 0, EMBEDDED, sense);
-	if (ret != 0)
-		osd_error("osd_set_attributes collection failed as expected");
+	assert(ret != 0);
+
+	/* unsettable userobject page must fail */
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0,
 				 0, NULL, 0, EMBEDDED, sense);
-	if (ret != 0)
-		osd_error("osd_set_attributes userobject failed as expected");
+	assert(ret != 0);
 
+	/* info attr < 40 bytes, test must fail */
 	sprintf(val, "This is test, long test more than forty bytes");
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-				 USEROBJECT_PG_LB, 0, val, strlen(val)+1, 
-				 EMBEDDED, sense);
-	if (ret != 0)
-		osd_error("osd_set_attributes number failed as expected");
+				 USEROBJECT_PG + LUN_PG_LB, ATTRNUM_INFO, val, 
+				 strlen(val)+1, EMBEDDED, sense);
+	assert(ret != 0);
 
+	/* this test is normal setattr, must succeed */
 	sprintf(val, "Madhuri Dixit");
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-				 USEROBJECT_PG_LB, 1, val, strlen(val)+1, 
-				 EMBEDDED, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_set_attributes failed for mad dix");
+				 USEROBJECT_PG + LUN_PG_LB, 1, val, 
+				 strlen(val)+1, EMBEDDED, sense);
+	assert(ret == 0);
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+	assert(ret == 0);
 
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_remove_partition PARTITION_PID_LB failed");
+	assert(ret == 0);
 
 	free(sense);
 	free(val);
@@ -117,8 +116,7 @@ void test_osd_format(struct osd_device *osd)
 	void *sense = Calloc(1, 1024);
 
 	ret = osd_format_osd(osd, 0, sense);
-	if (ret != 0)
-		osd_error_errno("%s:osd_format", __func__);
+	assert(ret == 0);
 
 	free(sense);
 }
@@ -132,35 +130,28 @@ void test_osd_read_write(struct osd_device *osd)
 	uint64_t len;
 
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_create_partition PARTITION_PID_LB failed");
+	assert(ret == 0);
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
-	if (ret != 0)
-		osd_error_errno("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0 failed");
+	assert(ret == 0);
 
 	sprintf(mybuf, "Hello World! Get life\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
 			strlen(mybuf)+1, 0, mybuf, sense);
-	if (ret != 0)
-		osd_error_errno("osd_write failed ret %d", ret);
+	assert(ret == 0);
 
 	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
 		       256, 0, buf, &len, sense);
-	if (ret != 0)
-		osd_error_errno("osd_read failed ret %d", ret);
-	osd_debug("osd_read len %llu buf: %s", llu(len), buf);
-	if (strcmp((void *) buf, mybuf))
-		osd_error_fatal("buf and mybuf differ!");
-	if (buf)
-		free(buf);
+	assert(ret == 0);
+	assert(len == strlen(mybuf)+1);
+	assert(strcmp((void *) buf, mybuf) == 0);
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
-	if (ret != 0)
-		osd_error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+	assert(ret == 0);
 
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_remove_partition PARTITION_PID_LB failed");
+	assert(ret == 0);
+		
+	free(buf);
 	free(sense);
 	free(mybuf);
 }
@@ -171,103 +162,81 @@ void test_osd_create_partition(struct osd_device *osd)
 	void *sense = Calloc(1, 1024);
 
 	ret = osd_create_partition(osd, 0, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_create_partition failed");
+	assert(ret == 0);
+
+	/* create dup pid must fail */
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error("PARTITION_PID_LB osd_create_partition failed as exp.");
+	assert(ret != 0);
+
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_errno("osd_remove_partition PARTITION_PID_LB");
-	/* remove non-existing object */
+	assert(ret == 0);
+
+	/* remove non-existing object, test must succeed: sqlite semantics */
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
-	if (ret == 0)
-		osd_debug("removal of non-existing partition succeeded");
-	else
-		osd_debug("removal of non-existing partition failed");
+	assert(ret == 0);
 
 	free(sense);
 }
 
 void test_osd_get_attributes(struct osd_device *osd)
 {
-	int ret = 0;
+	int ret = 0, i = 0;
+	uint32_t used_len = 0;
+	uint64_t len = 0;
 	void *sense = Calloc(1, 1024);
 	void *val = Calloc(1, 1024);
-	list_entry_t *le = NULL;
 	uint8_t *cp = NULL;
-	uint16_t len;
+	list_entry_t *le = NULL;
 
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_fatal("PARTITION_PID_LB, PARTITION_OID failed");
+	assert(ret == 0);
 
 	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
-	if (ret != 0)
-		osd_error_fatal("USEROBJECT_PID_LB, USEROBJECT_OID_LB failed");
+	assert(ret == 0);
 
 	sprintf(val, "Madhuri Dixit");
 	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
-				 USEROBJECT_PG_LB, 1, val, strlen(val)+1, 
-				 EMBEDDED, sense);
-	if (ret != 0)
-		osd_error_errno("osd_set_attributes failed for mad dix");
+				 USEROBJECT_PG + LUN_PG_LB, 1, val, 
+				 strlen(val)+1, EMBEDDED, sense);
+	assert(ret == 0);
 
+	len = 1024;
+	used_len = 0;
+	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USEROBJECT_PG + LUN_PG_LB, 1, val, len, 0, 
+				 EMBEDDED, sense, &used_len);
+	assert(ret == 0);
 	le = val;
-	len = 1024;
-	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-				 USEROBJECT_PG_LB, 1, le, &len, 0, EMBEDDED, 
-				 sense);
-	if (ret != 0)
-		osd_error_fatal("osd_get_attributes failed");
-	printf("page %x, number %x, len %d, val %s\n", 
-	       ntohl_le((uint8_t *)&le->page), ntohl_le((uint8_t *)&le->number),
-	       ntohs_le((uint8_t *)&le->len), (uint8_t *)le + ATTR_VAL_OFFSET);
+	assert(ntohl_le((uint8_t *)&le->page) == USEROBJECT_PG + LUN_PG_LB);
+	assert(ntohl_le((uint8_t *)&le->number) == 1);
+	assert(ntohs_le((uint8_t *)&le->len) == strlen("Madhuri Dixit")+1);
+	assert(strcmp((char *)le +  ATTR_VAL_OFFSET, "Madhuri Dixit") 
+	       == 0);
+	assert(used_len == strlen("Madhuri Dixit")+1+ATTR_VAL_OFFSET);
 
 	len = 1024;
+	used_len = 0;
 	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-				 CUR_CMD_ATTR_PG, 0, val, &len, 1, 
-				 EMBEDDED, sense);
-	if (ret != 0)
-		osd_error_fatal("osd_get_attributes ccap failed");
+				 CUR_CMD_ATTR_PG, 0, val, len, 1, 
+				 EMBEDDED, sense, &used_len);
+	assert(ret == 0);
 
 	cp = val;
-	printf("%x %x %d %s\n", ntohl_le((uint8_t *)&le->page), 
-	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
-	       (cp + ATTR_VAL_OFFSET));
-	cp += (CCAP_ID_LEN + ATTR_VAL_OFFSET);
-
-	printf("%x %x %d %s\n", ntohl_le((uint8_t *)&le->page), 
-	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
-	       (cp + ATTR_VAL_OFFSET));
-	cp += (sizeof(osd->ccap.ricv) + ATTR_VAL_OFFSET);
-
-	printf("%x %x %d %x\n", ntohl_le((uint8_t *)&le->page), 
-	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
-	       *(cp + ATTR_VAL_OFFSET));
-	cp += (sizeof(osd->ccap.obj_type) + ATTR_VAL_OFFSET);
-
-	printf("%x %x %d %llx\n", ntohl_le((uint8_t *)&le->page), 
-	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
-	       llu(*(uint64_t *)(cp + ATTR_VAL_OFFSET)));
-	cp += (sizeof(osd->ccap.pid) + ATTR_VAL_OFFSET);
-
-	printf("%x %x %d %llx\n", ntohl_le((uint8_t *)&le->page), 
-	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
-	       llu(*(uint64_t *)(cp + ATTR_VAL_OFFSET)));
-	cp += (sizeof(osd->ccap.oid) + ATTR_VAL_OFFSET);
-
-	printf("%x %x %d %llx\n", ntohl_le((uint8_t *)&le->page), 
-	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
-	       llu(*(uint64_t *)(cp + ATTR_VAL_OFFSET)));
+	assert(ntohl_le(&cp[CCAP_PAGEID_OFF]) == CUR_CMD_ATTR_PG);
+	assert(ntohl_le(&cp[CCAP_LEN_OFF]) == CCAP_LEN);
+	for (i = CCAP_RICV_OFF; i < CCAP_RICV_OFF + CCAP_RICV_LEN; i++)
+		assert(cp[i] == 0);
+	assert(cp[CCAP_OBJT_OFF] == USEROBJECT);
+	assert(ntohll_le(&cp[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
+	assert(ntohll_le(&cp[CCAP_OID_OFF]) == USEROBJECT_OID_LB);
+	assert(ntohll_le(&cp[CCAP_APPADDR_OFF]) == 0);
+	assert(used_len == CCAP_TOTAL_LEN);
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
-	if (ret != 0)
-		osd_error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+	assert(ret == 0);
 
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, sense);
-	if (ret != 0)
-		osd_error_errno("osd_remove_partition PARTITION_PID_LB");
+	assert(ret == 0);
 
 	free(sense);
 	free(val);
@@ -280,20 +249,17 @@ int main()
 	struct osd_device osd;
 
 	ret = osd_open(root, &osd);
-	if (ret != 0)
-		osd_error_errno("%s: osd_open", __func__);
+	assert(ret == 0);
 
-	/*test_osd_create(&osd);*/
-	/*test_osd_set_attributes(&osd);*/
-	/*test_osd_format(&osd);*/
-	/*test_osd_read_write(&osd);*/
-	/*test_osd_create_partition(&osd);*/
+	test_osd_create(&osd);
+	test_osd_set_attributes(&osd);
+	test_osd_format(&osd);
+	test_osd_read_write(&osd);
+	test_osd_create_partition(&osd);
 	test_osd_get_attributes(&osd);
 
 	ret = osd_close(&osd);
-	if (ret != 0)
-		osd_error_errno("%s: osd_close", __func__);
-
+	assert(ret == 0);
 
 	return 0;
 }

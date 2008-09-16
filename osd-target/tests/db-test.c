@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <assert.h>
 
 #include "osd-defs.h"
 #include "osd-types.h"
@@ -24,12 +25,10 @@ void test_obj(struct osd_device *osd)
 	int ret = 0;
 
 	ret = obj_insert(osd->db, 1, 2, USEROBJECT);
-	if (ret != 0)
-		osd_error_errno("%s: obj_insert failed", __func__);
+	assert(ret == 0);
 
 	ret = obj_delete(osd->db, 1, 2);
-	if (ret != 0)
-		osd_error_errno("%s: obj_delete failed", __func__);
+	assert(ret == 0);
 }
 
 void test_dup_obj(struct osd_device *osd)
@@ -37,44 +36,40 @@ void test_dup_obj(struct osd_device *osd)
 	int ret = 0;
 
 	ret = obj_insert(osd->db, 1, 2, USEROBJECT);
-	if (ret != 0)
-		osd_error_errno("%s: obj_insert failed", __func__);
+	assert(ret == 0);
 
+	/* duplicate insert must fail */
 	ret = obj_insert(osd->db, 1, 2, USEROBJECT);
-	if (ret != 0)
-		osd_error("%s: obj_insert failed as expected", __func__);
+	assert(ret != 0);
 
 	ret = obj_delete(osd->db, 1, 2);
-	if (ret != 0)
-		osd_error_errno("%s: obj_delete failed", __func__);
+	assert(ret == 0);
 }
 
 void test_attr(struct osd_device *osd)
 {
 	int ret= 0;
 	const char *attr = "This is first attr";
+	uint32_t len = 0;
 
 	ret = attr_set_attr(osd->db, 1, 1, 2, 12, attr, strlen(attr)+1);
-	if (ret != 0)
-		osd_error_errno("%s: attr_set_attr failed", __func__);
+	assert(ret == 0);
 
 	void *val = Calloc(1, 1024);
 	if (!val)
 		osd_error_errno("%s: Calloc failed", __func__);
-	ret = attr_get_attr(osd->db, 1, 1, 2, 12, val, 1024);
-	if (ret != 0)
-		osd_error_errno("%s: attr_get_attr failed", __func__);
+	ret = attr_get_attr(osd->db, 1, 1, 2, 12, val, 1024, &len);
+	assert(ret == 0);
+	assert(len == strlen(attr)+1+ATTR_VAL_OFFSET);
 	list_entry_t *ent = (list_entry_t *)val;
-	printf("retreived: %lu %u %u %u %s\n", 1UL, 
-	       ntohl_le((uint8_t *)&ent->page), 
-	       ntohl_le((uint8_t *)&ent->number), 
-	       ntohs_le((uint8_t *)&ent->len), 
-	       (uint8_t *)ent + ATTR_VAL_OFFSET); 
+	assert(ntohl_le((uint8_t *)&ent->page) == 2);
+	assert(ntohl_le((uint8_t *)&ent->number) == 12);
+	assert(ntohs_le((uint8_t *)&ent->len) == strlen(attr)+1);
+	assert(strcmp((char *)ent + ATTR_VAL_OFFSET, attr) == 0); 
 
-	/* get non-existing attr */
-	ret = attr_get_attr(osd->db, 2, 1, 2, 12, val, 1024);
-	if (ret != 0)
-		osd_error("%s: attr_get_attr failed as expected", __func__);
+	/* get non-existing attr, must fail */
+	ret = attr_get_attr(osd->db, 2, 1, 2, 12, val, 1024, &len);
+	assert(ret != 0);
 
 	free(val);
 }
@@ -83,45 +78,42 @@ void test_obj_manip(struct osd_device *osd)
 {
 	int i = 0;
 	int ret = 0;
-	int present = 0;
 	uint64_t oid = 0;
 
 	for (i =0; i < 4; i++) {
 		ret = obj_insert(osd->db, 1, 1<<i, USEROBJECT);
-		if (ret != 0)
-			osd_error_errno("%s: obj_insert failed", __func__);
+		assert(ret == 0);
 	}
 
 	ret = obj_get_nextoid(osd->db, 1, &oid);
-	if (ret != 0)
-		osd_error_errno("%s: obj_get_nextoid failed", __func__);
-	printf("%s: next oid = %llu\n", __func__, llu(oid));	
+	assert(ret == 0);
+	/* nextoid for partition 1 is 9 */
+	assert(oid == 9);
 
 	/* get nextoid for new (pid, oid) */
 	ret = obj_get_nextoid(osd->db, 4, &oid);
-	if (ret != 0)
-		osd_error_errno("%s: obj_get_nextoid failed", __func__);
-	printf("%s: next oid = %llu\n", __func__, llu(oid));	
+	assert(ret == 0);
+	/* nextoid for new partition == 1 */
+	assert(oid == 1);
 
 	for (i =0; i < 4; i++) {
 		ret = obj_delete(osd->db, 1, 1<<i);
-		if (ret != 0)
-			osd_error_errno("%s: obj_delete failed", __func__);
+		assert(ret == 0);
 	}
 	
 	ret = obj_insert(osd->db, 1, 235, USEROBJECT);
-	if (ret != 0)
-		osd_error_errno("%s: obj_insert failed", __func__);
+	assert(ret == 0);
 
-	present = obj_ispresent(osd->db, 1, 235);
-	printf("obj_ispresent = %d\n", present);
+	/* existing object, ret == 1 */
+	ret = obj_ispresent(osd->db, 1, 235);
+	assert(ret == 1);
 
 	ret = obj_delete(osd->db, 1, 235);
-	if (ret != 0)
-		osd_error_errno("%s: obj_delete failed", __func__);
+	assert(ret == 0);
 
-	present = obj_ispresent(osd->db, 1, 235);
-	printf("obj_ispresent = %d\n", present);
+	/* non-existing object, ret == 0 */
+	ret = obj_ispresent(osd->db, 1, 235);
+	assert(ret == 0);
 }
 
 void test_pid_isempty(struct osd_device *osd)
@@ -129,18 +121,18 @@ void test_pid_isempty(struct osd_device *osd)
 	int ret = 0;
 
 	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
-	if (ret != 0)
-		osd_error_fatal("obj_insert failed");
+	assert(ret == 0);
 
+	/* pid is not empty, ret should be 0 */
 	ret = obj_pid_isempty(osd->db, 1);
-	osd_debug("full pid ret %d", ret);
+	assert(ret == 0);
 
 	ret = obj_delete(osd->db, 1, 1);
-	if (ret != 0)
-		osd_error_fatal("obj_delete failed");
+	assert(ret == 0);
 
+	/* pid is empty, ret should be 1 */
 	ret = obj_pid_isempty(osd->db, 1);
-	osd_debug("empty pid ret %d", ret);
+	assert(ret == 1);
 }
 
 void test_get_obj_type(struct osd_device *osd)
@@ -148,56 +140,38 @@ void test_get_obj_type(struct osd_device *osd)
 	int ret = 0;
 
 	ret = obj_insert(osd->db, 1, 1, USEROBJECT);
-	if (ret != 0)
-		osd_error_fatal("obj_insert failed");
+	assert(ret == 0);
 
 	ret = obj_insert(osd->db, 2, 2, COLLECTION);
-	if (ret != 0)
-		osd_error_fatal("obj_insert failed");
+	assert(ret == 0);
 
 	ret = obj_insert(osd->db, 3, 0, PARTITION);
-	if (ret != 0)
-		osd_error_fatal("obj_insert failed");
+	assert(ret == 0);
 
 	ret = obj_get_type(osd->db, 0, 0);
-	osd_debug("type of root %d", ret);
+	assert(ret == ROOT);
+
 	ret = obj_get_type(osd->db, 1, 1);
-	osd_debug("type of userobject %d", ret);
+	assert(ret == USEROBJECT);
+
 	ret = obj_get_type(osd->db, 2, 2);
-	osd_debug("type of collection %d", ret);
+	assert(ret == COLLECTION);
+
 	ret = obj_get_type(osd->db, 3, 0);
-	osd_debug("type of partition %d", ret);
+	assert(ret == PARTITION);
 
 	ret = obj_delete(osd->db, 3, 0);
-	if (ret)
-		osd_error_fatal("deletion of 3, 0 failed");
+	assert(ret == 0);
+
 	ret = obj_delete(osd->db, 2, 2);
-	if (ret)
-		osd_error_fatal("deletion of 2, 2 failed");
+	assert(ret == 0);
+
 	ret = obj_delete(osd->db, 1, 1);
-	if (ret)
-		osd_error_fatal("deletion of 1, 1 failed");
+	assert(ret == 0);
 
+	/* non-existing object's type must be ILLEGAL_OBJ */
 	ret = obj_get_type(osd->db, 1, 1);
-	osd_debug("type of non existing object %d", ret);
-}
-
-void test_osd_interface(void)
-{
-	int ret = 0;
-	const char *root = "/tmp/";
-	struct osd_device osd;
-
-	ret = osd_open(root, &osd);
-	if (ret != 0)
-		osd_error_errno("%s: osd_open", __func__);
-
-	test_obj(&osd);
-	test_attr(&osd);
-
-	ret = osd_close(&osd);
-	if (ret != 0)
-		osd_error_errno("%s: osd_close", __func__);
+	assert(ret == ILLEGAL_OBJ);
 }
 
 int main()
@@ -207,8 +181,7 @@ int main()
 	struct osd_device osd;
 
 	ret = db_open(path, &osd);
-	if (ret != 0)
-		return ret;
+	assert(ret == 0);
 
 	test_obj(&osd);
 	test_attr(&osd);
@@ -218,10 +191,7 @@ int main()
 	test_get_obj_type(&osd);
 
 	ret = db_close(&osd);
-	if (ret != 0)
-		return ret;
-
-	/*test_osd_interface();*/
+	assert(ret == 0);
 
 	return 0;
 }

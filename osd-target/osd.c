@@ -1018,6 +1018,80 @@ out_cdb_err:
 	return ret;
 }
 
+static int vec_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
+	       uint64_t len, const uint8_t *appenddata, uint8_t *sense)
+{
+	int fd;
+	int ret;
+	off64_t off;
+	char path[MAXNAMELEN];
+	uint64_t stride, data_offset, offset_val, hdr_offset, length, bytes;
+	unsigned int i;
+
+	osd_debug("%s: pid %llu oid %llu len %llu data %p", __func__,
+		  llu(pid), llu(oid), llu(len), appenddata);
+
+	if (!osd || !osd->root || !osd->dbc || !appenddata || !sense)
+		goto out_cdb_err;
+
+	stride = get_ntohll(appenddata);
+	hdr_offset = sizeof(uint64_t);
+	length = get_ntohll(appenddata + hdr_offset);
+
+	osd_debug("%s: stride is %llu and len is %llu", __func__, llu(stride), llu(length));
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_WRONLY|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+	/* seek to the end of logical length: current size of the object */
+	off = lseek(fd, 0, SEEK_END);
+	if (off < 0)
+		goto out_hw_err;
+
+	data_offset = hdr_offset + sizeof(uint64_t);
+
+	bytes = len - (2*sizeof(uint64_t));
+
+	osd_debug("%s: bytes to write is %llu", __func__, llu(bytes));
+	offset_val = 0;
+	while (bytes > 0) {
+		osd_debug("%s: Position in data buffer: %llu", __func__,
+			   llu(data_offset));
+		osd_debug("%s: Offset: %llu", __func__, llu(offset_val + off));
+		osd_debug("%s: ------------------------------", __func__);
+		ret = pwrite(fd, appenddata+data_offset, length, offset_val+off);
+		if (ret < 0 || (uint64_t)ret != length)
+			goto out_hw_err;
+		data_offset += length;
+		offset_val += stride;
+		bytes -= length;
+		osd_debug("%s: Total Bytes Left to write: %llu", __func__,
+			  llu(bytes));
+	}
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, off);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}
+
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	       uint64_t len, const uint8_t *appenddata, uint8_t *sense, uint8_t ddt)
 {
@@ -1030,7 +1104,9 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		}
 		case DDT_SGL: {
 			return sgl_append(osd, pid, oid, len, appenddata, sense);
-
+		}
+		case DDT_VEC: {
+			return vec_append(osd, pid, oid, len, appenddata, sense);
 		}
 		default: {
 			return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -2839,7 +2915,7 @@ static int vec_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_
 	if (fd < 0)
 		goto out_cdb_err;
 
-	data_offset= hdr_offset + sizeof(uint64_t);
+	data_offset = hdr_offset + sizeof(uint64_t);
 
 	bytes = len - (2*sizeof(uint64_t));
 

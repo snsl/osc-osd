@@ -114,6 +114,50 @@ static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 	return ret;
 }
 
+static int set_one_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
+			      uint8_t isembedded, uint16_t numoid)
+{
+        int ret = 0;
+	int err = 0;
+	uint8_t *cdb = cmd->cdb;
+	uint64_t i = 0;
+	uint32_t page = get_ntohl(&cmd->cdb[52]);
+	uint32_t number = get_ntohl(&cdb[56]);
+	uint32_t len = get_ntohl(&cdb[60]); 
+	void *value = &cmd->cdb[62];
+
+	if (page == 0)
+	        return 0; /* nothing to set. osd2r03 Sec 5.2.4.2 */
+
+	if (len > 18)
+	  /* terminate command with check command status, set sense to illegal
+	     reguest osd2r03 Sec 5.2.4.2 */
+	        goto out_invalid_param;
+	
+	if (page == 0xFFFFFFFF || number == 0xFFFFFFFF)
+	  /* terminate command with check command status, set sense to illegal
+	     request osd2r03 Sec 5.2.4.2 */  
+	        goto out_invalid_param;
+        
+	err = osd_begin_txn(cmd->osd);
+	assert(err == 0);
+
+	for (i = oid; i < oid+numoid; i++) {
+    	        ret = osd_set_attributes(cmd->osd, pid, i, page, number,
+					 value, len, isembedded, cmd->sense);
+		if (ret != 0)
+		        break;
+	}
+
+	err = osd_end_txn(cmd->osd);
+	assert(err == 0);
+
+	return ret;
+
+out_invalid_param:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+}
 /*
  * TODO: proper return codes
  * returns:
@@ -503,6 +547,8 @@ static int set_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 		return set_attr_value(cmd, pid, oid, isembedded, numoid);
 	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
 		return set_attr_list(cmd, pid, oid, isembedded, numoid);
+	} else if (cmd->getset_cdbfmt == GETFIELD_SETVALUE) {
+	        return set_one_attr_value(cmd, pid, oid, isembedded, numoid);
 	} else {
 		goto out_cdb_err;
 	}
@@ -1198,9 +1244,6 @@ static void exec_service_action(struct command *cmd)
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
 	
-		ret = verify_enough_input_data(cmd, len);
-		if (ret)
-			break;
 		ret = osd_clear(osd, pid, oid, len, offset, sense);
 		if (ret)
 			break;
@@ -1325,6 +1368,10 @@ static void exec_service_action(struct command *cmd)
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
 		ret = osd_punch(osd, pid, oid, len, offset, sense);
+		if (ret) 
+		        break;
+		
+		ret = std_get_set_attr(cmd, pid, oid);
 		break;
 
 	}

@@ -1144,8 +1144,8 @@ int main()
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
 	
-	test_osd_clear(&osd);
-/* 	test_osd_punch(&osd); */
+/* 	test_osd_clear(&osd); */
+	test_osd_punch(&osd);
 /* 	test_osd_format(&osd); */
 /* 	test_osd_create(&osd); */
 /* 	test_osd_set_attributes(&osd); */

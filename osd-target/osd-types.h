@@ -16,6 +16,8 @@ struct getattr_list_entry {
 #define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
 #define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
 
+#define ATTR_PG_ID_LEN (40) 
+
 struct list_entry {
 	uint32_t page;
 	uint32_t number;

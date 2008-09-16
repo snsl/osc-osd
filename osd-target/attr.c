@@ -28,7 +28,7 @@ static struct blob_holder attr_blob = {
 };
 
 /* 40 bytes including terminating NUL */
-static const char unidentified_page_identification[40]
+static const char unidentified_page_identification[ATTR_PG_ID_LEN]
 = "        unidentified attributes page   ";
 
 
@@ -584,10 +584,9 @@ static int attr_gather_dir_page(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
 {
 	int ret = 0;
 	uint32_t number = sqlite3_column_int(stmt, 0);
-	/* sqlite ignores trailing \0 character for strings */
-	uint16_t len = sqlite3_column_bytes(stmt, 1) + 1;
+	uint16_t len = sqlite3_column_bytes(stmt, 1);
 
-	if (len != 40) 
+	if (len != ATTR_PG_ID_LEN) 
 		return -EINVAL;
 
 	if (attr_blob.sz < len) {
@@ -634,14 +633,20 @@ int attr_get_dir_page(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	if (ret != 0)
 		goto out_drop_v1;
 
-	sprintf(SQL, "SELECT page, \'%s\' FROM v2 UNION SELECT * FROM v1;",
-		unidentified_page_identification);
-
+	sprintf(SQL, "SELECT page, ? FROM v2 UNION SELECT * FROM v1;");
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: sqlite3_prepare", __func__);
+		goto out_drop_v2;
+	}
+	ret = sqlite3_bind_blob(stmt, 1, unidentified_page_identification, 
+				sizeof(unidentified_page_identification), 
+				SQLITE_TRANSIENT);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: sqlite3_prepare", __func__);
 		goto out_finalize;
 	}
+
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		ret = attr_gather_dir_page(stmt, outbuf, outlen, oid, page, 

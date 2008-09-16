@@ -1384,7 +1384,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		int i;
 		const uint8_t *s = val;
 
-		if (len > 40)
+		if (len > ATTR_PG_ID_LEN)
 			goto out_cdb_err;
 		for (i=0; i<len; i++) {
 			if (s[i] == 0) 	

@@ -14,7 +14,7 @@
 #include "drivelist.h"
 #include "sync.h"
 
-static void cas_test(int fd, uint64_t pid)
+static void fa_test(int fd, uint64_t pid)
 {
 	int i, ret;
 	uint64_t start, end, delta;
@@ -35,24 +35,29 @@ static void cas_test(int fd, uint64_t pid)
 	assert(ret == 0);
 
 	/* len must be uint64_t, offset is where the results go */
+	memset(&command, 0, sizeof(command));
 	osd_command_set_fa(&command, pid, oid, 8, 0);
-	outbuf[0] = 1;
+	set_htonll((uint8_t *)outbuf, 1);
 	command.outdata = outbuf;
+	command.outlen = sizeof(outbuf);
 	command.indata = inbuf;
+	command.inlen_alloc = sizeof(inbuf);
 
 	/* warm up */
-	for (i=0; i<50; i++) {
+	for (i=0; i<10; i++) {
+		inbuf[0] = 0xf000000000000000;
 		ret = osd_submit_and_wait(fd, &command);
 		assert(ret == 0);
-		assert(inbuf[0] == (uint64_t) (i+1));
+		assert(get_ntohll((uint8_t *)inbuf) == (uint64_t) (i));
 	}
 
 	for (i=0; i<iter; i++) {
+		inbuf[0] = 0xf000000000000000;
 		rdtsc(start);
 		ret = osd_submit_and_wait(fd, &command);
 		rdtsc(end);
 		assert(ret == 0);
-		assert(inbuf[0] == (uint64_t) (i+50+1));
+		assert(get_ntohll((uint8_t *)inbuf) == (uint64_t) (i+10));
 		delta = end - start;
 		v[i] = (double) delta / mhz;  /* time in usec */
 	}
@@ -67,7 +72,7 @@ static void cas_test(int fd, uint64_t pid)
 	assert(ret == 0);
 }
 
-static void fa_test(int fd, uint64_t pid)
+static void cas_test(int fd, uint64_t pid)
 {
 	int i, ret;
 	uint64_t start, end, delta;
@@ -88,27 +93,34 @@ static void fa_test(int fd, uint64_t pid)
 	assert(ret == 0);
 
 	/* len must be uint64_t, offset is where the results go */
+	memset(&command, 0, sizeof(command));
 	osd_command_set_cas(&command, pid, oid, 8, 0);
 	command.outdata = outbuf;
+	command.outlen = sizeof(outbuf);
 	command.indata = inbuf;
+	command.inlen_alloc = sizeof(inbuf);
 
 	/* warm up */
-	for (i=0; i<50; i++) {
-		outbuf[0] = i % 2;
-		outbuf[1] = 1 - outbuf[0];
+	for (i=0; i<10; i++) {
+		inbuf[0] = 0xffff;
+		set_htonll((uint8_t *)&outbuf[0], (i % 2));
+		set_htonll((uint8_t *)&outbuf[1], (1 - (i % 2)));
 		ret = osd_submit_and_wait(fd, &command);
 		assert(ret == 0);
-		assert(inbuf[0] == outbuf[1]);
+		assert(get_ntohll((uint8_t *)inbuf) == 
+		       get_ntohll((uint8_t *)outbuf));
 	}
 
 	for (i=0; i<iter; i++) {
+		inbuf[0] = 0xffff;
+		set_htonll((uint8_t *)&outbuf[0], (i % 2));
+		set_htonll((uint8_t *)&outbuf[1], (1 - (i % 2)));
 		rdtsc(start);
-		outbuf[0] = i % 2;
-		outbuf[1] = 1 - outbuf[0];
 		ret = osd_submit_and_wait(fd, &command);
 		rdtsc(end);
 		assert(ret == 0);
-		assert(inbuf[0] == outbuf[1]);
+		assert(get_ntohll((uint8_t *)&inbuf[0]) == 
+		       get_ntohll((uint8_t *)&outbuf[0]));
 		delta = end - start;
 		v[i] = (double) delta / mhz;  /* time in usec */
 	}

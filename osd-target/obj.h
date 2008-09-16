@@ -14,8 +14,7 @@ int obj_get_oids_in_pid(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 			uint64_t alloc_len, uint8_t *outdata, 
 			uint64_t *used_outlen, uint64_t *add_len, 
 			uint64_t *cont_id);
-int obj_get_all_pids(sqlite3 *db, uint64_t initial_oid,
-			uint64_t alloc_len, uint8_t *outdata, 
-			uint64_t *used_outlen, uint64_t *add_len, 
-			uint64_t *cont_id);
+int obj_get_all_pids(sqlite3 *db, uint64_t initial_oid, uint64_t alloc_len,
+		     uint8_t *outdata, uint64_t *used_outlen, 
+		     uint64_t *add_len, uint64_t *cont_id);
 #endif /* __OBJ_H */

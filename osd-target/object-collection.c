@@ -18,11 +18,9 @@
  * userobjects and collections. Using this table members of a collection and
  * collections to which an object belongs can be computed efficiently.
  *
+ * @pid: partition id 
  * @cid: collection id
  * @oid: userobject id
- * @pid: partition id ???? (is this in the db? it wasn't indicated here, 
- *	 but all of the functions seem to act as if it does exist (and
- * 	 I think it well should)
  * @number: attribute number of cid in CAP of oid
  */
 int oc_insert_row(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t oid, 
@@ -205,9 +203,10 @@ int oc_get_cap(sqlite3 *db, uint64_t pid, uint64_t oid, void *outbuf,
  * -EINVAL: invalid arg
  * ==0: success, buf points to memory containing oids
  */
-int oc_get_oids_in_cid(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t initial_oid,
-			uint64_t alloc_len, uint8_t *outdata, uint64_t *used_outlen,
-			uint64_t *add_len, uint64_t *cont_id)
+int oc_get_oids_in_cid(sqlite3 *db, uint64_t pid, uint64_t cid, 
+		       uint64_t initial_oid, uint64_t alloc_len, 
+		       uint8_t *outdata, uint64_t *used_outlen,
+		       uint64_t *add_len, uint64_t *cont_id)
 {
 	int ret = 0;
 	uint64_t len = 0;
@@ -261,8 +260,9 @@ out:
  * ==0: success, buf points to memory containing oids
  */
 int oc_get_cids_in_pid(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
-			uint64_t alloc_len, uint8_t *outdata, uint64_t *used_outlen,
-			uint64_t *add_len, uint64_t *cont_id)
+		       uint64_t alloc_len, uint8_t *outdata, 
+		       uint64_t *used_outlen, uint64_t *add_len, 
+		       uint64_t *cont_id)
 {
 	int ret = 0;
 	uint64_t len = 0;

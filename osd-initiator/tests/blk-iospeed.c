@@ -1,3 +1,30 @@
+/*
+ * Better version of dd, for storage timing.  It is different in
+ * that it does not advance the read/write offset as it goes, so
+ * the target can stay in cache.  Also it will test all three
+ * current ways to get the kernel to issue SCSI block commands.
+ *
+ * *** Be sure to edit /dev/sdb below!
+ *
+ * Copyright (C) 2007 Dennis Dalessandro (dennis@osc.edu)
+ * Copyright (C) 2007 Ananth Devulapalli (ananth@osc.edu)
+ * Copyright (C) 2007 Pete Wyckoff (pw@osc.edu)
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation, version 2 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
+ * 02110-1301 USA
+ */
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>

@@ -129,30 +129,57 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		
 			// if page = 0, no attributes are to be gotten
 			if( page != 0){
-				uint32_t number = 0; /* XXX: fillme */
-				void *outbuf = NULL; /* XXX: fillme */
-				uint16_t len = 0; /* XXX: fillme */
-				int getpage = 0; /* XXX: fillme */
-				ret = osd_get_attributes(osd, pid, oid, page, 
-					number, outbuf, len, getpage, sense);
+				/* XXX: what are these?
+				uint32_t number = 0;
+				void *outbuf = NULL;
+				uint16_t len = 0;
+				int getpage = 0;*/
+
+				uint32_t get_alloc_len = ntohl(&cdb[56]);
+				uint32_t retrived_attr_offset = ntohl(&cdb[60]);
+
+				/*ret = osd_get_attributes(osd, pid, oid, page, 
+					number, outbuf, len, getpage, sense); */
+			    /* XXX: need to get attributes page*/
 			}
 			
-			/*XXX - need to set attribute value if it exists*/
+			// set attributes section
+			uint32_t set_page = ntohl(&cdb[64]);
 			
-			break;
+			if( set_page != 0 ){
+				uint32_t set_num = ntohl(&cdb[68]);
+				uint32_t set_len = ntohl(&cdb[72]);
+				uint32_t set_offset = ntohl(&cdb[76]);
+
+				/*XXX - need to set  an attribute */
+			}
 		}
 		// else if =3, get and set attributes using lists
 		else if( get_set_page_or_list==3 ){
-			/*XXX - need to figure out how to do list mode */
-			debug(__func__);
-			break;
+			uint32_t get_list_len = ntohl(&cdb[52]);
+
+			if( get_list_len != 0 ){
+
+				uint32_t get_list_offset = ntohl(&cdb[56]);
+				uint32_t get_allocation_len = ntohl(&cdb[60]);
+				uint32_t retrieved_attr_offset = ntohl(&cdb[64]);
+				/* XXX: need to get attributes */
+			}
+						
+			uint32_t set_list_len = ntohl(&cdb[68]);
+			
+			if( set_list_len != 0 ){
+				uint32_t set_list_offset = ntohl(%cdb[72]);
+				/* XXX: need to set attributes */
+			}
+
 		}
-		else{// shouldn't happen, 0&1 are reserved
+		else{  // shouldn't happen, 0&1 are reserved
 			debug("%s: GET/SET CDBFMT code error, value is: %d", 
 					__func__, get_set_page_or_list);
 			/* XXX: generate sense and return that */
-			break;
 		}
+		break;
 			
 	}
 	case OSD_GET_MEMBER_ATTRIBUTES: {
@@ -227,12 +254,65 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	case OSD_SET_ATTRIBUTES: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
+
+		// if =2, set an attribute value, and get an attribute page
+		if( get_set_page_or_list==2 ){
+			
+			uint32_t set_page = ntohl(&cdb[64]);
+			
+			if( set_page != 0 ){
+				uint32_t set_num = ntohl(&cdb[68]);
+				uint32_t set_len = ntohl(&cdb[72]);
+				uint32_t set_offset = ntohl(&cdb[76]);
+
+				/*XXX - need to set an attribute */
+			}
+		
+
+			uint32_t page = ntohl(&cdb[52]);
+			if( page != 0){
+				
+				uint32_t get_alloc_len = ntohl(&cdb[56]);
+				uint32_t retrived_attr_offset = ntohl(&cdb[60]);
+
+				/*ret = osd_get_attributes(osd, pid, oid, page, 
+					number, outbuf, len, getpage, sense); */
+			    /* XXX: need to get attributes page*/
+			}
+			
+		}
+		// else if =3, get and set attributes using lists
+		else if( get_set_page_or_list==3 ){
+			
+			uint32_t set_list_len = ntohl(&cdb[68]);
+			if( set_list_len != 0 ){
+				uint32_t set_list_offset = ntohl(%cdb[72]);
+				/* XXX: need to set attributes */
+			}		
+			
+			uint32_t get_list_len = ntohl(&cdb[52]);
+			if( get_list_len != 0 ){
+
+				uint32_t get_list_offset = ntohl(&cdb[56]);
+				uint32_t get_allocation_len = ntohl(&cdb[60]);
+				uint32_t retrieved_attr_offset = ntohl(&cdb[64]);
+				/* XXX: need to get attributes */
+			}
+
+		}
+		else{  // shouldn't happen, 0&1 are reserved
+			debug("%s: GET/SET CDBFMT code error, value is: %d", 
+					__func__, get_set_page_or_list);
+			/* XXX: generate sense and return that */
+		}
+
+		/* keep old stuff just in case
 		uint32_t page = ntohl(&cdb[64]);
 		uint32_t number = ntohl(&cdb[68]);
-		void *val = NULL; /* XXX: fillme, not sure what this does*/
-		uint16_t len = ntohs(&cdb[76]);
-		ret = osd_set_attributes(osd, pid, oid, page, number, val,
-					 len, sense);
+		void *val = NULL; 
+		uint16_t len = ntohs(&cdb[76]); */
+		/* ret = osd_set_attributes(osd, pid, oid, page, number, val,
+					 len, sense); */
 		break;
 	}
 	case OSD_SET_KEY: {

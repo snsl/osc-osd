@@ -2677,6 +2677,16 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int present = 0;
 	uint8_t obj_type = 0;
 
+#ifdef PVFS_OSD_INTEGRATED
+	if (page == USER_INFO_PG && number == UIAP_LOGICAL_LEN) {
+		ret = set_uiap(osd, pid, oid, number, val);
+		if (ret == OSD_OK)
+			goto out_success;
+		else
+			goto out_cdb_err;
+	}
+#endif
+
 /*	osd_debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid),
 		  llu(oid)); */
 

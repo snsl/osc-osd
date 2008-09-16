@@ -571,7 +571,7 @@ repeat:
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
-		osd_error("%s: attr (%llu %llu %u *) not found!", __func__, 
+		osd_debug("%s: attr (%llu %llu %u *) not found!", __func__, 
 			  llu(pid), llu(oid), page);
 	}
 
@@ -611,7 +611,7 @@ repeat:
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
-		osd_error("%s: attr (%llu %llu * %u) not found!", __func__, 
+		osd_debug("%s: attr (%llu %llu * %u) not found!", __func__, 
 			  llu(pid), llu(oid), number);
 	}
 
@@ -651,7 +651,7 @@ repeat:
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
-		osd_error("%s: attr (%llu %llu * *) not found!", __func__, 
+		osd_debug("%s: attr (%llu %llu * *) not found!", __func__, 
 			  llu(pid), llu(oid));
 	}
 
@@ -693,7 +693,7 @@ repeat:
 	if (ret == OSD_REPEAT) {
 		goto repeat;
 	} else if (ret == -ENOENT) {
-		osd_error("%s: dir page not found!", __func__);
+		osd_debug("%s: dir page not found!", __func__);
 	}
 
 	return ret;

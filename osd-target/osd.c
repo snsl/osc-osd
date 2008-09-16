@@ -738,7 +738,7 @@ static int osd_initialize_db(struct osd_device *osd)
 	memset(&osd->ic, 0, sizeof(osd->ic));
 	memset(&osd->idl, 0, sizeof(osd->idl));
 
-	/* tables already created by db_open, so insertions can be done */
+	/* tables already created by osd_db_open, so insertions can be done */
 	ret = obj_insert(osd->dbc, ROOT_PID, ROOT_OID, ROOT);
 	if (ret != SQLITE_OK)
 		goto out;
@@ -842,7 +842,7 @@ int osd_open(const char *root, struct osd_device *osd)
 	get_dbname(path, root);
 
 	/* auto-creates db if necessary, and sets osd->dbc */
-	ret = db_open(path, osd);
+	ret = osd_db_open(path, osd);
 	if (ret != 0 && ret != 1)
 		goto out;
 	if (ret == 1) {
@@ -860,9 +860,9 @@ int osd_close(struct osd_device *osd)
 {
 	int ret;
 
-	ret = db_close(osd);
+	ret = osd_db_close(osd);
 	if (ret != 0)
-		osd_error("%s: db_close", __func__);
+		osd_error("%s: osd_db_close", __func__);
 	free(osd->root);
 	osd->root = NULL;
 	return ret;

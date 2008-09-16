@@ -21,9 +21,9 @@
 #include <sqlite3.h>
 #include "osd-types.h"
 
-int db_open(const char *path, struct osd_device *osd);
+int osd_db_open(const char *path, struct osd_device *osd);
 
-int db_close(struct osd_device *osd);
+int osd_db_close(struct osd_device *osd);
 
 int db_initialize(struct db_context *dbc);
 

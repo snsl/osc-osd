@@ -79,7 +79,7 @@ static int db_check_tables(struct db_context *dbc)
  * ==0: success
  * ==1: new db opened, caller must initialize tables
  */
-int db_open(const char *path, struct osd_device *osd)
+int osd_db_open(const char *path, struct osd_device *osd)
 {
 	int ret;
 	struct stat sb;
@@ -154,7 +154,7 @@ out:
 }
 
 
-int db_close(struct osd_device *osd)
+int osd_db_close(struct osd_device *osd)
 {
 	int ret = 0;
 

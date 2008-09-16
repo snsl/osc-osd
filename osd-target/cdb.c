@@ -34,14 +34,16 @@ struct command {
 };
 
 /*
- * Compare, and complain if not the same.  Return sense data if so.
+ * Compare, and complain if iscsi did not deliver enough bytes to
+ * satisfy the WRITE.  Don't check too hard that we use bytes from
+ * the getlist, e.g., just that no coredump happens.
  */
 static int verify_enough_input_data(struct command *cmd, uint64_t cdblen)
 {
 	int ret = 0;
 
-	if (cdblen != cmd->inlen) {
-		osd_error("%s: supplied data %llu but cdb says %llu\n",
+	if (cdblen > cmd->inlen) {
+		osd_error("%s: supplied data %llu but cdb says %llu",
 			  __func__, llu(cmd->inlen), llu(cdblen));
 		ret = osd_error_bad_cdb(cmd->sense);
 	}
@@ -161,7 +163,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint8_t listfmt = RTRVD_SET_ATTR_LIST;
 	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]); 
 	uint32_t list_len = 0;
-	uint64_t list_off = ntohoffset_le(&cmd->cdb[56]);
+	uint64_t list_off = ntohoffset(&cmd->cdb[56]);
 	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 	uint8_t *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
@@ -224,7 +226,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		list_len -= 8;
 		list_hdr += 8;
 	}
-	set_htonl_le(&outbuf[4], cmd->get_used_outlen - 8);
+	set_htonl(&outbuf[4], cmd->get_used_outlen - 8);
 
 	return 0; /* success */
 

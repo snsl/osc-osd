@@ -33,7 +33,7 @@ CFLAGS := $(COPTS) $(CWARN) -I. -I.. -I../../
 all :: $(EXE)
 
 $(EXE): %: %.o $(CMD_OBJ) $(LIBOSD) 
-	$(CC) -o $@ $^ -lsqlite3 -lm -lefence
+	$(CC) -o $@ $^ -lsqlite3 -lm
 
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@

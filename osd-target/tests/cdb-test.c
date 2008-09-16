@@ -722,9 +722,85 @@ static void ismember_attr(struct test_attr *attr, size_t sz, uint64_t oid,
 			return;
 		}
 	}
-	fprintf(stderr, "unknown attr: oid: %llu, page %u, number %u",
+	fprintf(stderr, "unknown attr: oid: %llu, page %u, number %u\n",
 		llu(oid), page, number);
 	assert(0); /* unknown attr */
+}
+
+static void test_oids_with_attr(struct osd_device *osd, uint64_t pid, 
+				struct attribute_list *getattr, int numattr,
+				uint64_t alloc_len, uint64_t exp_data_out_len,
+				uint64_t exp_add_len, uint64_t exp_cont_id,
+				uint8_t exp_odf, struct test_attr *attrs,
+				size_t attrs_sz)
+{
+	int ret = 0;
+	struct osd_command cmd;
+	uint8_t *cp = NULL;
+	uint32_t page = 0, number = 0;
+	uint64_t data_in_len, data_out_len;
+	const void *data_in;
+	uint8_t *data_out;
+	uint64_t oid = 0; 
+	uint8_t sense_out[OSD_MAX_SENSE];
+	uint16_t len = 0;
+	int senselen_out;
+	uint32_t attr_list_len = 0;
+
+	/* execute list with attr, alloc length less than required */
+	ret = osd_command_set_list(&cmd, pid, 0, alloc_len, 0, 1);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, getattr, numattr);
+	assert(ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	cp = data_out;
+	assert(data_out_len == exp_data_out_len);
+	assert(ntohll(cp) == exp_add_len);
+	cp += 8;
+	assert(ntohll(cp) == exp_cont_id);
+	cp += 8;
+	assert(ntohl(cp) == 0);
+	cp += 7;
+	assert(cp[0] == exp_odf);
+	cp += 1;
+	oid = 0;
+	attr_list_len = 0;
+	len = 0;
+	data_out_len -= 24;
+	while (data_out_len > 0) {
+		oid = ntohll(cp);
+		cp += 12;
+		attr_list_len = ntohl(cp);
+		cp += 4;
+		data_out_len -= 16;
+		while (attr_list_len > 0) {
+			page = ntohl(cp);
+			cp += 4;
+			number = ntohl(cp);
+			cp += 4;
+			len = ntohs(cp);
+			cp += 2;
+			attr_list_len -= (4+4+2);
+			data_out_len -= (4+4+2);
+			if (len > attr_list_len) {
+				len = attr_list_len;
+			}
+			ismember_attr(attrs, attrs_sz, oid, page, number,
+				      len, cp);
+			cp += len;
+			cp += (roundup8(2+len) - (2+len));
+			data_out_len -= len;
+			data_out_len -= (roundup8(2+len) - (2+len));
+			attr_list_len -= len;
+			attr_list_len -= (roundup8(2+len) - (2+len)); 
+		}
+	}
+	free(data_out);
+	osd_command_attr_free(&cmd);
 }
 
 void test_list(struct osd_device *osd)
@@ -733,15 +809,12 @@ void test_list(struct osd_device *osd)
 	uint64_t pid = PARTITION_PID_LB;
 	uint64_t cid = 0;
 	uint64_t oid = 0; 
-	const void *data_in;
 	uint8_t *data_out;
 	uint8_t *cp;
 	uint32_t page = 0, number = 0;
-	uint64_t data_in_len, data_out_len;
+	uint64_t data_out_len;
 	uint64_t idlist[64];
 	uint8_t sense_out[OSD_MAX_SENSE];
-	uint32_t attr_list_len = 0;
-	uint16_t len = 0;
 	int senselen_out;
 	int i, ret;
 
@@ -891,9 +964,6 @@ void test_list(struct osd_device *osd)
 	free(data_out);
 	osd_command_attr_free(&cmd);
 				
-	/* execute list with attr */
-	ret = osd_command_set_list(&cmd, pid, 0, 4096, 0, 1);
-	assert(ret == 0);
 	page = USEROBJECT_PG + LUN_PG_LB;
 	number = 1;
 	struct attribute_list getattr[] = {
@@ -904,179 +974,28 @@ void test_list(struct osd_device *osd)
 		{ATTR_GET, page+4, number+4, NULL, 0, 0},
 		{ATTR_GET, page+5, number+5, NULL, 0, 0},
 	};
-	ret = osd_command_attr_build(&cmd, getattr, 6);
-	assert(ret == 0);
-	data_in = cmd.outdata;
-	data_in_len = cmd.outlen;
-	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
-				&data_out_len, sense_out, &senselen_out);
-	assert(ret == 0);
-	cp = data_out;
-	assert(data_out_len == 792);
-	assert(ntohll(cp) == 784);
-	cp += 8;
-	assert(ntohll(cp) == 0);
-	cp += 8;
-	assert(ntohl(cp) == 0);
-	cp += 7;
-	assert(cp[0] == (0x22 << 2));
-	cp += 1;
-	oid = 0;
-	attr_list_len = 0;
-	len = 0;
-	data_out_len -= 24;
-	while (data_out_len > 0) {
-		oid = ntohll(cp);
-		cp += 12;
-		attr_list_len = ntohl(cp);
-		cp += 4;
-		data_out_len -= 16;
-		while (attr_list_len > 0) {
-			page = ntohl(cp);
-			cp += 4;
-			number = ntohl(cp);
-			cp += 4;
-			len = ntohs(cp);
-			cp += 2;
-			ismember_attr(attrs, ARRAY_SIZE(attrs), oid, page, 
-				      number, len, cp);
-			cp += len;
-			cp += roundup8(2+len) - (2+len);
-			data_out_len -= roundup8(4+4+2+len);
-			attr_list_len -= roundup8(4+4+2+len); 
-		}
-	}
-	free(data_out);
-	osd_command_attr_free(&cmd);
 
+	/* execute list with attr */
+	test_oids_with_attr(osd, pid, getattr, 6, 4096, 792, 784, 0, 
+			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
 	/* execute list with attr, alloc length less than required */
-	ret = osd_command_set_list(&cmd, pid, 0, 200, 0, 1);
-	assert(ret == 0);
-	ret = osd_command_attr_build(&cmd, getattr, 6);
-	assert(ret == 0);
-	data_in = cmd.outdata;
-	data_in_len = cmd.outlen;
-	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
-				&data_out_len, sense_out, &senselen_out);
-	assert(ret == 0);
-	cp = data_out;
-	assert(data_out_len == data_out_len);
-	assert(data_out_len == 200);
-	assert(ntohll(cp) == 784);
-	cp += 8;
-	assert(ntohll(cp) == 65539);
-	cp += 8;
-	assert(ntohl(cp) == 0);
-	cp += 7;
-	assert(cp[0] == (0x22 << 2));
-	cp += 1;
-	oid = 0;
-	attr_list_len = 0;
-	len = 0;
-	data_out_len -= 24;
-	while (data_out_len > 0) {
-		oid = ntohll(cp);
-		cp += 12;
-		attr_list_len = ntohl(cp);
-		cp += 4;
-		data_out_len -= 16;
-		while (attr_list_len > 0) {
-			page = ntohl(cp);
-			cp += 4;
-			number = ntohl(cp);
-			cp += 4;
-			len = ntohs(cp);
-			cp += 2;
-			ismember_attr(attrs, ARRAY_SIZE(attrs), oid, page, 
-				      number, len, cp);
-			cp += len;
-			cp += roundup8(2+len) - (2+len);
-			data_out_len -= roundup8(4+4+2+len);
-			attr_list_len -= roundup8(4+4+2+len); 
-		}
-	}
-	free(data_out);
-	osd_command_attr_free(&cmd);
-
-#if 0
+	test_oids_with_attr(osd, pid, getattr, 6, 200, 200, 784, 65539, 
+			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
 	/* execute list with attr, alloc length less than required */
-	ret = osd_command_set_list(&cmd, pid, 0, 208, 0, 1);
-	assert(ret == 0);
-	ret = osd_command_attr_build(&cmd, getattr, 6);
-	assert(ret == 0);
-	data_in = cmd.outdata;
-	data_in_len = cmd.outlen;
-	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
-				&data_out_len, sense_out, &senselen_out);
-	assert(ret == 0);
-	cp = data_out;
-	assert(data_out_len == data_out_len);
-	assert(ntohll(cp) == 792);
-	cp += 8;
-	assert(ntohll(cp) == 0);
-	cp += 8;
-	assert(ntohl(cp) == 0);
-	cp += 7;
-	assert(cp[0] == (0x22 << 2));
-	cp += 1;
-	oid = 0;
-	attr_list_len = 0;
-	len = 0;
-	data_out_len -= 24;
-	while (data_out_len > 0) {
-		oid = ntohll(cp);
-		cp += 12;
-		attr_list_len = ntohl(cp);
-		cp += 4;
-		data_out_len -= 16;
-		while (attr_list_len > 0) {
-			page = ntohl(cp);
-			cp += 4;
-			number = ntohl(cp);
-			cp += 4;
-			len = ntohs(cp);
-			cp += 2;
-			ismember_attr(attrs, ARRAY_SIZE(attrs), oid, page, 
-				      number, len, cp);
-			cp += len;
-			cp += roundup8(2+len) - (2+len);
-			data_out_len -= roundup8(4+4+2+len);
-			attr_list_len -= roundup8(4+4+2+len); 
-		}
-	}
-	free(data_out);
-	osd_command_attr_free(&cmd);
-
-	struct test_attr complexattrs[] = {
-		{1, oid, page, number, 1, 0, NULL},
-		{1, oid, page+1, number+3, 768, 0, NULL},
-		{2, oid, page+12, number+20, 0, 5, "sudo"}, 
-		{1, oid+1, page+40, number, 56, 0, NULL},
-		{1, oid+1, page+1, number+30, 68, 0, NULL},
-		{2, oid+2, page+2, number+21, 0, 9, "deadbeef"}, 
-		{1, oid+3, page+3, number+3, 1, 0, NULL},
-		{1, oid+3, page+5, number+1, 111, 0, NULL},
-		{1, oid+3, page+7, number, 0, 1111, "sudo"}, 
-		{1, oid+3, page+2, number+45, 11, 0, NULL},
-		{1, oid+3, page+11, number+6, 111111, 0, NULL},
-		{2, oid+4, page+4, number+11, 0, 6, "milli"}, 
-		{2, oid+4, page+5, number+13, 0, 10, "kilometer"},
-		{2, oid+4, page+6, number+17, 0, 11, "hectameter"},
-		{2, oid+5, page+1, number+3, 0, 12, "zzzzzzhhhhh"}, 
-		{2, oid+5, page+2, number+2, 0, 2, "b"},
-		{1, oid+5, page+3, number+1, 6, 0, NULL},
-		{1, oid+7, page+38, number+2, 486, 0, NULL}, 
-		{1, oid+7, page+39, number+4, 586, 0, NULL},
-		{1, oid+7, page+40, number+8, 686, 0, NULL},
-		{1, oid+8, page, number, 4, 0, NULL},
-		{2, oid+9, page+12, number+2000, 0, 14, "setting these"}, 
-		{2, oid+9, page+32, number+4000, 0, 11, "attributes"},
-		{2, oid+9, page+43, number+6001, 0, 8, "made me"},
-		{2, oid+9, page+54, number+7293, 0, 12, "mad! really"}, 
-		{1, oid+10, page+1, number+3, 1234567890, 0, NULL},
-		{2, oid+10, page, number+40, 0, 6, "DelTa"},
-	};
-#endif 
+	test_oids_with_attr(osd, pid, getattr, 6, 208, 208, 784, 65539, 
+			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
+	/* execute list with attr, alloc length less than required */
+	test_oids_with_attr(osd, pid, getattr, 6, 216, 208, 784, 65539, 
+			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
+	/* execute list with attr, alloc length less than required */
+	test_oids_with_attr(osd, pid, getattr, 6, 544, 536, 784, 65544, 
+			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
+	/* execute list with attr, alloc length less than required */
+	test_oids_with_attr(osd, pid, getattr, 6, 688, 688, 784, 65546, 
+			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
+	/* execute list with attr, alloc length less than required */
+	test_oids_with_attr(osd, pid, getattr, 6, 680, 680, 784, 65546, 
+			    (0x22 << 2), attrs, ARRAY_SIZE(attrs));
 }
 
 

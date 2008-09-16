@@ -880,7 +880,6 @@ int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid,
 	uint32_t factor = 1;
 	uint32_t attr_list_len = 0; /*XXX:SD see below */
 	uint32_t sqlen = 0;
-	uint8_t buf_full = FALSE;
 	sqlite3_stmt *stmt = NULL;
 
 	if (!db || !get_attr || !outdata || !used_outlen || !add_len) {
@@ -937,37 +936,21 @@ int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid,
 	/* execute the statement */
 	head = tail = outdata;
 	attr_list_len = 0;
-	buf_full = FALSE;
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		uint64_t oid = sqlite3_column_int64(stmt, 0);
 		uint32_t page = sqlite3_column_int64(stmt, 1);
 		uint32_t number = sqlite3_column_int64(stmt, 2);
 		uint16_t len = sqlite3_column_bytes(stmt, 3);
 
-		if (page == USER_TMSTMP_PG && number == 0) {
-			/*
-			 * XXX:SD The spec is inconsistent in applying
-			 * padding and alignment rules. Here we make changes
-			 * to the spec. In our case object descriptor format
-			 * header is 16B instead of 12B, and attributes list
-			 * length field is 4B instead of 2B as defined in
-			 * spec. ODE is object descriptor entry.
-			 */
 
-			/* if alloc_len < 16 no space to even put header */
-			if (!buf_full && alloc_len < 16) {
-				buf_full = TRUE;
-				if (*cont_id == 0)
-					*cont_id = oid;
-			}
-			if (!buf_full) {
-				/* start attr of next oid */
-				set_htonll(tail, oid); 
-				if (head != outdata) {
+		if (page == USER_TMSTMP_PG && number == 0) {
+			/* look ahead in the buf to see if there is space */
+			if (alloc_len >= 16) {
+				/* start attr list of 'this' ODE */
+				set_htonll(tail, oid);
+				if (head != tail) {
 					/* fill attr_list_len of prev ODE */
 					set_htonl(head, attr_list_len);
-					osd_debug("%u", attr_list_len);
-					/* bring head to start of next ODE */
 					head = tail;
 					attr_list_len = 0;
 				}
@@ -975,51 +958,59 @@ int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid,
 				tail += 16;
 				head += 12;
 				*used_outlen += 16;
-			}
-			*add_len += 16;
-			continue;
-		}
-		
-		if (attr_blob.sz < len) {
-			free(attr_blob.buf);
-			attr_blob.sz = roundup8(len);
-			attr_blob.buf = Malloc(attr_blob.sz);
-			if (!attr_blob.buf)
-				return -ENOMEM;
-		}
-
-		if (!buf_full) {
-			memcpy(attr_blob.buf, sqlite3_column_blob(stmt, 3), 
-			       len);
-			osd_debug("%s: oid %llu, page %u, number %u, len %u", 
-				  __func__, llu(oid), page, number, len);
-			ret = le_pack_attr(tail, alloc_len, page, number, len, 
-					   attr_blob.buf);
-			if (ret == -EINVAL) {
-				goto out_finalize;
-			} else if (ret == -EOVERFLOW) {
-				buf_full = TRUE;
-				/* fill attr_list_len of 'this' oid */
-				set_htonl(head, attr_list_len);
-				osd_debug("%u", attr_list_len);
-				head = tail;
-				attr_list_len = 0;
 			} else {
-				alloc_len -= ret;
-				tail += ret;
-				/* *add_len += ret; */
-				attr_list_len += ret;
-				*used_outlen += ret;
-				if (alloc_len < 16) {
-					buf_full = TRUE;
-					/* fill attr_list_len of 'this' oid */
+				if (head != tail) {
+					/* fill attr_list_len of prev ODE */
 					set_htonl(head, attr_list_len);
-					osd_debug("%u", attr_list_len);
 					head = tail;
 					attr_list_len = 0;
 				}
+				if (*cont_id == 0)
+					*cont_id = oid;
 			}
+			*add_len += 16;
+			continue;
 		} 
+		if (alloc_len >= 16) {
+			if (attr_blob.sz < len) {
+				free(attr_blob.buf);
+				attr_blob.sz = roundup8(len);
+				attr_blob.buf = Malloc(attr_blob.sz);
+				if (!attr_blob.buf)
+					return -ENOMEM;
+			}
+			memcpy(attr_blob.buf, sqlite3_column_blob(stmt, 3), 
+			       len);
+/* 			osd_debug("%s: oid %llu, page %u, number %u, len %u", 
+				  __func__, llu(oid), page, number, len); */
+			ret = le_pack_attr(tail, alloc_len, page, number, len, 
+					   attr_blob.buf);
+			assert (ret != -EOVERFLOW);
+			if (ret > 0) {
+				alloc_len -= ret;
+				tail += ret;
+				attr_list_len += ret;
+				*used_outlen += ret;
+				if (alloc_len < 16){
+					set_htonl(head, attr_list_len);
+					head = tail;
+					attr_list_len = 0;
+					if(*cont_id == 0)
+						*cont_id = oid;
+				}
+			} else {
+				goto out_finalize;
+			}
+		} else {
+			if (head != tail) {
+				/* fill attr_list_len of this ODE */
+				set_htonl(head, attr_list_len);
+				head = tail;
+				attr_list_len = 0;
+				if (*cont_id == 0)
+					*cont_id = oid;
+			}
+		}
 		*add_len += roundup8(4+4+2+len);
 	}
 	if (ret != SQLITE_DONE) {
@@ -1028,9 +1019,8 @@ int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid,
 			  llu(*add_len), attr_list_len);
 		goto out_finalize;
 	}
-	if (!buf_full) {
+	if (head != tail) {
 		set_htonl(head, attr_list_len);
-		osd_debug("%u", attr_list_len);
 		head += (4 + attr_list_len);
 		assert(head == tail);
 	}

@@ -396,8 +396,6 @@ def buildfiles():
     print >>fd, "    ID", pid
     if options["ismirror"] == "yes":
         print >>fd, "    IsMirror", 1
-    else:
-        print >>fd, "    IsMirror", 0
 
     print >>fd, "    <DataHandleRanges>"
     for n in ionodes:

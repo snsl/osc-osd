@@ -116,6 +116,8 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	rewinddir(toplevel);
 	count = 0;
 	while ((entry = readdir(toplevel))) {
+		if (entry->d_name[0] == '.')
+			continue;
 		snprintf(buf, sizeof(buf),
 		         "/sys/class/scsi_device/%s/device/type",
 		         entry->d_name);

@@ -119,7 +119,7 @@ static void iovec_write_test(int fd, uint64_t pid, uint64_t oid)
 	ret = osd_submit_and_wait(fd, &command);
 	if (ret)
 		osd_error("%s: submit_and_wait failed", __func__);
-	printf("%s: read some bytes (%lu): %s\n\n", __func__,
+	printf("%s: read some bytes (%zu): %s\n\n", __func__,
 	       command.inlen, bufout);
 }
 
@@ -167,7 +167,7 @@ static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
 	}
 
 	buf1[sizeof(buf1)-1] = '\0';  /* terminate partial string */
-	printf("%s: read some bytes (%lu): %s + %s\n\n", __func__,
+	printf("%s: read some bytes (%zu): %s + %s\n\n", __func__,
 	       command.inlen, buf1, buf2);
 }
 

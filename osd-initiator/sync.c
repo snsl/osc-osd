@@ -611,7 +611,7 @@ int list(int fd, uint64_t pid, uint32_t list_id, uint64_t initial_oid,
 		}
 	} 
 	else {
-		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id),
+		osd_debug("LIST_ID: %u CONTINUATION_ID: %llu", list_id,
 			  llu(initial_oid));
 	}
 	
@@ -671,7 +671,7 @@ int list_collection(int fd, uint64_t pid, uint64_t cid, uint32_t list_id,
 		}
 	} 
 	else {
-		osd_debug("LIST_ID: %llu CONTINUATION_ID: %llu", llu(list_id),
+		osd_debug("LIST_ID: %u CONTINUATION_ID: %llu", list_id,
 			  llu(initial_oid));
 	}
 	

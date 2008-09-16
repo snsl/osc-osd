@@ -109,9 +109,9 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	mu = mean(b, iters);
 	sd = stddev(b, mu, iters);
 	if (dosync)
-		printf("read-sync  %3lu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
+		printf("read-sync  %3zu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
 	else 
-		printf("read       %3lu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
+		printf("read       %3zu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
 
 /* 	uint8_t *p = buf;
 	printf("%x %x %x %x %x\n", p[0], p[127], p[sz-256], p[sz-2], p[sz-1]); */
@@ -188,9 +188,9 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 	mu = mean(b, iters);
 	sd = stddev(b, mu, iters);
 	if (dosync)
-		printf("write-sync %3lu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
+		printf("write-sync %3zu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
 	else 
-		printf("write      %3lu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
+		printf("write      %3zu %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
 
 	free(buf);
 	free(b);

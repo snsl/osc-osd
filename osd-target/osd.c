@@ -1331,7 +1331,7 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 			/* Hoping obj_get_nextpid() works like I think it
 			   does: takes the given pid/(pid+oid) and finds the next
 			   lowest pid/oid, sending it back by reference. */
-			ret = (pid != 0 ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
+			ret = (listid ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
 				        : obj_get_nextpid(osd->db, &obj_descriptor));	
 			if (ret != 0) {
 				osd_error("%s: error retrieving next oid/pid",
@@ -1356,7 +1356,7 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 			/* Find out how many more oid/pids, even though we've
 			   decided to truncate */
 			while (ret) {
-				ret = (pid != 0 ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
+				ret = (listid ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
 					        : obj_get_nextpid(osd->db, &obj_descriptor));	
 				addl_length += 7;
 			}

@@ -96,7 +96,7 @@ This library has been tested with commit
     cd tgt
     git remote add osc git://git.osc.edu/tgt.git
     git remote update
-    git merge osc/local
+    git merge osc/osd
     cd usr
     make
 

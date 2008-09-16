@@ -355,6 +355,7 @@ def buildfiles():
 	    print >>fd, i
 	fd.close()
 
+
     # write fs.conf
     fd = open(fsconf, "w")
     print >>fd, "<Defaults>"
@@ -601,9 +602,18 @@ def start():
     # this script runs must be one of the compnodes so it can talk to
     # all the OSDs with iscsi.  (Or could rsh to one.)
     for n in osdnodes:
-	d = datahandles[n][0] if datahandles.has_key(n) else 0
-	m = metahandles[n][0] if metahandles.has_key(n) else 0
-	s = " " + str(m) + " " + fsconf if m == roothandle else ""
+	if datahandles.has_key(n): 
+	    d = datahandles[n][0] 
+	else: 
+	    d = 0
+	if metahandles.has_key(n): 
+	    m = metahandles[n][0] 
+	else: 
+	    m = 0
+	if m == roothandle: 
+   	    s = " " + str(m) + " " + fsconf 
+	else:
+	    s = " "
 	#print pvfs_init + " " + n + " " + str(d) + " " + str(m) + s
 	ret = os.system(pvfs_init + " " + n + " " + str(d) + " " + str(m) + s)
 	if ret:

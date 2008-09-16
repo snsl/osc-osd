@@ -95,7 +95,7 @@ int osd_command_set_append(struct osd_command *command, uint64_t pid,
 int osd_command_set_clear(struct osd_command *command, uint64_t pid,
 			   uint64_t oid, uint64_t len, uint64_t offset)
 {
-        varlen_cdb_init(command, OSD_APPEND);
+        varlen_cdb_init(command, OSD_CLEAR);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
         set_htonll(&command->cdb[32], len);
@@ -262,7 +262,7 @@ int osd_command_set_perform_task_mgmt_func(
 int osd_command_set_punch(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset)
 {
-        varlen_cdb_init(command, OSD_WRITE);
+        varlen_cdb_init(command, OSD_PUNCH);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], oid);
         set_htonll(&command->cdb[32], len);

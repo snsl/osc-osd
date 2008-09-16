@@ -1,7 +1,7 @@
 /*
  * IO throughput using SGL and Vectored.
  *
- * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
+ * Copyright (C) 2007-8 OSD Team <pvfs-osd@osc.edu>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -73,29 +73,28 @@ static uint64_t obj_create_any(int fd, uint64_t pid)
 	return oid;
 }
 
-
 static void usage(void)
 {
 	fprintf(stderr, "Usage: %s [OPTIONS]\n", osd_get_progname());
 	fprintf(stderr, "There are two main ways to run this program\n");
 	fprintf(stderr, "	1. Using the default data distribution (contiguous)\n");
-	fprintf(stderr, " 	     	-o [read|write] \n");
-	fprintf(stderr, "		-l [max size] \n");
-	fprintf(stderr, " 	2. Using a specialized data distribution\n");
-	fprintf(stderr, " 	     	-o [read|write] \n");
-	fprintf(stderr, "                -d [sgl|vec] \n");
-	fprintf(stderr, "		-l [max size] \n");
-	fprintf(stderr, " 		-s [stride] \n");
-	fprintf(stderr, " 		-n [number bytes per segment] \n");
+	fprintf(stderr, "		-o [read|write]\n");
+	fprintf(stderr, "		-l [max size]\n");
+	fprintf(stderr, "	2. Using a specialized data distribution\n");
+	fprintf(stderr, "		-o [read|write]\n");
+	fprintf(stderr, "		-d [sgl|vec]\n");
+	fprintf(stderr, "		-l [max size]\n");
+	fprintf(stderr, "		-s [stride]\n");
+	fprintf(stderr, "		-n [number bytes per segment]\n");
 	fprintf(stderr, "Both can use the following options:\n");
-	fprintf(stderr, "                -t [trials]\n");
+	fprintf(stderr, "		-t [trials]\n");
 	fprintf(stderr, "		-f Flush writes to disk\n");
 	fprintf(stderr, "		-i Start test at 4K and increasing by i up to max size\n");
-	fprintf(stderr, "                -w [warm up]\n");
+	fprintf(stderr, "		-w [warm up]\n");
 	fprintf(stderr, "*For size values a k, m, or g can be appended for KB, MB, or GB ie 100k\n");
-	fprintf(stderr, " \n");
 	exit(1);
 }
+
 static void obj_remove(int fd, uint64_t pid, uint64_t oid)
 {
 	struct osd_command command;
@@ -108,23 +107,42 @@ static void obj_remove(int fd, uint64_t pid, uint64_t oid)
 		exit(1);
 	}
 }
+
 static uint64_t parse_number(const char *cp)
 {
-    uint64_t v;
-    char *cq;
+	uint64_t v;
+	char *cq;
 
-    v = strtoul(cp, &cq, 0);
-    if (*cq) {
-	if (!strcasecmp(cq, "k"))
-	    v *= 1024;
-	else if (!strcasecmp(cq, "m"))
-	    v *= 1048576;
-	else if (!strcasecmp(cq, "g"))
-	    v *= 1073741824;
-	else
-	    usage();
-    }
-    return v;
+	v = strtoul(cp, &cq, 0);
+	if (*cq) {
+		if (!strcasecmp(cq, "k"))
+			v <<= 10;
+		else if (!strcasecmp(cq, "m"))
+			v <<= 20;
+		else if (!strcasecmp(cq, "g"))
+			v <<= 30;
+		else
+			usage();
+	}
+	return v;
+}
+
+static void show_stats(double *bw_array, int trials, uint64_t size, int mode,
+		       int flush)
+{
+	double mu, sd;
+	const char *s;
+	
+	mu = mean(bw_array, trials);
+	sd = stddev(bw_array, mu, trials);
+	s = "read";
+	if (mode == WRITE) {
+		if (flush == FLUSH)
+			s = "write-flush";
+		else
+			s = "write";
+	}
+	printf("%-11s %3zu kB %7.3lf +- %7.3lf MB/s\n", s, size>>10, mu, sd);
 }
 
 static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
@@ -135,10 +153,9 @@ static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	uint64_t start, stop, delta;
 	int ret;
 	void *buf;
-	double *bw_array = NULL;
+	double *bw_array;
 	double mhz = get_mhz();
-	double time = 0.0;
-	double mu, sd;
+	double time;
 	int i, j;
 	uint64_t offset;
 	uint64_t total_size;
@@ -150,29 +167,31 @@ static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	bw_array = malloc(trials * sizeof(*bw_array));
 	assert(bw_array != NULL);
 	buf = malloc(size);
-	assert(buf != NULL );
+	assert(buf != NULL);
 	memset(buf, 'X', size); /* fill with something */
 
 	if (mode == READ)
-		ret = write_osd(fd, pid, oid, buf, size, 0); /* put something there to read */
+		/* put something there to read */
+		ret = write_osd(fd, pid, oid, buf, size, 0);
 
-	if (numbytes == 0 || stride == 0) { /* default to a single write */
+	if (numbytes == 0 || stride == 0)
+		/* default to a single write */
 		numbytes = size;
-	}
 
 	/* figure out how many segments we are going to have */
 	segments = size / numbytes;
 	bytes_left = size % numbytes;
 	total_size = segments * numbytes + bytes_left;
 	if (bytes_left > 0)
-		segments+=1; /* need one last segment for the remainder of bytes */
+		/* need one last segment for the remainder of bytes */
+		++segments;
 	assert(total_size == size);
 
-	for ( i = 0; i < trials+warmup; i++ ) {
+	for (i = 0; i < trials+warmup; i++) {
 		offset = 0;
 		rdtsc(start);
-		for (j = 0; j < segments; j++ ) {
-			if (j + 1 == segments && bytes_left != 0 ) {
+		for (j = 0; j < segments; j++) {
+			if (j + 1 == segments && bytes_left != 0) {
 				if (mode == WRITE)
 					ret = write_osd(fd, pid, oid, buf, bytes_left, offset);
 				else
@@ -203,19 +222,9 @@ static void do_contig(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 			bw_array[i-warmup] = size/time; /* BW in MegaBytes/sec */
 	}
 
-
-	mu = mean(bw_array, trials);
-	sd = stddev(bw_array, mu, trials);
-	if (mode == WRITE && flush == FLUSH)
-		printf("write-flush %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-	else if (mode == WRITE && flush != FLUSH)
-		printf("write       %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-	else if (mode == READ)
-		printf("read       %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-
+	show_stats(bw_array, trials, size, mode, flush);
 	free(buf);
 	free(bw_array);
-
 }
 
 static void do_sgl(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
@@ -225,17 +234,15 @@ static void do_sgl(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	uint64_t start, stop, delta;
 	int ret;
 	void *buf, *ret_buf = NULL;
-	double *bw_array = NULL;
+	double *bw_array;
 	double mhz = get_mhz();
-	double time = 0.0;
-	double mu, sd;
+	double time;
 	int i;
 	uint64_t total_size;
 	int segments;
 	int bytes_left;
-	uint64_t hdr_offset = 0;
-	uint64_t offset = 0;
-	uint64_t ddt_size = 0;
+	uint64_t offset, hdr_offset;
+	uint64_t ddt_size;
 
 	if (mode == READ)
 		assert(flush != FLUSH);
@@ -254,7 +261,8 @@ static void do_sgl(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	bytes_left = size % numbytes;
 	total_size = segments * numbytes + bytes_left;
 	if (bytes_left > 0)
-		segments+=1; /* need one last segment for the remainder of bytes */
+		/* need one last segment for the remainder of bytes */
+		++segments;
 	assert(total_size == size);
 
 	/* to rep each segment need 2 uint64_ts, and need #segments */
@@ -271,13 +279,15 @@ static void do_sgl(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	}
 
 	/* prepare the buffer:  |#segments|offset|len|offset|len|....|DATA| */
+	hdr_offset = 0;
+	offset = 0;
 	set_htonll(buf, segments);
 	hdr_offset += sizeof(uint64_t);
-	for ( i = 0; i < segments; i+=1 ) {
+	for (i = 0; i < segments; i++) {
 		set_htonll((uint8_t *)buf + hdr_offset, offset);
 		offset += stride;
 		hdr_offset += sizeof(uint64_t);
-		if (i + 1 == segments && bytes_left != 0 )
+		if (i + 1 == segments && bytes_left != 0)
 			set_htonll((uint8_t *)buf + hdr_offset, bytes_left);
 		else
 			set_htonll((uint8_t *)buf + hdr_offset, numbytes);
@@ -286,9 +296,10 @@ static void do_sgl(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 
 
 	if (mode == READ)
-		ret = write_osd(fd, pid, oid, ret_buf, size, 0); /* put something there to read */
+		/* put something there to read */
+		ret = write_osd(fd, pid, oid, ret_buf, size, 0);
 
-	for ( i = 0; i < trials+warmup; i++ ) {
+	for (i = 0; i < trials+warmup; i++) {
 		rdtsc(start);
 		if (mode == WRITE)
 			ret = write_sgl_osd(fd, pid, oid, buf, size, 0);
@@ -312,18 +323,9 @@ static void do_sgl(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 			bw_array[i-warmup] = size/time; /* BW in MegaBytes/sec */
 	}
 
-	mu = mean(bw_array, trials);
-	sd = stddev(bw_array, mu, trials);
-	if (mode == WRITE && flush == FLUSH)
-		printf("write-flush %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-	else if (mode == WRITE && flush != FLUSH)
-		printf("write       %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-	else if (mode == READ)
-		printf("read       %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-
+	show_stats(bw_array, trials, size, mode, flush);
 	free(buf);
 	free(bw_array);
-
 }
 
 static void do_vec(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
@@ -336,7 +338,6 @@ static void do_vec(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	double *bw_array = NULL;
 	double mhz = get_mhz();
 	double time = 0.0;
-	double mu, sd;
 	int i;
 	uint64_t total_size;
 	uint64_t hdr_offset = 0;
@@ -373,15 +374,16 @@ static void do_vec(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 	set_htonll((uint8_t *)buf + hdr_offset, numbytes);
 
 	if (mode == READ)
-		ret = write_osd(fd, pid, oid, ret_buf, size, 0); /* put something there to read */
+		/* put something there to read */
+		ret = write_osd(fd, pid, oid, ret_buf, size, 0);
 
-	for ( i = 0; i < trials+warmup; i++ ) {
+	for (i = 0; i < trials+warmup; i++) {
 		rdtsc(start);
 		if (mode == WRITE)
 			ret = write_vec_osd(fd, pid, oid, buf, total_size, 0);
 		else
 			ret = read_vec_osd(fd, pid, oid, buf, ddt_size, ret_buf,
-					  size, 0);
+					   size, 0);
 
 		rdtsc(stop);
 		assert(ret == 0);
@@ -399,18 +401,9 @@ static void do_vec(int fd, int mode, uint64_t pid, uint64_t oid, int trials,
 			bw_array[i-warmup] = size/time; /* BW in MegaBytes/sec */
 	}
 
-	mu = mean(bw_array, trials);
-	sd = stddev(bw_array, mu, trials);
-	if (mode == WRITE && flush == FLUSH)
-		printf("write-flush %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-	else if (mode == WRITE && flush != FLUSH)
-		printf("write       %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-	else if (mode == READ)
-		printf("read       %3zu kB %7.3lf +- %7.3lf MB/s\n", size>>10, mu, sd);
-
+	show_stats(bw_array, trials, size, mode, flush);
 	free(buf);
 	free(bw_array);
-
 }
 
 int main(int argc, char *argv[])
@@ -476,7 +469,7 @@ int main(int argc, char *argv[])
 			default:
 				usage();
 		}
-{ /* args checks */
+
 	if (mode == INVALID) {
 		fprintf(stderr, "mode is invalid\n");
 		usage();
@@ -488,7 +481,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (ddt != CONTIG && num <= 0) {
-		fprintf(stderr, "num segments required when specifying a ddt\n");
+		fprintf(stderr, "num segments required when specifying ddt\n");
 		usage();
 	}
 
@@ -527,7 +520,7 @@ int main(int argc, char *argv[])
 		osd_error("%s: no drives", __func__);
 		return 1;
 	}
-}
+
 	i = 0;
 	osd_debug("drive %s name %s", drives[i].chardev, drives[i].targetname);
 	fd = open(drives[i].chardev, O_RDWR);
@@ -562,15 +555,11 @@ int main(int argc, char *argv[])
 					stride, flush, warmup);
 				break;
 			default:
-				exit(-1); /* should never happen */
+				exit(1);  /* should never happen */
 		}
 	}
 
-	/* Do the test */
 	obj_remove(fd, pid, oid);
-
 	close(fd);
-
-
 	return 0;
 }

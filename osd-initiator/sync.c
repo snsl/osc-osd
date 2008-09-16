@@ -1,7 +1,7 @@
 /*
  * Test the use of the existing SG_IO interface to transport OSD commands.
  *
- * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
+ * Copyright (C) 2007-8 OSD Team <pvfs-osd@osc.edu>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,7 @@
 #include <assert.h>
 
 #include "osd-util/osd-util.h"
+#include "osd-util/osd-sense.h"
 #include "command.h"
 #include "device.h"
 #include "sync.h"
@@ -408,6 +409,8 @@ int write_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 
 	ret = osd_wait_this_response(fd, &command);
 	check_response(ret, &command, NULL);
+	if (command.status != 0)
+		return 1;
 
 	ret = osd_command_attr_resolve(&command);
 	if (ret) {
@@ -711,6 +714,21 @@ int format_osd(int fd, int capacity)
 	osd_debug("****** FORMAT OSD ******");
 	osd_debug("Capacity: %i", capacity);
 
+	osd_debug("eat the reset ua with a tur");
+	osd_command_set_test_unit_ready(&command);
+	ret = osd_submit_and_wait(fd, &command);
+	if (command.status == 0)
+		goto okay;
+	if (command.status == 2) {
+		int key, asc;
+		osd_sense_extract(command.sense, command.sense_len, &key, &asc);
+		if (key == OSD_SSK_UNIT_ATTENTION &&
+		    asc == OSD_ASC_POWER_ON_OCCURRED)
+			goto okay;
+	}
+	check_response(ret, &command, NULL);
+
+okay:
 	osd_debug("....creating command");
 	osd_command_set_format_osd(&command, capacity);
 

@@ -1,13 +1,10 @@
 #ifndef __OSD_DEFS_H
 #define __OSD_DEFS_H
-
-#include <stdint.h>
-
 /*
- * The osd commands.  And other stuff that should perhaps go elsewhere.
+ * Shared defitions for OSD target and initiator.
  */
 
-/* varlen cdb service actions for OSD-2 (before SNIA changes 17 jan 07) */
+/* varlen cdb service actions for OSD-2 (before SNIA changes 17 jan 07 */
 #define OSD_APPEND			0x8807
 #define OSD_CREATE			0x8802
 #define OSD_CREATE_AND_WRITE		0x8812
@@ -49,11 +46,11 @@
 #define SAM_STAT_TASK_ABORTED    0x40
 
 /* OSD object constants, osd2r00 Sec 4.6.2 tab 2 */
-#define ROOT_PID (0LLU)
-#define ROOT_OID (0LLU)
-#define PARTITION_PID_LB (0x10000LLU)
-#define PARTITION_OID (0x0LLU)
-#define OBJECT_PID_LB (0x10000LLU)
+#define ROOT_PID 0LLU
+#define ROOT_OID 0LLU
+#define PARTITION_PID_LB 0x10000LLU
+#define PARTITION_OID 0x0LLU
+#define OBJECT_PID_LB 0x10000LLU
 #define USEROBJECT_PID_LB OBJECT_PID_LB
 #define COLLECTION_PID_LB OBJECT_PID_LB
 #define OBJECT_OID_LB OBJECT_PID_LB
@@ -108,10 +105,10 @@ enum {
 
 /* osd2r00, Table 5 Section 4.7.5 */
 enum {
-	USEROBJECT_DIR_PG = (USEROBJECT_PG + 0x0),
-	PARTITION_DIR_PG = (PARTITION_PG + 0x0),
-	COLLECTION_DIR_PG = (COLLECTION_PG + 0x0),
-	ROOT_DIR_PG = (ROOT_PG + 0x0)
+	USEROBJECT_DIR_PG = USEROBJECT_PG + 0x0,
+	PARTITION_DIR_PG = PARTITION_PG + 0x0,
+	COLLECTION_DIR_PG = COLLECTION_PG + 0x0,
+	ROOT_DIR_PG = ROOT_PG + 0x0
 };
 
 /* osd2r00 sec 7.1.2.1 tab 85 */
@@ -193,23 +190,13 @@ enum {
 	UIAP_PAGEID_SZ = 40,
 	UIAP_USED_CAP_SZ = 8,
 	UIAP_LGCL_LEN_SZ = 8,
-	UIAP_PID_SZ = sizeof(uint64_t),
-	UIAP_OID_SZ = sizeof(uint64_t)
+	UIAP_PID_SZ = 8,
+	UIAP_OID_SZ = 8,
 };
 
 enum {
 	GETPAGE_SETVALUE = 0x2,
 	GETLIST_SETLIST = 0x3 
-};
-
-enum {
-	FALSE = 0,
-	TRUE = 1
-};
-
-enum {
-	OSD_ERROR = -1,
-	OSD_OK = 0
 };
 
 #endif /* __OSD_DEFS_H */

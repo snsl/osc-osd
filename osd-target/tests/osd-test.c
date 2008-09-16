@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "osd-defs.h"
+#include "target-defs.h"
 #include "osd-types.h"
 #include "osd.h"
 #include "db.h"

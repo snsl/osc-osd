@@ -12,6 +12,7 @@
 
 #include "osd.h"
 #include "osd-defs.h"
+#include "target-defs.h"
 #include "db.h"
 #include "attr.h"
 #include "util/util.h"

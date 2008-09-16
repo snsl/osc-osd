@@ -60,9 +60,19 @@ start() {
 	# old nodes.  Just pick out ours to make sure it worked, and
 	# grab the IP to pass to the login, which will not resolve a
 	# hostname.
-	targetip=$(nodequery --ip $targethost)
-	targetname=$(iscsiadm -m discovery -t st -p $targethost |\
-		     egrep ^$targetip: | sed -n 1p | cut -d\  -f2)
+	if hash nodequery 2>/dev/null ; then
+	    targetip=$(nodequery --ip $targethost)
+	    targetname=$(iscsiadm -m discovery -t st -p $targethost |\
+			 egrep ^$targetip: | sed -n 1p | cut -d\  -f2)
+	else
+	    # hope it is the first/only IP we get back
+	    targetname=$(iscsiadm -m discovery -t st -p $targethost |\
+			 sed -n 1p | cut -d\  -f2)
+	    if [[ -n $targetname ]] ; then
+		    targetip=$(iscsiadm -m discovery -t st -p $targethost |\
+				 sed -n 1p | cut -d\  -f1)
+	    fi
+	fi
 	if [[ -z $targetname ]] ; then
 	    echo "Could not connect to SCSI target on $targethost." >&2
 	    return

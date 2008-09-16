@@ -403,6 +403,37 @@ int write_sgl_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	return 0;
 }
 
+int write_vec_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
+	      uint64_t len, uint64_t offset)
+{
+	int ret;
+	struct osd_command command;
+
+	osd_debug("****** WRITE VEC ******");
+	osd_debug("PID: %llu OID: %llu LEN: %llu", llu(pid), llu(oid), llu(len));
+
+	if (!buf) {
+		osd_error("%s: no data sent", __func__);
+		return 1;
+	}
+
+	/*setting the command is now a two stage process and not doing it
+	will default to contiguous buffer model*/
+	osd_command_set_write(&command, pid, oid, len, offset);
+
+	osd_command_set_ddt(&command, DDT_VEC);
+
+	command.outdata = buf;
+	command.outlen = len;
+
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
+	return 0;
+}
 
 int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	       uint64_t len)

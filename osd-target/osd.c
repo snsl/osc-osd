@@ -1672,7 +1672,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 
 	if (alloc_len == 0)
 		return OSD_OK;
-	else if (alloc_len != 0 && alloc_len < MIN_ML_LEN)
+	if (alloc_len < MIN_ML_LEN)
 		goto out_cdb_err;
 
 	ret = alloc_qc(&qc);
@@ -1683,6 +1683,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	if (ret != OSD_OK)
 		goto out_cdb_err;
 
+	memset(cp+8, 0, 4);  /* reserved area */
 	cp[12] = (0x21 << 2);
 	ret = attr_run_query(osd->db, cid, &qc, outdata, alloc_len, 
 			     used_outlen);

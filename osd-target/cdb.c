@@ -64,6 +64,7 @@ static int calc_max_out_len(struct command *cmd)
 	case OSD_LIST:
 	case OSD_LIST_COLLECTION:
 	case OSD_READ:
+	case OSD_QUERY:
 		cmd->outlen = ntohll(&cmd->cdb[32]);
 		break;
 	case OSD_SET_MASTER_KEY:

@@ -45,7 +45,7 @@
 
 /* OSD specific additional sense codes (ASC), defined in table 28 SPC3 r23.
  * OSD specific ASC from osd2 T10 r10 section 4, 5, 6, 7 */
-#define OSD_ASC_INVALID_COMMAND_OPERATION_CODE (0x2000)
+#define OSD_ASC_INVALID_COMMAND_OPCODE (0x2000)
 #define OSD_ASC_INVALID_DATA_OUT_BUF_INTEGRITY_CHK_VAL (0x260F)
 #define OSD_ASC_INVALID_FIELD_IN_CDB (0x2400)
 #define OSD_ASC_INVALID_FIELD_IN_PARAM_LIST (0x2600)

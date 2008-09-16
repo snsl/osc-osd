@@ -156,21 +156,22 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t i = 0;
 	uint8_t list_type;
 	uint8_t listfmt = RTRVD_SET_ATTR_LIST;
-	uint32_t list_len = ntohl(&cmd->cdb[52]); 
+	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]); 
+	uint32_t list_len = 0;
 	uint64_t list_off = ntohoffset_le(&cmd->cdb[56]);
 	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 	uint8_t *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
 	uint8_t *cp = NULL;
 
-	if (list_len == 0)
+	if (getattr_list_len == 0)
 		return 0; /* nothing to retrieve, osd2r00 Sec 5.2.2.3 */
 
 	if (!cmd->outdata)
 		goto out_param_list_err;
 	outbuf = &cmd->outdata[cmd->retrieved_attr_off];
 
-	if (list_len != 0 && list_len < MIN_LIST_LEN)
+	if (getattr_list_len != 0 && getattr_list_len < MIN_LIST_LEN)
 		goto out_param_list_err;
 
 	if (list_off + list_alloc_len > cmd->outlen)
@@ -184,15 +185,15 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		goto out_invalid_param_list;
 
 	list_len = ntohl(&list_hdr[4]);
+	if ((list_len + 8) != getattr_list_len)
+		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8 */
 		goto out_param_list_err;
 
 	if (numoid > 1)
 		listfmt = RTRVD_CREATE_ATTR_LIST;
 	outbuf[0] = listfmt; /* fill list header */
-	outbuf[1] = 0;
-	outbuf[2] = 0;
-	outbuf[3] = 0;
+	outbuf[1] = outbuf[2] = outbuf[3] = 0;
 
 	list_hdr += 8;
 	cp = outbuf + 8;
@@ -247,19 +248,16 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint64_t i = 0;
 	uint8_t list_type;
-	uint32_t page;
-	uint32_t number;
-	uint32_t len;
-	uint32_t pad;
 	uint8_t *cdb = cmd->cdb;
-	uint32_t list_len = ntohl(&cmd->cdb[68]);
+	uint32_t setattr_list_len = ntohl(&cmd->cdb[68]);
+	uint32_t list_len = 0;
 	uint32_t list_off = ntohoffset(&cmd->cdb[72]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 
-	if (list_len == 0)
+	if (setattr_list_len == 0)
 		return 0; /* nothing to set, osd2r00 Sec 5.2.2.3 */
 
-	if (list_len != 0 && list_len < MIN_LIST_LEN)
+	if (setattr_list_len != 0 && setattr_list_len < MIN_LIST_LEN)
 		goto out_param_list_err;
 
 	list_type = list_hdr[0] & 0xF;
@@ -267,14 +265,17 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		goto out_param_list_err;
 
 	list_len = ntohl(&list_hdr[4]); /* XXX: osd errata */
+	if ((list_len + 8) != setattr_list_len)
+		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8, values are padded */
 		goto out_param_list_err;
 
 	list_hdr = &list_hdr[8]; /* XXX: osd errata */
 	while (list_len > 0) {
-		page = ntohl(&list_hdr[0]);
-		number = ntohl(&list_hdr[4]);
-		len = ntohs(&list_hdr[8]);
+		uint32_t page = ntohl(&list_hdr[0]);
+		uint32_t number = ntohl(&list_hdr[4]);
+		uint32_t len = ntohs(&list_hdr[8]);
+		uint32_t pad = 0;
 
 		/* set attr on multiple objects if that is the case */
 		for (i = oid; i < oid+numoid; i++) {
@@ -717,6 +718,10 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		.senselen = 0,
 	};
 
+	/* check cdb opcode and length */
+	if (cdb[0] != CDB_OPCODE || cdb[7] != ADD_CDB_LEN)
+		goto out_opcode_err;
+
 	/* Sets retrieved_attr_off, outlen. */
 	ret = calc_max_out_len(&cmd);
 	if (ret < 0)
@@ -758,6 +763,12 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		}
 	}
 	goto out;
+
+out_opcode_err:
+	cmd.senselen = sense_header_build(cmd.sense, MAX_SENSE_LEN,
+					  OSD_SSK_ILLEGAL_REQUEST,
+					  OSD_ASC_INVALID_COMMAND_OPCODE, 0);
+	goto out_free_resource;
 
 out_cdb_err:
 	cmd.senselen = sense_header_build(cmd.sense, MAX_SENSE_LEN,

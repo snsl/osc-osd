@@ -1407,7 +1407,8 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = attr_delete_attr(osd->db, pid, oid, page, number);
 		if (ret != 0)
 			goto out_cdb_err;
-		return ret; /* success */
+		else 
+			goto out_success; 
 	}
 
 	ret = attr_set_attr(osd->db, pid, oid, page, number, val, len);
@@ -1417,6 +1418,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		return ret;
 	}
 
+out_success:
 	if (!isembedded)
 		fill_ccap(&osd->ccap, NULL, obj_type, pid, oid, 0);
 	return OSD_OK; /* success */

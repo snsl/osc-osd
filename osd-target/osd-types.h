@@ -10,6 +10,11 @@ struct object {
 	uint64_t oid;
 }; 
 
+struct getattr_list_entry {
+	uint32_t page;
+	uint32_t number;
+}__attribute__((packed));
+
 struct list_entry {
 	uint32_t page;
 	uint32_t number;

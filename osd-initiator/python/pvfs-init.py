@@ -4,7 +4,7 @@
 # script is used to build the fs.conf and start the OSDs.  It has a messy
 # command line, rather than trying to parse a fs.conf.
 #
-# Copyright (C) 2007 Pete Wyckoff <pw@osc.edu>
+# Copyright (C) 2007-8 Pete Wyckoff <pw@osc.edu>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -88,6 +88,16 @@ for d in drives:
 if not dev:
 	print >>sys.stderr, "Drive", devname, "not found."
 	sys.exit(1)
+
+# eat poweron attention with a tur
+command = OSDCommand().set_test_unit_ready()
+dev.submit_and_wait(command)
+if command.status != 0:
+	if not (command.status == 2 and \
+	   command.sense_key == OSD_SSK_UNIT_ATTENTION and \
+	   command.sense_code == OSD_ASC_POWER_ON_OCCURRED):
+		print "Command failed:", command.show_sense(),
+		assert 0 == 1
 
 # format
 run(OSDCommand().set_format_osd(1<<30))

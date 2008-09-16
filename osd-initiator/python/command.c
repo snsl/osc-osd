@@ -1,7 +1,7 @@
 /*
  * Commands.
  *
- * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
+ * Copyright (C) 2007-8 OSD Team <pvfs-osd@osc.edu>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -291,6 +291,26 @@ static PyObject *pyosd_command_attr_resolve(PyObject *self, PyObject *args)
 /*
  * One of these for each of the major set functions.
  */
+static PyObject *pyosd_command_set_test_unit_ready(PyObject *self,
+						   PyObject *args)
+{
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	unsigned int page_code = 0;
+
+	if (!PyArg_ParseTuple(args, "|I:test_unit_ready", &page_code))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	py_command->set = 1;
+	osd_command_set_test_unit_ready(command);
+	Py_IncRef(self);
+	return self;
+}
+
 static PyObject *pyosd_command_set_inquiry(PyObject *self, PyObject *args)
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
@@ -948,6 +968,8 @@ static PyObject *pyosd_command_set_fa(PyObject *self, PyObject *args)
 struct PyMethodDef pyosd_command_methods[] = {
 	{ "show_sense", pyosd_command_show_sense, METH_VARARGS,
 		"Generate a string of returned sense data." },
+	{ "set_test_unit_ready", pyosd_command_set_test_unit_ready,
+		METH_VARARGS, "Build the TUR command." },
 	{ "set_inquiry", pyosd_command_set_inquiry, METH_VARARGS,
 		"Build the INQURY command." },
 	{ "set_append", pyosd_command_set_append, METH_VARARGS,

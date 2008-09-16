@@ -1,7 +1,7 @@
 /*
  * Constants from #defines and enums.  Try to keep this list up to date.
  *
- * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
+ * Copyright (C) 2007-8 OSD Team <pvfs-osd@osc.edu>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@
 #include <Python.h>
 #include "osd-initiator/command.h"
 #include "osd-util/osd-defs.h"
+#include "osd-util/osd-sense.h"
 #include "pyosd.h"
 
 /*
@@ -130,6 +131,42 @@ int add_consts(PyObject *d)
 	add(UIAP_OID_LEN);
 	add(UIAP_USED_CAPACITY_LEN);
 	add(UIAP_LOGICAL_LEN_LEN);
+
+	/* selected sense keys and codes */
+	add(OSD_SSK_NO_SENSE);
+	add(OSD_SSK_RECOVERED_ERROR);
+	add(OSD_SSK_NOT_READY);
+	add(OSD_SSK_MEDIUM_ERROR);
+	add(OSD_SSK_HARDWARE_ERROR);
+	add(OSD_SSK_ILLEGAL_REQUEST);
+	add(OSD_SSK_UNIT_ATTENTION);
+	add(OSD_SSK_DATA_PROTECTION);
+	add(OSD_SSK_BLANK_CHECK);
+	add(OSD_SSK_VENDOR_SPECIFIC);
+	add(OSD_SSK_COPY_ABORTED);
+	add(OSD_SSK_ABORTED_COMMAND);
+	add(OSD_SSK_OBSOLETE_SENSE_KEY);
+	add(OSD_SSK_VOLUME_OVERFLOW);
+	add(OSD_SSK_MISCOMPARE);
+	add(OSD_SSK_RESERVED_SENSE_KEY);
+
+	add(OSD_ASC_INVALID_COMMAND_OPCODE);
+	add(OSD_ASC_INVALID_DATA_OUT_BUF_INTEGRITY_CHK_VAL);
+	add(OSD_ASC_INVALID_FIELD_IN_CDB);
+	add(OSD_ASC_INVALID_FIELD_IN_PARAM_LIST);
+	add(OSD_ASC_LOGICAL_UNIT_NOT_RDY_FRMT_IN_PRGRS);
+	add(OSD_ASC_NONCE_NOT_UNIQUE);
+	add(OSD_ASC_NONCE_TIMESTAMP_OUT_OF_RANGE);
+	add(OSD_ASC_POWER_ON_OCCURRED);
+	add(OSD_ASC_PARAMETER_LIST_LENGTH_ERROR);
+	add(OSD_ASC_PART_OR_COLL_CONTAINS_USER_OBJECTS);
+	add(OSD_ASC_READ_PAST_END_OF_USER_OBJECT);
+	add(OSD_ASC_RESERVATIONS_RELEASED);
+	add(OSD_ASC_QUOTA_ERROR);
+	add(OSD_ASC_SECURITY_AUDIT_VALUE_FROZEN);
+	add(OSD_ASC_SECURITY_WORKING_KEY_FROZEN);
+	add(OSD_ASC_SYSTEM_RESOURCE_FAILURE);
+
 	return ret;
 }
 

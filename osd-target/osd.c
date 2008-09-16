@@ -858,12 +858,81 @@ int osd_error_bad_cdb(uint8_t *sense)
 /*
  * Commands
  */
+
+/* 
+ * Sec 6.2 in osd2r01.pdf
+ * Doesn't appear to be an offset in APPEND's cdb, so I've set those to
+ * 0 for now.
+*/
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	       uint64_t len, const uint8_t *appenddata, uint8_t *sense)
 {
-	int ret;
-	osd_debug(__func__);
-	ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, pid, oid);
+	ssize_t readlen;
+	int ret, fd;
+	char path[MAXNAMELEN];
+	uint8_t *readdata, *writedata;
+	uint64_t outlen;
+
+	osd_debug("%s: pid %llu oid %llu len %llu data %p", __func__, llu(pid),
+		  llu(oid), llu(len), appendata);
+
+	if (osd == NULL || osd->root == NULL || appenddata == NULL)
+		goto out_cdb_err;
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDONLY|O_LARGEFILE);
+	if (fd < 0)
+		goto out_cdb_err;
+	
+	/*
+	 * How much should we read in (3rd parameter of pread())? Don't think 
+	 * the user specifies in APPEND. Is there a way to grab the 
+	 * object length that we're appending to, perhaps from SQL (or else-
+	 * where)?
+	 */
+	readlen = pread(fd, readdata, 100, 0);
+	if (readlen < 0) {
+		close(fd);
+		goto out_hw_err;
+	}
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	/* Combine the read in data and the data to append */
+	/* XXX: Can't think of a way to do what I want to do:
+	 * take the array in readdata and append it to the
+	 * end of writedata; this doesn't work.  */
+	writedata = readdata;
+	(writedata + readlen) = appenddata;
+	outlen = len + readlen;
+	
+	/* Now write to the object with writedata */
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE);
+	if (fd < 0)
+		goto out_cdb_err;
+	
+	ret = pwrite(fd, writedata, sizeof(writedata), 0);
+	if (ret < 0 || (uint64_t)ret != outlen)
+		goto out_hw_err;
+	ret = close(fd);	
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 }
 

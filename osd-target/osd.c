@@ -371,18 +371,16 @@ static int get_ccap_aslist(struct osd_device *osd, uint32_t number,
 	return OSD_OK;
 }
 
-static inline int set_hton_time(uint8_t *dest, time_t t, time_t tnsec)
+static inline int set_hton_time(uint8_t *dest, time_t sec, time_t nsec)
 {
 	/* millisec; osd2r00 sec 7.1.2.8 clock description */
-	time_t time = t*1e3 + tnsec/1e6;
+	uint64_t time = sec*1000 + nsec/1000000;
 
 	/* only have 48 bits. bits in 48-63 will be lost */
 	if ((time & (0xFFFFULL << 48)) != 0)
 		return OSD_ERROR;
 
-	time = time << 16;
-	set_htonll_le((uint8_t *)&time, time);
-	memcpy(dest, &time, TIME_SZ);
+	set_htontime(dest, time);
 	return OSD_OK;
 }
 
@@ -495,20 +493,14 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = stat(path, &sb);
 		if (ret != 0)
 			return OSD_ERROR;
-		if (number == UTSAP_CTIME) {
-			len = UTSAP_CTIME_LEN;
-			time = sb.st_ctime*1e3 + sb.st_ctim.tv_nsec/1e6;
-		} else if (number == UTSAP_DATA_ATIME) {
-			len = UTSAP_DATA_ATIME_LEN;
-			time = sb.st_atime*1e3 + sb.st_atim.tv_nsec/1e6;
-		} else {
-			len = UTSAP_DATA_MTIME_LEN;
-			time = sb.st_mtime*1e3 + sb.st_mtim.tv_nsec/1e6;
-		}
-		if ((time & (0xFFFFULL << 48)) != 0)
-			return OSD_ERROR;
-		time = time << 16;
+		len = 6;
 		val = &time;
+		if (number == UTSAP_CTIME)
+			set_hton_time(val, sb.st_ctime, sb.st_ctim.tv_nsec);
+		else if (number == UTSAP_DATA_ATIME)
+			set_hton_time(val, sb.st_atime, sb.st_atim.tv_nsec);
+		else
+			set_hton_time(val, sb.st_mtime, sb.st_mtim.tv_nsec);
 		break;
 	case UTSAP_ATTR_ATIME:
 	case UTSAP_ATTR_MTIME:
@@ -517,17 +509,12 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = stat(path, &sb);
 		if (ret != 0)
 			return OSD_ERROR;
-		if (number == UTSAP_ATTR_ATIME) {
-			len = UTSAP_ATTR_ATIME_LEN;
-			time = sb.st_atime*1e3 + sb.st_atim.tv_nsec/1e6;
-		} else {
-			len = UTSAP_ATTR_MTIME_LEN;
-			time = sb.st_mtime*1e3 + sb.st_mtim.tv_nsec/1e6;
-		}
-		if ((time & (0xFFFFULL << 48)) != 0)
-			return OSD_ERROR;
-		time = time << 16;
+		len = 6;
 		val = &time;
+		if (number == UTSAP_ATTR_ATIME)
+			set_hton_time(val, sb.st_atime, sb.st_atim.tv_nsec);
+		else
+			set_hton_time(val, sb.st_mtime, sb.st_mtim.tv_nsec);
 		break;
 	default:
 		return OSD_ERROR;

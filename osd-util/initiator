@@ -111,8 +111,12 @@ if ! pgrep iscsid > /dev/null ; then
 	# automake initiator file
 	f=$(readlink /etc/iscsi/initiatorname.iscsi)
 	if [[ ! -f $f ]] ; then
-	    ( echo InitiatorName=$NODENAME
-	      echo InitiatorAlias=$NODENAME ) > $f
+	    d=$(dirname $f)
+	    if [[ ! -d $d ]] ; then
+		mkdir -p $d || exit 1
+	    fi
+	    n=$(hostname -s)
+	    ( echo InitiatorName=$n ; echo InitiatorAlias=$n ) > $f || exit 1
 	fi
     fi
     service iscsid start

@@ -15,7 +15,7 @@ LIBS := -lcrypto -lsqlite3 -laio
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -g
+COPTS := -g -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs

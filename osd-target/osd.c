@@ -445,42 +445,60 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	return 0;
 }
 
+/*
+ * @offset: offset from byte zero of the object where data will be read
+ * @len: length of data to be read
+ * @doutbuf: pointer to pointer start of the data-out-buffer: destination 
+ * 	of read
+ */
 
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
-	     uint64_t offset, uint8_t **data, uint64_t *outlen, uint8_t *sense)
+	     uint64_t offset, uint8_t **doutbuf, uint64_t *outlen, 
+	     uint8_t *sense)
 {
-	const char result[] = "Falls mainly in the plain";
-	int ret;
-	uint8_t *v;
+	int ret = 0;
+	int fd = 0;
+	char path[MAXNAMELEN];
+	void *buf = NULL;
 
 	debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
 	      llu(pid), llu(oid), llu(len), llu(offset));
-	if (pid == 16) {
-		/* 
-		 * Testing read of non-existent object.  Return the appropriate
-		 * error.
-		 */
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
-		                        pid, oid);
-		return ret;
-	}
+	
+	if (osd == NULL || osd->root == NULL || doutbuf == NULL || 
+	    outlen == NULL)
+		goto out_cdb_err;
+	
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
 
-	v = malloc(len);
-	if (!v) {
-		error("%s: malloc %llu bytes", __func__, llu(len));
-		/* actually -ENOMEM, but do not know what better to return */
-		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
-		                        pid, oid);
-		return ret;
-	}
-	memset(v, 0, len);
-	if (len > strlen(result))
-		len = strlen(result);
-	memcpy(v, result, len);
-	v[len-1] = '\0';
-	*data = v;
+	buf = Malloc(len); /* freed in iSCSI layer */
+	ret = pread(fd, buf, len, offset);
+	if (ret < 0 || (uint64_t)ret != len)
+		goto out_hw_err;
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
 	*outlen = len;
-	return 0;
+	*doutbuf = buf;
+	return 0; /* success */
+
+out_hw_err:
+	if (buf)
+		free(buf); /* error, hence free here itself */
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	if (buf)
+		free(buf); /* error, hence free here itself */
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
 }
 
 
@@ -667,11 +685,52 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 }
 
 
+/*
+ * TODO: We did not implement length as an attribute in attr table, hence
+ * relying on underlying ext3 fs to get length of the object. Also since we
+ * are not implementing quotas, we ignore maximum length attribute of an
+ * object and the partition which stores the object.
+ * 
+ * @offset: offset from byte zero of the object where data will be written
+ * @len: length of data to be written
+ * @dinbuf: pointer to start of the Data-in-buffer: source of data
+ */
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
-	      uint64_t offset, const uint8_t *data, uint8_t *sense)
+	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense)
 {
+	int ret = 0;
+	int fd = 0;
+	char path[MAXNAMELEN];
+
 	debug("%s: pid %llu oid %llu len %llu offset %llu data %p", __func__,
-	      llu(pid), llu(oid), llu(len), llu(offset), data);
-	return 0;
+	      llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
+
+	if (osd == NULL || osd->root == NULL || dinbuf == NULL)
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err; 
+
+	ret = pwrite(fd, dinbuf, len, offset);
+	if (ret < 0 || (uint64_t)ret != len)
+		goto out_hw_err;
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	return 0; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
 }
 

@@ -15,6 +15,7 @@
 void test_osd_create(struct osd_device *osd);
 void test_osd_set_attributes(struct osd_device *osd);
 void test_osd_format(struct osd_device *osd);
+void test_osd_read_write(struct osd_device *osd);
 
 void test_osd_create(struct osd_device *osd)
 {
@@ -47,9 +48,9 @@ void test_osd_set_attributes(struct osd_device *osd)
 	void *sense = Calloc(1, 1024);
 	void *val = Calloc(1, 1024);
 
-	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0, sense);
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
 	if (ret != 0)
-		error_errno("USEROBJECT_PID_LB, USEROBJECT_PID_LB, 0 failed");
+		error_errno("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0 failed");
 
 	ret = osd_set_attributes(osd, ROOT_PID, ROOT_OID, 0, 0, 
 				 NULL, 0, sense);
@@ -82,9 +83,9 @@ void test_osd_set_attributes(struct osd_device *osd)
 	if (ret != 0)
 		error_errno("osd_set_attributes failed for mad dix");
 
-	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_PID_LB, sense);
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	if (ret != 0)
-		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_PID_LB");
+		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
 
 	free(sense);
 	free(val);
@@ -102,6 +103,42 @@ void test_osd_format(struct osd_device *osd)
 	free(sense);
 }
 
+void test_osd_read_write(struct osd_device *osd)
+{
+	int ret = 0;
+	void *sense = Calloc(1, 1024);
+	void *mybuf = Calloc(1, 256);
+	void *buf = NULL;
+	uint64_t len = 0;
+
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	if (ret != 0)
+		error_errno("USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0 failed");
+
+	sprintf(mybuf, "Hello World! Get life\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
+			strlen(mybuf)+1, 0, mybuf, sense);
+	if (ret != 0)
+		error_errno("osd_write failed ret %d", ret);
+
+	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
+		       strlen(mybuf)+1, 0, (uint8_t **)&buf, &len, sense);
+	if (ret != 0)
+		error_errno("osd_read failed ret %d", ret);
+	debug("osd_read len %llu buf: %s", llu(len), (char *)buf);
+	if (strcmp(buf, mybuf))
+		error_fatal("buf and mybuf differ!");
+	if (buf)
+		free(buf);
+
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
+	if (ret != 0)
+		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+
+	free(sense);
+	free(mybuf);
+}
+
 int main()
 {
 	int ret = 0;
@@ -114,7 +151,8 @@ int main()
 
 	/*test_osd_create(&osd);*/
 	/*test_osd_set_attributes(&osd);*/
-	test_osd_format(&osd);
+	/*test_osd_format(&osd);*/
+	test_osd_read_write(&osd);
 
 	ret = osd_close(&osd);
 	if (ret != 0)

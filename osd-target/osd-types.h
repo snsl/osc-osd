@@ -41,14 +41,15 @@ enum {
 };
 
 #define MIN_LIST_LEN (8) /* XXX: osd-errata */
+#define LIST_LEN_UB (0xFFFEU)
 #define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
 #define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
 
 /* osd2r00 Section 7.1.3.1 tab 127 */
 enum {
-	RTRV_ATTR_LIST = 0x1,
-	RTRVD_SET_ATTR_LIST = 0x9,
-	RTRVD_CREATE_ATTR_LIST = 0xF
+	RTRV_ATTR_LIST = 0x01,
+	RTRVD_SET_ATTR_LIST = 0x09,
+	RTRVD_CREATE_ATTR_LIST = 0x0F
 };
 
 /*

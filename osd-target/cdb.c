@@ -95,18 +95,27 @@ static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint8_t *cdb = cmd->cdb;
 	uint32_t page = ntohl(&cmd->cdb[52]);
 	uint32_t alloc_len = ntohl(&cdb[56]); 
-	void *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
+	void *outbuf = NULL;
+	
 
 	if (page == 0 || alloc_len == 0)/* nothing to be retrieved. osd2r00 */
 		return 0;	   	/* Sec 5.2.2.2 */ 
 
-	if (page != CUR_CMD_ATTR_PG && numoid > 1)
-		return -1; /* TODO: proper error code */
+	if (numoid > 1 && page != CUR_CMD_ATTR_PG)
+		goto out_param_list_err;
 
-	ret = osd_getattr_page(cmd->osd, pid, oid, page, outbuf, alloc_len,
-			       isembedded, &cmd->get_used_outlen,
-			       cmd->sense);
-	return ret;
+	if (!cmd->outdata)
+		goto out_param_list_err;
+
+	outbuf = &cmd->outdata[cmd->retrieved_attr_off];
+	return osd_getattr_page(cmd->osd, pid, oid, page, outbuf, alloc_len,
+				isembedded, &cmd->get_used_outlen,
+				cmd->sense);
+
+out_param_list_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
+				 oid);
 }
 
 static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
@@ -156,6 +165,10 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	if (list_len == 0)
 		return 0; /* nothing to retrieve, osd2r00 Sec 5.2.2.3 */
+
+	if (!cmd->outdata)
+		goto out_param_list_err;
+	outbuf = &cmd->outdata[cmd->retrieved_attr_off];
 
 	if (list_len != 0 && list_len < MIN_LIST_LEN)
 		goto out_param_list_err;
@@ -212,16 +225,14 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	return 0; /* success */
 
 out_param_list_err:
-	cmd->senselen = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
-					  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
-					  pid, oid);
-	return cmd->senselen; 
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
+				 oid);
 
 out_invalid_param_list:
-	cmd->senselen = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
-					  OSD_ASC_INVALID_FIELD_IN_PARAM_LIST,
-					  pid, oid);
-	return cmd->senselen;
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_PARAM_LIST, pid,
+				 oid);
 }
 
 /*
@@ -390,8 +401,8 @@ static int cdb_create(struct command *cmd)
 
 out_remove_obj:
 	for (i = oid; i < oid+numoid; i++)
-		osd_remove(cmd->osd, pid, i, local_sense); /* ignore ret */
-	return ret;
+		osd_remove(cmd->osd, pid, i, local_sense); 
+	return ret; /* preserve ret */
 
 out_cdb_err:
 	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -449,6 +460,27 @@ static int cdb_remove_partition(struct command *cmd)
 		return ret;
 
 	return osd_remove_partition(cmd->osd, pid, cmd->sense);
+}
+
+/*
+ * returns:
+ * ==0: on success
+ *  >0: on failure
+ */
+static int cdb_remove(struct command *cmd)
+{
+	int ret = 0;
+	uint64_t pid = ntohll(&cmd->cdb[16]);
+	uint64_t oid = ntohll(&cmd->cdb[24]);
+
+	ret = set_attributes(cmd, pid, oid, 1);
+	if (ret != 0)
+		return ret;
+	ret = get_attributes(cmd, pid, oid, 1);
+	if (ret != 0)
+		return ret;
+
+	return osd_remove(cmd->osd, pid, oid, cmd->sense);
 }
 
 static void exec_service_action(struct command *cmd)
@@ -584,9 +616,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_REMOVE: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
-		ret = osd_remove(osd, pid, oid, sense);
+		ret = cdb_remove(cmd);
 		break;
 	}
 	case OSD_REMOVE_COLLECTION: {

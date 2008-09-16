@@ -1029,8 +1029,10 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert (ret == -ENOENT || ret == -EIO || ret == -EINVAL || 
 		ret == OSD_ERROR || ret == OSD_OK);
 
+	if (ret == -EIO || ret == -EINVAL || ret == OSD_ERROR)
+		goto out_param_list;
+
 	if (ret == -ENOENT) {
-		/* TODO: BUG IN STANDARD */
 		if (listfmt == RTRVD_CREATE_ATTR_LIST)
 			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
 						    page, number,
@@ -1047,9 +1049,6 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		else
 			goto out_param_list;
 	}
-
-	if (ret == -EIO || ret == -EINVAL || ret == OSD_ERROR)
-		goto out_param_list;
 
 	return OSD_OK; /* success */
 

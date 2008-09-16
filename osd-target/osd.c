@@ -603,7 +603,7 @@ int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 			 const uint8_t *data, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -611,7 +611,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 			  uint64_t requested_cid, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
@@ -661,7 +661,7 @@ int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	      int flush_scope, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -669,14 +669,14 @@ int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                          int flush_scope, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
 int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -684,7 +684,7 @@ int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
                         uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 /*
@@ -839,7 +839,7 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -848,7 +848,7 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 	     uint64_t *outlen, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -858,7 +858,7 @@ int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 			uint64_t *outlen, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -866,7 +866,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      uint32_t query_len, uint64_t alloc_len, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 /*
@@ -985,7 +985,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                           uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -993,7 +993,7 @@ int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -1129,7 +1129,7 @@ int osd_set_key(struct osd_device *osd, int key_to_set, uint64_t pid,
 		uint64_t key, uint8_t seed[20], uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -1138,7 +1138,7 @@ int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
 		       uint8_t *outdata, uint64_t *outlen, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 
@@ -1146,7 +1146,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense)
 {
 	osd_debug(__func__);
-	return 0;
+	return osd_error_unimplemented(0, sense);
 }
 
 

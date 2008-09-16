@@ -1262,6 +1262,92 @@ out_cdb_err:
 /*
  * XXX: get/set attributes to be handled in cdb.c
  */
+
+int osd_copy_user_objects(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
+			  uint64_t source_pid, uint64_t source_oid, int cpy_atr, 
+			  uint8_t dupl_method, uint32_t cdb_cont_len, uint8_t *sense)
+{
+        int ret = 0;
+	uint64_t oid = 0;
+	int present = 0;
+
+	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid),
+		  llu(requested_oid));
+	
+	if (pid == 0 || pid < COLLECTION_PID_LB)
+	          goto out_cdb_err;
+
+	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB)
+	          goto out_cdb_err;
+	
+	if (cdb_cont_len == 0)
+	          goto out_cdb_err;
+
+	/* verify that source_pid & source_oid exist */
+	ret = obj_ispresent(osd->dbc, source_pid, PARTITION_OID, &present);
+	if (ret != OSD_OK || !present)
+		goto out_cdb_err;
+
+	ret = obj_ispresent(osd->dbc, source_pid, source_oid, &present);
+	if (ret != OSD_OK || !present)
+		goto out_cdb_err;
+
+	/* verify that destination_pid exists */
+	ret = obj_ispresent(osd->dbc, pid, PARTITION_OID, &present);
+	if (ret != OSD_OK || !present)
+	        goto out_cdb_err;
+
+	if (requested_oid == 0) {
+	        if (osd->ic.cur_pid == pid) { /* cache hit */
+		        oid = osd->ic.next_id;
+			osd->ic.next_id++;
+		} else {
+			ret = obj_get_nextoid(osd->dbc, pid, &oid);
+			if (ret != 0)
+				goto out_hw_err;
+			osd->ic.cur_pid = pid;
+			osd->ic.next_id = oid + 1;
+		}
+		if (oid == 1) {
+			oid = USEROBJECT_OID_LB; /* first oid in partition */
+			osd->ic.next_id = oid + 1;
+		}  
+	} else {
+	        ret = obj_ispresent(osd->dbc, pid, requested_oid, &present);
+		if (ret != OSD_OK || present)
+			goto out_cdb_err; /* requested_oid exists! */
+		oid = requested_oid; /* requested_oid works! */
+
+		/*XXX: invalidate cache */
+		osd->ic.cur_pid = osd->ic.next_id = 0;
+	}
+ 
+	if (dupl_method == DEFAULT){
+	        /* call function to copy userobject data from source object in source partition 
+		   to destination object in destination partition */
+	}
+	if (cpy_atr == 1){
+	        /* call function to copy attribute data from source object in source partition 
+		   to destination object in destination partition */
+	}
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);	
+	return OSD_OK; /* success */
+
+
+out_cdb_err:
+	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			       OSD_ASC_INVALID_FIELD_IN_CDB,
+			       pid, requested_oid);
+out_hw_err:
+	osd->ic.cur_pid = osd->ic.next_id = 0; /* invalidate cache */
+	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			       OSD_ASC_INVALID_FIELD_IN_CDB,
+			       pid, requested_oid);
+  
+        return ret;
+}
+
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t numoid, uint32_t cdb_cont_len, uint8_t *sense)
 {
@@ -1278,7 +1364,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 
 	if (pid == 0 || pid < USEROBJECT_PID_LB)
 		goto out_illegal_req;
-
+                
 	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB)
 		goto out_illegal_req;
 
@@ -1521,7 +1607,7 @@ static inline int is_linked_coll(uint64_t source_cid)
 
 static inline int is_tracking_coll(uint64_t source_cid)
 {
-  return source_cid = 0x1082;
+        return source_cid = 0x1082;
 }
 
 static inline int is_spontaneous_coll(uint64_t source_cid)

@@ -561,6 +561,42 @@ out_cdb_err:
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 }
 
+static int cdb_copy_user_objects(struct command*cmd, uint32_t cdb_cont_len)
+{
+        int ret = 0;							
+	int cpy_atr = 0, pad_len = 0;
+	uint16_t descriptor_type = 0;
+	uint32_t cdb_descriptor_len = 0;
+	uint8_t dupl_method = cmd->cdb[16];
+	uint64_t destination_pid = get_ntohll(&cmd->cdb[16]);
+	uint64_t requested_oid = get_ntohll(&cmd->cdb[24]);
+	uint64_t source_pid;
+	uint64_t source_oid;
+	
+	
+	descriptor_type = get_ntohs(&cmd->cdb[48]);
+	pad_len = cmd->cdb[51] & 7;
+	cdb_descriptor_len = get_ntohl(&cmd->cdb[52]);
+	source_pid = get_ntohll(&cmd->cdb[56]);
+	source_oid = get_ntohll(&cmd->cdb[64]);
+	cpy_atr = cmd->cdb[72] & 1;
+	
+	if (descriptor_type != 0x0101)
+	        goto out_cdb_err;
+	if (pad_len != 0)
+	        goto out_cdb_err;
+	if (cdb_descriptor_len != 18)
+	        goto out_cdb_err;
+
+	ret = osd_copy_user_objects(cmd->osd, destination_pid, requested_oid, source_pid, source_oid, 
+				    cpy_atr, dupl_method, cdb_cont_len, cmd->sense);
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, destination_pid,
+				requested_oid);
+	return ret;
+}
+
 /*
  * returns:
  * ==0: success
@@ -1289,6 +1325,11 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 
+	case OSD_COPY_USER_OBJECTS: {
+		ret = cdb_copy_user_objects(cmd, cdb_cont_len);
+		break;
+	}
+
 	case OSD_CREATE: {
 	        ret = cdb_create(cmd, cdb_cont_len);
 		break;
@@ -1308,7 +1349,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {
-	  ret = cdb_create_collection(cmd, cdb_cont_len);
+	        ret = cdb_create_collection(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_CREATE_PARTITION: {

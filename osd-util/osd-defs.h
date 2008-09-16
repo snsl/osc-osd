@@ -113,6 +113,23 @@
 #define LINKED_COLLECTION_OID_LB OBJECT_PID_LB
 
 
+/* CDB continuation descriptors, osd2r04 sec 5.4.1 */
+#define NO_MORE_DESCRIPTORS 0x0000
+#define SCATTER_GATHER_LIST 0x0001
+#define QUERY_LIST 0x0002
+#define USER_OBJECT 0x0001
+#define COPY_USER_OBJECT_SOURCE 0x0101
+#define EXTENSION_CAPABILITIES 0xFFEE
+
+/* object duplication methods, osd2r04 sec 4.13.3 */
+#define DEFAULT 0x00
+#define SPACE_EFFICIENT 0x01
+#define PRE_ALLOCATED 0x41
+#define BYTE_BY_BYTE 0x81
+#define FASTER_COPY 0xFD
+#define HIGHER_DATA 0xFE
+#define DO_NOT_CARE 0xFF
+
 /* object types, osd2r00 section 4.9.2.2.1 table 9 */
 enum {
 	ROOT = 0x01,

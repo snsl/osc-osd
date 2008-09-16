@@ -3138,7 +3138,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 				    swap_len);
 		if (ret != OSD_OK)
 			goto out_hw_err;
-	} else if ((swap_len == 0 && swap != NULL) &&
+	} else if ((swap_len == 0 && swap == NULL) &&
 		   (valen == cmp_len && memcmp(cmp, val, valen) == 0)) {
 		ret = attr_delete_attr(osd->dbc, pid, oid, page, number);
 		if (ret != OSD_OK)

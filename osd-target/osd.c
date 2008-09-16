@@ -258,7 +258,7 @@ static inline void get_dfile_name(char *path, const char *root,
 {
 #ifdef PVFS_OSD_INTEGRATED
 	/* go look in PVFS bstreams for file data (eventually) */
-	sprintf(path, "%s/%08llx/bstream/%.8llu/%08llx.bstream", root,
+	sprintf(path, "%s/%08llx/bstreams/%.8llu/%08llx.bstream", root,
 	        llu(pid), llu(oid % 64), llu(oid));
 	printf("root = %s collid = 0x%llx\n", root, llu(pid));
 #else

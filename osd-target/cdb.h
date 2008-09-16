@@ -19,6 +19,8 @@
 #define __CDB_H
 
 /* module interface */
+struct osd_device;
+
 struct osd_device *osd_device_alloc(void);
 void osd_device_free(struct osd_device *osd);
 int osd_open(const char *root, struct osd_device *osd);

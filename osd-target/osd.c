@@ -1526,7 +1526,7 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 	root = strdup(osd->root);
 
 	get_dbname(path, root);
-	if(stat(path, &sb) != 0) {
+	if (stat(path, &sb) != 0) {
 		osd_error_errno("%s: DB %s does not exist, creating it",
 				__func__, path);
 		goto create;

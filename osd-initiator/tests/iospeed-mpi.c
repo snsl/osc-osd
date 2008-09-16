@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
 	}
 
 	i = 0;
-	osd_debug("%s: drive %s name %s", progname, drives[i].chardev,
+	osd_debug("%s: drive %s name %s", osd_get_progname(), drives[i].chardev,
 		  drives[i].targetname);
 	fd = open(drives[i].chardev, O_RDWR);
 	if (fd < 0) {

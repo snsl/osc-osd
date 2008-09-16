@@ -75,6 +75,7 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	double mhz = get_mhz();
 	double time = 0.0;
 	double max_time = 0.0;
+	double min_time = 0.0;
 	double mu, sd, total;
 	double *b = NULL;
 	void *buf = NULL;
@@ -142,10 +143,17 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		if (ret != MPI_SUCCESS) {
 			printf("MPI ERROR\n");
 		}
+
+		ret = MPI_Reduce(&time, &min_time, 1, MPI_DOUBLE, MPI_MIN,
+				0, MPI_COMM_WORLD);
+		if (ret != MPI_SUCCESS) {
+			printf("MPI ERROR\n");
+		}
 		if (rank == 0) {
 			total_size = sz * iters * numproc; /*total bytes moved*/
-			printf("read %d %3lu %7.3lf\n", numproc, sz>>10,
-				total_size/max_time);
+			printf("read %d %3lu %7.3lf --- Discrep %f\n",
+				numproc, sz>>10, total_size/max_time,
+				max_time - min_time);
 		}
 	#else
 		mu = mean(b, iters);
@@ -175,6 +183,7 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 	double mhz = get_mhz();
 	double time = 0.0;
 	double max_time = 0.0;
+	double min_time = 0.0;
 	double mu, sd;
 	double *b = NULL;
 	void *buf = NULL;
@@ -235,10 +244,16 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		if (ret != MPI_SUCCESS) {
 			printf("MPI ERROR\n");
 		}
+		ret = MPI_Reduce(&time, &min_time, 1, MPI_DOUBLE, MPI_MIN,
+				0, MPI_COMM_WORLD);
+		if (ret != MPI_SUCCESS) {
+			printf("MPI ERROR\n");
+		}
 		if (rank == 0) {
 			total_size = sz * iters * numproc; /*total bytes moved*/
-			printf("read %d %3lu %7.3lf\n", numproc, sz>>10,
-				total_size/max_time);
+			printf("write %d %3lu %7.3lf --- Discrep %f\n",
+				numproc, sz>>10, total_size/max_time,
+				max_time - min_time);
 		}
 	#else
 

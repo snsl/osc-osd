@@ -23,6 +23,7 @@ import os
 import sys
 import pwd
 import csv
+import socket
 
 # defaults
 options = {
@@ -38,11 +39,15 @@ options = {
     "rdma": "no",
 }
 
+# hostname
+host = socket.gethostname()
 # locations of external codes
 id = pwd.getpwuid(os.getuid())[0]
 
 if id == "pw":
     osd_dir = "/home/pw/src/osd"
+elif id == "alin":
+    osd_dir = "/home/alin/research/osd"
 elif id == "ananth":
     osd_dir = "/home/ananth/osd"
 else:
@@ -583,8 +588,11 @@ def start():
     # append "-ib" to the osdnodes. we probably need a new option here so that
     # we append "-ib" to the nodes only if we'e using IB.
     if options["rdma"] == "yes":
-	myibosdnodes = [ n + "-ib" for n in myosdnodes ]
 	startcmd = "start --rdma"
+	if host.rfind("opt") == -1:
+	    myibosdnodes = [ n + "-ib" for n in myosdnodes ]
+	else:
+	    myibosdnodes = [ n.replace('opt', 'opt-ib-') for n in myosdnodes ]
     else:
 	myibosdnodes = myosdnodes
 	startcmd = "start"

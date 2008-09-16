@@ -26,6 +26,7 @@
 
 /* varlen cdb service actions for osd2r01 */
 #define OSD_APPEND			0x8887
+#define OSD_CLEAR                       0x8889
 #define OSD_CREATE			0x8882
 #define OSD_CREATE_AND_WRITE		0x8892
 #define OSD_CREATE_COLLECTION		0x8895
@@ -41,6 +42,7 @@
 #define OSD_LIST_COLLECTION		0x8897
 #define OSD_PERFORM_SCSI_COMMAND	0x8f7c
 #define OSD_PERFORM_TASK_MGMT_FUNC	0x8f7d
+#define OSD_PUNCH                       0x8884
 #define OSD_QUERY			0x88a0
 #define OSD_READ			0x8885
 #define OSD_REMOVE			0x888a
@@ -54,7 +56,7 @@
 #define OSD_WRITE			0x8886
 
 /* custom definitions */
-#define OSD_CAS				0x8889
+#define OSD_CAS				0x8880
 #define OSD_FA				0x8890
 #define OSD_COND_SETATTR		0x8891
 #define OSD_GEN_CAS			0x88a5

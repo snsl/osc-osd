@@ -1198,6 +1198,74 @@ static int osd_init_attr(struct osd_device *osd, uint64_t pid, uint64_t oid)
 	return OSD_OK;
 }
 
+
+static int contig_clear(struct osd_device *osd, uint64_t pid, uint64_t oid,
+			uint64_t len, uint64_t offset, uint8_t *sense)
+{
+	int ret;
+	int fd;
+	char path[MAXNAMELEN];
+	char *dinbuf;
+	dinbuf = calloc(len, sizeof(char));
+
+	if (dinbuf == NULL)
+	        goto out_hw_err;
+
+	osd_debug("%s: pid %llu oid %llu len %llu offset %llu",
+		  __func__, llu(pid), llu(oid), llu(len), llu(offset));
+
+	assert(osd && osd->root && osd->dbc && sense);
+	  
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+	        goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+	ret = pwrite(fd, dinbuf, len, offset);
+
+	if (ret < 0 || (uint64_t)ret != len)
+		goto out_hw_err;
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	free(dinbuf);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+		     OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	if(fd > 0)
+	  {
+	    close(fd);
+	  }
+	free(dinbuf);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+		     OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	if(fd > 0)
+	  {
+	    close(fd);
+	  }
+	free(dinbuf);
+	return ret;
+
+}
+
+
+int osd_clear(struct osd_device *osd, uint64_t pid, uint64_t oid,
+              uint64_t len, uint64_t offset, uint8_t *sense)
+{
+      	return contig_clear(osd, pid, oid, len, offset, sense);
+}
+
+
 /*
  * XXX: get/set attributes to be handled in cdb.c
  */
@@ -2067,6 +2135,145 @@ out_hw_err:
 	return ret;
 }
 
+int osd_punch(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	      uint64_t offset, uint8_t *sense)
+{
+	struct stat sb;       
+        ssize_t readlen;
+        int ret,fd;
+	uint64_t new_offset,new_len;
+	char path[MAXNAMELEN];
+	char *buf = NULL;
+       
+        osd_debug("%s: pid %llu oid %llu len %llu offset %llu", __func__, llu(pid),
+                  llu(oid), llu(len), llu(offset));
+
+	assert(osd && osd->root && osd->dbc && sense);
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+	  {
+	    goto out_cdb_err;
+	  }
+	get_dfile_name(path, osd->root, pid, oid);
+	
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	
+	if (fd < 0)
+	  {
+	    goto out_cdb_err;
+
+	  }
+
+	new_offset = len + offset;	 
+	ret = stat(path, &sb);
+	
+	if(ret != 0)
+	  {
+	    close(fd);
+	    return OSD_ERROR;
+	  }
+	
+	/* Handling Illegal Operation */
+	if(offset > (uint64_t)sb.st_size)
+	  {
+	    goto out_cdb_err; 
+	  }
+
+	/* Handling Special Case */
+	if(offset < (uint64_t)sb.st_size && new_offset > (uint64_t)sb.st_size)
+	  {
+	    ret = truncate(path, offset);
+	    if (ret < 0)
+	      {
+		goto out_hw_err;
+	      }
+	    
+	    ret = close(fd);
+	    
+	    if (ret != 0)
+	      {
+		goto out_hw_err;
+	      }
+	    
+	    return OSD_OK;  /* success */
+	  }
+	
+	/* Regular Cases */
+	new_len = sb.st_size - new_offset;
+
+	buf = malloc(new_len);
+	
+	if(buf == NULL)
+	  {
+	    goto out_hw_err;
+	  }
+	
+	/* Read section following the bytes to be removed */
+	
+	readlen = pread(fd, buf, new_len, new_offset);
+	
+	if (readlen < 0) 
+	  {
+	    close(fd);
+	    goto out_hw_err;
+	  }
+	
+	/* Overwrite the bytes to be removed and concatenate to new length */
+	ret = pwrite(fd, buf, new_len, offset);
+	
+	if (ret < 0 || (uint64_t)ret != new_len)
+	  {
+	    goto out_hw_err;
+	  }
+	
+	ret = truncate(path, offset + new_len);
+	
+	if (ret < 0)
+	  {
+	    goto out_hw_err;
+	  }
+
+	ret = close(fd);
+	
+	if (ret != 0)
+	  {
+	    goto out_hw_err;
+	  }
+	
+	if (buf != NULL)
+	  {
+	    free(buf);
+	  }
+	
+	return OSD_OK;  /* success */
+	
+ out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	if(fd > 0)
+	  {
+	    close(fd);
+	  }
+	
+	free(buf);
+
+	return ret;
+	
+ out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	if(fd > 0)
+	  {
+	    close(fd);
+	  }
+
+	if(buf != NULL)
+	  {
+	    free(buf);
+	  }
+
+	return ret;
+}
 
 static inline int alloc_qc(struct query_criteria *qc)
 {

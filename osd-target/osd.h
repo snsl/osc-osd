@@ -41,6 +41,8 @@ int osd_end_txn(struct osd_device *osd);
  */
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	       uint64_t len, const uint8_t *data, uint8_t *sense, uint8_t ddt);
+int osd_clear(struct osd_device *osd, uint64_t pid, uint64_t oid,
+	      uint64_t len, uint64_t offset, uint8_t *sense);
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t num, uint8_t *sense);
 int osd_create_and_write(struct osd_device *osd, uint64_t pid,
@@ -77,6 +79,8 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 			uint64_t initial_oid, struct getattr_list *get_attr,
 			uint32_t list_id, uint8_t *outdata,
 			uint64_t *used_outlen, uint8_t *sense);
+int osd_punch(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	      uint64_t offset, uint8_t *sense);
 int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      uint32_t query_list_len, uint64_t alloc_len, const void *indata,
 	      void *outdata, uint64_t *used_outlen, uint8_t *sense);
@@ -102,7 +106,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, struct setattr_list *set_attr,
 			      uint8_t *sense);
 
-int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, 
+int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, 
 	      uint64_t len, uint64_t offset, const uint8_t *data, 
 	      uint8_t *sense, uint8_t ddt);
 

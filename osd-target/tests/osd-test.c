@@ -35,6 +35,22 @@
 #include "osd-util/osd-sense.h"
 #include "target-sense.h"
 
+static const char *dfiles = "dfiles";
+
+static inline void get_dfile_name(char *path, const char *root,
+				  uint64_t pid, uint64_t oid)
+{
+#ifdef PVFS_OSD_INTEGRATED
+	/* go look in PVFS bstreams for file data (eventually) */
+	sprintf(path, "%s/%08llx/bstreams/%.8llu/%08llx.bstream", root,
+	        llu(pid), llu(oid % 64), llu(oid));
+	printf("root = %s collid = 0x%llx\n", root, llu(pid));
+#else
+	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles,
+		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
+#endif
+}
+
 static void test_osd_create(struct osd_device *osd)
 {
 	int ret = 0;
@@ -70,6 +86,7 @@ static void test_osd_create(struct osd_device *osd)
 
 	free(sense);
 }
+
 
 static void test_osd_set_attributes(struct osd_device *osd)
 {
@@ -136,6 +153,136 @@ static void test_osd_format(struct osd_device *osd)
 
 	free(sense);
 }
+
+static void test_osd_clear(struct osd_device *osd)
+{
+        int ret = 0;
+	uint8_t *sense = Calloc(1, 1024);
+	uint64_t len;
+	void *wrbuf = Calloc(1, 256);
+	char path[MAXNAMELEN];
+	struct stat sb;
+		
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	assert(ret == 0);
+
+	sprintf(wrbuf, "Testing osd_clear command\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+    
+	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
+
+	ret = stat(path, &sb);
+	assert(ret == 0);
+	
+	/* Clear all */
+	ret = osd_clear(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf), 0, sense);
+	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+   	
+	/* Clear none */
+	ret = osd_clear(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+		        0, 0, sense);
+	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+
+	/* Clear len or offset > userlength */
+	ret = osd_clear(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+		        5, strlen(wrbuf)+1, sense);
+	assert(ret == 0);
+	ret=stat(path, &sb);
+	assert(ret == 0 && sb.st_size == strlen(wrbuf)+6);
+
+	free(sense);
+	free(wrbuf);
+   	
+}
+
+static void test_osd_punch(struct osd_device *osd)
+{
+        int ret = 0;
+	uint8_t *sense = Calloc(1, 1024);
+	void *wrbuf = Calloc(1, 256);
+	char path[MAXNAMELEN];
+	struct stat sb;
+	
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	assert(ret == 0);
+	
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	assert(ret == 0);
+
+	sprintf(wrbuf, "Testing osd_punch command\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+
+	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
+
+
+	/* Punch All */
+	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			27, 0, sense);
+	assert(ret == 0);
+	ret = stat(path, &sb);
+	assert(ret == 0 && sb.st_size == 0);
+
+
+	/* Illegal Punch */
+	sprintf(wrbuf, "Testing osd_punch command\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+	
+	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			1, 28, sense);
+	assert(ret != 0);
+	ret = stat(path, &sb);
+	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+
+
+	/* Punch with len=0 */
+
+	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			0, 0, sense);
+	assert(ret == 0);
+	ret = stat(path, &sb);
+	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+
+
+	/* Special Case */
+	sprintf(wrbuf, "Testing osd_punch command\n");
+	
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+
+	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf), strlen(wrbuf)-5, sense);
+	assert(ret == 0);
+	
+	ret = stat(path, &sb);
+	assert(ret == 0 && sb.st_size == strlen(wrbuf)-5);
+
+
+	/* Punch Regular */
+	sprintf(wrbuf, "Testing osd_punch command\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			strlen(wrbuf)+1, 0, wrbuf, sense, DDT_CONTIG);
+	assert(ret == 0);
+
+	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			8, 0, sense);
+	assert(ret == 0);
+	ret = stat(path, &sb);
+	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1-8);
+
+	free(sense);
+	free(wrbuf);
+}
+
 
 static void test_osd_io(struct osd_device *osd)
 {
@@ -993,19 +1140,22 @@ int main()
 	const char *root = "/tmp/osd/";
 	struct osd_device osd;
 
+        system("rm -rf /tmp/osd");
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
-
-	test_osd_format(&osd);
-	test_osd_create(&osd);
-	test_osd_set_attributes(&osd);
-	test_osd_io(&osd);
-	test_osd_create_partition(&osd);
-	test_osd_get_attributes(&osd);
-	test_osd_get_ccap(&osd);
-	test_osd_get_utsap(&osd);
-	test_osd_create_collection(&osd);
-	test_osd_query(&osd);
+	
+	test_osd_clear(&osd);
+/* 	test_osd_punch(&osd); */
+/* 	test_osd_format(&osd); */
+/* 	test_osd_create(&osd); */
+/* 	test_osd_set_attributes(&osd); */
+/* 	test_osd_io(&osd); */
+/* 	test_osd_create_partition(&osd); */
+/* 	test_osd_get_attributes(&osd); */
+/* 	test_osd_get_ccap(&osd); */
+/* 	test_osd_get_utsap(&osd); */
+/* 	test_osd_create_collection(&osd); */
+/* 	test_osd_query(&osd); */
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

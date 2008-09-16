@@ -735,12 +735,6 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 	cp = SQL;
 	sqlen = 0;
 
-#undef QUERY_TYPE
-#define QUERY_TYPE (1)
-
-#if QUERY_TYPE == 1
-	/* This query is fastest */
-
 	/* 
 	 * Build the query with place holders. SQLite does not support
 	 * sub-query grouping using parenthesis. Therefore membership of
@@ -838,75 +832,6 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 		goto out_finalize;
 	}
 
-#elif QUERY_TYPE == 2
-
-	/* build the SQL statment */
-	sprintf(select_stmt, "SELECT oc.oid FROM object_collection AS oc, "
-		" attr WHERE oc.cid = %llu AND oc.oid = attr.oid ", llu(cid));
-	sprintf(cp, select_stmt);
-	sqlen += strlen(cp);
-	cp += sqlen;
-	for (i = 0; i < qc->qc_cnt; i++) {
-		sprintf(cp, " AND attr.page = %u AND attr.number = %u ",
-			qc->page[i], qc->number[i]);
-		if (qc->min_len[i] > 0)
-			cp = strcat(cp, " AND ? <= attr.value ");
-		if (qc->max_len[i] > 0)
-			cp = strcat(cp, " AND attr.value <= ? ");
-		if ((i+1) < qc->qc_cnt) {
-			cp = strcat(cp, op);
-			cp = strcat(cp, select_stmt);
-		}
-		sqlen += strlen(cp);
-
-		if (sqlen >= (MAXSQLEN*factor - 400)) {
-			factor *= 2;
-			SQL = realloc(SQL, MAXSQLEN*factor);
-			if (!SQL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-		cp = SQL + sqlen;
-	}
-	cp = strcat(cp, " GROUP BY oc.oid ORDER BY oc.oid;");
-
-	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: sqlite3_prepare", __func__);
-		ret = -EIO;
-		goto out;
-	}
-
-	/* bind the values */
-	pos = 1;
-	for (i = 0; i < qc->qc_cnt; i++) {
-		if (qc->min_len[i] > 0) {
-			ret = sqlite3_bind_blob(stmt, pos, qc->min_val[i], 
-						qc->min_len[i], 
-						SQLITE_TRANSIENT);
-			if (ret != SQLITE_OK) {
-				error_sql(db, "%s: bind min_val @ %d", 
-					  __func__, pos);
-				goto out_finalize;
-			}
-			pos++;
-		}
-		if (qc->max_len[i] > 0) {
-			ret = sqlite3_bind_blob(stmt, pos, qc->max_val[i], 
-						qc->max_len[i], 
-						SQLITE_TRANSIENT);
-			if (ret != SQLITE_OK) {
-				error_sql(db, "%s: bind max_val @ %d", 
-					  __func__, pos);
-				goto out_finalize;
-			}
-			pos++;
-		}
-	}
-
-#endif
-
 	/* execute the query */
 	p = outdata;
 	p += ML_ODL_OFF; 
@@ -980,174 +905,6 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		goto out;
 	}
 
-#undef LIST_QUERY_TYPE
-#define LIST_QUERY_TYPE (6)
-#if LIST_QUERY_TYPE == 1
-
-	/* the original query */
-	cp = SQL;
-	sqlen = 0;
-	sprintf(SQL, "SELECT obj.oid, attr.page, attr.number, attr.value "
-		" FROM obj, attr WHERE attr.pid = %llu AND obj.oid >= %llu "
-		" AND obj.type = %u AND obj.pid = attr.pid AND "
-		" obj.oid = attr.oid AND ( (page = %u AND number = %u) OR ", 
-		llu(pid), llu(initial_oid), USEROBJECT, USER_TMSTMP_PG, 0);
-	sqlen += strlen(SQL);
-	cp += sqlen;
-
-	for (i = 0; i < get_attr->sz; i++) {
-		sprintf(cp, " (attr.page = %u AND attr.number = %u) ",
-			get_attr->le[i].page, get_attr->le[i].number);
-		if (i < (get_attr->sz - 1))
-			strcat(cp, " OR ");
-		sqlen += strlen(cp);
-		if (sqlen > MAXSQLEN*factor - 100) {
-			factor *= 2;
-			SQL = realloc(SQL, MAXSQLEN*factor);
-			if (!SQL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-
-		cp = SQL + sqlen;
-	}
-	sprintf(cp, " ) ORDER BY obj.oid; ");
-
-#elif LIST_QUERY_TYPE == 2
-
-	/* ? */
-	cp = SQL;
-	sqlen = 0;
-	sprintf(SQL, "SELECT oid, page, number, value FROM attr WHERE "
-		" pid = %llu AND oid IN (SELECT oid FROM obj WHERE "
-		" pid = %llu AND oid >= %llu AND type = %u) AND "
-		" ( (page = %u AND  number = %u) OR ", llu(pid), llu(pid), 
-		llu(initial_oid), USEROBJECT, USER_TMSTMP_PG, 0);
-	sqlen += strlen(SQL);
-	cp += sqlen;
-
-	for (i = 0; i < get_attr->sz; i++) {
-		sprintf(cp, " (page = %u AND number = %u) ",
-			get_attr->le[i].page, get_attr->le[i].number);
-		if (i < (get_attr->sz - 1))
-			strcat(cp, " OR ");
-		sqlen += strlen(cp);
-		if (sqlen > MAXSQLEN*factor - 100) {
-			factor *= 2;
-			SQL = realloc(SQL, MAXSQLEN*factor);
-			if (!SQL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-
-		cp = SQL + sqlen;
-	}
-	sprintf(cp, " ) ORDER BY attr.oid; ");
-
-#elif LIST_QUERY_TYPE == 3
-
-	/* query reordered */
-	cp = SQL;
-	sqlen = 0;
-	sprintf(SQL, "SELECT obj.oid, attr.page, attr.number, attr.value "
-		" FROM obj, attr WHERE ( (page = %u AND number = %u) OR ", 
-		USER_TMSTMP_PG, 0);
-	sqlen += strlen(SQL);
-	cp += sqlen;
-
-	for (i = 0; i < get_attr->sz; i++) {
-		sprintf(cp, " (attr.page = %u AND attr.number = %u) ",
-			get_attr->le[i].page, get_attr->le[i].number);
-		if (i < (get_attr->sz - 1))
-			strcat(cp, " OR ");
-		sqlen += strlen(cp);
-		if (sqlen > MAXSQLEN*factor - 100) {
-			factor *= 2;
-			SQL = realloc(SQL, MAXSQLEN*factor);
-			if (!SQL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-
-		cp = SQL + sqlen;
-	}
-	sprintf(cp, " ) AND attr.pid = %llu AND obj.oid >= %llu  AND "
-		" obj.type = %u AND obj.pid = attr.pid AND "
-		" obj.oid = attr.oid ORDER BY attr.oid; ", llu(pid), 
-		llu(initial_oid), USEROBJECT);
-
-#elif LIST_QUERY_TYPE == 4
-
-	/* query not using the obj table */
-	cp = SQL;
-	sqlen = 0;
-	sprintf(SQL, "SELECT oid, page, number, value FROM attr "
-		" WHERE pid = %llu AND oid >= %llu  AND "
-		" ( (page = %u AND number = %u) OR ", llu(pid), 
-		llu(initial_oid), USER_TMSTMP_PG, 0);
-	sqlen += strlen(SQL);
-	cp += sqlen;
-
-	for (i = 0; i < get_attr->sz; i++) {
-		sprintf(cp, " (page = %u AND number = %u) ",
-			get_attr->le[i].page, get_attr->le[i].number);
-		if (i < (get_attr->sz - 1))
-			strcat(cp, " OR ");
-		sqlen += strlen(cp);
-		if (sqlen > MAXSQLEN*factor - 100) {
-			factor *= 2;
-			SQL = realloc(SQL, MAXSQLEN*factor);
-			if (!SQL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-
-		cp = SQL + sqlen;
-	}
-	sprintf(cp, " ) ORDER BY oid; ");
-
-#elif LIST_QUERY_TYPE == 5
-
-	/* query intended to make use of index, but since page and number
-	 * cannot be used it does a serial scan 
-	 */
-	cp = SQL;
-	sqlen = 0;
-	sprintf(SQL, "SELECT attr.oid, attr.page, attr.number, attr.value "
-		" FROM obj, attr WHERE obj.pid = attr.pid AND "
-		" obj.oid = attr.oid AND obj.pid = %llu AND "
-		" obj.type = %u AND "
-		" ((attr.page = %u AND attr.number = %u) OR ", llu(pid), 
-		USEROBJECT, USER_TMSTMP_PG, 0);
-	sqlen += strlen(SQL);
-	cp += sqlen;
-
-	for (i = 0; i < get_attr->sz; i++) {
-		sprintf(cp, " (attr.page = %u AND attr.number = %u) ",
-			get_attr->le[i].page, get_attr->le[i].number);
-		if (i < (get_attr->sz - 1))
-			strcat(cp, " OR ");
-		sqlen += strlen(cp);
-		if (sqlen > MAXSQLEN*factor - 100) {
-			factor *= 2;
-			SQL = realloc(SQL, MAXSQLEN*factor);
-			if (!SQL) {
-				ret = -ENOMEM;
-				goto out;
-			}
-		}
-
-		cp = SQL + sqlen;
-	}
-	sprintf(cp, " ) AND attr.oid >= %llu ORDER BY attr.oid; ", 
-		llu(initial_oid));
-
-#elif LIST_QUERY_TYPE == 6
-
 	/* 
 	 * for each attribute requested, create a select statement,
 	 * which will try to index into the attr table with a full key rather
@@ -1189,7 +946,6 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		cp = SQL + sqlen;
 	}
 	sprintf(cp, " ORDER BY myoid; "); 
-#endif
 
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {

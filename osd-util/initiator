@@ -53,6 +53,12 @@ start() {
 	if (( $# < 1 )) ; then usage ; fi
     fi
 
+    # on ornl machines, bring up iscsid
+    if ! pgrep iscsid > /dev/null ; then
+	echo starting iscsid
+    	service iscsid start
+    fi
+
     # connect to each of the list of target hosts given
     while (( $# >= 1 )) ; do
 	targethost=$1

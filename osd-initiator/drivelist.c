@@ -76,7 +76,10 @@ int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives)
 	while ((entry = readdir(toplevel)))
 		++count;
 
-	if (count == 0)
+	/* subtract 2 for . and .. */
+	count -= 2;
+
+	if (count <= 0)
 		goto out;
 
 	ret = malloc(count * sizeof(*ret));

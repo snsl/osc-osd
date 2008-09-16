@@ -143,7 +143,7 @@ out:
 
 int coll_finalize(struct db_context *dbc)
 {
-	if (!dbc)
+	if (!dbc || !dbc->coll)
 		return OSD_ERROR;
 
 	/* finalize statements; ignore return values */

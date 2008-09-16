@@ -172,7 +172,7 @@ out:
 
 int attr_finalize(struct db_context *dbc)
 {
-	if (!dbc)
+	if (!dbc || !dbc->attr)
 		return OSD_ERROR;
 
 	/* finalize statements; ignore return values */
@@ -194,7 +194,7 @@ int attr_finalize(struct db_context *dbc)
 
 const char *attr_getname(struct db_context *dbc)
 {
-	if (dbc == NULL || dbc->coll == NULL)
+	if (dbc == NULL || dbc->attr == NULL)
 		return NULL;
 	return dbc->attr->name;
 }

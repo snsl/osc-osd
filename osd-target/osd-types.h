@@ -172,11 +172,10 @@ struct osd_context {
 
 struct osd_device {
 	char *root;
-	sqlite3 *db;
+	struct db_context *dbc;
 	struct cur_cmd_attr_pg ccap;
 	struct id_cache ic;
 	struct id_list idl;
-	struct db_context *dbc;
 };
 
 enum {

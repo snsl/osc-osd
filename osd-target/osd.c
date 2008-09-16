@@ -825,7 +825,7 @@ int osd_open(const char *root, struct osd_device *osd)
 		if (ret != 0)
 			goto out;
 	}
-	ret = db_exec_pragma(osd);
+	ret = db_exec_pragma(osd->dbc);
 
 out:
 	return ret;
@@ -835,7 +835,7 @@ int osd_close(struct osd_device *osd)
 {
 	int ret;
 
-	ret = db_close(osd->dbc);
+	ret = db_close(osd);
 	if (ret != 0)
 		osd_error("%s: db_close", __func__);
 	free(osd->root);
@@ -882,7 +882,7 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	osd_debug("%s: pid %llu oid %llu len %llu data %p", __func__,
 		  llu(pid), llu(oid), llu(len), appenddata);
 
-	if (osd == NULL || osd->root == NULL || appenddata == NULL)
+	if (!osd || !osd->root || !osd->dbc || !appenddata || !sense)
 		goto out_cdb_err;
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
@@ -967,6 +967,9 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	osd_debug("%s: pid %llu requested oid %llu numoid %hu", __func__,
 		  llu(pid), llu(requested_oid), numoid);
 
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_illegal_req;
+
 	if (pid == 0 || pid < USEROBJECT_PID_LB)
 		goto out_illegal_req;
 
@@ -974,7 +977,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		goto out_illegal_req;
 
 	/* encapsulate all db ops in txn */
-	ret = db_begin_txn(osd);
+	ret = db_begin_txn(osd->dbc);
 	assert(ret == 0);
 	within_txn = 1;
 
@@ -1046,7 +1049,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	}
 	osd->ic.next_id += (numoid - 1);
 
-	ret = db_end_txn(osd);
+	ret = db_end_txn(osd->dbc);
 	assert(ret == 0);
 
 	/* fill CCAP with highest oid, osd2r00 Sec 6.3, 3rd last para */
@@ -1055,7 +1058,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 
 out_illegal_req:
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -1065,7 +1068,7 @@ out_illegal_req:
 out_hw_err:
 	osd->ic.cur_pid = osd->ic.next_id = 0; /* invalidate cache */
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
@@ -1092,6 +1095,9 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 
 	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid), 
 		  llu(requested_cid));
+
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_cdb_err;
 
 	if (pid == 0 || pid < COLLECTION_PID_LB)
 		goto out_cdb_err;
@@ -1167,6 +1173,9 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 
 	osd_debug("%s: pid %llu", __func__, llu(requested_pid));
 
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_cdb_err;
+
 	if (requested_pid != 0 && requested_pid < PARTITION_PID_LB)
 		goto out_cdb_err;
 
@@ -1207,6 +1216,9 @@ int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	osd_debug("%s: pid %llu oid %llu scope %d", __func__, llu(pid),
 		  llu(oid), flush_scope);
+
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_cdb_err;
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
@@ -1276,6 +1288,9 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 
 	osd_debug("%s: capacity %llu MB", __func__, llu(capacity >> 20));
 
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_cdb_err;
+
 	root = strdup(osd->root);
 
 	get_dbname(path, root);
@@ -1285,7 +1300,7 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 		goto create;
 	}
 
-	ret = db_close(osd->dbc);
+	ret = db_close(osd);
 	if (ret) {
 		osd_error("%s: DB close failed, ret %d", __func__, ret);
 		goto out_sense;
@@ -1320,6 +1335,11 @@ create:
 	}
 	memset(&osd->ccap, 0, sizeof(osd->ccap)); /* reset ccap */
 	ret = OSD_OK;
+	goto out;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, 0, 0);
 	goto out;
 
 out_sense:
@@ -1369,7 +1389,8 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	osd_debug("%s: get attr for (%llu, %llu) page %u number %u", __func__,
 		  llu(pid), llu(oid), page, number);
 
-	if (!osd || !outbuf || !sense || !used_outlen)
+	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen || 
+	    !sense)
 		goto out_param_list;
 
 	obj_type = get_obj_type(osd, pid, oid);
@@ -1470,7 +1491,8 @@ int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	osd_debug("%s: get attr for (%llu, %llu) page %u", __func__,
 		  llu(pid), llu(oid), page);
 
-	if (!osd || !outbuf || !sense || !used_outlen)
+	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen || 
+	    !sense)
 		goto out_param_list;
 
 	obj_type = get_obj_type(osd, pid, oid);
@@ -1543,6 +1565,10 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 	uint64_t add_len = 0;
 	uint64_t cont_id = 0;
 
+	if (!osd || !osd->root || !osd->dbc || !get_attr || !outdata ||
+	    !used_outlen || !sense)
+		goto out_cdb_err;
+
 	if (alloc_len == 0)
 		return 0; /* No space to even send the header */
 
@@ -1581,8 +1607,12 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		       );
 		if (ret)
 			goto out_hw_err;
+
 		*used_outlen += 24;
-		add_len += 16;
+		if (add_len + 16 > add_len) /* overflow: osd2r01 Sec 6.14.2 */
+			add_len += 16;
+		else
+			add_len = 0xFFFFFFFFFFFFFFFF;
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
 	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
@@ -1590,13 +1620,17 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 			initial_oid = cont_id;
 		outdata[23] = (0x22 << 2);
 		alloc_len -= 24;
-		ret = mtq_list_oids_attr(osd->db, pid, initial_oid,
+		ret = mtq_list_oids_attr(osd->dbc, pid, initial_oid,
 					 get_attr, alloc_len, &outdata[24], 
 					 used_outlen, &add_len, &cont_id);
 		if (ret)
 			goto out_hw_err;
+
 		*used_outlen += 24;
-		add_len += 16;
+		if (add_len + 16 > add_len) /* overflow: osd2r01 Sec 6.14.2 */
+			add_len += 16;
+		else
+			add_len = 0xFFFFFFFFFFFFFFFF;
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
 	}
@@ -1634,6 +1668,10 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 	uint8_t *cp = outdata;
 	uint64_t add_len = 0;
 	uint64_t cont_id = 0;
+
+	if (!osd || !osd->root || !osd->dbc || !get_attr || !outdata ||
+	    !used_outlen || !sense)
+		goto out_cdb_err;
 
 	if (alloc_len == 0)
 		return 0;
@@ -1787,7 +1825,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 		  __func__, llu(pid), llu(cid), query_list_len, 
 		  llu(alloc_len));
 
-	if (osd == NULL || indata == NULL || sense == NULL)
+	if (!osd || !osd->root || !osd->dbc || !indata || !sense)
 		goto out_cdb_err;
 
 	if (pid < USEROBJECT_PID_LB)
@@ -1854,8 +1892,8 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	osd_debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
 		  llu(pid), llu(oid), llu(len), llu(offset));
 
-	if (osd == NULL || osd->root == NULL || outdata == NULL ||
-	    used_outlen == NULL)
+	if (!osd || !osd->root || !osd->dbc || !outdata || !used_outlen ||
+	    !sense)
 		goto out_cdb_err;
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
@@ -1904,9 +1942,13 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 {
 	int ret = 0;
 	char path[MAXNAMELEN];
+	uint8_t within_txn = 0;
 
 	osd_debug("%s: removing userobject pid %llu oid %llu", __func__,
 		  llu(pid), llu(oid));
+
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_cdb_err;
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
@@ -1920,8 +1962,9 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != 0)
 		goto out_hw_err;
 
-	ret = db_begin_txn(osd);
+	ret = db_begin_txn(osd->dbc);
 	assert(ret == 0);
+	within_txn = 1;
 
 	/* delete all attr of the object */
 	ret = attr_delete_all(osd->dbc, pid, oid);
@@ -1937,18 +1980,26 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != 0)
 		goto out_hw_err;
 
-	ret = db_end_txn(osd);
+	ret = db_end_txn(osd->dbc);
 	assert(ret == 0);
 
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return OSD_OK; /* success */
 
 out_cdb_err:
+	if (within_txn) {
+		ret = db_end_txn(osd->dbc);
+		assert(ret == 0);
+	}
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 
 out_hw_err:
+	if (within_txn) {
+		ret = db_end_txn(osd->dbc);
+		assert(ret == 0);
+	}
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
@@ -1965,6 +2016,9 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	osd_debug("%s: pid %llu cid %llu fcr %u", __func__, llu(pid), 
 		  llu(cid), fcr);
 	
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_cdb_err;
+
 	if (pid == 0 || pid < COLLECTION_PID_LB)
 		goto out_cdb_err;
 
@@ -2040,6 +2094,9 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 
 	osd_debug("%s: pid %llu", __func__, llu(pid));
 
+	if (!osd || !osd->root || !osd->dbc || !sense)
+		goto out_cdb_err;
+
 	if (pid == 0)
 		goto out_cdb_err;
 
@@ -2099,8 +2156,11 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 /*	osd_debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid),
 		  llu(oid)); */
 
+	if (!osd || !osd->root || !osd->dbc || !val || !sense)
+		goto out_cdb_err;
+
 	/* encapsulate all db ops in txn */
-	ret = db_begin_txn(osd);
+	ret = db_begin_txn(osd->dbc);
 	assert(ret == 0);
 	within_txn = 1;
 
@@ -2175,7 +2235,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_hw_err;
 
 out_success:
-	ret = db_end_txn(osd);
+	ret = db_end_txn(osd->dbc);
 	assert(ret == 0);
 
 	if (!isembedded)
@@ -2184,7 +2244,7 @@ out_success:
 
 out_param_list:
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -2193,14 +2253,14 @@ out_param_list:
 
 out_cdb_err:
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 out_hw_err:
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
@@ -2235,11 +2295,15 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 	uint8_t obj_type = 0;
 	uint8_t within_txn = 0;
 
+
 	osd_debug("%s: set attrs on pid %llu cid %llu", __func__, llu(pid),
 		  llu(cid));
 
+	if (!osd || !osd->root || !osd->dbc || !set_attr || !sense)
+		goto out_cdb_err;
+
 	/* encapsulate all db ops in txn */
-	ret = db_begin_txn(osd);
+	ret = db_begin_txn(osd->dbc);
 	assert(ret == 0);
 	within_txn = 1;
 
@@ -2264,7 +2328,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 	if (ret != 0)
 		goto out_hw_err;
 
-	ret = db_end_txn(osd);
+	ret = db_end_txn(osd->dbc);
 	assert(ret == 0);
 
 	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
@@ -2272,7 +2336,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 
 out_hw_err:
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
@@ -2280,7 +2344,7 @@ out_hw_err:
 
 out_param_list:
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -2288,7 +2352,7 @@ out_param_list:
 
 out_cdb_err:
 	if (within_txn) {
-		ret = db_end_txn(osd);
+		ret = db_end_txn(osd->dbc);
 		assert(ret == 0);
 	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
@@ -2316,7 +2380,7 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p",
 		  __func__, llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
 
-	if (osd == NULL || osd->root == NULL || dinbuf == NULL)
+	if (!osd || !osd->root || !osd->dbc || !dinbuf || !sense)
 		goto out_cdb_err;
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))

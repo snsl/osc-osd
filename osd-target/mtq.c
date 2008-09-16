@@ -23,9 +23,10 @@
 
 /*
  * return values:
- * -ENOMEM: out of memory
  * -EINVAL: invalid argument
- * 0: success
+ * -EIO: prepare or some other sqlite function failed
+ * OSD_ERROR: some other error
+ * OSD_OK: success
  */
 int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid, 
 		  struct query_criteria *qc, void *outdata, 
@@ -34,27 +35,29 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	int ret = 0;
 	int pos = 0;
 	char *cp = NULL;
-	const char *op = NULL;
-	char select_stmt[MAXSQLEN];
 	char *SQL = NULL;
 	uint8_t *p = NULL;
 	uint32_t i = 0;
 	uint32_t sqlen = 0;
 	uint32_t factor = 2; /* this query fills space quickly */
 	uint64_t len = 0;
+	const char *op = NULL;
 	sqlite3_stmt *stmt = NULL;
-	sqlite3 *db = dbc->db;
+	char select_stmt[MAXSQLEN];
+	const char *coll = coll_getname(dbc);
+	const char *attr = attr_getname(dbc);
 
-	if (!db || !qc || !outdata || !used_outlen) {
+	if (!dbc || !dbc->db || !qc || !outdata || !used_outlen || !coll ||
+	    !attr ) {
 		ret = -EINVAL;
 		goto out;
 	}
 
-	if (qc->query_type == 0)
+	if (qc->query_type == 0) {
 		op = " UNION ";
-	else if (qc->query_type == 1)
+	} else if (qc->query_type == 1) {
 		op = " INTERSECT ";
-	else {
+	} else {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -74,9 +77,9 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	 */
 
 	/* build the SQL statment */
-	sprintf(select_stmt, "SELECT attr.oid FROM %s AS oc, "
-		" attr WHERE oc.pid = attr.pid AND oc.oid = attr.oid AND "
-		" oc.pid = %llu AND oc.cid = %llu ", coll_getname(dbc),
+	sprintf(select_stmt, "SELECT attr.oid FROM %s as coll, %s as attr "
+		" WHERE coll.pid = coll.pid AND coll.oid = attr.oid AND "
+		" coll.pid = %llu AND coll.cid = %llu ", coll, attr,
 		llu(pid), llu(cid));
 	sprintf(cp, select_stmt);
 	sqlen += strlen(cp);
@@ -107,9 +110,9 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	}
 	cp = strcat(cp, " GROUP BY attr.oid ORDER BY attr.oid;");
 
-	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	ret = sqlite3_prepare(dbc->db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: sqlite3_prepare", __func__);
+		error_sql(dbc->db, "%s: sqlite3_prepare", __func__);
 		ret = -EIO;
 		goto out;
 	}
@@ -122,7 +125,8 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 						qc->min_len[i],
 						SQLITE_TRANSIENT);
 			if (ret != SQLITE_OK) {
-				error_sql(db, "%s: bind min_val @ %d",
+				ret = -EIO;
+				error_sql(dbc->db, "%s: bind min_val @ %d",
 					  __func__, pos);
 				goto out_finalize;
 			}
@@ -133,7 +137,8 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 						qc->max_len[i],
 						SQLITE_TRANSIENT);
 			if (ret != SQLITE_OK) {
-				error_sql(db, "%s: bind max_val @ %d",
+				ret = -EIO;
+				error_sql(dbc->db, "%s: bind max_val @ %d",
 					  __func__, pos);
 				goto out_finalize;
 			}
@@ -157,23 +162,24 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 			*used_outlen += 8;
 		}
 		p += 8; 
-		if (len + 8 < len)
-			len = 0xFFFFFFFFFFFFFFFF; /* osd2r01 Sec 6.18.3 */
-		else
+		/* handle overflow: osd2r01 Sec 6.18.3 */
+		if (len != 0xFFFFFFFFFFFFFFFF && (len + 8) > len) {
 			len += 8;
+		} else {
+			len = 0xFFFFFFFFFFFFFFFF;
+		}
 	}
 	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: sqlite3_step", __func__);
+		error_sql(dbc->db, "%s: sqlite3_step", __func__);
 		ret = -EIO;
 		goto out_finalize;
 	}
-	ret = 0;
 	set_htonll(outdata, len);
+	ret = OSD_OK;
 
 out_finalize:
-	ret = sqlite3_finalize(stmt); 
-	if (ret != SQLITE_OK)
-		error_sql(db, "%s: finalize", __func__);
+	if (sqlite3_finalize(stmt) != SQLITE_OK)
+		error_sql(dbc->db, "%s: finalize", __func__);
 
 out:
 	free(SQL);
@@ -181,25 +187,41 @@ out:
 }
 
 
-int mtq_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid, 
-		       struct getattr_list *get_attr, uint64_t alloc_len,
-		       void *outdata, uint64_t *used_outlen, 
-		       uint64_t *add_len, uint64_t *cont_id)
+/*
+ * returns list of objects along with requested attributes
+ *
+ * return values:
+ * -EINVAL: invalid argument
+ * -EIO: prepare or some other sqlite function failed
+ * OSD_ERROR: some other error
+ * OSD_OK: success
+ */
+int mtq_list_oids_attr(struct db_context *dbc, uint64_t pid,
+		       uint64_t initial_oid, struct getattr_list *get_attr,
+		       uint64_t alloc_len, void *outdata, 
+		       uint64_t *used_outlen, uint64_t *add_len, 
+		       uint64_t *cont_id)
 {
 	int ret = 0;
 	char *cp = NULL;
 	char *SQL = NULL;
-	uint64_t len = 0;
-	uint64_t oid = 0;
-	uint8_t *head = NULL, *tail = NULL;
 	uint32_t i = 0;
 	uint32_t factor = 2; /* this query uses space fast */
 	uint32_t attr_list_len = 0; /*XXX:SD see below */
 	uint32_t sqlen = 0;
+	uint64_t oid = 0;
+	uint32_t page;
+	uint32_t number;
+	uint16_t len;
 	const void *val = NULL;
 	sqlite3_stmt *stmt = NULL;
+	uint8_t *head = NULL, *tail = NULL;
+	const char *select_stmt = NULL;
+	const char *obj = obj_getname(dbc);
+	const char *attr = attr_getname(dbc);
 
-	if (!db || !get_attr || !outdata || !used_outlen || !add_len) {
+	if (!dbc || !dbc->db || !get_attr || !outdata || !used_outlen || 
+	    !add_len || !obj || !attr) {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -218,31 +240,28 @@ int mtq_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 	/* 
 	 * For each attribute requested, create a select statement,
 	 * which will try to index into the attr table with a full key rather
-	 * than just (pid, oid) prefix key. Analogous to loop unrolling.
+	 * than just (pid, oid) prefix key. Analogous to loop unrolling, we
+	 * unroll each requested attribute into its own select statement.
 	 */
-	cp = SQL;
-	sqlen = 0;
-	sprintf(SQL, "SELECT obj.oid as myoid, attr.page, attr.number, "
-		" attr.value FROM obj, attr "
+	select_stmt = "SELECT obj.oid as myoid, attr.page, "
+		" attr.number, attr.value FROM %s as obj, %s as attr "
 		" WHERE obj.pid = attr.pid AND obj.oid = attr.oid AND "
 		" obj.pid = %llu AND obj.type = %u AND "
-		" attr.page = %u AND attr.number = %u AND obj.oid >= %llu "
-		" UNION ALL ", llu(pid), USEROBJECT, USER_TMSTMP_PG, 0, 
-		llu(initial_oid));
+		" attr.page = %u AND attr.number = %u AND obj.oid >= %llu ";
+
+	cp = SQL;
+	sqlen = 0;
+	sprintf(SQL, select_stmt, obj, attr, llu(pid), USEROBJECT,
+		USER_TMSTMP_PG, 0, llu(initial_oid));
+	SQL = strcat(SQL, " UNION ALL ");
 	sqlen += strlen(SQL);
 	cp += sqlen;
-
 	for (i = 0; i < get_attr->sz; i++) {
-		sprintf(cp, "SELECT obj.oid as myoid, attr.page, attr.number, "
-			" attr.value FROM obj, attr "
-			" WHERE obj.pid = attr.pid AND obj.oid = attr.oid AND "
-			" obj.pid = %llu AND obj.type = %u AND "
-			" attr.page = %u AND attr.number = %u AND "
-			" obj.oid >= %llu ",
-			llu(pid), USEROBJECT, get_attr->le[i].page, 
-			get_attr->le[i].number, llu(initial_oid));
+		sprintf(cp, select_stmt, obj, attr, llu(pid), USEROBJECT,
+			get_attr->le[i].page, get_attr->le[i].number,
+			llu(initial_oid));
 		if (i < (get_attr->sz - 1))
-			strcat(cp, " UNION ALL ");
+			cp = strcat(cp, " UNION ALL ");
 
 		sqlen += strlen(cp);
 		if (sqlen > (MAXSQLEN*factor - 400)) {
@@ -258,16 +277,24 @@ int mtq_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 	}
 	sprintf(cp, " ORDER BY myoid; "); 
 
-	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	ret = sqlite3_prepare(dbc->db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: sqlite3_prepare", __func__);
+		error_sql(dbc->db, "%s: sqlite3_prepare", __func__);
 		goto out;
 	}
 
 	/* execute the statement */
 	head = tail = outdata;
 	attr_list_len = 0;
-	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+	while(1) {
+		ret = sqlite3_step(stmt);
+		if (ret == SQLITE_BUSY) {
+			continue;
+		} else if (ret != SQLITE_ROW) {
+			break;
+		} 
+		/* for the rest of loop body ret == SQLITE_ROW */
+
 		/*
 		 * XXX:SD The spec is inconsistent in applying padding and
 		 * alignment rules. Here we make changes to the spec. In our
@@ -276,10 +303,10 @@ int mtq_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		 * instead of 2B as defined in spec, and starts at byte 12
 		 * in the header (not 10).  ODE is object descriptor entry.
 		 */
-		uint64_t oid = sqlite3_column_int64(stmt, 0);
-		uint32_t page = sqlite3_column_int64(stmt, 1);
-		uint32_t number = sqlite3_column_int64(stmt, 2);
-		uint16_t len = sqlite3_column_bytes(stmt, 3);
+		oid = sqlite3_column_int64(stmt, 0);
+		page = sqlite3_column_int64(stmt, 1);
+		number = sqlite3_column_int64(stmt, 2);
+		len = sqlite3_column_bytes(stmt, 3);
 
 		if (page == USER_TMSTMP_PG && number == 0) {
 			/* look ahead in the buf to see if there is space */
@@ -307,7 +334,15 @@ int mtq_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 				if (*cont_id == 0)
 					*cont_id = oid;
 			}
-			*add_len += 16;
+			/* handle overflow: osd2r01 Sec 6.14.2 */
+			if (*add_len + 16 > *add_len) {
+				*add_len += 16;
+			} else {
+				/* terminate since add_len overflew */
+				*add_len = 0xFFFFFFFFFFFFFFFF;
+				ret = SQLITE_DONE; 
+				break;
+			}
 			continue;
 		} 
 		if (alloc_len >= 16) {
@@ -342,12 +377,19 @@ int mtq_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 					*cont_id = oid;
 			}
 		}
-		/* TODO: take care of overflow */
-		*add_len += roundup8(4+4+2+len);
+		/* handle overflow: osd2r01 Sec 6.14.2 */
+		if ((*add_len + roundup8(4+4+2+len)) > *add_len) {
+			*add_len += roundup8(4+4+2+len);
+		} else {
+			/* terminate since add_len overflew */
+			*add_len = 0xFFFFFFFFFFFFFFFF; 
+			ret = SQLITE_DONE; 
+			break;
+		}
 	}
 	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: query execution failed. SQL %s, add_len "
-			  " %llu attr_list_len %u", __func__, SQL, 
+		error_sql(dbc->db, "%s: query execution failed. SQL %s, "
+			  " add_len %llu attr_list_len %u", __func__, SQL, 
 			  llu(*add_len), attr_list_len);
 		goto out_finalize;
 	}
@@ -357,12 +399,12 @@ int mtq_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		assert(head == tail);
 	}
 
-	ret = 0;
+	ret = OSD_OK; /* success */
 
 out_finalize:
 	if (sqlite3_finalize(stmt) != SQLITE_OK) {
 		ret = -EIO;
-		error_sql(db, "%s: finalize", __func__);
+		error_sql(dbc->db, "%s: finalize", __func__);
 	}
 
 out:
@@ -370,6 +412,16 @@ out:
 	return ret;
 }
 
+
+/*
+ * set attributes on members of the give collection
+ *
+ * return values:
+ * -EINVAL: invalid argument
+ * -EIO: prepare or some other sqlite function failed
+ * OSD_ERROR: some other error
+ * OSD_OK: success
+ */
 int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid, 
 			 struct setattr_list *set_attr)
 {
@@ -380,9 +432,10 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	char *SQL = NULL;
 	size_t sqlen = 0;
 	sqlite3_stmt *stmt = NULL;
-	sqlite3 *db = dbc->db;
+	const char *coll = coll_getname(dbc);
+	const char *attr = attr_getname(dbc);
 
-	if (db == NULL || set_attr == NULL) {
+	if (!dbc || !dbc->db || !set_attr || !coll || !attr) {
 		ret = -EINVAL;
 		goto out;
 	}
@@ -400,18 +453,18 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 
 	cp = SQL;
 	sqlen = 0;
-	sprintf(SQL, "INSERT OR REPLACE INTO attr ");
+	sprintf(SQL, "INSERT OR REPLACE INTO %s ", attr);
 	sqlen += strlen(SQL);
 	cp += sqlen;
 
 	for (i = 0; i < set_attr->sz; i++) {
 		sprintf(cp, " SELECT %llu, oid, %u, %u, ? FROM %s "
 			" WHERE cid = %llu ", llu(pid), set_attr->le[i].page,
-			set_attr->le[i].number, coll_getname(dbc), llu(cid));
+			set_attr->le[i].number, coll, llu(cid));
 		if (i < (set_attr->sz - 1))
-			strcat(cp, " UNION ALL ");
+			cp = strcat(cp, " UNION ALL ");
 		sqlen += strlen(cp);
-		if (sqlen > (MAXSQLEN*factor - 100)) {
+		if (sqlen > (MAXSQLEN*factor - 200)) {
 			factor *= 2;
 			SQL = realloc(SQL, MAXSQLEN*factor);
 			if (!SQL) {
@@ -421,11 +474,12 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 		}
 		cp = SQL + sqlen;
 	}
-	strcat(cp, " ;");
+	cp = strcat(cp, " ;");
 
-	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	ret = sqlite3_prepare(dbc->db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: sqlite3_prepare", __func__);
+		ret = -EIO;
+		error_sql(dbc->db, "%s: sqlite3_prepare", __func__);
 		goto out;
 	}
 
@@ -435,7 +489,8 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 					set_attr->le[i].len,
 					SQLITE_TRANSIENT);
 		if (ret != SQLITE_OK) {
-			error_sql(db, "%s: blob @ %u", __func__, i+1);
+			ret = -EIO;
+			error_sql(dbc->db, "%s: blob @ %u", __func__, i+1);
 			goto out_finalize;
 		}
 	}
@@ -443,15 +498,15 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	/* execute the statement */
 	while ((ret = sqlite3_step(stmt)) == SQLITE_BUSY);
 	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: sqlite3_step", __func__);
+		error_sql(dbc->db, "%s: sqlite3_step", __func__);
 		ret = -EIO;
 		goto out_finalize;
 	}
-	ret = 0;
+	ret = OSD_OK;
 
 out_finalize:
 	if (sqlite3_finalize(stmt) != SQLITE_OK)
-		error_sql(db, "%s: finalize", __func__);
+		error_sql(dbc->db, "%s: finalize", __func__);
 
 out:
 	free(SQL);

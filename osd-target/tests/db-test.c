@@ -337,7 +337,7 @@ int main()
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
 
- 	ret = db_exec_pragma(&osd);
+ 	ret = db_exec_pragma(osd.dbc);
 	assert(ret == 0); 
 
      	test_obj(&osd);
@@ -349,7 +349,7 @@ int main()
  	test_dir_page(&osd); 
 	test_coll(&osd);
 
-	ret = db_print_pragma(&osd);
+	ret = db_print_pragma(osd.dbc);
 	assert(ret == 0);
 
 	ret = osd_close(&osd);

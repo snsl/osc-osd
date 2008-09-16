@@ -34,7 +34,7 @@ static int check_membership(void *arg, int count, char **val,
  * OSD_ERROR: in case no table is found
  * OSD_OK: when all tables exist
  */
-static int db_check_tables(struct osd_device *osd)
+static int db_check_tables(struct db_context *dbc)
 {
 	int i = 0;
 	int ret = 0;
@@ -45,7 +45,7 @@ static int db_check_tables(struct osd_device *osd)
 
 	sprintf(SQL, "SELECT name FROM sqlite_master WHERE type='table' "
 		" ORDER BY name;");
-	ret = sqlite3_exec(osd->db, SQL, check_membership, &arr, &err);
+	ret = sqlite3_exec(dbc->db, SQL, check_membership, &arr, &err);
 	if (ret != SQLITE_OK) {
 		osd_error("%s: query %s failed: %s", __func__, SQL, err);
 		sqlite3_free(err);
@@ -87,20 +87,18 @@ int db_open(const char *path, struct osd_device *osd)
 		is_new_db = 1;
 	}
 
-	ret = sqlite3_open(path, &(osd->db));
-	if (ret != SQLITE_OK) {
-		osd_error("%s: open db %s", __func__, path);
-		ret = OSD_ERROR;
-		goto out;
-	}
-
 	osd->dbc = Calloc(1, sizeof(*osd->dbc));
 	if (!osd->dbc) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
-	osd->dbc->db = osd->db; /* TODO: unnecessary if dbc is default */
+	ret = sqlite3_open(path, &(osd->dbc->db));
+	if (ret != SQLITE_OK) {
+		osd_error("%s: open db %s", __func__, path);
+		ret = OSD_ERROR;
+		goto out_free_dbc;
+	}
 
 	if (is_new_db) {
 		/* build tables from schema file */
@@ -108,42 +106,47 @@ int db_open(const char *path, struct osd_device *osd)
 		if (ret != SQLITE_OK) {
 			sqlite3_free(err);
 			ret = OSD_ERROR;
-			goto out;
+			goto out_close_db;
 		}
 	} else {
 		/* existing db, check for tables */
-		ret = db_check_tables(osd);
+		ret = db_check_tables(osd->dbc);
 		if (ret != OSD_OK)
-			goto out;
+			goto out_close_db;
 	}
 
 	/* initialize dbc fields */
 	ret = db_initialize(osd->dbc);
 	if (ret != OSD_OK) {
 		ret = OSD_ERROR;
-		goto out;
+		goto out_close_db;
 	}
 
 	if (is_new_db) 
 		ret = 1;
+	goto out;
 
+out_close_db:
+	sqlite3_close(osd->dbc->db);
+out_free_dbc:
+	free(osd->dbc);
+	osd->dbc = NULL;
 out:
 	return ret;
 }
 
 
-int db_close(struct db_context *dbc)
+int db_close(struct osd_device *osd)
 {
 	int ret = 0;
 
-	ret = db_finalize(dbc);
-	if (ret != OSD_OK)
-		return ret;
-	ret = sqlite3_close(dbc->db);
-	if (ret != SQLITE_OK) {
-		osd_error("Failed to close db %s", sqlite3_errmsg(dbc->db));
-		return ret;
-	}
+	if (!osd || !osd->dbc || !osd->dbc->db)
+		return -EINVAL;
+
+	db_finalize(osd->dbc);
+	sqlite3_close(osd->dbc->db);
+	free(osd->dbc);
+	osd->dbc = NULL;
 
 	return OSD_OK;
 }
@@ -153,19 +156,32 @@ int db_initialize(struct db_context *dbc)
 {
 	int ret = 0;
 
-	if (dbc == NULL)
-		return -EINVAL;
+	if (dbc == NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
 
 	ret = coll_initialize(dbc);
-	if (ret != OSD_OK)
-		return ret;
+	if (ret != OSD_OK) 
+		goto finalize_coll;
 	ret = obj_initialize(dbc);
 	if (ret != OSD_OK)
-		return ret;
+		goto finalize_obj;
 	ret = attr_initialize(dbc);
 	if (ret != OSD_OK)
-		return ret;
-	return OSD_OK;
+		goto finalize_attr;
+
+	ret = OSD_OK;
+	goto out;
+
+finalize_attr:
+	attr_finalize(dbc);
+finalize_obj:
+	obj_finalize(dbc);
+finalize_coll:
+	coll_finalize(dbc);
+out:
+	return ret;
 }
 
 
@@ -176,86 +192,77 @@ int db_finalize(struct db_context *dbc)
 	if (dbc == NULL)
 		return -EINVAL;
 
-	ret = coll_finalize(dbc);
-	if (ret != OSD_OK)
-		return ret;
-	ret = obj_finalize(dbc);
-	if (ret != OSD_OK)
-		return ret;
-	ret = attr_finalize(dbc);
-	if (ret != OSD_OK)
-		return ret;
+	ret = 0;
+	ret |= coll_finalize(dbc);
+	ret |= obj_finalize(dbc);
+	ret |= attr_finalize(dbc);
+	if (ret == OSD_OK)
+		return OSD_OK;
+
+	return OSD_ERROR;
+}
+
+
+int db_begin_txn(struct db_context *dbc)
+{
+	int ret = 0;
+	char *err = NULL;
+
+	if (!dbc || !dbc->db)
+		return OSD_ERROR;
+
+	ret = sqlite3_exec(dbc->db, "BEGIN TRANSACTION;", NULL, NULL, &err);
+	if (ret != SQLITE_OK) {
+		osd_error("pragma failed: %s", err);
+		sqlite3_free(err);
+		return OSD_ERROR;
+	}
+
 	return OSD_OK;
 }
 
 
-int db_begin_txn(struct osd_device *osd)
+int db_end_txn(struct db_context *dbc)
 {
 	int ret = 0;
 	char *err = NULL;
 
-	ret = sqlite3_exec(osd->db, "BEGIN TRANSACTION;", NULL, NULL, &err);
+	if (!dbc || !dbc->db)
+		return OSD_ERROR;
+
+	ret = sqlite3_exec(dbc->db, "END TRANSACTION;", NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
 		osd_error("pragma failed: %s", err);
-		sqlite3_free(err);
+		return OSD_ERROR;
 	}
 
-	return ret;
+	return OSD_OK;
 }
 
 
-int db_end_txn(struct osd_device *osd)
-{
-	int ret = 0;
-	char *err = NULL;
-
-	ret = sqlite3_exec(osd->db, "END TRANSACTION;", NULL, NULL, &err);
-	if (ret != SQLITE_OK) {
-		osd_error("pragma failed: %s", err);
-		sqlite3_free(err);
-	}
-
-	return ret;
-}
-
-
-int db_exec_pragma(struct osd_device *osd)
+int db_exec_pragma(struct db_context *dbc)
 {
 	int ret = 0;
 	char *err = NULL;
 	char SQL[MAXSQLEN];
 
-	if (osd->db == NULL)
+	if (!dbc || !dbc->db)
 		return -EINVAL;
 
-	sprintf(SQL, "PRAGMA synchronous = OFF;"); /* sync off */
-	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
-	if (ret != SQLITE_OK)
-		goto spit_err;
+	sprintf(SQL,
+		"PRAGMA synchronous = OFF; " /* sync off */
+		"PRAGMA auto_vacuum = 1; "   /* reduce db size on delete */
+		"PRAGMA count_changes = 0; " /* ignore count changes */
+		"PRAGMA temp_store = 0; "    /* memory as scratchpad */
+	       );
+	ret = sqlite3_exec(dbc->db, SQL, NULL, NULL, &err);
+	if (ret != SQLITE_OK) {
+		osd_error("pragma failed: %s", err);
+		sqlite3_free(err);
+		return OSD_ERROR;
+	}
 
-	sprintf(SQL, "PRAGMA auto_vacuum = 1;"); /* reduce db size on delete */
-	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
-	if (ret != SQLITE_OK)
-		goto spit_err;
-
-	sprintf(SQL, "PRAGMA count_changes = 0;"); /* ignore count changes */
-	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
-	if (ret != SQLITE_OK)
-		goto spit_err;
-
-	sprintf(SQL, "PRAGMA temp_store = 0;"); /* memory as scratchpad */
-	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
-	if (ret != SQLITE_OK)
-		goto spit_err;
-
-	goto out;
-
-spit_err:
-	osd_error("pragma failed: %s", err);
-	sqlite3_free(err);
-
-out:
-	return ret;
+	return OSD_OK;
 }
 
 
@@ -266,24 +273,29 @@ static int callback(void *ignore, int count, char **val, char **colname)
 }
 
 
-int db_print_pragma(struct osd_device *osd)
+int db_print_pragma(struct db_context *dbc)
 {
 	int ret = 0;
 	char *err = NULL;
 	char SQL[MAXSQLEN];
 
-	if (osd->db == NULL)
+	if (!dbc || !dbc->db)
 		return -EINVAL;
 
-	sprintf(SQL, "PRAGMA synchronous;"); 
-	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
-	sprintf(SQL, "PRAGMA auto_vacuum;"); 
-	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
-	sprintf(SQL, "PRAGMA count_changes;"); 
-	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
-	sprintf(SQL, "PRAGMA temp_store;"); 
-	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
-	return ret;
+	sprintf(SQL,
+		" PRAGMA synchronous;"
+		" PRAGMA auto_vacuum;"
+		" PRAGMA auto_vacuum;"
+		" PRAGMA temp_store;"
+	       );
+	ret = sqlite3_exec(dbc->db, SQL, callback, NULL, &err);
+	if (ret != SQLITE_OK) {
+		osd_error("pragma failed: %s", err);
+		sqlite3_free(err);
+		return OSD_ERROR;
+	}
+
+	return OSD_OK;
 }
 
 
@@ -368,7 +380,15 @@ int db_exec_id_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt,
 			} else if (*cont_id == 0) {
 				*cont_id = sqlite3_column_int64(stmt, 0);
 			}
-			*add_len += 8;
+			/* handle overflow: osd2r01 Sec 6.14.2 */
+			if (*add_len + 8 > *add_len) {
+				*add_len += 8;
+			} else {
+				/* terminate since add_len overflew */
+				*add_len = 0xFFFFFFFFFFFFFFFF;
+				break;
+
+			} 
 		} else if (ret == SQLITE_BUSY) {
 			continue;
 		} else {

@@ -175,7 +175,7 @@ out:
 
 int obj_finalize(struct db_context *dbc)
 {
-	if (!dbc)
+	if (!dbc || !dbc->obj)
 		return OSD_ERROR;
 
 	/* finalize statements; ignore return values */
@@ -200,7 +200,7 @@ int obj_finalize(struct db_context *dbc)
 
 const char *obj_getname(struct db_context *dbc)
 {
-	if (dbc == NULL || dbc->coll == NULL)
+	if (dbc == NULL || dbc->obj == NULL)
 		return NULL;
 	return dbc->obj->name;
 }

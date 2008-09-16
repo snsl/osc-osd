@@ -18,7 +18,7 @@ Optimization:
 -   combine tests for presence and type into one.
 -   make common case fast, assume correct, recover from error. for eg. assume
     attr and object exist, if not recover from error.
--   optimize sql query setup
++   optimize sql query setup
 -   multithreading sqlite: 
         fine grain locking. transactions
 -   implement cache near the table, for eg. id cache in obj.c
@@ -37,9 +37,9 @@ Maintainence:
     -   complete sma impl
     -   implement list collection
     -   ispresent_attr, ispresent_attrpage functions
--   struct for each table (attr, oc, obj):
++   struct for each table (attr, oc, obj):
        functions to create and destroy them
--   refactor attr.c 
++   refactor attr.c 
         clean sqlite api
         fix fret/ret bugs
         remove global variables in attr.c
@@ -49,11 +49,12 @@ Maintainence:
 -   design attr_list_oids_attr with proper loop invariant and clean code
 -   use stranded files to mv existing dfiles when creating dfiles
 -   reduce number of arguments for : getattr, setattr
--   function to run different tests
++   function to run different tests
         currently run test does that
 -   ntoh* functions need to be properly aligned
--   db, obj and attr specific return codes
--   separate return values for sqlite calls in attr_get_attr
++   db, obj and attr specific return codes
+		all table new return standardized err like OSD_ERROR
++   separate return values for sqlite calls in attr_get_attr
 +   use flexible array at end of struct for le mle
         might not be necessary considering new design and helper funcs
 

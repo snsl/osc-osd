@@ -48,7 +48,7 @@
 #define OSD_ASC_INVALID_COMMAND_OPERATION_CODE (0x2000)
 #define OSD_ASC_INVALID_DATA_OUT_BUF_INTEGRITY_CHK_VAL (0x260F)
 #define OSD_ASC_INVALID_FIELD_IN_CDB (0x2400)
-#define OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST (0x2600)
+#define OSD_ASC_INVALID_FIELD_IN_PARAM_LIST (0x2600)
 #define OSD_ASC_LOGICAL_UNIT_NOT_RDY_FRMT_IN_PRGRS (0x0404)
 #define OSD_ASC_NONCE_NOT_UNIQUE (0x2406)
 #define OSD_ASC_NONCE_TIMESTAMP_OUT_OF_RANGE (0x2407)
@@ -63,9 +63,6 @@
 
 #define ASC(x) ((x & 0xFF00) >> 8)
 #define ASCQ(x) (x & 0x00FF)
-
-/* including 8 byte header, and additional len = 244, as given by spc3 */
-#define MAX_SENSE_LEN 252
 
 /* Descriptor format sense data (fsd). SPC3 r23, 4.5.2.1 */
 typedef struct scsi_desc_fsd {

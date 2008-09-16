@@ -8,7 +8,8 @@ SRC := $(wildcard *.c)
 INC := $(wildcard *.h)
 DEP := .depend
 OBJ := $(SRC:.c=.o)
-EXE := $(SRC:.c=)
+TESTS := $(wildcard *test.c)
+EXE := $(TESTS:.c=)
 LIBOSD := ../libosd.a ../../util/libosdutil.a
 
 CC := gcc
@@ -24,7 +25,7 @@ CFLAGS := $(COPTS) $(CWARN) -I. -I.. -I../../
 # default target
 all :: $(EXE)
 
-$(EXE): %: %.o $(LIBOSD)
+$(EXE): %: %.o cdb-manip.o $(LIBOSD) 
 	$(CC) -o $@ $^ -lsqlite3
 
 %.o : %.c

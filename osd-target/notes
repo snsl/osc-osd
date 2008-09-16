@@ -198,19 +198,76 @@ can be implemented as a sql view on page numbers 0
 +	make depend targets
 
 # Mon Feb 19 13:08:31 EST 2007
--	use gettype in obj disambiguation
--	fix fret/ret bugs
--	fix attr_get_* bugs
--	fix test codes with asserts
++	use gettype in obj disambiguation
++	fix fret/ret bugs
++	fix attr_get_* bugs
++	fix test codes with asserts
 -	test different format scenarios
 -	replace magic numbers with descriptive codes
--	change valid page to is settable
++	change valid page to is settable
 -	page format Sec 7, 
 
 # Tue Feb 20 15:34:32 EST 2007
--	get size, atime, mtime attr
--	write get page for other pages like timestamps
++	get size, atime, mtime attr
++	write get page for timestamps
 
 # Fri Feb 23 15:07:22 EST 2007
 -	include root info page struct in osd_device
--	osd error precision
+-	osd error precision ??
+-	append
+-	split get_attr in cdb.c, handle command ordering, write test cases
+-	parse list
+-	separate function to handle each command in cdb
+
+# Wed Feb 28 12:30:56 EST 2007
+-	break each into individual functions
+-	change embeded to true/false
+-	replace magic numbers in calculating cdb offset 
+-	test cases for cdb
+-	get_attr_page needs to be changes to get pages like ccap. to get all
+	contents of a page, another command has to be added
+-	ntoh* functions need to be properly aligned
+-	attr_page values are aligned to 8-byte boundary
+
+# Thu Mar  1 13:03:27 EST 2007
+-	design and implement collections
+-	test blob modifications
+-	collections as a chunk of memory representing array of oids/cids
+-	collections containing objects across partitions?
+-	design with quota in pic
+-	add attribute list header
+-	clean interface for getting multiple attributes
+-	for create with > 1 objects:
+		set attr value, set attr list: attr for each object will be set
+		get attr list: attr for each object in attr list of type 0xF.
+		get attr page: ?
+-	new function: osd_getattr_page
+-	move page related osd funcs to a new file
+
+# Fri Mar  2 11:19:42 EST 2007
+-	conflicting goals:
+	one function to pack attributes, but that requires double copies? how to
+	solve this?
+-	while getting attr in list, in case of overflow, dont overwrite/ignore
+	copied attrs
+-	ispresent_attr, ispresent_attrpage functions
+-	null attributes page for page not found. for non existing attribute, list
+	entry format with len == 0xFFFFFFFF 
+-	optimize sql query setup
+-	change ATTR_VAL_OFFSET to VAL_OFFSET(x)
+-	creating a new page, automatically creates page 0. 
+-	page directory related functions
+-	get_all_attr for object function
+-	let attr_gather_attr returns EOVERFLOW, but attr is absent, what will be
+	returned in that case? 
+		it will not be treated as an error
+-	mark all sematic decisions as XXX:SD
+
+# Sun Mar  4 14:56:45 EST 2007
+-	separate return for sqlite calls in attr_get_attr
+-	rename RTRVD_CREATE_ATTR_LIST  RTRVD_CREATE_MUTIOBJ_LIST
+-	if setattr with length zero, don't delete it, since that attr still has
+	definition. this situation is different from where attr has no definition
+	XXX:SD modifiy query.
+-	after opening db, check if all tables exist
+-	cdb tests, tests for new osd-functions

@@ -2,9 +2,10 @@
 # OSD target makefile
 #
 
-SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c
+SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c list-entry.c
 SRC += osd-schema.c
 INC := attr.h db.h obj.h osd-types.h osd.h osd-sense.h cdb.h osd-defs.h
+INC += list-entry.h
 DEP := .depend
 OBJ := $(SRC:.c=.o)
 TESTDIR := ./tests/
@@ -60,7 +61,7 @@ ifneq (clean, $(MAKECMDGOALS))
 endif
 
 all :: $(DEP)
-$(DEP) :
+$(DEP) : osd-schema.c
 	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > $(DEP) 
 
 clean:

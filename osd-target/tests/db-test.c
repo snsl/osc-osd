@@ -51,6 +51,7 @@ void test_attr(struct osd_device *osd)
 	int ret= 0;
 	const char *attr = "This is first attr";
 	uint32_t len = 0;
+	uint8_t listfmt = 0;
 
 	ret = attr_set_attr(osd->db, 1, 1, 2, 12, attr, strlen(attr)+1);
 	assert(ret == 0);
@@ -58,17 +59,21 @@ void test_attr(struct osd_device *osd)
 	void *val = Calloc(1, 1024);
 	if (!val)
 		osd_error_errno("%s: Calloc failed", __func__);
-	ret = attr_get_attr(osd->db, 1, 1, 2, 12, val, 1024, &len);
+
+	listfmt = RTRVD_SET_ATTR_LIST;
+	ret = attr_get_attr(osd->db, 1, 1, 2, 12, val, 1024, listfmt, &len);
 	assert(ret == 0);
-	assert(len == strlen(attr)+1+ATTR_VAL_OFFSET);
-	list_entry_t *ent = (list_entry_t *)val;
+	uint32_t l = strlen(attr)+1+LE_VAL_OFF;
+	l += (0x8 - (l & 0x7)) & 0x7;
+	assert(len == l);
+	struct list_entry *ent = (struct list_entry *)val;
 	assert(ntohl_le((uint8_t *)&ent->page) == 2);
 	assert(ntohl_le((uint8_t *)&ent->number) == 12);
 	assert(ntohs_le((uint8_t *)&ent->len) == strlen(attr)+1);
-	assert(strcmp((char *)ent + ATTR_VAL_OFFSET, attr) == 0); 
+	assert(strcmp((char *)ent + LE_VAL_OFF, attr) == 0); 
 
 	/* get non-existing attr, must fail */
-	ret = attr_get_attr(osd->db, 2, 1, 2, 12, val, 1024, &len);
+	ret = attr_get_attr(osd->db, 2, 1, 2, 12, val, 1024, listfmt, &len);
 	assert(ret != 0);
 
 	free(val);

@@ -35,211 +35,35 @@ struct command {
 /*
  * Compare, and complain if not the same.  Return sense data if so.
  */
-static int verify_enough_input_data(struct command *command, uint64_t cdblen)
+static int verify_enough_input_data(struct command *cmd, uint64_t cdblen)
 {
 	int ret = 0;
 
-	if (cdblen != command->inlen) {
+	if (cdblen != cmd->inlen) {
 		osd_error("%s: supplied data %llu but cdb says %llu\n",
-		      __func__, llu(command->inlen), llu(cdblen));
-		ret = osd_error_bad_cdb(command->sense);
+			  __func__, llu(cmd->inlen), llu(cdblen));
+		ret = osd_error_bad_cdb(cmd->sense);
 	}
 	return ret;
 }
-
-static uint16_t get_list_item(uint8_t *list, int num)
-{
-	return ntohl(&list[3 + num*2]);
-}
-
-/*
- * Return 0 if all okay.  Return >0 if some sense data was created,
- * this is the length of the sense data.  The input sense buffer is
- * known to be sized large enough to hold anything (MAX_SENSE_LEN).
- * Output data goes into data_out, and puts the length in data_out_len, up to
- * the data_out_len_max.
- *
- * The data_out buf is already allocated and pointing at the retrieved
- * attributes offset.  Just fill it up to _max and report how much you
- * used.
- */
-static void get_attributes(struct command *command)
-{	
-	int ret;
-	uint64_t pid = ntohll(&command->cdb[16]);
-	uint64_t oid = ntohll(&command->cdb[24]);
-	uint8_t *outdata = command->outdata + command->retrieved_attr_off;
-	uint64_t outlen = command->outlen - command->retrieved_attr_off;
-
-	/* if =2, get an attribute page and set an attribute value */
-	if (command->getset_cdbfmt == 2)
-	{
-		uint32_t page = ntohl(&command->cdb[52]);
-		
-		/* if page = 0, no attributes are to be gotten */
-		if (page != 0)
-		{
-			ret = osd_get_attributes(command->osd, pid, oid,
-				page, 0, outdata, outlen, 1, EMBEDDED,
-				command->sense, &command->get_used_outlen);
-			if (ret > 0)
-				command->senselen = ret;
-		}
-	}
-
-	/* else if =3, get attributes using lists */
-	if (command->getset_cdbfmt == 3)
-	{
-		uint32_t get_list_len = ntohl(&command->cdb[52]);
-		uint64_t get_list_offset = ntohoffset(&command->cdb[56]);
-		const uint8_t *list_header;
-		uint8_t list_type;
-		uint32_t i, num_list_items;
-
-		if (get_list_len < 4) {
-			command->senselen = sense_basic_build(command->sense,
-				OSD_SSK_ILLEGAL_REQUEST,
-				OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
-				pid, oid);
-			return;
-		}
-		if (get_list_offset + get_list_len > command->inlen) {
-			command->senselen = sense_basic_build(command->sense,
-				OSD_SSK_ILLEGAL_REQUEST,
-				OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
-				pid, oid);
-			return;
-		}
-		list_header = command->indata + get_list_offset;
-		list_type = list_header[0] & 0xf;
-		if (list_type != 1) {
-			command->senselen = sense_basic_build(command->sense,
-				OSD_SSK_ILLEGAL_REQUEST,
-				OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
-				pid, oid);
-			return;
-		}
-		num_list_items = ntohs(&list_header[2]);
-		if (num_list_items & (8-1)) {
-			command->senselen = sense_basic_build(command->sense,
-				OSD_SSK_ILLEGAL_REQUEST,
-				OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
-				pid, oid);
-			return;
-		}
-		num_list_items /= 8;
-		if (4 + num_list_items * 8 != get_list_len) {
-			command->senselen = sense_basic_build(command->sense,
-				OSD_SSK_ILLEGAL_REQUEST,
-				OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
-				pid, oid);
-			return;
-		}
-
-		/* start with the response list header */
-		outdata[0] = 0x9;
-		outdata[1] = 0;
-		command->get_used_outlen = 4;
-
-		for (i=0; i<num_list_items; i++) {
-			uint32_t page = ntohl(&list_header[4 + i*8 + 0]);
-			uint32_t number = ntohl(&list_header[4 + i*8 + 4]);
-			/*
-			 * XXX: call into attr to get this
-			 */
-			uint16_t attr_len = 8;
-			uint8_t attr_val[8];
-
-			uint32_t need_len = 10 + attr_len;
-
-			osd_debug("%s: page 0x%x num 0x%x len %hx", __func__,
-			          page, number, attr_len);
-			set_htonll(attr_val, 42);  /* hack */
-			if (need_len > outlen - command->get_used_outlen)
-				break;
-
-			memcpy(&outdata[command->get_used_outlen + 0],
-			       &list_header[4 + i*8 + 0], 8);
-			set_htons(&outdata[command->get_used_outlen + 8],
-			          need_len - 10);
-			memcpy(&outdata[command->get_used_outlen + 10],
-			       &attr_val, attr_len);
-			command->get_used_outlen += need_len;
-		}
-
-		/* update actual length generated */
-		set_htons(&outdata[2], command->get_used_outlen - 4);
-	}
-}
-
-static int set_attributes(struct osd_device *osd, uint8_t *cdb,
-                          uint8_t *data_in, uint64_t data_in_len,
-		          uint8_t *sense, uint8_t getset_cdbfmt)
-{
-	int ret = 0;
-	uint64_t pid = ntohll(&cdb[16]);
-	uint64_t oid = ntohll(&cdb[24]);
-	
-	/* if =2, set an attribute value */
-	if (getset_cdbfmt == 2)
-	{
-		uint32_t set_page = ntohl(&cdb[64]);
-		
-		if (set_page != 0){
-			uint32_t set_num = ntohl(&cdb[68]);
-			uint32_t set_len = ntohl(&cdb[72]);
-			uint32_t set_offset = ntohl(&cdb[76]);
-			
-			ret = osd_set_attributes(osd, pid, oid,
-                      	 	set_page, set_num, &data_in[set_offset],
-		       		set_len, EMBEDDED, sense);
-			/*XXX: Check for errors/sense */
-		}
-	}
-	/* else if =3, set attributes using lists */
-	if (getset_cdbfmt == 3)
-	{		
-		uint32_t set_list_len = ntohl(&cdb[68]);
-		
-		if (set_list_len != 0)
-		{
-
-			uint32_t set_list_offset = ntohl(&cdb[72]);
-			
-			uint32_t tmp;
-			uint16_t list_item;
-	
-			for( tmp=0; tmp<set_list_len; tmp++)
-			{
-				list_item = get_list_item(data_in, tmp);
-				/*XXX - set list item attr */
-				/*XXX: Check for errors/sense */
-			}
-		}
-
-	}
-	return ret;
-} 
 
 /*
  * What's the total number of bytes this command might produce?
  */
-static void calc_max_out_len(struct command *command)
+static void calc_max_out_len(struct command *cmd)
 {
-	uint64_t end;
+	uint64_t end = 0;
 
-	/*
-	 * These commands return data.
-	 */
-	switch (command->action) {
+	/* These commands return data. */
+	switch (cmd->action) {
 	case OSD_LIST:
 	case OSD_LIST_COLLECTION:
 	case OSD_READ:
 	case OSD_SET_MASTER_KEY:
-		command->outlen = ntohll(&command->cdb[36]);
+		cmd->outlen = ntohll(&cmd->cdb[36]);
 		break;
 	default:
-		command->outlen = 0;
+		cmd->outlen = 0;
 	}
 
 	/*
@@ -247,59 +71,397 @@ static void calc_max_out_len(struct command *command)
 	 * the result offset and the allocation length to get the
 	 * end of their write.
 	 */
-	command->retrieved_attr_off = 0;
-	end = 0;
-	if (command->getset_cdbfmt == 2) {
-		command->retrieved_attr_off = ntohoffset(&command->cdb[60]);
-		end = command->retrieved_attr_off + ntohl(&command->cdb[56]);
+	cmd->retrieved_attr_off = 0;
+	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
+		cmd->retrieved_attr_off = ntohoffset(&cmd->cdb[60]);
+		end = cmd->retrieved_attr_off + ntohl(&cmd->cdb[56]);
 	}
-	if (command->getset_cdbfmt == 3) {
-		command->retrieved_attr_off = ntohoffset(&command->cdb[64]);
-		end = command->retrieved_attr_off + ntohl(&command->cdb[60]);
+	if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
+		cmd->retrieved_attr_off = ntohoffset(&cmd->cdb[64]);
+		end = cmd->retrieved_attr_off + ntohl(&cmd->cdb[60]);
 	}
 
-	if (end > command->outlen)
-		command->outlen = end;
+	if (end > cmd->outlen)
+		cmd->outlen = end;
+}
+
+static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
+			 uint8_t isembedded, uint16_t numoid)
+{
+	int ret = 0;
+	uint8_t *cdb = cmd->cdb;
+	uint32_t page = ntohl(&cmd->cdb[52]);
+	uint32_t alloc_len = ntohl(&cdb[56]); 
+	void *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
+
+	if (page == 0 || alloc_len == 0)/* nothing to be retrieved. osd2r00 */
+		return 0;	   	/* Sec 5.2.2.2 */ 
+
+	if (page != CUR_CMD_ATTR_PG && numoid > 1)
+		return -1; /* TODO: proper error code */
+
+	ret = osd_getattr_page(cmd->osd, pid, oid, page, outbuf, alloc_len,
+			       isembedded, &cmd->get_used_outlen,
+			       cmd->sense);
+	return ret;
+}
+
+static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
+			  uint8_t isembedded, uint16_t numoid)
+{
+	int ret = 0;
+	uint64_t i = 0;
+	uint8_t *cdb = cmd->cdb;
+	uint32_t page = ntohl(&cmd->cdb[64]);
+	uint32_t number = ntohl(&cdb[68]);
+	uint32_t len = ntohl(&cdb[72]); /* XXX: bug in std? sizeof(len) = 4B */
+	uint64_t offset = ntohoffset(&cdb[76]);
+
+	if (page == 0)
+		return 0; /* nothing to set. osd2r00 Sec 5.2.2.2 */
+
+	for (i = oid; i < oid+numoid; i++) {
+		ret = osd_set_attributes(cmd->osd, pid, i, page, number,
+					 &cmd->indata[offset], len, isembedded,
+					 cmd->sense);
+		if (ret != 0)
+			break;
+	}
+
+	return ret;
 }
 
 /*
- * Run the relevant command.
- */
-static void do_action(struct command *command)
+ * TODO: proper return codes 
+ * returns:
+ * ==0: success
+ *  >0: failure, senselen is returned.
+ */ 
+static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
+			 uint8_t isembedded, uint16_t numoid)
 {
-	struct osd_device *osd = command->osd;
-	uint8_t *cdb = command->cdb;
-	uint8_t *sense = command->sense;
+	int ret = 0;
+	uint64_t i = 0;
+	uint8_t list_type;
+	uint8_t listfmt = RTRVD_SET_ATTR_LIST;
+	uint32_t page;
+	uint32_t number;
+	uint32_t get_used_outlen;
+	uint32_t list_len = ntohl(&cmd->cdb[52]); 
+	uint64_t list_off = ntohoffset_le(&cmd->cdb[56]);
+	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
+	const uint8_t *list_hdr = &cmd->indata[list_off];
+	uint8_t *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
+	uint8_t *cp = NULL;
+
+	if (list_len == 0)
+		return 0; /* nothing to retrieve, osd2r00 Sec 5.2.2.3 */
+
+	if (list_len != 0 && list_len < MIN_LIST_LEN)
+		goto out_param_list_err;
+
+	if (list_off + list_alloc_len > cmd->inlen)
+		goto out_param_list_err;
+
+	if ((list_off & 0x7) || (list_alloc_len & 0x7))
+		goto out_param_list_err; /*XXX: osd-errata 8B aligned */
+
+	list_type = list_hdr[0] & 0xF;
+	if (list_type != RTRV_ATTR_LIST)
+		goto out_invalid_param_list;
+
+	list_len = ntohl(&list_hdr[4]); /* XXX: osd-errata */
+	if (list_len & 0x7) /* multiple of 8 */
+		goto out_param_list_err;
+
+	if (numoid > 1)
+		listfmt = RTRVD_CREATE_ATTR_LIST;
+	outbuf[0] = listfmt; /* fill list header */
+
+	list_hdr = &list_hdr[8]; /* XXX: osd-errata */
+	cp = &outbuf[8]; /* XXX: osd-errata */
+	while (list_len > 0) {
+		page = ntohl(&list_hdr[0]);
+		number = ntohl(&list_hdr[4]);
+
+		for (i = oid; i < oid+numoid; i++) {
+			ret = osd_getattr_list(cmd->osd, pid, i, page, number,
+					       cp, list_alloc_len, isembedded,
+					       listfmt, &get_used_outlen,
+					       cmd->sense);
+			if (ret != 0) {
+				cmd->senselen = ret;
+				return ret;
+			}
+
+			list_alloc_len -= get_used_outlen;
+			cmd->get_used_outlen += get_used_outlen;
+			cp += get_used_outlen;
+		}
+
+		list_len -= 8;
+		list_hdr += 8;
+	}
+	/* XXX: osd-errata. Set list length */
+	set_htonl_le(&outbuf[8], cmd->get_used_outlen - 8);
+
+	return 0; /* success */
+
+out_param_list_err:
+	cmd->senselen = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+					  pid, oid);
+	return cmd->senselen; 
+
+out_invalid_param_list:
+	cmd->senselen = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					  OSD_ASC_INVALID_FIELD_IN_PARAM_LIST,
+					  pid, oid);
+	return cmd->senselen;
+}
+
+/*
+ * TODO: proper return codes 
+ * returns:
+ * ==0: success
+ *  >0: failure, senselen is returned.
+ */ 
+static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
+			 uint8_t isembedded, uint16_t numoid)
+{
+	int ret = 0;
+	uint64_t i = 0;
+	uint8_t list_type;
+	uint32_t page;
+	uint32_t number;
+	uint32_t len;
+	uint32_t pad;
+	uint8_t *cdb = cmd->cdb;
+	uint32_t list_len = ntohl(&cmd->cdb[68]);
+	uint32_t list_off = ntohoffset(&cmd->cdb[72]);
+	const uint8_t *list_hdr = &cmd->indata[list_off];
+
+	if (list_len == 0)
+		return 0; /* nothing to set, osd2r00 Sec 5.2.2.3 */
+
+	if (list_len != 0 && list_len < MIN_LIST_LEN)
+		goto out_param_list_err;
+
+	list_type = list_hdr[0] & 0xF;
+	if (list_type != RTRVD_SET_ATTR_LIST)
+		goto out_param_list_err;
+
+	list_len = ntohl(&list_hdr[4]); /* XXX: osd errata */
+	if (list_len & 0x7) /* multiple of 8, values are padded */
+		goto out_param_list_err;
+
+	list_hdr = &list_hdr[8]; /* XXX: osd errata */
+	while (list_len > 0) {
+		page = ntohl(&list_hdr[0]);
+		number = ntohl(&list_hdr[4]);
+		len = ntohs(&list_hdr[8]);
+
+		/* set attr on multiple objects if that is the case */
+		for (i = oid; i < oid+numoid; i++) {
+			ret = osd_set_attributes(cmd->osd, pid, i, page, 
+						 number, &list_hdr[10], len, 
+						 isembedded, cmd->sense);
+			if (ret != 0) {
+				cmd->senselen = ret;
+				return ret;
+			}
+		}
+
+		pad = (0x8 - ((LE_VAL_OFF + len) & 0x7)) & 0x7;
+		list_hdr += LE_VAL_OFF + len + pad;
+		list_len -= LE_VAL_OFF + len + pad;
+	}
+
+	return 0; /* success */
+
+out_param_list_err:
+	cmd->senselen = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+					  pid, oid);
+	return cmd->senselen;
+}
+
+/*
+ * returns:
+ * ==0: success
+ *  >0: failed, sense len set accordingly
+ */
+static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
+			  uint16_t numoid)
+{
+	int ret = 0;
+	uint8_t isembedded = TRUE;
+	uint8_t *cdb = cmd->cdb;
+
+	if (numoid < 1)
+		goto out_cdb_err;
+
+	if (cmd->action == OSD_GET_ATTRIBUTES)
+		isembedded = FALSE;
+
+	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
+		ret = get_attr_page(cmd, pid, oid, isembedded, numoid);
+	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {		
+		ret = get_attr_list(cmd, pid, oid, isembedded, numoid);
+	} else {
+		goto out_cdb_err;
+	}
+
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+out:
+	return ret; 
+
+}
+
+/*
+ * returns:
+ * ==0: success
+ *  >0: failed, sense len set accordingly
+ */
+static int set_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
+			  uint32_t numoid)
+{
+	int ret = 0;
+	uint8_t isembedded = TRUE;
+	uint8_t *cdb = cmd->cdb;
+
+	if (numoid < 1)
+		goto out_cdb_err;
+
+	if (cmd->action == OSD_SET_ATTRIBUTES)
+		isembedded = FALSE;
+
+	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
+		ret = set_attr_value(cmd, pid, oid, isembedded, numoid);
+	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {		
+		ret = set_attr_list(cmd, pid, oid, isembedded, numoid);
+	} else {
+		goto out_cdb_err;
+	}
+
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+out:
+	return ret; 
+} 
+
+/*
+ * returns:
+ * ==0: success
+ *  >0: error, cmd->sense is appropriately set
+ */
+static int cdb_create(struct command *cmd)
+{
+	int ret = 0;
+	uint64_t i = 0;
+	uint32_t page;
+	uint64_t oid;
+	uint8_t *cdb = cmd->cdb;
+	uint64_t pid = ntohll(&cdb[16]);
+	uint64_t requested_oid = ntohll(&cdb[24]);
+	uint16_t numoid = ntohs(&cdb[36]);
+	uint8_t sense[MAX_SENSE_LEN];
+
+	if (numoid > 1 && cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
+		page = ntohl(&cmd->cdb[52]);
+		if (page != CUR_CMD_ATTR_PG)
+			goto out_cdb_err;
+	}
+
+	ret = osd_create(cmd->osd, pid, requested_oid, numoid, cmd->sense);
+	if (ret != 0)
+		return ret;
+
+	numoid = (numoid == 0) ? 1 : numoid;
+	oid = osd_get_created_oid(cmd->osd, numoid);
+
+	ret = get_attributes(cmd, pid, oid, numoid);
+	if (ret != 0)
+		goto out_remove_obj;
+	ret = set_attributes(cmd, pid, oid, numoid);
+	if (ret != 0)
+		goto out_remove_obj;
+
+	return ret; /* success */
+
+out_remove_obj:
+	for (i = oid; i < oid+numoid; i++)
+		osd_remove(cmd->osd, pid, i, sense); /* ignore ret & sense */
+	return ret;
+
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, pid,
+				requested_oid); 
+	return ret;
+}
+
+static int cdb_create_partition(struct command *cmd)
+{
+	int ret = 0;
+	uint64_t pid = 0;
+	uint64_t requested_pid = ntohll(&cmd->cdb[16]);
+	uint8_t sense[MAX_SENSE_LEN];
+
+	ret = osd_create_partition(cmd->osd, requested_pid, sense);
+	if (ret != 0)
+		return ret;
+
+	pid = cmd->osd->ccap.pid;
+	ret = get_attributes(cmd, pid, PARTITION_OID, 1);
+	if (ret != 0)
+		goto out_remove_obj;
+	ret = set_attributes(cmd, pid, PARTITION_OID, 1);
+	if (ret != 0)
+		goto out_remove_obj;
+
+	return ret;
+
+out_remove_obj:
+	osd_remove(cmd->osd, pid, PARTITION_OID, sense);
+	return ret;
+}
+
+static void exec_service_action(struct command *cmd)
+{
+	struct osd_device *osd = cmd->osd;
+	uint8_t *cdb = cmd->cdb;
+	uint8_t *sense = cmd->sense;
 	int ret;
 
-	switch (command->action) {
+	switch (cmd->action) {
 	case OSD_APPEND: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
-		ret = verify_enough_input_data(command, len);
+		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
-		ret = osd_append(osd, pid, oid, len, command->indata, sense);
+		ret = osd_append(osd, pid, oid, len, cmd->indata, sense);
 		break;
 	}
 	case OSD_CREATE: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t requested_oid = ntohll(&cdb[24]);
-		uint16_t num = ntohs(&cdb[36]);
-		ret = osd_create(osd, pid, requested_oid, num, sense);
+		ret = cdb_create(cmd);
 		break;
 	}
 	case OSD_CREATE_AND_WRITE: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t requested_oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
-		uint64_t offset = ntohs(&cdb[44]);
-		ret = verify_enough_input_data(command, len);
+		uint64_t offset = ntohll(&cdb[44]);
+		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
 		ret = osd_create_and_write(osd, pid, requested_oid, len,
-		                           offset, command->indata, sense);
+					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {
@@ -309,8 +471,7 @@ static void do_action(struct command *command)
 		break;
 	}
 	case OSD_CREATE_PARTITION: {
-		uint64_t requested_pid = ntohll(&cdb[16]);
-		ret = osd_create_partition(osd, requested_pid, sense);
+		ret = cdb_create_partition(cmd);
 		break;
 	}
 	case OSD_FLUSH: {
@@ -361,7 +522,7 @@ static void do_action(struct command *command)
 		// *data_out = dataout;
 		ret = 0;
 		break;
-			
+
 	}
 	case OSD_GET_MEMBER_ATTRIBUTES: {
 		uint64_t pid = ntohll(&cdb[16]);
@@ -375,7 +536,7 @@ static void do_action(struct command *command)
 		uint64_t alloc_len = ntohll(&cdb[36]);
 		uint64_t initial_oid = ntohll(&cdb[44]);
 		ret = osd_list(osd, pid, list_id, alloc_len, initial_oid,
-			       command->outdata, &command->used_outlen, sense);
+			       cmd->outdata, &cmd->used_outlen, sense);
 		break;
 	}
 	case OSD_LIST_COLLECTION: {
@@ -385,13 +546,13 @@ static void do_action(struct command *command)
 		uint64_t alloc_len = ntohll(&cdb[36]);
 		uint64_t initial_oid = ntohll(&cdb[44]);
 		ret = osd_list_collection(osd, pid, cid, list_id, alloc_len,
-		                          initial_oid, command->outdata,
-					  &command->used_outlen, sense);
+					  initial_oid, cmd->outdata,
+					  &cmd->used_outlen, sense);
 		break;
 	}
 	case OSD_PERFORM_SCSI_COMMAND:
 	case OSD_PERFORM_TASK_MGMT_FUNC:
-		ret = osd_error_unimplemented(command->action, sense);
+		ret = osd_error_unimplemented(cmd->action, sense);
 		break;
 	case OSD_QUERY: {
 		uint64_t pid = ntohll(&cdb[16]);
@@ -406,8 +567,8 @@ static void do_action(struct command *command)
 		uint64_t oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
 		uint64_t offset = ntohll(&cdb[44]);
-		ret = osd_read(osd, pid, oid, len, offset, command->outdata,
-		               &command->used_outlen, sense);
+		ret = osd_read(osd, pid, oid, len, offset, cmd->outdata,
+			       &cmd->used_outlen, sense);
 		break;
 	}
 	case OSD_REMOVE: {
@@ -456,8 +617,8 @@ static void do_action(struct command *command)
 		uint32_t param_len = ntohl(&cdb[32]);
 		uint32_t alloc_len = ntohl(&cdb[36]);
 		ret = osd_set_master_key(osd, dh_step, key, param_len,
-		                         alloc_len, command->outdata,
-					 &command->used_outlen, sense);
+					 alloc_len, cmd->outdata,
+					 &cmd->used_outlen, sense);
 		break;
 	}
 	case OSD_SET_MEMBER_ATTRIBUTES: {
@@ -471,15 +632,15 @@ static void do_action(struct command *command)
 		uint64_t oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
 		uint64_t offset = ntohll(&cdb[44]);
-		ret = verify_enough_input_data(command, len);
+		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
-		ret = osd_write(osd, pid, oid, len, offset, command->indata,
-		                sense);
+		ret = osd_write(osd, pid, oid, len, offset, cmd->indata,
+				sense);
 		break;
 	}
 	default:
-		ret = osd_error_unimplemented(command->action, sense);
+		ret = osd_error_unimplemented(cmd->action, sense);
 	}
 
 	/*
@@ -487,20 +648,20 @@ static void do_action(struct command *command)
 	 * in case of an error.  But sometimes they also return good
 	 * data.  Just save the senselen here and continue.
 	 */
-	command->senselen = ret;
+	cmd->senselen = ret;
 }
 
 
 /*
- * uaddr: either input or output, depending on the command
+ * uaddr: either input or output, depending on the cmd
  * uaddrlen: output var with number of valid bytes put in uaddr after a read
  */
 int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
-                         uint8_t *data_in, uint64_t data_in_len,
-		         uint8_t **data_out, uint64_t *data_out_len,
-		         uint8_t **sense_out, uint8_t *senselen_out)
+		      uint8_t *data_in, uint64_t data_in_len,
+		      uint8_t **data_out, uint64_t *data_out_len,
+		      uint8_t **sense_out, uint8_t *senselen_out)
 {
-	struct command command = {
+	struct command cmd = {
 		.osd = osd,
 		.cdb = cdb,
 		.action = (cdb[8] << 8) | cdb[9],
@@ -514,81 +675,178 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		.senselen = 0,
 	};
 
-	if (command.getset_cdbfmt != 2 && command.getset_cdbfmt != 3) {
-		command.senselen = sense_header_build(command.sense,
-			MAX_SENSE_LEN, OSD_SSK_ILLEGAL_REQUEST,
-			OSD_ASC_INVALID_FIELD_IN_CDB, 0);
-		goto out;
+	/* Sets retrieved_attr_off, outlen. */
+	calc_max_out_len(&cmd);
+
+	/* Allocate total possible output size. */
+	if (cmd.outlen) {
+		cmd.outdata = Malloc(cmd.outlen); /* XXX: stgt will free it */
+		if (!cmd.outdata)
+			goto out_hw_err;
 	}
 
-	/*
-	 * Sets retrieved_attr_off, outlen.
-	 */
-	calc_max_out_len(&command);
+	exec_service_action(&cmd); /* run the command. */
 
-	/*
-	 * Allocate total possible output size.
-	 */
-	if (command.outlen) {
-		command.outdata = malloc(command.outlen);
-		if (!command.outdata) {
-			osd_error("%s: malloc %llu failed", __func__,
-			      llu(command.outlen));
-			command.senselen = sense_header_build(command.sense,
-				MAX_SENSE_LEN, OSD_SSK_HARDWARE_ERROR,
-				OSD_ASC_SYSTEM_RESOURCE_FAILURE, 0);
-			goto out;
+	/* any error sets senselen to >0 */
+	if (cmd.senselen > 0)
+		goto out_free_resource;
+
+	if (cmd.get_used_outlen > 0) {
+		if (cmd.used_outlen < cmd.retrieved_attr_off) {
+			/*
+			 * Not supposed to touch these bytes, but no way to
+			 * have discontiguous return blocks.  So fill with 0.
+			 */
+			memset(cmd.outdata + cmd.used_outlen, 0,
+			       cmd.retrieved_attr_off - cmd.used_outlen);
 		}
-	}
-
-	/*
-	 * Run the command.
-	 */
-	do_action(&command);
-
-
-	/*
-	 * Process optional get/set attr arguments.
-	 */
-	/* set_attributes */
-		    
-	get_attributes(&command);
-
-	if (command.get_used_outlen > 0) {
-		if (command.used_outlen < command.retrieved_attr_off) {
-		    /*
-		     * Not supposed to touch these bytes, but no way to
-		     * have discontiguous return blocks.  So fill with 0.
-		     */
-		    memset(command.outdata + command.used_outlen, 0,
-			   command.retrieved_attr_off - command.used_outlen);
-		}
-		command.used_outlen = command.retrieved_attr_off
-		                    + command.get_used_outlen;
+		cmd.used_outlen = cmd.retrieved_attr_off
+			+ cmd.get_used_outlen;
 	}
 
 	/* Return the data buffer and get attributes. */
-	if (command.outlen > 0) {
-		if (command.used_outlen > 0) {
-			*data_out = command.outdata;
-			*data_out_len = command.used_outlen;
+	if (cmd.outlen > 0) {
+		if (cmd.used_outlen > 0) {
+			*data_out = cmd.outdata;
+			*data_out_len = cmd.used_outlen;
 		} else {
-			/* Some sort of problem that wrote no bytes. */
-			free(command.outdata);
+			goto out_free_resource;
 		}
 	}
+	goto out;
+
+out_hw_err:
+	cmd.senselen = sense_header_build(cmd.sense, MAX_SENSE_LEN,
+					  OSD_SSK_HARDWARE_ERROR,
+					  OSD_ASC_SYSTEM_RESOURCE_FAILURE, 0); 
+
+out_free_resource:
+	free(cmd.outdata);
 
 out:
-	if (command.senselen == 0) {
+	if (cmd.senselen == 0) {
 		return SAM_STAT_GOOD;
 	} else {
 		/* valid sense data, length is ret, maybe good data too */
-		*sense_out = malloc(command.senselen);
+		*sense_out = Malloc(cmd.senselen);
 		if (*sense_out) {
-			*senselen_out = command.senselen;
-			memcpy(*sense_out, command.sense, command.senselen);
+			*senselen_out = cmd.senselen;
+			memcpy(*sense_out, cmd.sense, cmd.senselen);
 		}
 		return SAM_STAT_CHECK_CONDITION;
 	}
 }
 
+/*
+ * Return 0 if all okay.  Return >0 if some sense data was created,
+ * this is the length of the sense data.  The input sense buffer is
+ * known to be sized large enough to hold anything (MAX_SENSE_LEN).
+ * Output data goes into data_out, and puts the length in data_out_len, up to
+ * the data_out_len_max.
+ *
+ * The data_out buf is already allocated and pointing at the retrieved
+ * attributes offset.  Just fill it up to _max and report how much you
+ * used.
+ */
+#if 0
+static void get_attributes_(struct command *cmd)
+{	
+	int ret;
+	uint64_t pid = ntohll(&cmd->cdb[16]);
+	uint64_t oid = ntohll(&cmd->cdb[24]);
+	uint8_t *outdata = cmd->outdata + cmd->retrieved_attr_off;
+	uint64_t outlen = cmd->outlen - cmd->retrieved_attr_off;
+
+	/* if =2, get an attribute page and set an attribute value */
+	if (cmd->getset_cdbfmt == 2)
+	{
+		uint32_t page = ntohl(&cmd->cdb[52]);
+
+		/* if page = 0, no attributes are to be gotten */
+		if (page != 0)
+		{
+			ret = osd_get_attributes(cmd->osd, pid, oid,
+						 page, 0, outdata, outlen, 1, TRUE,
+						 cmd->sense, &cmd->get_used_outlen);
+			if (ret > 0)
+				cmd->senselen = ret;
+		}
+	}
+
+	/* else if =3, get attributes using lists */
+	if (cmd->getset_cdbfmt == 3)
+	{
+		uint32_t get_list_len = ntohl(&cmd->cdb[52]);
+		uint64_t get_list_offset = ntohoffset(&cmd->cdb[56]);
+		const uint8_t *list_header;
+		uint8_t list_type;
+		uint32_t i, num_list_items;
+
+		if (get_list_len < 4) {
+			cmd->senselen = sense_basic_build(cmd->sense,
+							  OSD_SSK_ILLEGAL_REQUEST,
+							  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+							  pid, oid);
+			return;
+		}
+		if (get_list_offset + get_list_len > cmd->inlen) {
+			cmd->senselen = sense_basic_build(cmd->sense,
+							  OSD_SSK_ILLEGAL_REQUEST,
+							  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+							  pid, oid);
+			return;
+		}
+		list_header = cmd->indata + get_list_offset;
+		list_type = list_header[0] & 0xf;
+		if (list_type != 1) {
+			cmd->senselen = sense_basic_build(cmd->sense,
+							  OSD_SSK_ILLEGAL_REQUEST,
+							  OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
+							  pid, oid);
+			return;
+		}
+		num_list_items = ntohs(&list_header[2]);
+		if (num_list_items & (8-1)) {
+			cmd->senselen = sense_basic_build(cmd->sense,
+							  OSD_SSK_ILLEGAL_REQUEST,
+							  OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
+							  pid, oid);
+			return;
+		}
+		num_list_items /= 8;
+		if (4 + num_list_items * 8 != get_list_len) {
+			cmd->senselen = sense_basic_build(cmd->sense,
+							  OSD_SSK_ILLEGAL_REQUEST,
+							  OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+							  pid, oid);
+			return;
+		}
+		for (i=0; i<num_list_items; i++) {
+			uint32_t page = ntohl(&list_header[4 + i*8 + 0]);
+			uint32_t number = ntohl(&list_header[4 + i*8 + 4]);
+			/*
+			 * XXX: call into attr to get this
+			 */
+			uint16_t attr_len = 8;
+			uint8_t attr_val[8];
+
+			uint32_t need_len = 10 + attr_len;
+
+			osd_debug("%s: page 0x%x num 0x%x len %hx", __func__,
+				  page, number, attr_len);
+			set_htonll(attr_val, 42);  /* hack */
+			if (need_len > outlen - cmd->get_used_outlen)
+				break;
+
+			memcpy(&outdata[cmd->get_used_outlen + 0],
+			       &list_header[4 + i*8 + 0], 8);
+			set_htons(&outdata[cmd->get_used_outlen + 8],
+				  need_len - 10);
+			memcpy(&outdata[cmd->get_used_outlen + 10],
+			       &attr_val, attr_len);
+			cmd->get_used_outlen += need_len;
+		}
+	}
+}
+
+#endif

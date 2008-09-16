@@ -179,6 +179,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	list_hdr += 8;
 	cp = outbuf + 8;
 	cmd->get_used_outlen = 8;
+	list_alloc_len -= 8;
 	while (list_len > 0) {
 		uint32_t page = get_ntohl(&list_hdr[0]);
 		uint32_t number = get_ntohl(&list_hdr[4]);

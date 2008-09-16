@@ -23,8 +23,9 @@
 
 static double *b;
 static void *buf;
+static int pbsg_parallelism = 1;
 
-static void block_write_bw(int iters, int sz)
+static void block_write_bw(int iters, int bursts __unused, int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -50,7 +51,7 @@ static void block_write_bw(int iters, int sz)
 	close(fd);
 }
 
-static void block_read_bw(int iters, int sz)
+static void block_read_bw(int iters, int bursts __unused, int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -76,7 +77,7 @@ static void block_read_bw(int iters, int sz)
 	close(fd);
 }
 
-static void sg_write_bw(int iters, int sz)
+static void sg_write_bw(int iters, int bursts __unused, int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -126,7 +127,7 @@ static void sg_write_bw(int iters, int sz)
 	close(fd);
 }
 
-static void sg_read_bw(int iters, int sz)
+static void sg_read_bw(int iters, int bursts __unused, int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -176,7 +177,7 @@ static void sg_read_bw(int iters, int sz)
 	close(fd);
 }
 
-static void bsg_write_bw(int iters, int sz)
+static void bsg_write_bw(int iters, int bursts __unused, int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -223,7 +224,7 @@ static void bsg_write_bw(int iters, int sz)
 	close(fd);
 }
 
-static void bsg_read_bw(int iters, int sz)
+static void bsg_read_bw(int iters, int bursts __unused, int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -270,6 +271,144 @@ static void bsg_read_bw(int iters, int sz)
 	close(fd);
 }
 
+static void pbsg_write_bw(int iters, int bursts, int sz)
+{
+	int i, j, k, ret, fd;
+	uint64_t start, end;
+	uint8_t cdb[10];
+	uint16_t blocks;
+	struct sg_io_v4 bsg, bsgo;
+
+	fd = open(BSG_DEV, O_RDWR);
+	if (fd < 0)
+		osd_error_fatal("%s: cannot open %s", __func__, BSG_DEV);
+
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = 0x2a;  /* WRITE_10 */
+	assert(sz <= 65535 * 512);
+	assert((sz & 511) == 0);
+	blocks = sz / 512;
+	cdb[7] = (blocks >> 8) & 0xff;
+	cdb[8] = blocks & 0xff;
+
+	memset(&bsg, 0, sizeof(bsg));
+	bsg.guard = 'Q';
+	bsg.request_len = sizeof(cdb);
+	bsg.request = (uint64_t) (uintptr_t) cdb;
+	bsg.dout_xfer_len = sz;
+	bsg.dout_xferp = (uint64_t) (uintptr_t) buf;
+	bsg.timeout = 30000;  /* 30 sec */
+
+	/* this many per timed burst */
+	iters /= bursts;
+
+	/* warm up */
+	for (j=0; j<5; j++) {
+		ret = ioctl(fd, SG_IO, &bsg);
+		assert(ret == 0);
+		assert(bsg.device_status == 0);
+	}
+
+	for (k=0; k<bursts; k++) {
+		/* start all commands */
+		rdtsc(start);
+		for (j=0; j<pbsg_parallelism; j++) {
+			bsg.usr_ptr = j;
+			ret = write(fd, &bsg, sizeof(bsg));
+			assert(ret == sizeof(bsg));
+		}
+
+		/* retire and repost until iters done */
+		i = 0;
+		while (i < iters) {
+			ret = read(fd, &bsgo, sizeof(bsgo));
+			assert(ret == sizeof(bsgo));
+			assert(bsgo.device_status == 0);
+			j = bsgo.usr_ptr;
+			++i;
+			if (iters - i >= pbsg_parallelism) {
+				/* resubmit */
+				bsg.usr_ptr = j;
+				ret = write(fd, &bsg, sizeof(bsg));
+				assert(ret == sizeof(bsg));
+			}
+		}
+		rdtsc(end);
+		b[k] = (double) (end - start) / iters;
+	}
+
+	close(fd);
+}
+
+static void pbsg_read_bw(int iters, int bursts, int sz)
+{
+	int i, j, k, ret, fd;
+	uint64_t start, end;
+	uint8_t cdb[10];
+	uint16_t blocks;
+	struct sg_io_v4 bsg, bsgo;
+
+	fd = open(BSG_DEV, O_RDWR);
+	if (fd < 0)
+		osd_error_fatal("%s: cannot open %s", __func__, BSG_DEV);
+
+	memset(cdb, 0, sizeof(cdb));
+	cdb[0] = 0x28;  /* READ_10 */
+	assert(sz <= 65535 * 512);
+	assert((sz & 511) == 0);
+	blocks = sz / 512;
+	cdb[7] = (blocks >> 8) & 0xff;
+	cdb[8] = blocks & 0xff;
+
+	memset(&bsg, 0, sizeof(bsg));
+	bsg.guard = 'Q';
+	bsg.request_len = sizeof(cdb);
+	bsg.request = (uint64_t) (uintptr_t) cdb;
+	bsg.din_xfer_len = sz;
+	bsg.din_xferp = (uint64_t) (uintptr_t) buf;
+	bsg.timeout = 30000;  /* 30 sec */
+
+	/* this many per timed burst */
+	iters /= bursts;
+
+	/* warm up */
+	for (i=0; i<5; i++) {
+		ret = ioctl(fd, SG_IO, &bsg);
+		assert(ret == 0);
+		assert(bsg.device_status == 0 && bsg.din_resid == 0);
+	}
+
+	for (k=0; k<bursts; k++) {
+		/* start all commands */
+		rdtsc(start);
+		for (j=0; j<pbsg_parallelism; j++) {
+			bsg.usr_ptr = j;
+			ret = write(fd, &bsg, sizeof(bsg));
+			assert(ret == sizeof(bsg));
+		}
+
+		/* retire and repost until iters done */
+		i = 0;
+		while (i < iters) {
+			ret = read(fd, &bsgo, sizeof(bsgo));
+			assert(ret == sizeof(bsgo));
+			assert(bsgo.device_status == 0 && bsgo.din_resid == 0);
+			j = bsgo.usr_ptr;
+			++i;
+			if (iters - i >= pbsg_parallelism) {
+				/* resubmit */
+				bsg.usr_ptr = j;
+				ret = write(fd, &bsg, sizeof(bsg));
+				assert(ret == sizeof(bsg));
+			}
+		}
+		rdtsc(end);
+		b[k] = (double) (end - start) / iters;
+	}
+
+	close(fd);
+}
+
 static void *pagealign(void *b)
 {
 	int pgsz = getpagesize();
@@ -279,7 +418,7 @@ static void *pagealign(void *b)
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: %s [--type={block|sg|bsg}]\n",
+	fprintf(stderr, "Usage: %s [--type={block|sg|bsg|pbsg}] [--parallel=N]\n",
 		osd_get_progname());
 	exit(1);
 }
@@ -291,21 +430,30 @@ int main(int argc, char *const *argv)
 	double mhz = get_mhz();
 	double mu, sd;
 	const char *type = "block";
-	void (*write_bw)(int iters, int sz);
-	void (*read_bw)(int iters, int sz);
-	struct option opt = {
+	void (*write_bw)(int iters, int bursts, int sz);
+	void (*read_bw)(int iters, int bursts, int sz);
+	struct option opt[] = {
+	{
 	    .name = "type",
 	    .has_arg = 1,
 	    .val = 't',
+	},
+	{
+	    .name = "parallel",
+	    .has_arg = 1,
+	    .val = 'p',
+	},
+	{ .name = NULL }
 	};
 
-	const int iters = 100;
+	const int iters = 1000;
 	const int maxsize = 512 * 1024;
+	int bursts = iters;
 
 	osd_set_progname(argc, argv);
 
 	for (;;) {
-		i = getopt_long(argc, argv, "t:", &opt, NULL);
+		i = getopt_long(argc, argv, "t:p:", opt, NULL);
 		switch (i) {
 		case -1:
 			break;
@@ -314,6 +462,9 @@ int main(int argc, char *const *argv)
 			break;
 		case 't':
 			type = optarg;
+			break;
+		case 'p':
+			pbsg_parallelism = atoi(optarg);
 			break;
 		}
 		if (i == -1)
@@ -329,9 +480,17 @@ int main(int argc, char *const *argv)
 	} else if (!strcmp(type, "bsg")) {
 		write_bw = bsg_write_bw;
 		read_bw = bsg_read_bw;
+	} else if (!strcmp(type, "pbsg")) {
+		write_bw = pbsg_write_bw;
+		read_bw = pbsg_read_bw;
+		bursts = 10;
 	} else
 		usage();
-	printf("# %s type %s\n", osd_get_progname(), type);
+
+	if (!strcmp(type, "pbsg"))
+	    printf("# %s type %s %d\n", osd_get_progname(), type, pbsg_parallelism);
+	else
+	    printf("# %s type %s\n", osd_get_progname(), type);
 
 	b = malloc(iters * sizeof(*b));
 	x = malloc(maxsize + getpagesize());
@@ -341,23 +500,27 @@ int main(int argc, char *const *argv)
 	buf = pagealign(x);
 	memset(buf, 'A', maxsize);
 
+	/* cannot make use of more than this */
+	if (pbsg_parallelism > bursts)
+		pbsg_parallelism = bursts;
+
 	for (sz = 4096; sz <= maxsize; sz += 4096) {
-		write_bw(iters, sz);
-		for (i = 0; i < iters; i++)
+		write_bw(iters, bursts, sz);
+		for (i = 0; i < bursts; i++)
 			b[i] = sz / (b[i] / mhz);
-		mu = mean(b, iters);
-		sd = stddev(b, mu, iters);
+		mu = mean(b, bursts);
+		sd = stddev(b, mu, bursts);
 		printf("write\t %3d %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
 	}
 
 	printf("\n\n");
 
 	for (sz = 4096; sz <= maxsize; sz += 4096) {
-		read_bw(iters, sz);
-		for (i = 0; i < iters; i++)
+		read_bw(iters, bursts, sz);
+		for (i = 0; i < bursts; i++)
 			b[i] = sz / (b[i] / mhz);
-		mu = mean(b, iters);
-		sd = stddev(b, mu, iters);
+		mu = mean(b, bursts);
+		sd = stddev(b, mu, bursts);
 		printf("read\t %3d %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
 	}
 

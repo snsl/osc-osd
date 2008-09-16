@@ -660,21 +660,21 @@ double get_mhz(void)
  * http://en.wikipedia.org/wiki/Hash_table
  * http://www.burtleburtle.net/bob/hash/doobs.html
  */
-uint32_t jenkins_one_at_a_time_hash(uint8_t *key, size_t key_len) {
-    size_t i;
-    uint32_t hash = 0;
+uint32_t jenkins_one_at_a_time_hash(uint8_t *key, size_t key_len)
+{
+	size_t i;
+	uint32_t hash = 0;
 
-    for (i = 0; i < key_len; i++) {
-	hash += key[i];
-	hash += (hash << 10);
-	hash ^= (hash >> 6);
-    }
+	for (i = 0; i < key_len; i++) {
+		hash += key[i];
+		hash += (hash << 10);
+		hash ^= (hash >> 6);
+	}
 
-    hash += (hash << 3);
-    hash ^= (hash >> 11);
-    hash += (hash << 15);
+	hash += (hash << 3);
+	hash ^= (hash >> 11);
+	hash += (hash << 15);
 
-    return hash;
+	return hash;
 }
-
 

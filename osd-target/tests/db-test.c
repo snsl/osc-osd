@@ -88,13 +88,13 @@ void test_obj_manip(struct osd_device *osd)
 			error_errno("%s: obj_insert failed", __func__);
 	}
 
-	ret = obj_get_nextoid(osd->db, 1, USEROBJECT, &oid);
+	ret = obj_get_nextoid(osd->db, 1, &oid);
 	if (ret != 0)
 		error_errno("%s: obj_get_nextoid failed", __func__);
 	printf("%s: next oid = %llu\n", __func__, llu(oid));	
 
 	/* get nextoid for new (pid, oid) */
-	ret = obj_get_nextoid(osd->db, 4, USEROBJECT, &oid);
+	ret = obj_get_nextoid(osd->db, 4, &oid);
 	if (ret != 0)
 		error_errno("%s: obj_get_nextoid failed", __func__);
 	printf("%s: next oid = %llu\n", __func__, llu(oid));	

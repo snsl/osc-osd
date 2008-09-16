@@ -30,13 +30,10 @@ static struct init_attr root_info[] = {
 	{ ROOT_PG + 2, 0, "INCITS  T10 Root Quotas" },
 	{ ROOT_PG + 0, ROOT_PG + 3, "INCITS  T10 Root Timestamps" },
 	{ ROOT_PG + 3, 0, "INCITS  T10 Root Timestamps" },
-	{ ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Timestamps" },
+	{ ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Policy/Security" },
 	{ ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security" },
 };
 
-/*
- * This goes someplace else, perhaps.
- */
 static struct init_attr partition_info[] = {
 	{ PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory" },
 	{ PARTITION_PG + 0, PARTITION_PG + 1,
@@ -44,32 +41,22 @@ static struct init_attr partition_info[] = {
 	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
 };
 
-int create_partition(struct osd_device *osd, uint64_t requested_pid)
+static int create_partition_zero(struct osd_device *osd)
 {
-	int i, ret;
+	int i = 0;
+	int ret = 0;
+	uint64_t pid = 0, oid = 0; /* partition zero */
 
-	if (requested_pid != 0) {
-		/*
-		 * Partition zero does not have an entry in the obj db; those
-		 * are only for user-created partitions.
-		 */
-		ret = obj_insert(osd->db, requested_pid, 0, PARTITION);
-		if (ret)
-			goto out;
-	}
 	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
 		struct init_attr *ia = &partition_info[i];
-		ret = attr_set_attr(osd->db, requested_pid, 0, ia->page,
+		ret = attr_set_attr(osd->db, pid, oid, ia->page,
 				    ia->number, ia->s, strlen(ia->s)+1);
 		if (ret)
 			goto out;
 	}
 
-	/* the pid goes here */
-	ret = attr_set_attr(osd->db, requested_pid, 0, PARTITION_PG + 1,
-			    1, &requested_pid, 8);
-	if (ret)
-		goto out;
+	/* the pid goes here, osd2r00 Section 7.1.2.9 table 92  */
+	ret = attr_set_attr(osd->db, pid, oid, PARTITION_PG + 1, 1, &pid, 8);
 
 out:
 	return ret;
@@ -81,27 +68,43 @@ out:
  */
 static int initial_populate(struct osd_device *osd)
 {
-	int i = 0, ret = 0;
+	int i = 0;
+	int ret = 0;
+	uint64_t pid = 0;
 
 	if (!osd)
 		return -EINVAL;
 
-	ret = obj_insert(osd->db, ROOT_PID, ROOT_OID, PARTITION);
+	ret = obj_insert(osd->db, ROOT_PID, ROOT_OID, ROOT);
 	if (ret != SQLITE_OK)
 		goto out;
 
+	/* set root object attributes */
 	for (i=0; i<ARRAY_SIZE(root_info); i++) {
 		struct init_attr *ia = &root_info[i];
 
-		/* FIXME: We may want to define a ROOT_OID constant
-		 * just so the code reads better */
 		ret = attr_set_attr(osd->db, ROOT_PID , ROOT_OID, ia->page, 
 				    ia->number, ia->s, strlen(ia->s)+1);
 		if (ret != SQLITE_OK)
 			goto out;
 	}
 
-	ret = create_partition(osd, 0);
+	/*
+	 * partition zero (0,0) has the same object identifier as root object
+	 * (0,0).  The attributes will not be overwritten since attr pages
+	 * are different.
+	 */
+	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
+		struct init_attr *ia = &partition_info[i];
+		ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, ia->page,
+				    ia->number, ia->s, strlen(ia->s)+1);
+		if (ret)
+			goto out;
+	}
+
+	/* the pid goes here, osd2r00 Section 7.1.2.9 table 92  */
+	ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, PARTITION_PG + 1, 1, 
+			    &pid, sizeof(pid));
 
 out:
 	return ret;

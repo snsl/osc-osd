@@ -43,7 +43,7 @@
 #define SAM_STAT_ACA_ACTIVE      0x30
 #define SAM_STAT_TASK_ABORTED    0x40
 
-/* object types */
+/* OSD object constants */
 #define ROOT_PID (0LLU)
 #define ROOT_OID (0LLU)
 #define PARTITION_PID_LB (0x10000LLU)
@@ -55,6 +55,7 @@
 #define COLLECTION_OID_LB COLLECTION_PID_LB
 #define USEROBJECT_OID_LB USEROBJECT_PID_LB
 
+/* object types */
 enum {
 	ROOT = 1,
 	PARTITION,

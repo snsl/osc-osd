@@ -16,6 +16,7 @@ void test_osd_create(struct osd_device *osd);
 void test_osd_set_attributes(struct osd_device *osd);
 void test_osd_format(struct osd_device *osd);
 void test_osd_read_write(struct osd_device *osd);
+void test_osd_create_partition(struct osd_device *osd);
 
 void test_osd_create(struct osd_device *osd)
 {
@@ -139,6 +140,20 @@ void test_osd_read_write(struct osd_device *osd)
 	free(mybuf);
 }
 
+void test_osd_create_partition(struct osd_device *osd)
+{
+	int ret = 0;
+	void *sense = Calloc(1, 1024);
+
+	ret = osd_create_partition(osd, 0, sense);
+	if (ret != 0)
+		error_fatal("osd_create_partition failed");
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error("PARTITION_PID_LB osd_create_partition failed as exp.");
+	free(sense);
+}
+
 int main()
 {
 	int ret = 0;
@@ -152,7 +167,8 @@ int main()
 	/*test_osd_create(&osd);*/
 	/*test_osd_set_attributes(&osd);*/
 	/*test_osd_format(&osd);*/
-	test_osd_read_write(&osd);
+	/*test_osd_read_write(&osd);*/
+	test_osd_create_partition(&osd);
 
 	ret = osd_close(&osd);
 	if (ret != 0)

@@ -211,18 +211,22 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB) 	
 		goto out_illegal_req;
 
+	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
+		goto out_illegal_req;
+
 	if (num > 1 && requested_oid != 0) 
 		goto out_illegal_req;
 
 	if (requested_oid == 0) {
-		ret = obj_get_nextoid(osd->db, pid, USEROBJECT, &oid);
+		ret = obj_get_nextoid(osd->db, pid, &oid);
 		if (ret != 0) 
 			goto out_hw_err;
+		if (oid == 1)
+			oid = USEROBJECT_OID_LB; /* first oid in partition */
 	} else {
 		ret = obj_ispresent(osd->db, pid, requested_oid);
 		if (ret == 1) 
-			goto out_hw_err; /* requested_oid already exists! */
-
+			goto out_illegal_req; /* requested_oid exists! */
 		oid = requested_oid; /* requested_oid works! */
 	}
 
@@ -282,11 +286,41 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
                          uint8_t *sense)
 {
-	int ret;
+	int ret = 0;
+	uint64_t pid = 0;
 
-	debug(__func__);
-	ret = create_partition(osd, 0);
-	/* XXX: generate sense data from bad ret sometime */
+	debug("%s: pid %llu", __func__, llu(pid));
+
+	if (requested_pid != 0 && requested_pid < PARTITION_PID_LB) 
+		goto out_cdb_err;
+
+	if (requested_pid == 0) {
+		ret = obj_get_nextpid(osd->db, &pid);
+		if (ret != 0)
+			goto out_hw_err;
+		if (pid == 1) 
+			pid = PARTITION_PID_LB; /* firstever pid */
+	} else {
+		pid = requested_pid;
+	}
+
+	/* if pid already exists, obj_insert will fail */
+	ret = obj_insert(osd->db, pid, PARTITION_OID, PARTITION);
+	if (ret)
+		goto out_cdb_err;
+
+	return 0; /* success */
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
+			      OSD_ASC_INVALID_FIELD_IN_CDB, 
+			      pid, requested_pid);
+	return ret;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
+			      OSD_ASC_INVALID_FIELD_IN_CDB, 
+			      pid, requested_pid);
 	return ret;
 }
 

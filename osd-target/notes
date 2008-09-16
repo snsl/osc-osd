@@ -162,3 +162,21 @@ can be implemented as a sql view on page numbers 0
 # Thu Feb  1 14:53:38 EST 2007
 +	implement error_fatal as a separate function.
 
+# Fri Feb  9 16:09:55 EST 2007
++	create partition
+-	set partition attr as separate osd function
+-	set root attr as separate function.
+
+# Mon Feb 12 11:48:43 EST 2007
+-	implement cache: hold a struct with latest oid, pid for collections or 
+	objects.
+-	implement list on root object
+!	current command attributes page is responsible for returning the results
+	back to initiator: eg. assigned pid, oid etc.
+-	set initial attributes on every object when it is created
+-	mv initial_populate into osd.c
+-	get_next* funcs assume monotonic increase in ids, resulting in holes
+-	implement remove partition
++	new oid should start from USEROBJECT_OID_LB and pid from PARTITION_PID_LB
+
+

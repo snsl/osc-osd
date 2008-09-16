@@ -51,7 +51,8 @@ int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t type)
 out_finalize:
 	/* 
 	 * NOTE: sqlite3_finalize grabs the correct error code in case of
-	 * failure. else it returns 0. hence, value in 'ret' is not lost
+	 * failure. else it returns SQLITE_OK (0) . hence, value in 'ret' is
+	 * not lost
 	 */
 	ret = sqlite3_finalize(stmt); 
 	if (ret != SQLITE_OK) {
@@ -88,10 +89,10 @@ int obj_delete(sqlite3 *db, uint64_t pid, uint64_t oid)
  * return values
  * < 0 : in case of error
  * 0 : on success
- * oid = next oid if pid and type found in db
- * oid = 1 if pid/type not in db. caller must assign correct oid.
+ * oid = next oid if pid found in db
+ * oid = 1 if pid not in db. caller must assign correct oid.
  */
-int obj_get_nextoid(sqlite3 *db, uint64_t pid, uint32_t type, uint64_t *oid)
+int obj_get_nextoid(sqlite3 *db, uint64_t pid, uint64_t *oid)
 {
 	int ret = 0;
 	char SQL[MAXSQLEN];
@@ -100,7 +101,7 @@ int obj_get_nextoid(sqlite3 *db, uint64_t pid, uint32_t type, uint64_t *oid)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "SELECT MAX (oid) FROM obj WHERE pid = ? AND TYPE = ?;");
+	sprintf(SQL, "SELECT MAX (oid) FROM obj WHERE pid = ?");
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret) {
 		error_sql(db, "%s: prepare", __func__);
@@ -111,19 +112,54 @@ int obj_get_nextoid(sqlite3 *db, uint64_t pid, uint32_t type, uint64_t *oid)
 		error_sql(db, "%s: bind pid", __func__);
 		goto out_finalize;
 	}
-	ret = sqlite3_bind_int(stmt, 2, type);
-	if (ret) {
-		error_sql(db, "%s: bind type", __func__);
+
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		/* store next oid; if illegal (pid, oid), *oid will be 1 */
+		*oid = sqlite3_column_int64(stmt, 0); 
+	}
+	if (ret != SQLITE_DONE) {
+		error_sql(db, "%s: max oid for pid %llu", __func__, llu(pid));
 		goto out_finalize;
+	} 
+
+out_finalize:
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK)
+		error_sql(db, "%s: finalize", __func__);
+	
+out:
+	return ret;
+}
+
+/*
+ * return values
+ * < 0 : in case of error
+ * 0 : on success
+ * pid = next pid in db
+ * pid = 1 if db has no pids. caller must assign correct pid.
+ */
+int obj_get_nextpid(sqlite3 *db, uint64_t *pid)
+{
+	int ret = 0;
+	char SQL[MAXSQLEN];
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "SELECT MAX (pid) FROM obj;");
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret) {
+		error_sql(db, "%s: prepare", __func__);
+		goto out;
 	}
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		/* store next oid; if new (pid, oid) *oid will be 1 */
-		*oid = sqlite3_column_int64(stmt, 0) + 1; 
+		/* store next pid; if illegal pid, *pid will be 1 */
+		*pid = sqlite3_column_int64(stmt, 0) + 1; 
 	}
 	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: max oid for pid %llu, type %u", __func__, 
-			  llu(pid), type);
+		error_sql(db, "%s: max pid error", __func__);
 		goto out_finalize;
 	} 
 

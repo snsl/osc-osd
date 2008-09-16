@@ -13,103 +13,11 @@
 #include "util/util.h"
 #include "attr.h"
 
-extern const char osd_schema[];
-
-static struct init_attr root_info[] = {
-	{ ROOT_PG + 0, 0, "INCITS  T10 Root Directory" },
-	{ ROOT_PG + 0, ROOT_PG + 1, "INCITS  T10 Root Information" },
-	{ ROOT_PG + 1, 0, "INCITS  T10 Root Information" },
-	{ ROOT_PG + 1, 3, "\xf1\x81\x00\x0eOSC     OSDEMU" },
-	{ ROOT_PG + 1, 4, "OSC" },
-	{ ROOT_PG + 1, 5, "OSDEMU" },
-	{ ROOT_PG + 1, 6, "9001" },
-	{ ROOT_PG + 1, 7, "0" },
-	{ ROOT_PG + 1, 8, "1" },
-	{ ROOT_PG + 1, 9, "hostname" },
-	{ ROOT_PG + 0, ROOT_PG + 2, "INCITS  T10 Root Quotas" },
-	{ ROOT_PG + 2, 0, "INCITS  T10 Root Quotas" },
-	{ ROOT_PG + 0, ROOT_PG + 3, "INCITS  T10 Root Timestamps" },
-	{ ROOT_PG + 3, 0, "INCITS  T10 Root Timestamps" },
-	{ ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Policy/Security" },
-	{ ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security" },
-};
-
-static struct init_attr partition_info[] = {
-	{ PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory" },
-	{ PARTITION_PG + 0, PARTITION_PG + 1,
-		"INCITS  T10 Partition Information" },
-	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
-};
-
-static int create_partition_zero(struct osd_device *osd)
-{
-	int i = 0;
-	int ret = 0;
-	uint64_t pid = 0, oid = 0; /* partition zero */
-
-	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
-		struct init_attr *ia = &partition_info[i];
-		ret = attr_set_attr(osd->db, pid, oid, ia->page,
-				    ia->number, ia->s, strlen(ia->s)+1);
-		if (ret)
-			goto out;
-	}
-
-	/* the pid goes here, osd2r00 Section 7.1.2.9 table 92  */
-	ret = attr_set_attr(osd->db, pid, oid, PARTITION_PG + 1, 1, &pid, 8);
-
-out:
-	return ret;
-}
-
-
 /*
- * Create root object and attributes for root and partition zero.
+ * < 0: error
+ * = 0: success
+ * = 1: new db opened
  */
-static int initial_populate(struct osd_device *osd)
-{
-	int i = 0;
-	int ret = 0;
-	uint64_t pid = 0;
-
-	if (!osd)
-		return -EINVAL;
-
-	ret = obj_insert(osd->db, ROOT_PID, ROOT_OID, ROOT);
-	if (ret != SQLITE_OK)
-		goto out;
-
-	/* set root object attributes */
-	for (i=0; i<ARRAY_SIZE(root_info); i++) {
-		struct init_attr *ia = &root_info[i];
-
-		ret = attr_set_attr(osd->db, ROOT_PID , ROOT_OID, ia->page, 
-				    ia->number, ia->s, strlen(ia->s)+1);
-		if (ret != SQLITE_OK)
-			goto out;
-	}
-
-	/*
-	 * partition zero (0,0) has the same object identifier as root object
-	 * (0,0).  The attributes will not be overwritten since attr pages
-	 * are different.
-	 */
-	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
-		struct init_attr *ia = &partition_info[i];
-		ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, ia->page,
-				    ia->number, ia->s, strlen(ia->s)+1);
-		if (ret)
-			goto out;
-	}
-
-	/* the pid goes here, osd2r00 Section 7.1.2.9 table 92  */
-	ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, PARTITION_PG + 1, 1, 
-			    &pid, sizeof(pid));
-
-out:
-	return ret;
-}
-
 int db_open(const char *path, struct osd_device *osd)
 {
 	int ret;
@@ -142,16 +50,8 @@ int db_open(const char *path, struct osd_device *osd)
 	}
 
 	if (is_new_db) {
-		/* Build tables from schema file.  */
-		ret = sqlite3_exec(osd->db, osd_schema, NULL, NULL, &err);
-		if (ret != SQLITE_OK) {
-			sqlite3_free(err);
-			return -1;
-		}
-
-		ret = initial_populate(osd);
-		if (ret)
-			goto out;
+		ret = 1;
+		goto out;
 	}
 
 	ret = 0;

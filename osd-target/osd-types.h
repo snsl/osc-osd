@@ -35,9 +35,26 @@ struct init_attr {
 #define MAXNAMELEN (256UL)
 #define MAXROOTLEN (200UL)
 
+struct id_cache {
+	uint64_t next_pid; /* next free pid */
+	uint64_t cur_pid;  /* last pid referenced */
+	uint64_t next_oid; /* next free oid within partition (cur_pid) */
+};
+
+struct __attribute__((packed)) cur_cmd_attr_pg {
+	uint16_t cdb_srvc_act; /* current cmd  */
+	uint8_t ricv[20]; /* response integrity check value */
+	uint8_t obj_type;
+	uint8_t reserved[3];
+	uint64_t pid;
+	uint64_t oid;
+	uint64_t append_off;
+};
+
 struct osd_device {
 	char *root;
 	sqlite3 *db;
+	struct cur_cmd_attr_pg ccap;
 };
 
 #endif /* __OSD_TYPES_H */

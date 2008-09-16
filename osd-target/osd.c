@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <assert.h>
 
 #include "osd.h"
 #include "osd-defs.h"
@@ -20,6 +21,34 @@
 static const char *dbname = "osd.db";
 static const char *dfiles = "dfiles";
 static const char *stranded = "stranded";
+
+extern const char osd_schema[];
+
+static struct init_attr root_info[] = {
+	{ ROOT_PG + 0, 0, "INCITS  T10 Root Directory" },
+	{ ROOT_PG + 0, ROOT_PG + 1, "INCITS  T10 Root Information" },
+	{ ROOT_PG + 1, 0, "INCITS  T10 Root Information" },
+	{ ROOT_PG + 1, 3, "\xf1\x81\x00\x0eOSC     OSDEMU" },
+	{ ROOT_PG + 1, 4, "OSC" },
+	{ ROOT_PG + 1, 5, "OSDEMU" },
+	{ ROOT_PG + 1, 6, "9001" },
+	{ ROOT_PG + 1, 7, "0" },
+	{ ROOT_PG + 1, 8, "1" },
+	{ ROOT_PG + 1, 9, "hostname" },
+	{ ROOT_PG + 0, ROOT_PG + 2, "INCITS  T10 Root Quotas" },
+	{ ROOT_PG + 2, 0, "INCITS  T10 Root Quotas" },
+	{ ROOT_PG + 0, ROOT_PG + 3, "INCITS  T10 Root Timestamps" },
+	{ ROOT_PG + 3, 0, "INCITS  T10 Root Timestamps" },
+	{ ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Policy/Security" },
+	{ ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security" },
+};
+
+static struct init_attr partition_info[] = {
+	{ PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory" },
+	{ PARTITION_PG + 0, PARTITION_PG + 1, 
+		"INCITS  T10 Partition Information" },
+	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
+};
 
 static int create_dir(const char *dirname)
 {
@@ -83,6 +112,153 @@ static inline void get_dfile_name(char *path, const char *root,
 	sprintf(path, "%s/%s/%llu.%llu", root, dfiles, llu(pid), llu(oid));
 }
 
+static inline void fill_ccap(struct cur_cmd_attr_pg *ccap, uint16_t srvc_act,
+			     uint8_t *ricv, uint8_t obj_type, uint64_t pid,
+			     uint64_t oid, uint64_t append_off) 
+{
+	memset(ccap, 0, sizeof(*ccap));
+	ccap->cdb_srvc_act = srvc_act;
+	if (ricv)
+		memcpy(ccap->ricv, ricv, sizeof(ccap->ricv));
+	ccap->obj_type = obj_type;
+	ccap->pid = pid;
+	ccap->oid = oid;
+	ccap->append_off = append_off;
+}
+
+static inline void fill_attr(void *buf, uint32_t page, uint32_t number, 
+			     uint16_t len, void *val)
+{
+	list_entry_t *le = (list_entry_t *)buf;
+	set_htonl_le((uint8_t *)&(le->page),  page);
+	set_htonl_le((uint8_t *)&(le->number), number);
+	set_htons_le((uint8_t *)&(le->len), len);
+	memcpy((uint8_t *)le + ATTR_VAL_OFFSET, val, len);
+}
+
+/*
+ * Fill current command attributes page (osd2r00 Sec 7.1.2.24) in retrieved
+ * attribute format described in osd2r00 Sec 7.1.3.3
+ */
+static int get_ccap(struct osd_device *osd, void *outbuf, uint16_t len)
+{
+	int ret = 0;
+	size_t sz = 0;
+	uint8_t *cp = outbuf;
+	char page_id[CCAP_ID_LEN];
+
+	/*
+	 * If len < CCAP_LIST_LEN, i.e. the buffer size is not sufficient to
+	 * fill in all attributes, then it is not an error. osd2r00 Sec
+	 * 5.2.2.2
+	 */
+	if (osd == NULL || outbuf == NULL)
+		return -EINVAL;
+
+	sz = (CCAP_ID_LEN + ATTR_VAL_OFFSET);
+	if (len < sz)
+		goto out;
+	sprintf(page_id, "INCITS  T10 Current Command");
+	fill_attr(cp, CUR_CMD_ATTR_PG, 0x0, 40, page_id);
+	cp += sz, len -= sz;
+	
+	sz = (sizeof(osd->ccap.ricv) + ATTR_VAL_OFFSET);
+	if (len < sz)
+		goto out;
+	fill_attr(cp, CUR_CMD_ATTR_PG, 0x1, sizeof(osd->ccap.ricv), 
+		  osd->ccap.ricv);
+	cp += sz, len -= sz;
+
+	sz = (sizeof(osd->ccap.obj_type) + ATTR_VAL_OFFSET);
+	if (len < sz)
+		goto out;
+	fill_attr(cp, CUR_CMD_ATTR_PG, 0x2, sizeof(osd->ccap.obj_type), 
+		  &osd->ccap.obj_type);
+	cp += sz, len -= sz;
+
+	sz = (sizeof(osd->ccap.pid) + ATTR_VAL_OFFSET);
+	if (len < sz)
+		goto out;
+	fill_attr(cp, CUR_CMD_ATTR_PG, 0x3, sizeof(osd->ccap.pid), 
+		  &osd->ccap.pid);
+	cp += sz, len -= sz;
+
+	sz = (sizeof(osd->ccap.oid) + ATTR_VAL_OFFSET);
+	if (len < sz)
+		goto out;
+	fill_attr(cp, CUR_CMD_ATTR_PG, 0x4, sizeof(osd->ccap.oid), 
+		  &osd->ccap.oid);
+	cp += sz, len -= sz;
+
+	sz = (sizeof(osd->ccap.append_off) + ATTR_VAL_OFFSET);
+	if (len < sz)
+		goto out;
+	fill_attr(cp, CUR_CMD_ATTR_PG, 0x5, sizeof(osd->ccap.append_off), 
+		  &osd->ccap.append_off);
+	cp += sz, len -= sz;
+
+	assert(cp - CCAP_LIST_LEN == (uint8_t *)outbuf);
+
+out:
+	return 0;
+}
+
+/*
+ * Create root object and set attributes for root and partition zero.
+ * = 0: success
+ * !=0: failure
+ */
+static int osd_initialize_db(struct osd_device *osd)
+{
+	int i = 0;
+	int ret = 0;
+	uint64_t pid = 0;
+	char *err = NULL;
+
+	if (!osd)
+		return -EINVAL;
+
+	/* Build tables from schema file.  */
+	ret = sqlite3_exec(osd->db, osd_schema, NULL, NULL, &err);
+	if (ret != SQLITE_OK) {
+		sqlite3_free(err);
+		return -1;
+	}
+
+	ret = obj_insert(osd->db, ROOT_PID, ROOT_OID, ROOT);
+	if (ret != SQLITE_OK)
+		goto out;
+
+	/* set root object attributes */
+	for (i=0; i<ARRAY_SIZE(root_info); i++) {
+		struct init_attr *ia = &root_info[i];
+		ret = attr_set_attr(osd->db, ROOT_PID , ROOT_OID, ia->page, 
+				    ia->number, ia->s, strlen(ia->s)+1);
+		if (ret != SQLITE_OK)
+			goto out;
+	}
+
+	/*
+	 * partition zero (0,0) has the same object identifier as root object
+	 * (0,0).  The attributes will not be overwritten since attr pages
+	 * are different.
+	 */
+	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
+		struct init_attr *ia = &partition_info[i];
+		ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, ia->page,
+				    ia->number, ia->s, strlen(ia->s)+1);
+		if (ret)
+			goto out;
+	}
+
+	/* assign pid as attr, osd2r00 Section 7.1.2.9 table 92  */
+	ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, PARTITION_PG + 1, 1, 
+			    &pid, sizeof(pid));
+
+out:
+	return ret;
+}
+
 int osd_open(const char *root, struct osd_device *osd)
 {
 	int ret;
@@ -117,6 +293,8 @@ int osd_open(const char *root, struct osd_device *osd)
 	osd->root = strdup(root);
 	sprintf(path, "%s/%s", root, dbname);
 	ret = db_open(path, osd);
+	if (ret == 1)
+		ret = osd_initialize_db(osd);
 
 out:
 	return ret;
@@ -243,6 +421,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		}
 		ret = osd_create_datafile(osd, pid, i);
 		if (ret != 0) {
+			/* TODO: delete previously created objects */
 			obj_delete(osd->db, pid, i); 
 			ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
 					      OSD_ASC_INVALID_FIELD_IN_CDB, 
@@ -288,6 +467,7 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 {
 	int ret = 0;
 	uint64_t pid = 0;
+	uint8_t ricv[20];
 
 	debug("%s: pid %llu", __func__, llu(pid));
 
@@ -309,7 +489,9 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 	if (ret)
 		goto out_cdb_err;
 
-	return 0; /* success */
+	fill_ccap(&(osd->ccap), OSD_CREATE_PARTITION, NULL, PARTITION, pid, 
+		  PARTITION_OID, 0);
+	return ret; /* success */
 
 out_cdb_err:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
@@ -418,6 +600,9 @@ out:
 }
 
 
+/*
+ * TODO: test for sane values of: pid, oid, page, number
+ */
 int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
                        uint32_t page, uint32_t number, void *outbuf, 
 		       uint16_t len, int getpage, uint8_t *sense)
@@ -426,13 +611,25 @@ int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	debug("%s: get attr for (%llu, %llu)", __func__, llu(pid), llu(oid));
 	
+	if (outbuf == NULL || sense == NULL)
+		goto out_build_sense;
+
 	if (getpage == 0) {
 		ret = attr_get_attr(osd->db, pid, oid, page, number, 
 				    outbuf, len);
 		if (ret != 0)
 			goto out_build_sense;
 	} else if (getpage == 1) {
-		ret = attr_get_attr_page(osd->db, pid, oid, page, outbuf, len);
+		if (page == CUR_CMD_ATTR_PG) {
+			/* 
+			 * XXX: it is possible to read stale ccap, or ccap
+			 * of another object 
+			 */
+			ret = get_ccap(osd, outbuf, len);
+		} else {
+			ret = attr_get_attr_page(osd->db, pid, oid, page, 
+						 outbuf, len);
+		}
 		if (ret != 0) 
 			goto out_build_sense;
 	} else {

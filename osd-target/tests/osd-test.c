@@ -17,6 +17,7 @@ void test_osd_set_attributes(struct osd_device *osd);
 void test_osd_format(struct osd_device *osd);
 void test_osd_read_write(struct osd_device *osd);
 void test_osd_create_partition(struct osd_device *osd);
+void test_osd_get_attributes(struct osd_device *osd);
 
 void test_osd_create(struct osd_device *osd)
 {
@@ -151,7 +152,84 @@ void test_osd_create_partition(struct osd_device *osd)
 	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
 	if (ret != 0)
 		error("PARTITION_PID_LB osd_create_partition failed as exp.");
+
 	free(sense);
+}
+
+void test_osd_get_attributes(struct osd_device *osd)
+{
+	int ret = 0;
+	void *sense = Calloc(1, 1024);
+	void *val = Calloc(1, 1024);
+	list_entry_t *le = NULL;
+	uint8_t *cp = NULL;
+
+	ret = osd_create_partition(osd, PARTITION_PID_LB, sense);
+	if (ret != 0)
+		error_fatal("PARTITION_PID_LB, PARTITION_OID failed");
+
+	ret = osd_create(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 0, sense);
+	if (ret != 0)
+		error_fatal("USEROBJECT_PID_LB, USEROBJECT_OID_LB failed");
+
+	sprintf(val, "Madhuri Dixit");
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
+				 USEROBJECT_PG_LB, 1, val, strlen(val)+1, 
+				 sense);
+	if (ret != 0)
+		error_errno("osd_set_attributes failed for mad dix");
+
+	le = val;
+	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USEROBJECT_PG_LB, 1, le, 1024, 0, sense);
+	if (ret != 0)
+		error_fatal("osd_get_attributes failed");
+	printf("page %x, number %x, len %d, val %s\n", 
+	       ntohl_le((uint8_t *)&le->page), ntohl_le((uint8_t *)&le->number),
+	       ntohs_le((uint8_t *)&le->len), (uint8_t *)le + ATTR_VAL_OFFSET);
+
+	ret = osd_get_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 CUR_CMD_ATTR_PG, 0, val, 1024, 1, sense);
+	if (ret != 0)
+		error_fatal("osd_get_attributes ccap failed");
+
+	cp = val;
+	printf("%x %x %d %s\n", ntohl_le((uint8_t *)&le->page), 
+	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
+	       (cp + ATTR_VAL_OFFSET));
+	cp += (CCAP_ID_LEN + ATTR_VAL_OFFSET);
+
+	printf("%x %x %d %s\n", ntohl_le((uint8_t *)&le->page), 
+	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
+	       (cp + ATTR_VAL_OFFSET));
+	cp += (sizeof(osd->ccap.ricv) + ATTR_VAL_OFFSET);
+
+	printf("%x %x %d %x\n", ntohl_le((uint8_t *)&le->page), 
+	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
+	       *(cp + ATTR_VAL_OFFSET));
+	cp += (sizeof(osd->ccap.obj_type) + ATTR_VAL_OFFSET);
+
+	printf("%x %x %d %llx\n", ntohl_le((uint8_t *)&le->page), 
+	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
+	       llu(*(uint64_t *)(cp + ATTR_VAL_OFFSET)));
+	cp += (sizeof(osd->ccap.pid) + ATTR_VAL_OFFSET);
+
+	printf("%x %x %d %llx\n", ntohl_le((uint8_t *)&le->page), 
+	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
+	       llu(*(uint64_t *)(cp + ATTR_VAL_OFFSET)));
+	cp += (sizeof(osd->ccap.oid) + ATTR_VAL_OFFSET);
+
+	printf("%x %x %d %llx\n", ntohl_le((uint8_t *)&le->page), 
+	       ntohl_le((uint8_t *)&le->number), ntohs_le((uint8_t *)&le->len),
+	       llu(*(uint64_t *)(cp + ATTR_VAL_OFFSET)));
+
+	/*ret = osd_remove_partition();*/
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
+	if (ret != 0)
+		error_errno("osd_remove USEROBJECT_PID_LB, USEROBJECT_OID_LB");
+
+	free(sense);
+	free(val);
 }
 
 int main()
@@ -168,7 +246,8 @@ int main()
 	/*test_osd_set_attributes(&osd);*/
 	/*test_osd_format(&osd);*/
 	/*test_osd_read_write(&osd);*/
-	test_osd_create_partition(&osd);
+	/*test_osd_create_partition(&osd);*/
+	test_osd_get_attributes(&osd);
 
 	ret = osd_close(&osd);
 	if (ret != 0)

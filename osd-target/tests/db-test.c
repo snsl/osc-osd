@@ -64,8 +64,11 @@ void test_attr(struct osd_device *osd)
 	if (ret != 0)
 		error_errno("%s: attr_get_attr failed", __func__);
 	list_entry_t *ent = (list_entry_t *)val;
-	printf("retreived: %lu %u %u %u %s\n", 1UL, ent->page, ent->number, 
-	       ent->len, (char *)(ent + ATTR_VAL_OFFSET)); 
+	printf("retreived: %lu %u %u %u %s\n", 1UL, 
+	       ntohl_le((uint8_t *)&ent->page), 
+	       ntohl_le((uint8_t *)&ent->number), 
+	       ntohs_le((uint8_t *)&ent->len), 
+	       (uint8_t *)ent + ATTR_VAL_OFFSET); 
 
 	/* get non-existing attr */
 	ret = attr_get_attr(osd->db, 2, 1, 2, 12, val, 1024);
@@ -140,7 +143,7 @@ void test_osd_interface(void)
 
 int main()
 {
-	char path[]="/tmp/osd";
+	char path[]="/tmp/osd/osd.db";
 	int ret = 0;
 	struct osd_device osd;
 
@@ -149,8 +152,8 @@ int main()
 		return ret;
 
 	/*test_obj(&osd);*/
-	/*test_attr(&osd);*/
-	test_dup_obj(&osd);
+	test_attr(&osd);
+	/*test_dup_obj(&osd);*/
 	/*test_obj_manip(&osd);*/
 
 	ret = db_close(&osd);

@@ -55,24 +55,28 @@
 #define COLLECTION_OID_LB COLLECTION_PID_LB
 #define USEROBJECT_OID_LB USEROBJECT_PID_LB
 
-/* object types */
+/* object types, osd2r00 Section 4.9.2.2.1 table 9 */
 enum {
-	ROOT = 1,
-	PARTITION,
-	COLLECTION,
-	USEROBJECT
+	ROOT = 0x01,
+	PARTITION = 0x02,
+	COLLECTION = 0x40,
+	USEROBJECT = 0x80
 };
 
 /* osd2r00 Section 4.7.3 */
 enum {
-	USEROBJECT_PG = 0,
-	PARTITION_PG  = 0x30000000,
-	COLLECTION_PG = 0x60000000,
-	ROOT_PG       = 0x90000000,
-	RESERVED_PG   = 0xC0000000,
-	ANY_PG        = 0xF0000000,
-	GETALLATTR_PG = 0xFFFFFFFF
+	USEROBJECT_PG = 0x0U,
+	PARTITION_PG  = 0x30000000U,
+	COLLECTION_PG = 0x60000000U,
+	ROOT_PG       = 0x90000000U,
+	RESERVED_PG   = 0xC0000000U,
+	ANY_PG        = 0xF0000000U,
+	CUR_CMD_ATTR_PG = 0xFFFFFFFEU,
+	GETALLATTR_PG = 0xFFFFFFFFU
 };
+/* current command attr list length */
+#define CCAP_LIST_LEN (85 + 6*ATTR_VAL_OFFSET)
+#define CCAP_ID_LEN (40)
 
 /* osd2r00, Table 4, Section 4.7.3 */
 enum {

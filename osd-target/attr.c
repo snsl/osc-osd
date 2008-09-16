@@ -120,18 +120,20 @@ int attr_delete_all(sqlite3 *db, uint64_t pid, uint64_t oid)
  */
 static int attr_gather_attr(sqlite3_stmt *stmt, void *outbuf, uint16_t len)
 {
+	uint16_t valen = 0;
 	list_entry_t *ent = (list_entry_t *)outbuf;
 	assert(len > ATTR_VAL_OFFSET);
 
-	ent->page = sqlite3_column_int(stmt, 0);
-	ent->number = sqlite3_column_int(stmt, 1);
-	ent->len = sqlite3_column_bytes(stmt, 2);
-	if (ent->len + ATTR_VAL_OFFSET < len)
-		memcpy(ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 2), 
-		       ent->len);
+	set_htonl_le((uint8_t *)&(ent->page), sqlite3_column_int(stmt, 0));
+	set_htonl_le((uint8_t *)&(ent->number), sqlite3_column_int(stmt, 1));
+	valen = sqlite3_column_bytes(stmt, 2);
+	set_htons_le((uint8_t *)&(ent->len), valen);
+	if (valen + ATTR_VAL_OFFSET < len)
+		memcpy((uint8_t *)ent + ATTR_VAL_OFFSET, 
+		       sqlite3_column_blob(stmt, 2), valen);
 	else
-		memcpy(ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 2), 
-		       len - ATTR_VAL_OFFSET);
+		memcpy((uint8_t *)ent + ATTR_VAL_OFFSET, 
+		       sqlite3_column_blob(stmt, 2), len - ATTR_VAL_OFFSET);
 
 	return 0;
 }
@@ -250,6 +252,8 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		/* retrieve attr in list entry format; tab 129 Sec 7.1.3.3 */
 		it_len = ((list_entry_t *)outbuf)->len + ATTR_VAL_OFFSET;
 		len -= it_len;
+		if (len < ATTR_VAL_OFFSET)
+			break; /* length exceeded, not an error, Sec 5.2.2.2 */
 		outbuf = (char *) outbuf + it_len;
 		found = 1;
 	}

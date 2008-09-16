@@ -142,7 +142,7 @@ static int32_t attr_gather_attr(sqlite3_stmt *stmt, void *buf, uint32_t len)
 	memcpy((uint8_t *)ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 2),
 	       valen);
 
-	return valen + ATTR_VAL_OFFSET;
+	return valen + ATTR_VAL_OFFSET; 
 }
 
 /* 40 bytes including terminating NUL */

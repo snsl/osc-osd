@@ -1,5 +1,8 @@
 #ifndef __OSD_DEFS_H
 #define __OSD_DEFS_H
+
+#include <stdint.h>
+
 /*
  * The osd commands.  And other stuff that should perhaps go elsewhere.
  */
@@ -66,7 +69,7 @@ enum {
 	ILLEGAL_OBJ = 0x00 /* XXX: this is not in standard */
 };
 
-/* osd2r00 tab 3, Section 4.7.3 */
+/* osd2r00, Section 4.7.3, tab 3 */
 enum {
 	USEROBJECT_PG = 0x0U,
 	PARTITION_PG  = 0x30000000U,
@@ -76,23 +79,6 @@ enum {
 	ANY_PG        = 0xF0000000U,
 	CUR_CMD_ATTR_PG = 0xFFFFFFFEU,
 	GETALLATTR_PG = 0xFFFFFFFFU
-};
-/* current command attr list length */
-/*#define CCAP_LIST_LEN (85 + 6*ATTR_VAL_OFFSET)
-#define CCAP_ID_LEN (40)*/
-
-/* Current command attributes page constants, osd2r00 Sec 7.1.2.24 tab 124 */
-enum {
-	CCAP_PAGEID_OFF = 0,
-	CCAP_LEN_OFF = 4,
-	CCAP_RICV_OFF = 8,
-	CCAP_OBJT_OFF = 28,
-	CCAP_PID_OFF = 32,
-	CCAP_OID_OFF = 40,
-	CCAP_APPADDR_OFF = 48,
-	CCAP_RICV_LEN = 20,
-	CCAP_LEN = 48, /* 0x30 */
-	CCAP_TOTAL_LEN = 56
 };
 
 /* osd2r00, tab 4, Section 4.7.3 */
@@ -110,19 +96,6 @@ enum {
 	VEND_PG_LB = 0x20000000,
 	VEND_PG_UB = 0x2FFFFFFF
 };
-
-/* osd2r00 Section 4.7.3 */
-/*enum {
-	USEROBJECT_PG_LB = USEROBJECT_PG + VALID_PG_LB,
-	USEROBJECT_PG_UB = USEROBJECT_PG + VALID_PG_UB,       
-	PARTITION_PG_LB = PARTITION_PG + VALID_PG_LB,  
-	PARTITION_PG_UB  = PARTITION_PG + VALID_PG_UB,  
-	COLLECTION_PG_LB = COLLECTION_PG + VALID_PG_LB, 
-	COLLECTION_PG_UB = COLLECTION_PG + VALID_PG_UB, 
-	ROOT_PG_LB = ROOT_PG + VALID_PG_LB,       
-	ROOT_PG_UB = ROOT_PG + VALID_PG_UB,
-	ANY_PG_UB = ANY_PG + (0xFFFFFFFE)
-};*/
 	
 /* osd2r00, Section 4.7.4 */
 enum {
@@ -138,6 +111,57 @@ enum {
 	PARTITION_DIR_PG = (PARTITION_PG + 0x0),
 	COLLECTION_DIR_PG = (COLLECTION_PG + 0x0),
 	ROOT_DIR_PG = (ROOT_PG + 0x0)
+};
+
+/* osd2r00 sec 7.1.2.1 tab 85 */
+enum {
+	USER_DIR_PG = 0x0,
+	USER_INFO_PG,
+	USER_QUOTA_PG,
+	USER_TS_PG
+};
+
+/* Current command attributes page constants, osd2r00 Sec 7.1.2.24 tab 124 */
+enum {
+	CCAP_PAGEID_OFF = 0,
+	CCAP_LEN_OFF = 4,
+	CCAP_RICV_OFF = 8,
+	CCAP_OBJT_OFF = 28,
+	CCAP_PID_OFF = 32,
+	CCAP_OID_OFF = 40,
+	CCAP_APPADDR_OFF = 48,
+	CCAP_RICV_LEN = 20,
+	CCAP_LEN = 48, /* 0x30 */
+	CCAP_TOTAL_LEN = 56
+};
+
+/* userobject timestamp attribute page osd2r00 sec 7.1.2.18 tab 109 */
+enum {
+	UTSAP_PAGE_OFF = 0,
+	UTSAP_LEN_OFF = 4,
+	UTSAP_CTIME_OFF = 8,
+	UTSAP_ATTR_ATIME_OFF = 14,
+	UTSAP_ATTR_MTIME_OFF = 20,
+	UTSAP_DATA_ATIME_OFF = 26,
+	UTSAP_DATA_MTIME_OFF = 32,
+	UTSAP_TIME_SZ = 6,
+	UTSAP_LEN = 30,
+	UTSAP_TOTAL_LEN = 38
+};
+
+/* userobject information attribute page osd2r00 sec 7.1.2.11 tab 94 */
+enum {
+	UIAP_PAGEID = 0x0,
+	UIAP_PID,
+	UIAP_OID,
+	UIAP_USERNAME = 0x9,
+	UIAP_USED_CAP = 0x81,
+	UIAP_LGCL_LEN = 0x82,
+	UIAP_PAGEID_SZ = 40,
+	UIAP_USED_CAP_SZ = 8,
+	UIAP_LGCL_LEN_SZ = 8,
+	UIAP_PID_SZ = sizeof(uint64_t),
+	UIAP_OID_SZ = sizeof(uint64_t)
 };
 
 enum {

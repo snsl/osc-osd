@@ -29,7 +29,8 @@ int db_open(const char *path, struct osd_device *osd)
 	ret = stat(path, &sb);
 	if (ret == 0) {
 		if (!S_ISREG(sb.st_mode)) {
-			osd_error("%s: path %s not a regular file", __func__, path);
+			osd_error("%s: path %s not a regular file", 
+				  __func__, path);
 			ret = 1;
 			goto out;
 		}

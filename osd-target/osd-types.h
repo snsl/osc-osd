@@ -34,6 +34,7 @@ struct init_attr {
 #define MAXSQLEN (2048UL)
 #define MAXNAMELEN (256UL)
 #define MAXROOTLEN (200UL)
+#define BLOCK_SZ (512UL)
 
 struct id_cache {
 	uint64_t next_pid; /* next free pid */

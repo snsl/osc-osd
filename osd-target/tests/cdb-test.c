@@ -311,6 +311,83 @@ void test_create(struct osd_device *osd)
 	free(cmd.attr_malloc);
 }
 
+
+
+
+
+
+/* only to be used by test_set_one_attr */
+static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
+			 uint32_t page, uint32_t number, const void *val,
+			 uint16_t len)
+{
+	struct osd_command cmd;
+	uint8_t sense_out[OSD_MAX_SENSE];
+	int senselen_out;
+	uint8_t *data_out = NULL;
+	uint64_t data_out_len;
+	int ret;
+	struct attribute_list attr = {
+		.type = ATTR_SET,
+		.page = page,
+		.number = number,
+		.len = len,
+		.val = (void *)(uintptr_t) val,
+	};
+
+	ret = osd_command_set_set_attributes(&cmd, pid, oid);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, &attr, 1);
+	assert(ret == 0);
+/* 	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen, */
+/* 				&data_out, &data_out_len, */
+/* 				sense_out, &senselen_out); */
+/* 	assert(ret == 0); */
+/* 	osd_command_attr_free(&cmd); */
+}
+
+static void test_set_one_attr (struct osd_device *osd)
+{
+	struct osd_command cmd;
+	uint64_t pid = PARTITION_PID_LB;
+	uint64_t cid = COLLECTION_OID_LB;
+	uint64_t oid = USEROBJECT_OID_LB + 1;  /* leave room for cid */
+	uint8_t *data_out = NULL;
+	uint64_t data_out_len;
+	uint8_t sense_out[OSD_MAX_SENSE];
+	int senselen_out;
+	int ret;
+    	uint32_t page = USEROBJECT_PG + LUN_PG_LB;
+
+       	
+	/* create a collection and stick some objects in it */
+	ret = osd_command_set_create_partition(&cmd, pid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	ret = osd_command_set_create_collection(&cmd, pid, cid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	set_one_attr_val(osd, pid, oid, page, 1, "88", 8);
+
+     	printf("%x \n",cmd.cdb[11] );
+
+	/* More Test To Be Done */
+	
+}
+
+
+
+
+
+
+
+
+
 /* only to be used by test_osd_query */
 static void set_attr_int(struct osd_device *osd, uint64_t pid, uint64_t oid, 
 			 uint32_t page, uint32_t number, uint64_t val)
@@ -371,6 +448,7 @@ static void set_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	osd_command_attr_free(&cmd);
 }
 
+
 static void set_qce(uint8_t *cp, uint32_t page, uint32_t number, 
 		    uint16_t min_len, const void *min_val, 
 		    uint16_t max_len, const void *max_val)
@@ -411,6 +489,7 @@ static void check_results(uint8_t *matches, uint64_t matchlen,
 		add_len -= 8;
 	}
 }
+
 
 void test_query(struct osd_device *osd)
 {
@@ -1602,9 +1681,10 @@ int main()
 	system("rm -rf /tmp/osd");
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
-
+	
+	test_set_one_attr(&osd); 
 	/* test_partition(&osd); */
-	test_create(&osd);
+	/* test_create(&osd); */
 	/* test_query(&osd); */
 	/* test_list(&osd); */
 	/* test_set_member_attributes(&osd); */

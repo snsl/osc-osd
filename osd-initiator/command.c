@@ -520,8 +520,7 @@ int osd_command_attr_build(struct osd_command *command,
 	uint64_t size_pad_outdata_alloc;
 	uint64_t size_pad_indata_alloc;
 	uint64_t extra_out_alloc, extra_in_alloc;
-	uint32_t *val;
-     		
+          		
 	if (numattr == 0)
 		return 0;
 
@@ -877,8 +876,7 @@ int osd_command_attr_build(struct osd_command *command,
 		        set_htonl(&command->cdb[52], attr[0].page);
 		        set_htonl(&command->cdb[56], attr[0].number);
 			set_htonl(&command->cdb[60], attr[0].len);
-			val = attr[0].val;
-			set_htonl(&command->cdb[62], *val);
+			memcpy(&command->cdb[62], attr[0].val, sizeof(attr[0].val));
 	}
 	
 	if (use_getpage) {

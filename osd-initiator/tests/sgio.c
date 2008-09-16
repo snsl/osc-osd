@@ -271,27 +271,25 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 
 static void all_attr_test(int fd, uint64_t pid, uint64_t oid)
 {
-	int i, ret;
-	uint64_t len;
-	uint8_t *ts;  /* odd 6-byte timestamp */
+	int ret;
 	const uint8_t data[] = "Some data.";
 	const char attr_data[] = "An attribute.\n";
 	struct osd_command command;
 	uint32_t page = 0x30000;
 
-	struct attribute_list *attr, attr_proto[] = {
+	struct attribute_list attr_proto[] = {
 		{
 			.type = ATTR_SET,
 			.page = page,
 			.number = 0x4,
-			.val = attr_data,
+			.val = (void *)(uintptr_t) attr_data,
 			.len = sizeof(attr_data),
 		},
 		{
 			.type = ATTR_SET,
 			.page = page,
 			.number = 0x5,
-			.val = attr_data,
+			.val = (void *)(uintptr_t) attr_data,
 			.len = sizeof(attr_data),
 		},
 	};
@@ -330,17 +328,24 @@ static void all_attr_test(int fd, uint64_t pid, uint64_t oid)
 	osd_command_attr_all_free(&command);
 
 	/* now toss on some attributes */
-	assert(osd_command_set_set_attributes(&command, pid, oid) == 0);
-	assert(osd_command_attr_build(&command, attr_proto, 2) == 0);
-	assert(osd_submit_and_wait(fd, &command) == 0);
+	ret = osd_command_set_set_attributes(&command, pid, oid);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&command, attr_proto, 2);
+	assert(ret == 0);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
 	osd_command_attr_free(&command);
 
 	/* and test again */
-	assert(osd_command_set_set_attributes(&command, pid, oid) == 0);
-	assert(osd_command_attr_all_build(&command, page) == 0);
-	assert(osd_submit_and_wait(fd, &command) == 0);
+	ret = osd_command_set_set_attributes(&command, pid, oid);
+	assert(ret == 0);
+	ret = osd_command_attr_all_build(&command, page);
+	assert(ret == 0);
+	ret = osd_submit_and_wait(fd, &command);
+	assert(ret == 0);
 	assert(command.inlen == 8 + 2 * roundup8(10 + sizeof(attr_data)));
-	assert(osd_command_attr_all_resolve(&command) == 0);
+	ret = osd_command_attr_all_resolve(&command);
+	assert(ret == 0);
 	assert(command.numattr == 2);
 	osd_command_attr_free(&command);
 }

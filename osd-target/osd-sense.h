@@ -111,5 +111,7 @@ int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
                       uint64_t pid, uint64_t oid);
 int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
 		    uint64_t pid, uint64_t oid);
+int sense_build_sdd_csi(uint8_t *sense, uint8_t key, uint16_t code,
+		        uint64_t pid, uint64_t oid, uint64_t csi);
 
 #endif /* __OSD_SENSE_H */

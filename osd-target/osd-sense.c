@@ -72,6 +72,9 @@ int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
 	return off;
 }
 
+/*
+ * Same as basic_build?  Delete one.
+ */
 int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
 		    uint64_t pid, uint64_t oid)
 {
@@ -81,6 +84,23 @@ int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
 
 	off = sense_header_build(sense+off, len-off, key, code, 32);
 	off += sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
+	return off;
+}
+
+/*
+ * Sense header, info section with pid and oid, and "info" section
+ * with an arbitrary u64.
+ */
+int sense_build_sdd_csi(uint8_t *sense, uint8_t key, uint16_t code,
+		        uint64_t pid, uint64_t oid, uint64_t csi)
+{
+	uint8_t off = 0;
+	uint8_t len = OSD_MAX_SENSE;
+	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
+
+	off = sense_header_build(sense+off, len-off, key, code, 44);
+	off += sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
+	off += sense_csi_build(sense+off, len-off, csi);
 	return off;
 }
 

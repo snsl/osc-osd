@@ -3108,8 +3108,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	uint8_t *val;
 	uint32_t valen;
 
-	assert(osd && osd->dbc && cmp && swap && orig_val && orig_len &&
-	       sense);
+	assert(osd && osd->dbc && orig_val && orig_len && sense);
 
 	val = malloc(ATTR_LEN_UB);
 	if (!val)

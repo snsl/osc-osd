@@ -6,12 +6,12 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 2 of the License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -193,6 +193,65 @@ static void basic_test_sgl(int fd, uint64_t pid, uint64_t oid)
 	read_osd(fd, pid, oid, xbuf, 190, 0);  /*10 less b/c way we scatter*/
 
 	for (i=0; i<190; i++) {
+		char ch;
+		memcpy(&ch, (char *)xbuf+i, 1);
+		if(ch == '\0')
+			printf("~");
+		else
+			printf("%c", ch);
+	}
+	printf("\n");
+
+	/* ------------------------------------------------ */
+	/*Test the create and write functionality - non SGL */
+	/* ------------------------------------------------ */
+	free(xbuf);
+	xbuf = malloc(100);
+	memset(xbuf, 'Y', 100);
+
+	ret = create_and_write_osd(fd, pid, oid+1, xbuf, 100, 0);
+	assert(ret == 0);
+
+	free(xbuf);
+	xbuf = malloc(100);
+	memset(xbuf, '\0', 100);
+
+	read_osd(fd, pid, oid+1, xbuf, 100, 0);
+	printf("%s\n", (char *) xbuf);
+
+	/* ------------------------------------------------ */
+	/*Test the create and write functionality ----  SGL */
+	/* ------------------------------------------------ */
+
+	/* 50 bytes of data plus 5 (offset,len) pairs plus the length value */
+	size = 50 + (2*sizeof(uint64_t) * 5) + sizeof(uint64_t);
+	free(dbuf);
+	dbuf = malloc(size);
+	memset(dbuf, 'D', size);
+
+	set_htonll(dbuf, 5);
+	hdr_offset = sizeof(uint64_t);
+	offset = 0;
+	length=10;
+
+	for(i=0; i<5; i++){
+		osd_debug("Offset= %llu  Length= %llu", llu(offset), llu(length));
+		set_htonll((uint8_t *)dbuf + hdr_offset, offset);
+		offset += length*2;
+		hdr_offset += sizeof(uint64_t);
+		set_htonll((uint8_t *)dbuf + hdr_offset, length);
+		hdr_offset += sizeof(uint64_t);
+	}
+
+	ret = create_and_write_sgl_osd(fd, pid, oid+2, dbuf, size, 0);
+	assert(ret == 0);
+
+	free(xbuf);
+	xbuf = malloc(100);
+	memset(xbuf, 'Z', 100);
+	read_osd(fd, pid, oid+2, xbuf, 90, 0);  /*10 less b/c way we scatter*/
+
+	for (i=0; i<100; i++) {
 		char ch;
 		memcpy(&ch, (char *)xbuf+i, 1);
 		if(ch == '\0')

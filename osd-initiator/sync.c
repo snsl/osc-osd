@@ -6,12 +6,12 @@
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, version 2 of the License.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -277,7 +277,7 @@ int remove_member_objects(int fd, uint64_t pid, uint64_t cid)
 	return 0;
 }
 
-int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid,
+int create_and_write_osd(int fd, uint64_t pid, uint64_t requested_oid,
 			 const uint8_t *buf, uint64_t len, uint64_t offset)
 {
 	int ret;
@@ -305,6 +305,38 @@ int create_osd_and_write(int fd, uint64_t pid, uint64_t requested_oid,
 	check_response(ret, &command, NULL);
 
 	osd_debug("....retrieving response");
+	ret = osd_wait_this_response(fd, &command);
+	check_response(ret, &command, NULL);
+
+	return 0;
+}
+
+int create_and_write_sgl_osd(int fd, uint64_t pid, uint64_t requested_oid,
+			 const uint8_t *buf, uint64_t len, uint64_t offset)
+{
+	int ret;
+	struct osd_command command;
+
+	osd_debug("****** CREATE / WRITE SGL ******");
+	osd_debug("PID: %llu OID: %llu BUF: %s", llu(pid), llu(requested_oid),
+		  buf);
+
+	if (!buf) {
+		osd_error("%s: no data sent", __func__);
+		return 1;
+	}
+
+	osd_command_set_create_and_write(&command, pid, requested_oid, len,
+					 offset);
+
+	osd_command_set_ddt(&command, DDT_SGL);
+
+	command.outdata = buf;
+	command.outlen = len;
+
+	ret = osd_submit_command(fd, &command);
+	check_response(ret, &command, NULL);
+
 	ret = osd_wait_this_response(fd, &command);
 	check_response(ret, &command, NULL);
 

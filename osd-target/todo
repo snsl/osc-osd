@@ -1,0 +1,14 @@
+# vim: set ft=conf
+
+Optimizations:
+-	prepare frequently used statements and store them. 
+
+Potential Bugs:
+- 	put sqlite_step statemnts in infinite loop.
+-	inconsistent return codes in osd.c
+-	loosing return value due to finalize
+
+Misc todos:
+-	rename osd_device to osd_hndl
+-	magic constants for return values in db.c, attr.c, obj.c
+	

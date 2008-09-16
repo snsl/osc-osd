@@ -13,7 +13,7 @@
 
 int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t type)
 {
-	int ret;
+	int ret = 0;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
@@ -44,18 +44,20 @@ int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t type)
 
 	ret = sqlite3_step(stmt);
 	if (ret != SQLITE_DONE) {
-		ret = sqlite3_reset(stmt); /* get real error code */
-		if (ret == SQLITE_CONSTRAINT)
-			ret = -EEXIST;
 		error_sql(db, "%s: object %lu %lu exists!", __func__, pid, oid);
 		goto out_finalize;
 	} 
 
 out_finalize:
-	ret = sqlite3_finalize(stmt);
+	/* 
+	 * NOTE: sqlite3_finalize grabs the correct error code in case of
+	 * failure. else it returns 0. hence, value in 'ret' is not lost
+	 */
+	ret = sqlite3_finalize(stmt); 
 	if (ret != SQLITE_OK) {
+		if (ret == SQLITE_CONSTRAINT)
+			ret = -EEXIST;
 		error_sql(db, "%s: finalize", __func__);
-		goto out;
 	}
 	
 out:
@@ -127,17 +129,15 @@ int obj_get_nextoid(sqlite3 *db, uint64_t pid, uint32_t type, uint64_t *oid)
 
 out_finalize:
 	ret = sqlite3_finalize(stmt);
-	if (ret != SQLITE_OK) {
+	if (ret != SQLITE_OK)
 		error_sql(db, "%s: finalize", __func__);
-		goto out;
-	}
 	
 out:
 	return ret;
 }
 
 /* 
- * returns: 1 if present, 0 otherwise.
+ * returns: 1 if present, 0 if absent, -1 incase of any errors
  * NOTE: type not in arg, since USEROBJECT and COLLECTION share namespace 
  * and (pid, oid) is unique.
  */
@@ -181,7 +181,7 @@ out_finalize:
 	ret = sqlite3_finalize(stmt);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: finalize", __func__);
-		goto out;
+		return -1; /* error, return -1 */
 	}
 	
 out:

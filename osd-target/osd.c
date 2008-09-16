@@ -64,7 +64,7 @@ static int empty_dir(const char *dirname)
 	while ((ent = readdir(dir)) != NULL) {
 		if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
 			continue;
-		/* NOTE: no need to memset path */
+		/* NOTE: no need to memset path with zeros */
 		sprintf(path, "%s/%s", dirname, ent->d_name);
 		ret = unlink(path);
 		if (ret != 0)
@@ -98,14 +98,14 @@ int osd_open(const char *root, struct osd_device *osd)
 	if (ret != 0)
 		goto out;
 
-	/* create dfiles sub-directory */
+	/* create 'dfiles' sub-directory */
 	memset(path, 0, MAXNAMELEN);
 	sprintf(path, "%s/%s/", root, dfiles);
 	ret = create_dir(path);
 	if (ret != 0)
 		goto out;
 
-	/* create stranded-files sub-directory */
+	/* create 'stranded-files' sub-directory */
 	memset(path, 0, MAXNAMELEN);
 	sprintf(path, "%s/%s/", root, stranded);
 	ret = create_dir(path);
@@ -192,7 +192,7 @@ static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 }
 
 /*
- * FIXME: get set attributes left
+ * XXX: get/set attributes to be handled in cdb.c
  */
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t num, uint8_t *sense)
@@ -391,15 +391,17 @@ int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	debug("%s: get attr for (%llu, %llu)", __func__, llu(pid), llu(oid));
 	
-	if (getpage == 1) {
-		ret = attr_get_attr_page(osd->db, pid, oid, page, outbuf, len);
-		if (ret != 0) 
-			goto out_build_sense;
-	} else {
+	if (getpage == 0) {
 		ret = attr_get_attr(osd->db, pid, oid, page, number, 
 				    outbuf, len);
 		if (ret != 0)
 			goto out_build_sense;
+	} else if (getpage == 1) {
+		ret = attr_get_attr_page(osd->db, pid, oid, page, outbuf, len);
+		if (ret != 0) 
+			goto out_build_sense;
+	} else {
+		goto out_build_sense;
 	}
 	return 0; /* success */
 
@@ -454,7 +456,8 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
 	      llu(pid), llu(oid), llu(len), llu(offset));
 	if (pid == 16) {
-		/* Testing read of non-existent object.  Return the appropriate
+		/* 
+		 * Testing read of non-existent object.  Return the appropriate
 		 * error.
 		 */
 		ret = sense_basic_build(sense, OSD_SSK_ILLEGAL_REQUEST, 0, 0,
@@ -507,10 +510,8 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	return 0; /* success */
 
 out_err:
-	ret = sense_basic_build(sense, OSD_SSK_HARDWARE_ERROR, 
-				ASC(OSD_ASC_INVALID_FIELD_IN_CDB), 
-				ASCQ(OSD_ASC_INVALID_FIELD_IN_CDB),
-				pid, oid);
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 }
 
@@ -557,8 +558,8 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_cdb;
 
 	/* 
-	 * for each kind of object, check if pages are within bounds.
-	 * also trap attribute directory page assignments.
+	 * For each kind of object, check if the page is within bounds.
+	 * This also traps attribute directory page assignments.
 	 */
 	if (pid == ROOT_PID && oid == ROOT_OID) {
 		if (page < ROOT_PG_LB || page == GETALLATTR_PG ||

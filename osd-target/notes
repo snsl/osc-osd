@@ -139,21 +139,15 @@ we assume this is single threaded app => no table locking, no checking for
 EBUSY. in future keep sqlite3_step in a infinite loop
 
 # Fri Jan 26 11:03:52 EST 2007
-- 	put sqlite_step statemnts in infinite loop.
--	consistent return codes
 +	single makefile for tests and libosd
 -	make rules for dependencies
 +	defines for ROOT_OBJECT, ROOT_PARTITION
--	osd_device to osd_hndl
 +	change obj tab, include type of object being created
 
 # Mon Jan 29 12:39:02 EST 2007
--	prepare frequently used statements and store them. Make a list of
-	potential optimizations.
 -	what is current commands attr page
 -	sense_* functions are not up to date. osd_* are not returning correct
 	values.
--	loosing return value due to finalize
 -	collect all errors using goto
 
 # Tue Jan 30 16:12:47 EST 2007

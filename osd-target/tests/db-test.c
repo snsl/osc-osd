@@ -150,14 +150,14 @@ int main()
 
 	/*test_obj(&osd);*/
 	/*test_attr(&osd);*/
-	/*test_dup_obj(&osd);*/
+	test_dup_obj(&osd);
 	/*test_obj_manip(&osd);*/
 
 	ret = db_close(&osd);
 	if (ret != 0)
 		return ret;
 
-	test_osd_interface();
+	/*test_osd_interface();*/
 
 	return 0;
 }

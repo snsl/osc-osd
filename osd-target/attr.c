@@ -15,14 +15,14 @@
 int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page, 
 		  uint32_t number, const void *val, uint16_t len)
 {
-	int ret = -EINVAL;
+	int ret = 0;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "INSERT OR REPLACE INTO attr valueS (?, ?, ?, ?, ?);");
+	sprintf(SQL, "INSERT OR REPLACE INTO attr VALUES (?, ?, ?, ?, ?);");
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: prepare", __func__);
@@ -60,13 +60,14 @@ int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	}
 
 out_finalize:
-	/* NOTE: in case of error sqlite3_finalize will grab the error code, so
-	 * return will not be lost. On success it returns SQLITE_OK */
-	ret = sqlite3_finalize(stmt);
-	if (ret != SQLITE_OK) {
+	/* 
+	 * NOTE: sqlite3_finalize grabs the correct error code in case of
+	 * failure. else it returns 0. hence, value in 'ret' is not lost
+	 */
+	ret = sqlite3_finalize(stmt); 
+	if (ret != SQLITE_OK)
 		error_sql(db, "%s: finalize", __func__);
-		goto out;
-	}
+
 out:
 	return ret;
 }
@@ -132,7 +133,7 @@ static int attr_gather_attr(sqlite3_stmt *stmt, void *outbuf, uint16_t len)
 		memcpy(ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 2), 
 		       len - ATTR_VAL_OFFSET);
 
-	return SQLITE_OK;
+	return 0;
 }
 
 /* 40 bytes including terminating NUL */
@@ -200,10 +201,8 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 
 out_finalize:
 	ret = sqlite3_finalize(stmt);
-	if (ret != SQLITE_OK) {
+	if (ret != SQLITE_OK) 
 		error_sql(db, "%s: finalize", __func__);
-		goto out;
-	}
 	
 out:
 	return ret;
@@ -265,10 +264,8 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 
 out_finalize:
 	ret = sqlite3_finalize(stmt);
-	if (ret != SQLITE_OK) {
+	if (ret != SQLITE_OK) 
 		error_sql(db, "%s: finalize", __func__);
-		goto out;
-	}
 	
 out:
 	return ret;

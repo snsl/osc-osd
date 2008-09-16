@@ -45,10 +45,12 @@ FORCE:;
 # distribution tarball
 .PHONY: dist
 MV := osd-util
+MVD := $(MV)-$(shell date +%Y%m%d)
 dist:
-	rm -rf $(MV)
-	mkdir $(MV)
-	svn list -R | grep -v '/$$' | rsync --files-from=/dev/stdin ./ $(MV)/
-	tar cf - $(MV) | bzip2 -9c > $(MV).tar.bz2
-	rm -rf $(MV)
+	rm -rf $(MV) $(MVD)
+	mkdir $(MVD)
+	svn list -R | grep -v '/$$' | rsync --files-from=/dev/stdin ./ $(MVD)/
+	ln -s $(MVD) $(MV)
+	tar cf - $(MV) $(MVD) | bzip2 -9c > $(MVD).tar.bz2
+	rm -rf $(MV) $(MVD)
 

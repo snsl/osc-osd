@@ -125,7 +125,7 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 		}
 		cp = SQL + sqlen;
 	}
-	cp = strcat(cp, " GROUP BY attr.oid ORDER BY attr.oid;");
+	cp = strcat(cp, " GROUP BY attr.oid ORDER BY 1;");
 
 	ret = sqlite3_prepare(dbc->db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {

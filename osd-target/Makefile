@@ -27,7 +27,8 @@ include ../Makedefs
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
+COPTS := $(OPT)
+COPTS += -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs

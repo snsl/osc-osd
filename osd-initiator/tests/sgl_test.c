@@ -62,15 +62,36 @@ static void obj_remove(int fd, uint64_t pid, uint64_t oid)
 
 static void test_sgl(int fd, uint64_t pid, uint64_t oid)
 {
+
+	/*format of the data buff is:
+	|#offset,len pairs| |offset| |length|....[DATA]
+	all values are 8 bytes*/
+
 	void *dbuf;
+	uint64_t length = 10;
 	int size;
 	int ret;
+	int hdr_offset = 0;
+	int offset = 0;
+	int i;
 
-	size = 1024;
+	/*50 bytes of data plus 5 (offset,len) pairs plus the length value*/
+	size = 50 + (2*sizeof(uint64_t) * 5) + sizeof(uint64_t);
 
 	dbuf = malloc(size);
-
 	memset(dbuf, 'D', size);
+
+	set_htonll(dbuf, 5);
+	hdr_offset += sizeof(uint64_t);
+
+	for(i=0; i<5; i++){
+		osd_debug("Offset= %llu  Length= %llu", llu(offset), llu(length));
+		set_htonll((uint8_t *)dbuf + hdr_offset, offset);
+		offset += length*2;
+		hdr_offset += sizeof(uint64_t);
+		set_htonll((uint8_t *)dbuf + hdr_offset, length);
+		hdr_offset += sizeof(uint64_t);
+	}
 
 	ret = write_sgl_osd(fd, pid, oid, dbuf, size, 0);
 	assert(ret == 0);

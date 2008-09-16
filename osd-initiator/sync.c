@@ -332,14 +332,17 @@ int write_sgl_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	struct osd_command command;
 
 	osd_debug("****** WRITE SGL ******");
-	osd_debug("PID: %llu OID: %llu BUF: %s", llu(pid), llu(oid), buf);
+	osd_debug("PID: %llu OID: %llu LEN: %llu", llu(pid), llu(oid), llu(len));
 
 	if (!buf) {
 		osd_error("%s: no data sent", __func__);
 		return 1;
 	}
 
+	/*setting the command is now a two stage process and not doing it
+	will default to contiguous buffer model*/
 	osd_command_set_write(&command, pid, oid, len, offset);
+
 	osd_command_set_ddt(&command, DDT_SGL);
 
 	command.outdata = buf;

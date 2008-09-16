@@ -92,6 +92,8 @@ int osd_command_set_inquiry(struct osd_command *command, uint8_t page_code,
 			    uint8_t outlen);
 int osd_command_set_append(struct osd_command *command, uint64_t pid,
 			   uint64_t oid, uint64_t len);
+int osd_command_set_clear(struct osd_command *command, uint64_t pid,
+			  uint64_t oid, uint64_t len, uint64_t offset);
 int osd_command_set_create(struct osd_command *command, uint64_t pid,
 			   uint64_t requested_oid, uint16_t num_user_objects);
 int osd_command_set_create_and_write(struct osd_command *command, uint64_t pid,
@@ -123,6 +125,8 @@ int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
 				    int list_attr);
 int osd_command_set_perform_scsi_command(struct osd_command *command);
 int osd_command_set_perform_task_mgmt_func(struct osd_command *command);
+int osd_command_set_punch(struct osd_command *command, uint64_t pid,
+			  uint64_t oid, uint64_t len, uint64_t offset);
 int osd_command_set_query(struct osd_command *command, uint64_t pid,
 			  uint64_t cid, uint32_t query_len, uint64_t alloc_len);
 int osd_command_set_read(struct osd_command *command, uint64_t pid,

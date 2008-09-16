@@ -126,17 +126,18 @@ static int set_one_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint32_t len = get_ntohl(&cdb[60]); 
 	void *value = &cmd->cdb[62];
 
+	/* nothing to set. osd2r03 Sec 5.2.4.2 */
 	if (page == 0)
-	        return 0; /* nothing to set. osd2r03 Sec 5.2.4.2 */
+	        return 0; 
 
+	/* terminate command with check command status, set sense to illegal
+	   reguest osd2r03 Sec 5.2.4.2 */
 	if (len > 18)
-	  /* terminate command with check command status, set sense to illegal
-	     reguest osd2r03 Sec 5.2.4.2 */
 	        goto out_invalid_param;
 	
+	/* terminate command with check command status, set sense to illegal
+	   request osd2r03 Sec 5.2.4.2 */
 	if (page == 0xFFFFFFFF || number == 0xFFFFFFFF)
-	  /* terminate command with check command status, set sense to illegal
-	     request osd2r03 Sec 5.2.4.2 */  
 	        goto out_invalid_param;
         
 	err = osd_begin_txn(cmd->osd);

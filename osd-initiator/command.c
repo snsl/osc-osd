@@ -92,6 +92,16 @@ int osd_command_set_append(struct osd_command *command, uint64_t pid,
         return 0;
 }
 
+int osd_command_set_clear(struct osd_command *command, uint64_t pid,
+			   uint64_t oid, uint64_t len, uint64_t offset)
+{
+        varlen_cdb_init(command, OSD_APPEND);
+        set_htonll(&command->cdb[16], pid);
+        set_htonll(&command->cdb[24], oid);
+        set_htonll(&command->cdb[32], len);
+	set_htonll(&command->cdb[40], offset);
+        return 0;
+}
 
 int osd_command_set_create(struct osd_command *command, uint64_t pid,
 			   uint64_t requested_oid, uint16_t num_user_objects)
@@ -247,6 +257,17 @@ int osd_command_set_perform_task_mgmt_func(
 {
         osd_error("%s: unimplemented", __func__);
         return 1;
+}
+
+int osd_command_set_punch(struct osd_command *command, uint64_t pid,
+			  uint64_t oid, uint64_t len, uint64_t offset)
+{
+        varlen_cdb_init(command, OSD_WRITE);
+        set_htonll(&command->cdb[16], pid);
+        set_htonll(&command->cdb[24], oid);
+        set_htonll(&command->cdb[32], len);
+        set_htonll(&command->cdb[40], offset);
+        return 0;
 }
 
 int osd_command_set_query(struct osd_command *command, uint64_t pid,
@@ -453,7 +474,7 @@ struct attr_malloc_header {
 int osd_command_attr_build(struct osd_command *command,
                            const struct attribute_list *attr, int numattr)
 {
-	int use_getpage;
+        int use_getpage, use_set_one_attr;
 	int numget, numgetpage, numgetmulti, numset, numresult;
 	uint32_t getsize, getpagesize, getmultisize, setsize, resultsize;
 	uint32_t getmulti_num_objects = 0;
@@ -499,7 +520,8 @@ int osd_command_attr_build(struct osd_command *command,
 	uint64_t size_pad_outdata_alloc;
 	uint64_t size_pad_indata_alloc;
 	uint64_t extra_out_alloc, extra_in_alloc;
-
+	uint32_t *val;
+     		
 	if (numattr == 0)
 		return 0;
 
@@ -562,8 +584,9 @@ int osd_command_attr_build(struct osd_command *command,
 				  "ATTR_GET_PAGE", __func__);
 			return -EINVAL;
 		}
-		use_getpage = 1;
-	} else {
+	        use_getpage = 1;
+
+	}else {
 		if (numgetmulti) {
 			uint16_t action = (command->cdb[8] << 8)
 			                 | command->cdb[9];
@@ -596,6 +619,8 @@ int osd_command_attr_build(struct osd_command *command,
 				use_getpage = 1;
 			}
 		}
+		if (attr[0].len <= 18 && numset == 1 && numattr == 1)
+		        use_set_one_attr = 1;
 	}
 
 	/*
@@ -846,9 +871,19 @@ int osd_command_attr_build(struct osd_command *command,
 	/*
 	 * Update the CDB bits.
 	 */
+	if (use_set_one_attr) {
+	        /* set one attribute */
+	        command->cdb[11] = (command->cdb[11] & ~(3 << 4)) | (1 << 4);
+		        set_htonl(&command->cdb[52], attr[0].page);
+		        set_htonl(&command->cdb[56], attr[0].number);
+			set_htonl(&command->cdb[60], attr[0].len);
+			val = attr[0].val;
+			set_htonl(&command->cdb[62], *val);
+	}
+	
 	if (use_getpage) {
 		/* page format */
-		command->cdb[11] = (command->cdb[11] & ~(3 << 4)) | (2 << 4);
+	        command->cdb[11] = (command->cdb[11] & ~(3 << 4)) | (2 << 4);
 		for (i=0; i<numattr; i++) {
 			if (attr[i].type == ATTR_GET_PAGE)
 				set_htonl(&command->cdb[52], attr[i].page);

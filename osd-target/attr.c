@@ -1044,6 +1044,68 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 	}
 	sprintf(cp, " ) ORDER BY attr.oid; ");
 
+#elif LIST_QUERY_TYPE == 3
+
+	cp = SQL;
+	sqlen = 0;
+	sprintf(SQL, "SELECT obj.oid, attr.page, attr.number, attr.value "
+		" FROM obj, attr WHERE ( (page = %u AND number = %u) OR ", 
+		USER_TMSTMP_PG, 0);
+	sqlen += strlen(SQL);
+	cp += sqlen;
+
+	for (i = 0; i < get_attr->sz; i++) {
+		sprintf(cp, " (attr.page = %u AND attr.number = %u) ",
+			get_attr->le[i].page, get_attr->le[i].number);
+		if (i < (get_attr->sz - 1))
+			strcat(cp, " OR ");
+		sqlen += strlen(cp);
+		if (sqlen > MAXSQLEN*factor - 100) {
+			factor *= 2;
+			SQL = realloc(SQL, MAXSQLEN*factor);
+			if (!SQL) {
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+
+		cp = SQL + sqlen;
+	}
+	sprintf(cp, " ) AND attr.pid = %llu AND obj.oid >= %llu  AND "
+		" obj.type = %u AND obj.pid = attr.pid AND "
+		" obj.oid = attr.oid ORDER BY attr.oid; ", llu(pid), 
+		llu(initial_oid), USEROBJECT);
+
+#elif LIST_QUERY_TYPE == 4
+
+	cp = SQL;
+	sqlen = 0;
+	sprintf(SQL, "SELECT oid, page, number, value FROM attr "
+		" WHERE pid = %llu AND oid >= %llu  AND "
+		" ( (page = %u AND number = %u) OR ", llu(pid), 
+		llu(initial_oid), USER_TMSTMP_PG, 0);
+	sqlen += strlen(SQL);
+	cp += sqlen;
+
+	for (i = 0; i < get_attr->sz; i++) {
+		sprintf(cp, " (page = %u AND number = %u) ",
+			get_attr->le[i].page, get_attr->le[i].number);
+		if (i < (get_attr->sz - 1))
+			strcat(cp, " OR ");
+		sqlen += strlen(cp);
+		if (sqlen > MAXSQLEN*factor - 100) {
+			factor *= 2;
+			SQL = realloc(SQL, MAXSQLEN*factor);
+			if (!SQL) {
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+
+		cp = SQL + sqlen;
+	}
+	sprintf(cp, " ) ORDER BY oid; ");
+
 #endif
 
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);

@@ -80,6 +80,7 @@ static void test_obj_manip(struct osd_device *osd)
 	int i = 0;
 	int ret = 0;
 	uint64_t oid = 0;
+	int present = 0;
 
 	for (i =0; i < 4; i++) {
 		ret = obj_insert(osd->dbc, 1, 1<<i, USEROBJECT);
@@ -106,39 +107,41 @@ static void test_obj_manip(struct osd_device *osd)
 	assert(ret == 0);
 
 	/* existing object, ret == 1 */
-	ret = obj_ispresent(osd->dbc, 1, 235);
-	assert(ret == 1);
+	ret = obj_ispresent(osd->dbc, 1, 235, &present);
+	assert(ret == 0 && present == 1);
 
 	ret = obj_delete(osd->dbc, 1, 235);
 	assert(ret == 0);
 
 	/* non-existing object, ret == 0 */
-	ret = obj_ispresent(osd->dbc, 1, 235);
-	assert(ret == 0);
+	ret = obj_ispresent(osd->dbc, 1, 235, &present);
+	assert(ret == 0 && present == 0);
 }
 
 static void test_pid_isempty(struct osd_device *osd)
 {
 	int ret = 0;
+	int isempty = 0;
 
 	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
 	assert(ret == 0);
 
 	/* pid is not empty, ret should be 0 */
-	ret = obj_isempty_pid(osd->dbc, 1);
-	assert(ret == 0);
+	ret = obj_isempty_pid(osd->dbc, 1, &isempty);
+	assert(ret == 0 && isempty == 0);
 
 	ret = obj_delete(osd->dbc, 1, 1);
 	assert(ret == 0);
 
 	/* pid is empty, ret should be 1 */
-	ret = obj_isempty_pid(osd->dbc, 1);
-	assert(ret == 1);
+	ret = obj_isempty_pid(osd->dbc, 1, &isempty);
+	assert(ret == 0 && isempty == 1);
 }
 
 static void test_get_obj_type(struct osd_device *osd)
 {
 	int ret = 0;
+	uint8_t obj_type = ILLEGAL_OBJ;
 
 	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
 	assert(ret == 0);
@@ -149,17 +152,17 @@ static void test_get_obj_type(struct osd_device *osd)
 	ret = obj_insert(osd->dbc, 3, 0, PARTITION);
 	assert(ret == 0);
 
-	ret = obj_get_type(osd->db, 0, 0);
-	assert(ret == ROOT);
+	ret = obj_get_type(osd->dbc, 0, 0, &obj_type);
+	assert(ret == 0 && obj_type == ROOT);
 
-	ret = obj_get_type(osd->db, 1, 1);
-	assert(ret == USEROBJECT);
+	ret = obj_get_type(osd->dbc, 1, 1, &obj_type);
+	assert(ret == 0 && obj_type == USEROBJECT);
 
-	ret = obj_get_type(osd->db, 2, 2);
-	assert(ret == COLLECTION);
+	ret = obj_get_type(osd->dbc, 2, 2, &obj_type);
+	assert(ret == 0 && obj_type == COLLECTION);
 
-	ret = obj_get_type(osd->db, 3, 0);
-	assert(ret == PARTITION);
+	ret = obj_get_type(osd->dbc, 3, 0, &obj_type);
+	assert(ret == 0 && obj_type == PARTITION);
 
 	ret = obj_delete(osd->dbc, 3, 0);
 	assert(ret == 0);
@@ -171,8 +174,8 @@ static void test_get_obj_type(struct osd_device *osd)
 	assert(ret == 0);
 
 	/* non-existing object's type must be ILLEGAL_OBJ */
-	ret = obj_get_type(osd->db, 1, 1);
-	assert(ret == ILLEGAL_OBJ);
+	ret = obj_get_type(osd->dbc, 1, 1, &obj_type);
+	assert(ret == 0 && obj_type == ILLEGAL_OBJ);
 }
 
 static inline void delete_obj(struct osd_device *osd, uint64_t pid, 
@@ -256,6 +259,7 @@ static void test_coll(struct osd_device *osd)
 	int ret = 0;
 	uint64_t usedlen;
 	uint64_t addlen;
+	int isempty = 0;
 	uint64_t oids[64] = {0};
 	uint64_t cont_id = 0xFUL;
 
@@ -299,12 +303,12 @@ static void test_coll(struct osd_device *osd)
 	assert(ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); 
 
 	/* test empty cid */
-	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1);
-	assert(ret == 0);
-	ret = coll_isempty_cid(osd->dbc, 0x20, 0x2);
-	assert(ret == 0);
-	ret = coll_isempty_cid(osd->dbc, 0x20, 0x3);
-	assert(ret == 1);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1, &isempty);
+	assert(ret == 0 && isempty == 0);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x2, &isempty);
+	assert(ret == 0 && isempty == 0);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x3, &isempty);
+	assert(ret == 0 && isempty == 1);
 
 	/* 
 	 * TODO: fill in 16k rows in coll_tab and empty it to see if vaccum
@@ -315,10 +319,10 @@ static void test_coll(struct osd_device *osd)
 	assert(ret == 0);
 	ret = coll_delete_cid(osd->dbc, 0x20, 0x2);
 	assert(ret == 0);
-	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1);
-	assert(ret == 1);
-	ret = coll_isempty_cid(osd->dbc, 0x20, 0x2);
-	assert(ret == 1);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1, &isempty);
+	assert(ret == 0 && isempty == 1);
+	ret = coll_isempty_cid(osd->dbc, 0x20, 0x2, &isempty);
+	assert(ret == 0 && isempty == 1);
 }
 
 

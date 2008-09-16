@@ -118,7 +118,9 @@ int db_open(const char *path, struct osd_device *osd)
 	}
 
 	/* initialize dbc fields */
-	ret = coll_initialize(osd->dbc);
+	ret = 0;
+	ret |= coll_initialize(osd->dbc);
+	ret |= obj_initialize(osd->dbc);
 	if (ret != OSD_OK) {
 		ret = OSD_ERROR;
 		goto out;
@@ -139,7 +141,9 @@ int db_close(struct db_context *dbc)
 	if (dbc == NULL)
 		return -EINVAL;
 
-	ret = coll_finalize(dbc);
+	ret = 0;
+	ret |= coll_finalize(dbc);
+	ret |= obj_finalize(dbc);
 	if (ret != OSD_OK)
 		return OSD_ERROR;
 

@@ -324,6 +324,9 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 	int i = 0, j = 0;
 	uint64_t start, end;
 	uint64_t oid = 0, pid = 0;
+	int present = 0;
+	int isempty = 0;
+	uint8_t obj_type = ILLEGAL_OBJ;
 	double *t = 0;
 	double mu, sd;
 	const char *func = NULL;
@@ -365,12 +368,12 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 	case 4: {
 		ret = obj_insert(osd->dbc, 1, 2, 128);
 		assert(ret == 0);
-		ret = obj_ispresent(osd->dbc, 1, 2);
-		assert(ret == 1);
+		ret = obj_ispresent(osd->dbc, 1, 2, &present);
+		assert(ret == 0 && present == 1);
 		ret = obj_delete(osd->dbc, 1, 2);
 		assert(ret == 0);
-		ret = obj_ispresent(osd->dbc, 1, 2);
-		assert(ret == 0);
+		ret = obj_ispresent(osd->dbc, 1, 2, &present);
+		assert(ret == 0 && present == 0);
 		if (test == 3)
 			func = "objpresent";
 		else
@@ -380,20 +383,20 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 	case 5: {
 		ret = obj_insert(osd->dbc, 1, 2, 128);
 		assert(ret == 0);
-		ret = obj_isempty_pid(osd->dbc, 1);
-		assert(ret == 0);
+		ret = obj_isempty_pid(osd->dbc, 1, &isempty);
+		assert(ret == 0 && isempty == 0);
 		ret = obj_delete(osd->dbc, 1, 2);
 		assert(ret == 0);
-		ret = obj_isempty_pid(osd->dbc, 1);
-		assert(ret == 1);
+		ret = obj_isempty_pid(osd->dbc, 1, &isempty);
+		assert(ret == 0 && isempty == 1);
 		func = "objemptypid";
 		break;
 	}
 	case 6: {
 		ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
 		assert(ret == 0);
-		ret = obj_get_type(osd->db, 1, 2);
-		assert(ret == USEROBJECT);
+		ret = obj_get_type(osd->dbc, 1, 2, &obj_type);
+		assert(ret == 0 && obj_type == USEROBJECT);
 		ret = obj_delete(osd->dbc, 1, 2);
 		assert(ret == 0);
 		func = "objgettype";
@@ -436,32 +439,32 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 		case 3: {
 			oid = numobj;
 			rdtsc(start);
-			ret = obj_ispresent(osd->dbc, 1, oid);
+			ret = obj_ispresent(osd->dbc, 1, oid, &present);
 			rdtsc(end);
-			assert(ret == 1);
+			assert(ret == 0 && present == 1);
 			break;
 		}
 		case 4: {
 			oid = numobj+2;
 			rdtsc(start);
-			ret = obj_ispresent(osd->dbc, 1, oid);
+			ret = obj_ispresent(osd->dbc, 1, oid, &present);
 			rdtsc(end);
-			assert(ret == 0);
+			assert(ret == 0 && present == 0);
 			break;
 		}
 		case 5: {
 			rdtsc(start);
-			ret = obj_isempty_pid(osd->dbc, 1);
+			ret = obj_isempty_pid(osd->dbc, 1, &isempty);
 			rdtsc(end);
-			assert(ret == 0);
+			assert(ret == 0 && isempty == 0);
 			break;
 		}
 		case 6: {
 			oid = numobj;
 			rdtsc(start);
-			ret = obj_get_type(osd->db, 1, oid);
+			ret = obj_get_type(osd->dbc, 1, oid, &obj_type);
 			rdtsc(end);
-			assert(ret == USEROBJECT);
+			assert(ret == 0 && obj_type == USEROBJECT);
 			break;
 		}
 		default:

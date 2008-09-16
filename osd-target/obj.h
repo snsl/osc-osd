@@ -19,11 +19,13 @@ int obj_get_nextoid(struct db_context *dbc, uint64_t pid, uint64_t *oid);
 
 int obj_get_nextpid(struct db_context *dbc, uint64_t *pid);
 
-int obj_ispresent(struct db_context *dbc, uint64_t pid, uint64_t oid);
+int obj_ispresent(struct db_context *dbc, uint64_t pid, uint64_t oid, 
+		  int *present);
 
-int obj_isempty_pid(struct db_context *dbc, uint64_t pid);
+int obj_isempty_pid(struct db_context *dbc, uint64_t pid, int *isempty);
 
-int obj_get_type(sqlite3 *db, uint64_t pid, uint64_t oid);
+int obj_get_type(struct db_context *dbc, uint64_t pid, uint64_t oid, 
+		 uint8_t *obj_type);
 
 int obj_get_oids_in_pid(struct db_context *dbc, uint64_t pid, 
 			uint64_t initial_oid, uint64_t alloc_len, 

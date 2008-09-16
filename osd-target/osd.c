@@ -86,12 +86,17 @@ static struct init_attr partition_info[] = {
 static inline uint8_t get_obj_type(struct osd_device *osd,
 				   uint64_t pid, uint64_t oid)
 {
+	int ret = 0;
+	uint8_t obj_type = ILLEGAL_OBJ;
+
 	if (pid == ROOT_PID && oid == ROOT_OID) {
 		return ROOT;
 	} else if (pid >= PARTITION_PID_LB && oid == PARTITION_OID) {
 		return PARTITION;
 	} else if (pid >= OBJECT_PID_LB && oid >= OBJECT_OID_LB) {
-		return obj_get_type(osd->db, pid, oid);
+		ret = obj_get_type(osd->dbc, pid, oid, &obj_type);
+		if (ret == OSD_OK)
+			return obj_type;
 	}
 	return ILLEGAL_OBJ;
 }
@@ -664,6 +669,7 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		   uint32_t number, const void *val, uint16_t len)
 {
 	int ret = 0;
+	int present = 0;
 	uint64_t cid = 0;
 
 	if (number < UCAP_COLL_PTR_LB || number > UCAP_COLL_PTR_UB)
@@ -694,8 +700,8 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	cid = ntohll(val);
 	/* cid = *((uint64_t *)val);  *//* XXX: endian of cid?? */
-	ret = obj_ispresent(osd->dbc, pid, cid);
-	if (ret <= 0)
+	ret = obj_ispresent(osd->dbc, pid, cid, &present);
+	if (ret != OSD_OK || !present)
 		return OSD_ERROR;
 
 	ret = coll_insert(osd->dbc, pid, cid, oid, number);
@@ -954,6 +960,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 {
 	int ret = 0;
 	int within_txn = 0;
+	int present = 0;
 	uint64_t i = 0;
 	uint64_t oid = 0;
 
@@ -972,7 +979,8 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	within_txn = 1;
 
 	/* Make sure partition is present. */
-	if (obj_ispresent(osd->dbc, pid, PARTITION_OID) == 0)
+	ret = obj_ispresent(osd->dbc, pid, PARTITION_OID, &present);
+	if (ret != OSD_OK || !present)
 		goto out_illegal_req;
 
 	if (numoid > 1 && requested_oid != 0)
@@ -998,8 +1006,8 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			osd->ic.next_id = oid + 1;
 		}
 	} else {
-		ret = obj_ispresent(osd->dbc, pid, requested_oid);
-		if (ret == 1)
+		ret = obj_ispresent(osd->dbc, pid, requested_oid, &present);
+		if (ret != OSD_OK || present)
 			goto out_illegal_req; /* requested_oid exists! */
 		oid = requested_oid; /* requested_oid works! */
 
@@ -1080,6 +1088,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 {
 	int ret = 0;
 	uint64_t cid = 0;
+	int present = 0;
 
 	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid), 
 		  llu(requested_cid));
@@ -1091,7 +1100,8 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 		goto out_cdb_err;
 
 	/* Make sure partition is present */
-	if (obj_ispresent(osd->dbc, pid, PARTITION_OID) == 0)
+	ret = obj_ispresent(osd->dbc, pid, PARTITION_OID, &present);
+	if (ret != OSD_OK || !present)
 		goto out_cdb_err;
 
 	/*
@@ -1119,8 +1129,8 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 		}
 	} else {
 		/* Make sure requested_cid doesn't already exist */
-		ret = obj_ispresent(osd->dbc, pid, requested_cid);
-		if (ret == 1)
+		ret = obj_ispresent(osd->dbc, pid, requested_cid, &present);
+		if (ret != OSD_OK || present)
 			goto out_cdb_err;
 		cid = requested_cid;
 
@@ -1759,6 +1769,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      void *outdata, uint64_t *used_outlen, uint8_t *sense)
 {
 	int ret = 0;
+	int present = 0;
 	uint8_t *cp = outdata;
 	struct query_criteria qc = {
 		.query_type = 0,
@@ -1783,7 +1794,8 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	if (pid < USEROBJECT_PID_LB)
 		goto out_cdb_err;
 
-	if (!obj_ispresent(osd->dbc, pid, cid))
+	ret = obj_ispresent(osd->dbc, pid, cid, &present);
+	if (ret != OSD_OK || !present)
 		goto out_cdb_err;
 
 	if (query_list_len < MINQLISTLEN)
@@ -1948,7 +1960,8 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 			  uint8_t fcr, uint8_t *sense)
 {
 	int ret = 0;
-	int8_t isempty = 0;
+	int isempty = 0;
+	int present = 0;
 
 	osd_debug("%s: pid %llu cid %llu fcr %u", __func__, llu(pid), 
 		  llu(cid), fcr);
@@ -1960,14 +1973,15 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 		goto out_cdb_err;
 
 	/* make sure collection object is present */
-	if (!obj_ispresent(osd->dbc, pid, cid))
+	ret = obj_ispresent(osd->dbc, pid, cid, &present);
+	if (ret != OSD_OK || !present)
 		goto out_cdb_err;
 
 	/* XXX: invalidate ic_cache */
 	osd->ic.cur_pid = osd->ic.next_id = 0;
 
-	isempty = coll_isempty_cid(osd->dbc, pid, cid);
-	if (isempty < 0)
+	ret = coll_isempty_cid(osd->dbc, pid, cid, &isempty);
+	if (ret != OSD_OK)
 		goto out_hw_err;
 
 	if (!isempty) {
@@ -2023,13 +2037,15 @@ int osd_remove_member_objects(struct osd_device *osd, uint64_t pid,
 int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 {
 	int ret = 0;
+	int isempty = 0;
 
 	osd_debug("%s: pid %llu", __func__, llu(pid));
 
 	if (pid == 0)
 		goto out_cdb_err;
 
-	if (obj_isempty_pid(osd->dbc, pid) != 1)
+	ret = obj_isempty_pid(osd->dbc, pid, &isempty);
+	if (ret != OSD_OK || !isempty)
 		goto out_not_empty;
 
 	/* XXX: invalidate ic_cache */
@@ -2077,6 +2093,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		       uint16_t len, uint8_t isembedded, uint8_t *sense)
 {
 	int ret = 0;
+	int present = 0;
 	uint8_t obj_type = 0;
 	uint8_t within_txn = 0;
 
@@ -2088,7 +2105,8 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert(ret == 0);
 	within_txn = 1;
 
-	if (obj_ispresent(osd->dbc, pid, oid) == 0) /* object not present! */
+	ret = obj_ispresent(osd->dbc, pid, oid, &present);
+	if (ret != OSD_OK || !present) /* object not present! */
 		goto out_cdb_err;
 
 	obj_type = get_obj_type(osd, pid, oid);
@@ -2214,6 +2232,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 {
 	int ret = 0;
 	size_t i = 0;
+	int present = 0;
 	uint8_t obj_type = 0;
 	uint8_t within_txn = 0;
 
@@ -2225,7 +2244,8 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 	assert(ret == 0);
 	within_txn = 1;
 
-	if (obj_ispresent(osd->dbc, pid, cid) == 0) /* collection absent! */
+	ret = obj_ispresent(osd->dbc, pid, cid, &present); 
+	if (ret != OSD_OK || !present) /* collection absent! */
 		goto out_cdb_err;
 
 	obj_type = get_obj_type(osd, pid, cid);

@@ -332,15 +332,17 @@ repeat:
  * tests whether collection is empty. 
  *
  * returns:
- * -EINVAL: invalid arg
- * OSD_ERROR: in case of other errors
- * ==1: if collection is empty or absent 
- * ==0: if not empty
+ * -EINVAL: invalid arg, ignore value of isempty
+ * OSD_ERROR: in case of other errors, ignore value of isempty
+ * OSD_OK: success, isempty is set to:
+ * 	==1: if collection is empty or absent 
+ * 	==0: if not empty
  */
-int coll_isempty_cid(struct db_context *dbc, uint64_t pid, uint64_t cid)
+int coll_isempty_cid(struct db_context *dbc, uint64_t pid, uint64_t cid,
+		     int *isempty)
 {
 	int ret = 0;
-	int count = 0;
+	*isempty = 0;
 
 	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->emptycid) {
 		ret = -EINVAL;
@@ -358,7 +360,7 @@ repeat:
 
 	while ((ret = sqlite3_step(dbc->coll->emptycid)) == SQLITE_BUSY);
 	if (ret == SQLITE_ROW) {
-		count = sqlite3_column_int(dbc->coll->emptycid, 0);
+		*isempty = (0 == sqlite3_column_int(dbc->coll->emptycid, 0));
 	} else {
 		error_sql(dbc->db, "%s: exec failed", __func__);
 	}
@@ -366,7 +368,7 @@ repeat:
 out_reset:
 	ret = sqlite3_reset(dbc->coll->emptycid);
 	if (ret == SQLITE_OK) {
-		ret = (0 == count);
+		ret = OSD_OK;
 	} else if (ret == SQLITE_SCHEMA) {
 		coll_finalize(dbc);
 		ret = coll_initialize(dbc);

@@ -59,6 +59,7 @@ initiator = osd_dir + "/osd-util/initiator"
 tgtd      = osd_dir + "/stgt/tgtd"
 pvfs_init = osd_dir + "/osd-initiator/python/pvfs-init.py"
 pvfs_osd_integrated_init = osd_dir + "/osd-initiator/python/pvfs-osd-integrated-init.py"
+eat_tur = osd_dir + "/osd-initiator/python/eat-tur.py"
 allify_code = "/home/pw/bin/allify"
 
 # old location in target dir
@@ -535,17 +536,16 @@ def start():
     # sync files to pvfs nodes
     for n in pvfsnodes:
 	if options["one_config_file"] == "yes":
-	    os.system("rcp "
-		       + testdir + "/fs.conf " + n + ":" + testdir)
+	    os.system("rcp " + testdir + "/fs.conf " + n + ":" + testdir)
 	else:
-	    os.system("rcp "
-		       + testdir + "/{fs.conf,server.conf-" + n + "} "
-		       + n + ":" + testdir)
+	    os.system("rcp " + testdir + "/{fs.conf,server.conf-" + n + "} " + \
+		      n + ":" + testdir)
 
     # start osd targets
     if len(osdnodes) > 0:
 	if options["storage"] == "tmpfs":
-	    mountup = "sudo mount -t tmpfs -o size=1800m none /tmp/tgt-" + id + " \; "
+	    mountup = "sudo mount -t tmpfs -o size=1800m none /tmp/tgt-" + \
+	    	      id + " \; "
 	else:
 	    mountup = ""
 
@@ -558,7 +558,8 @@ def start():
 
     if len(mypvfsnodes) > 0:
 	if options["storage"] == "tmpfs":
-	    mountup = "sudo mount -t tmpfs -o size=1800m none " + testdir + "/storage \;"
+	    mountup = "sudo mount -t tmpfs -o size=1800m none " + testdir + \
+		      "/storage \;"
 	else:
 	    mountup = ""
 
@@ -600,10 +601,15 @@ def start():
 	startcmd = "start"
 
     if len(myibosdnodes) > 0:
-	os.system("all " + allify(compnodes) + " "
+	# would like to do this, but some bug in python code perhaps
+	# eat_tur + " " + " ".join(myosdnodes))
+	s = ("all " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile + " \; "
 	    + "sudo " + initiator + " " + startcmd + " "
-	    + " ".join(myibosdnodes))
+	    + " ".join(myibosdnodes) + " \; sleep 1 \; " + eat_tur + " "
+	    + (" \; " + eat_tur + " ").join(myosdnodes))
+	print s
+	os.system(s)
     else:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile)

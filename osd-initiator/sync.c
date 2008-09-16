@@ -73,7 +73,8 @@ int inquiry(int fd)
 
 	osd_debug("....submitting command");
 	ret = osd_submit_command(fd, &command);
-	check_response(ret, &command, NULL);
+	if (ret)
+		osd_error("%s: osd_submit_command failed: %d", __func__, ret);
 
 	osd_debug("....retrieving response");
 	ret = osd_wait_this_response(fd, &command);

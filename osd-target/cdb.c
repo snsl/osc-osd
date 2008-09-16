@@ -726,8 +726,6 @@ static int cdb_list(struct command *cmd)
 			&cmd->get_attr, list_id, cmd->outdata,
 			&cmd->used_outlen, cmd->sense);
 
-	/* id list in cmd->osd->idl */
-	
 	/* get/set attr not implemented */
 
 out_cdb_err:
@@ -892,8 +890,9 @@ static void exec_service_action(struct command *cmd)
 		uint64_t initial_oid = ntohll(&cdb[40]);
 		ret = osd_list_collection(cmd->osd, list_attr, pid, cid,
 					  alloc_len, initial_oid,
-					  &cmd->get_attr, list_id, cmd->outdata,
-					  &cmd->used_outlen, &cmd->sense);
+					  &cmd->get_attr, list_id,
+					  cmd->outdata, &cmd->used_outlen,
+					  cmd->sense);
 		if (ret)
 			break;
 

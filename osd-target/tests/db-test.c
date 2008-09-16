@@ -263,8 +263,10 @@ void test_dir_page(struct osd_device *osd)
 void test_object_collection(struct osd_device *osd)
 {
 	int ret = 0;
-	void *buf = NULL;
-	uint64_t *oids = NULL;
+	uint64_t oids[64];
+	uint64_t usedlen;
+	uint64_t addlen;
+	uint64_t cont_id = 0xFUL;
 
 	ret = oc_insert_row(osd->db, 0x20, 0x1, 0x1111111111111111, 2);
 	assert(ret == 0);
@@ -281,16 +283,17 @@ void test_object_collection(struct osd_device *osd)
 	ret = oc_insert_row(osd->db, 0x20, 0x1, 0x111, 2);
 	assert(ret == 0);
 
-	ret = oc_get_oids_in_cid(osd->db, 0x20, 0x2, &buf);
+	ret = oc_get_oids_in_cid(osd->db, 0x20, 0x2, 0, 64*8, (uint8_t *)oids, 
+				 &usedlen, &addlen, &cont_id); 
 	assert(ret == 0);
-	oids = (uint64_t *)buf;
-	assert(oids[0] == 0x2222);
-	assert(oids[1] == 0x3333333333333333);
-	assert(oids[2] == 0x7888888888888888);
-	assert(oids[3] == 0x7AAAAAAAAAAAAAAA);
-	assert(oids[4] != 0xFFFFFFFFFFFFFFFF); /* XXX: sqlite bug */
-
-	free(oids);
+	assert(usedlen == 5*8);
+	assert(addlen == 5*8);
+	assert(cont_id == 0);
+	assert(ntohll((uint8_t *)&oids[0]) == 0x2222);
+	assert(ntohll((uint8_t *)&oids[1]) == 0x3333333333333333);
+	assert(ntohll((uint8_t *)&oids[2]) == 0x7888888888888888);
+	assert(ntohll((uint8_t *)&oids[3]) == 0x7AAAAAAAAAAAAAAA);
+	assert(ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); /* XXX: sqlite bug */
 
 	ret = oc_delete_all_cid(osd->db, 0x20, 0x1);
 	assert(ret == 0);

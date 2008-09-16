@@ -1487,7 +1487,7 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 	uint64_t cont_id = 0;
 
 	if (alloc_len == 0)
-		return 0;
+		return 0; /* No space to even send the header */
 
 	if (alloc_len < 24) /* XXX: currently need atleast the header */
 		goto out_cdb_err;
@@ -1501,9 +1501,9 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 
 	if (list_attr == 0 && get_attr->sz == 0)  {
 		/* 
-		 * If list_id is not 0, we are continuing
-		 * an old list, starting from cont_id
-		*/ 
+		 * If list_id is not 0, we are continuing an old list,
+		 * starting from cont_id
+		 */ 
 		if (list_id) 
 			initial_oid = cont_id;
 		outdata[23] = (0x21 << 2);
@@ -1512,13 +1512,16 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		 * Looks like the process is identical except for the
 		 * actual contents of the list, so this should work,
 		 * unless we want attrs
-		*/
-		ret = (pid ? obj_get_all_pids(osd->db, initial_oid,
-				alloc_len, &outdata[24],
-				&used_outlen, &add_len, &cont_id) :
-			     obj_get_oids_in_pid(osd->db, pid,
-				initial_oid, alloc_len, &outdata[24],
-				&used_outlen, &add_len, &cont_id));
+		 */
+		ret = (pid == 0 ? 
+		       obj_get_all_pids(osd->db, initial_oid, alloc_len,
+					&outdata[24], used_outlen, &add_len,
+					&cont_id) 
+		       :
+		       obj_get_oids_in_pid(osd->db, pid, initial_oid,
+					   alloc_len, &outdata[24],
+					   used_outlen, &add_len, &cont_id)
+		       );
 		if (ret)
 			goto out_hw_err;
 		*used_outlen += 24;
@@ -1592,7 +1595,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		/* 
 		 * If list_id is not 0, we are continuing
 		 * an old list, starting from cont_id
-		*/ 
+		 */ 
 		if (list_id) 
 			initial_oid = cont_id;
 		outdata[23] = (0x21 << 2);
@@ -1601,13 +1604,15 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		 * Looks like the process is identical except for the
 		 * actual contents of the list, so this should work,
 		 * unless we want attrs
-		*/
-		ret = (pid ? oc_get_cids_in_pid(osd->db, pid,
-				initial_oid, alloc_len, &outdata[24],
-				&used_outlen, &add_len, &cont_id) :
-			     oc_get_oids_in_cid(osd->db, pid, cid,
-				initial_oid, alloc_len, &outdata[24],
-				&used_outlen, &add_len, &cont_id));
+		 */
+		ret = (pid == 0 ? 
+		       oc_get_cids_in_pid(osd->db, pid, initial_oid,
+					  alloc_len, &outdata[24],
+					  used_outlen, &add_len, &cont_id) 
+		       :
+		       oc_get_oids_in_cid(osd->db, pid, cid, initial_oid,
+					  alloc_len, &outdata[24],
+					  used_outlen, &add_len, &cont_id));
 		if (ret)
 			goto out_hw_err;
 		*used_outlen += 24;
@@ -1635,8 +1640,6 @@ out_hw_err:
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, initial_oid);
 	return ret;
 }
-
-
 
 
 static inline int alloc_qc(struct query_criteria *qc)

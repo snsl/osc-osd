@@ -70,7 +70,6 @@ static void get_attributes(struct command *command)
 	uint64_t oid = ntohll(&command->cdb[24]);
 	uint8_t *outdata = command->outdata + command->retrieved_attr_off;
 	uint64_t outlen = command->outlen - command->retrieved_attr_off;
-	uint32_t get_used_outlen = 0;
 
 	/* if =2, get an attribute page and set an attribute value */
 	if (command->getset_cdbfmt == 2)
@@ -82,10 +81,9 @@ static void get_attributes(struct command *command)
 		{
 			ret = osd_get_attributes(command->osd, pid, oid,
 				page, 0, outdata, outlen, 1, EMBEDDED,
-				command->sense, &get_used_outlen);
+				command->sense, &command->get_used_outlen);
 			if (ret > 0)
 				command->senselen = ret;
-			command->get_used_outlen = get_used_outlen;
 		}
 	}
 
@@ -93,22 +91,75 @@ static void get_attributes(struct command *command)
 	if (command->getset_cdbfmt == 3)
 	{
 		uint32_t get_list_len = ntohl(&command->cdb[52]);
+		uint64_t get_list_offset = ntohoffset(&command->cdb[56]);
+		const uint8_t *list_header;
+		uint8_t list_type;
+		uint32_t i, num_list_items;
 
-		if (get_list_len != 0)
-		{
-			uint32_t get_list_offset = ntohl(&command->cdb[56]);
-
-			uint32_t tmp = 0;
-			uint16_t list_item;
-	
-			for( tmp=0; tmp<get_list_len; tmp++)
-			{
-				list_item = get_list_item(outdata, tmp);
-				/*XXX: get list item attr */
-				/*XXX: Check for errors/sense */
-			}
+		if (get_list_len < 4) {
+			command->senselen = sense_basic_build(command->sense,
+				OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+				pid, oid);
+			return;
 		}
-						
+		if (get_list_offset + get_list_len > command->inlen) {
+			command->senselen = sense_basic_build(command->sense,
+				OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+				pid, oid);
+			return;
+		}
+		list_header = command->indata + get_list_offset;
+		list_type = list_header[0] & 0xf;
+		if (list_type != 1) {
+			command->senselen = sense_basic_build(command->sense,
+				OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
+				pid, oid);
+			return;
+		}
+		num_list_items = ntohs(&list_header[2]);
+		if (num_list_items & (8-1)) {
+			command->senselen = sense_basic_build(command->sense,
+				OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST,
+				pid, oid);
+			return;
+		}
+		num_list_items /= 8;
+		if (4 + num_list_items * 8 != get_list_len) {
+			command->senselen = sense_basic_build(command->sense,
+				OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_PARAMETER_LIST_LENGTH_ERROR,
+				pid, oid);
+			return;
+		}
+		for (i=0; i<num_list_items; i++) {
+			uint32_t page = ntohl(&list_header[4 + i*8 + 0]);
+			uint32_t number = ntohl(&list_header[4 + i*8 + 4]);
+			/*
+			 * XXX: call into attr to get this
+			 */
+			uint16_t attr_len = 8;
+			uint8_t attr_val[8];
+
+			uint32_t need_len = 10 + attr_len;
+
+			osd_debug("%s: page 0x%x num 0x%x len %hx", __func__,
+			          page, number, attr_len);
+			set_htonll(attr_val, 42);  /* hack */
+			if (need_len > outlen - command->get_used_outlen)
+				break;
+
+			memcpy(&outdata[command->get_used_outlen + 0],
+			       &list_header[4 + i*8 + 0], 8);
+			set_htons(&outdata[command->get_used_outlen + 8],
+			          need_len - 10);
+			memcpy(&outdata[command->get_used_outlen + 10],
+			       &attr_val, attr_len);
+			command->get_used_outlen += need_len;
+		}
 	}
 }
 
@@ -440,7 +491,6 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		         uint8_t **data_out, uint64_t *data_out_len,
 		         uint8_t **sense_out, uint8_t *senselen_out)
 {
-	int ret;
 	struct command command = {
 		.osd = osd,
 		.cdb = cdb,
@@ -459,7 +509,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		command.senselen = sense_header_build(command.sense,
 			MAX_SENSE_LEN, OSD_SSK_ILLEGAL_REQUEST,
 			OSD_ASC_INVALID_FIELD_IN_CDB, 0);
-		goto outsense;
+		goto out;
 	}
 
 	/*
@@ -478,7 +528,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 			command.senselen = sense_header_build(command.sense,
 				MAX_SENSE_LEN, OSD_SSK_HARDWARE_ERROR,
 				OSD_ASC_SYSTEM_RESOURCE_FAILURE, 0);
-			goto outsense;
+			goto out;
 		}
 	}
 
@@ -519,24 +569,17 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		}
 	}
 
-	if (ret < 0) {
-		osd_error("%s: ret should never be negative here", __func__);
-		ret = 0;
-	} else if (ret == 0) {
-		ret = SAM_STAT_GOOD;
+out:
+	if (command.senselen == 0) {
+		return SAM_STAT_GOOD;
 	} else {
-outsense:
 		/* valid sense data, length is ret, maybe good data too */
 		*sense_out = malloc(command.senselen);
 		if (*sense_out) {
 			*senselen_out = command.senselen;
 			memcpy(*sense_out, command.sense, command.senselen);
 		}
-		ret = SAM_STAT_CHECK_CONDITION;
+		return SAM_STAT_CHECK_CONDITION;
 	}
-	/* return a SAM_STAT upwards */
-	return ret;
 }
-
-
 

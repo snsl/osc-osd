@@ -141,7 +141,7 @@ static int issettable_page(uint8_t obj_type, uint32_t page)
 	if (!valid_pg) {
 		if (page >= ANY_PG)
 			return TRUE;
-		else 
+		else
 			return FALSE;
 	}
 
@@ -161,7 +161,7 @@ static int isgettable_page(uint8_t obj_type, uint32_t page)
 	if (!valid_pg) {
 		if (page >= ANY_PG)
 			return TRUE;
-		else 
+		else
 			return FALSE;
 	}
 
@@ -239,7 +239,7 @@ static int empty_dir(const char *dirname)
 static inline void get_dfile_name(char *path, const char *root,
 				  uint64_t pid, uint64_t oid)
 {
-	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles, 
+	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles,
 		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
 }
 
@@ -644,11 +644,11 @@ static int set_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		else
 			return OSD_OK;
 	}
-	default: 
+	default:
 		return OSD_ERROR;
 	}
 }
-		   
+
 /*
  * returns:
  * OSD_ERROR: for error
@@ -665,7 +665,7 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		return OSD_ERROR;
 
 	if (len == 0) {
-		/* 
+		/*
 		 * XXX:SD len == 0 we are deleting the (cid, oid)
 		 * combination. This does not follow the sematics of the
 		 * spec. In future if this has to be changed then one way
@@ -811,7 +811,7 @@ int osd_open(const char *root, struct osd_device *osd)
 
 	/* auto-creates db if necessary, and sets osd->dbc */
 	ret = db_open(path, osd);
-	if (ret != 0 && ret != 1) 
+	if (ret != 0 && ret != 1)
 		goto out;
 	if (ret == 1) {
 		ret = osd_initialize_db(osd);
@@ -872,7 +872,7 @@ int osd_error_bad_cdb(uint8_t *sense)
  * Commands
  */
 
-/* 
+/*
  * Sec 6.2 in osd2r01.pdf
  */
 int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
@@ -968,7 +968,7 @@ static int osd_init_attr(struct osd_device *osd, uint64_t pid, uint64_t oid)
 		return ret;
 
 	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, 0,
-			    incits.user_atomic_page, 
+			    incits.user_atomic_page,
 			    sizeof(incits.user_atomic_page));
 	if (ret != 0)
 		return ret;
@@ -978,7 +978,7 @@ static int osd_init_attr(struct osd_device *osd, uint64_t pid, uint64_t oid)
 			    &val, sizeof(val));
 	if (ret != 0)
 		return ret;
-	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_FA, &val, 
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_FA, &val,
 			    sizeof(val));
 	if (ret != 0)
 		return ret;
@@ -1108,7 +1108,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 	uint64_t cid = 0;
 	int present = 0;
 
-	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid), 
+	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid),
 		  llu(requested_cid));
 
 	if (!osd || !osd->root || !osd->dbc || !sense)
@@ -1310,7 +1310,7 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 
 	get_dbname(path, root);
 	if(stat(path, &sb) != 0) {
-		osd_error_errno("%s: DB %s does not exist, creating it", 
+		osd_error_errno("%s: DB %s does not exist, creating it",
 				__func__, path);
 		goto create;
 	}
@@ -1377,7 +1377,7 @@ mutiplex_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 					  listfmt, used_outlen);
 	} else if (page != GETALLATTR_PG && number == ATTRNUM_GETALL) {
 		return attr_get_page_as_list(osd->dbc, pid, oid, page, outlen,
-					     outbuf, listfmt, used_outlen); 
+					     outbuf, listfmt, used_outlen);
 	} else if (page == GETALLATTR_PG && number != ATTRNUM_GETALL) {
 		return attr_get_for_all_pages(osd->dbc, pid, oid, number,
 					      outlen, outbuf, listfmt,
@@ -1406,7 +1406,7 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		  llu(pid), llu(oid), page, number);
 #endif
 
-	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen || 
+	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen ||
 	    !sense)
 		goto out_param_list;
 
@@ -1508,7 +1508,7 @@ int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	osd_debug("%s: get attr for (%llu, %llu) page %u", __func__,
 		  llu(pid), llu(oid), page);
 
-	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen || 
+	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen ||
 	    !sense)
 		goto out_param_list;
 
@@ -1572,9 +1572,9 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
  * ==0: success, used_outlen is set
  * > 0: error, sense is set
  */
-int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid, 
-	     uint64_t alloc_len, uint64_t initial_oid, 
-	     struct getattr_list *get_attr, uint32_t list_id, 
+int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
+	     uint64_t alloc_len, uint64_t initial_oid,
+	     struct getattr_list *get_attr, uint32_t list_id,
 	     uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
 {
 	int ret = 0;
@@ -1600,11 +1600,11 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		goto out_cdb_err; /* XXX: this seems like error? */
 
 	if (list_attr == 0 && get_attr->sz == 0)  {
-		/* 
+		/*
 		 * If list_id is not 0, we are continuing an old list,
 		 * starting from cont_id
-		 */ 
-		if (list_id) 
+		 */
+		if (list_id)
 			initial_oid = cont_id;
 		outdata[23] = (0x21 << 2);
 		alloc_len -= 24;
@@ -1613,10 +1613,10 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		 * actual contents of the list, so this should work,
 		 * unless we want attrs
 		 */
-		ret = (pid == 0 ? 
+		ret = (pid == 0 ?
 		       obj_get_all_pids(osd->dbc, initial_oid, alloc_len,
 					&outdata[24], used_outlen, &add_len,
-					&cont_id) 
+					&cont_id)
 		       :
 		       obj_get_oids_in_pid(osd->dbc, pid, initial_oid,
 					   alloc_len, &outdata[24],
@@ -1633,12 +1633,12 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
 	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
-		if (list_id) 
+		if (list_id)
 			initial_oid = cont_id;
 		outdata[23] = (0x22 << 2);
 		alloc_len -= 24;
 		ret = mtq_list_oids_attr(osd->dbc, pid, initial_oid,
-					 get_attr, alloc_len, &outdata[24], 
+					 get_attr, alloc_len, &outdata[24],
 					 used_outlen, &add_len, &cont_id);
 		if (ret)
 			goto out_hw_err;
@@ -1704,11 +1704,11 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		goto out_cdb_err; /* XXX: this seems like error? */
 
 	if (list_attr == 0 && get_attr->sz == 0)  {
-		/* 
+		/*
 		 * If list_id is not 0, we are continuing
 		 * an old list, starting from cont_id
-		 */ 
-		if (list_id) 
+		 */
+		if (list_id)
 			initial_oid = cont_id;
 		outdata[23] = (0x21 << 2);
 		alloc_len -= 24;
@@ -1717,7 +1717,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		 * actual contents of the list, so this should work,
 		 * unless we want attrs
 		 */
-		ret = (cid == 0 ? 
+		ret = (cid == 0 ?
 		       obj_get_cids_in_pid(osd->dbc, pid, initial_oid,
 					   alloc_len, &outdata[24],
 					   used_outlen, &add_len, &cont_id)
@@ -1733,7 +1733,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		set_htonll(&outdata[8], cont_id);
 
 	} else if (list_attr == 1 && get_attr->sz != 0 && cid != 0) {
-		if (list_id) 
+		if (list_id)
 			initial_oid = cont_id;
 		goto out_cdb_err; /* XXX: unimplemented */
 	}
@@ -1772,7 +1772,7 @@ static inline int alloc_qc(struct query_criteria *qc)
 	qc->max_len = realloc(qc->max_len, sizeof(*(qc->max_len))*limit);
 	qc->max_val = realloc(qc->max_val, sizeof(void *)*limit);
 
-	if (!qc->qce_len || !qc->page || !qc->number || !qc->min_len || 
+	if (!qc->qce_len || !qc->page || !qc->number || !qc->min_len ||
 	    !qc->min_val || !qc->max_len || !qc->max_val)
 		return -ENOMEM;
 
@@ -1851,8 +1851,8 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 		.max_val = NULL,
 	};
 
-	osd_debug("%s pid %llu cid %llu query_list_len %u alloc_len %llu", 
-		  __func__, llu(pid), llu(cid), query_list_len, 
+	osd_debug("%s pid %llu cid %llu query_list_len %u alloc_len %llu",
+		  __func__, llu(pid), llu(cid), query_list_len,
 		  llu(alloc_len));
 
 	if (!osd || !osd->root || !osd->dbc || !indata || !sense)
@@ -2028,9 +2028,9 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	int isempty = 0;
 	int present = 0;
 
-	osd_debug("%s: pid %llu cid %llu fcr %u", __func__, llu(pid), 
+	osd_debug("%s: pid %llu cid %llu fcr %u", __func__, llu(pid),
 		  llu(cid), fcr);
-	
+
 	if (!osd || !osd->root || !osd->dbc || !sense)
 		goto out_cdb_err;
 
@@ -2226,7 +2226,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 
 
-	/* 
+	/*
 	 * XXX:SD len == 0 is equivalent to deleting the attr. osd2r00 4.7.4
 	 * second last paragraph. only attributes with non zero length are
 	 * retrieveable
@@ -2235,7 +2235,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = attr_delete_attr(osd->dbc, pid, oid, page, number);
 		if (ret == 0)
 			goto out_success;
-		else 
+		else
 			goto out_cdb_err;
 	}
 
@@ -2301,7 +2301,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 	assert(ret == 0);
 	within_txn = 1;
 
-	ret = obj_ispresent(osd->dbc, pid, cid, &present); 
+	ret = obj_ispresent(osd->dbc, pid, cid, &present);
 	if (ret != OSD_OK || !present) /* collection absent! */
 		goto out_cdb_err;
 
@@ -2317,7 +2317,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 		if (!issettable_page(USEROBJECT, set_attr->le[i].page))
 			goto out_param_list;
 	}
-	
+
 	ret = mtq_set_member_attrs(osd->dbc, pid, cid, set_attr);
 	if (ret != 0)
 		goto out_hw_err;
@@ -2364,7 +2364,8 @@ out_cdb_err:
  * @len: length of data to be written
  * @dinbuf: pointer to start of the Data-in-buffer: source of data
  */
-int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+
+static int contig_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense)
 {
 	int ret;
@@ -2403,17 +2404,118 @@ out_cdb_err:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
+
+
+}
+
+static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense)
+{
+	int ret;
+	int fd;
+	char path[MAXNAMELEN];
+	uint64_t pairs, data_offset, offset_val, hdr_offset, length;
+	unsigned int i;
+
+	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p",
+		  __func__, llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
+
+	assert(osd && osd->root && osd->dbc && dinbuf && sense);
+
+	pairs = get_ntohll(dinbuf);
+	data_offset = (pairs * sizeof(uint64_t) * 2) + sizeof(uint64_t);
+	assert(pairs != 0);
+
+	osd_debug("%s: offset,len pairs %llu", __func__, llu(pairs));
+	osd_debug("%s: data offset %llu", __func__, llu(data_offset));
+
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+
+	hdr_offset = sizeof(uint64_t); /*skip count of offset/len pairs*/
+
+	for(i=0; i<pairs; i++){
+		offset_val = get_ntohll(dinbuf + hdr_offset); /*offset into dest*/
+		hdr_offset += sizeof(uint64_t);
+
+		length = get_ntohll(dinbuf + hdr_offset);   /*length*/
+		hdr_offset += sizeof(uint64_t);
+
+		osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val + offset),
+			llu(length));
+
+		osd_debug("%s: Position in data buffer: %llu", __func__, llu(data_offset));
+		data_offset += length;
+
+		osd_debug("%s: ------------------------------", __func__);
+		ret = pwrite(fd, dinbuf, length, offset_val+offset);
+		osd_debug("%s: return value is %d", __func__, ret);
+		if (ret < 0 || (uint64_t)ret != length)
+			goto out_hw_err;
+	}
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+
+}
+
+
+int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense, uint8_t ddt)
+{
+
+	/*figure out what kind of write it is based on ddt and call appropriate
+	write function*/
+
+	switch(ddt) {
+		case DDT_CONTIG: {
+			return contig_write(osd, pid, oid, len, offset, dinbuf,
+				           sense);
+		}
+		case DDT_SGL: {
+			return sgl_write(osd, pid, oid, len, offset, dinbuf,
+				           sense);
+		}
+		default: {
+			return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			               OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+		}
+	}
+
+
 }
 
 /*
- * OSD CAS: Available only for USEROBJECTs. 
+ * OSD CAS: Available only for USEROBJECTs.
  * TODO: No explicit software locks used. If multithreaded OSD emulator is
  * used behavior is undefined.
  *
  */
 int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,
-	    uint8_t *sense) 
+	    uint8_t *sense)
 {
 	int ret;
 	int present;
@@ -2437,7 +2539,7 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 		goto out_hw_err;
 
 	if (val == cmp) {
-		ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, 
+		ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG,
 				    UAP_CAS, &swap, sizeof(swap));
 		if (ret != OSD_OK)
 			goto out_hw_err;
@@ -2460,13 +2562,13 @@ out_cdb_err:
 
 
 /*
- * OSD FA: Available only for USEROBJECTs. 
+ * OSD FA: Available only for USEROBJECTs.
  * TODO: No explicit software locks used. If multithreaded OSD emulator is
  * used, behavior is undefined.
  *
  */
 int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, int64_t add,
-	   uint8_t *doutbuf, uint64_t *used_outlen, uint8_t *sense) 
+	   uint8_t *doutbuf, uint64_t *used_outlen, uint8_t *sense)
 {
 	int ret;
 	int present;
@@ -2516,10 +2618,10 @@ out_cdb_err:
  * max(cmp_len and swap_len) == ATTR_LEN_UB == 0xFFFE
  *
  */
-int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, 
+int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		uint32_t page, uint32_t number, const uint8_t *cmp,
-		uint16_t cmp_len, const uint8_t *swap, uint16_t swap_len, 
-		uint8_t **orig_val, uint16_t *orig_len, uint8_t *sense) 
+		uint16_t cmp_len, const uint8_t *swap, uint16_t swap_len,
+		uint8_t **orig_val, uint16_t *orig_len, uint8_t *sense)
 {
 	int ret;
 	int present;
@@ -2547,7 +2649,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != OSD_OK && ret != -ENOENT)
 		goto out_hw_err;
 
-	if (ret == -ENOENT || 
+	if (ret == -ENOENT ||
 	    (usedlen == cmp_len && memcmp(cmp, val, cmp_len) == 0)) {
 		ret = attr_set_attr(osd->dbc, pid, oid, page, number, swap,
 				    swap_len);
@@ -2555,7 +2657,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			goto out_hw_err;
 	}
 
-	/* 
+	/*
 	 * regardless of successful swap, we return original value, if
 	 * present, else undefined value
 	 */

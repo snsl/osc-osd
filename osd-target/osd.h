@@ -45,8 +45,8 @@ int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
                         uint8_t *sense);
 int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense);
 int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
-		     uint32_t page, void *outbuf, uint64_t outlen, 
-		     uint8_t isembedded, uint32_t *used_outlen, 
+		     uint32_t page, void *outbuf, uint64_t outlen,
+		     uint8_t isembedded, uint32_t *used_outlen,
 		     uint8_t *sense);
 int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		     uint32_t page, uint32_t number, uint8_t *outbuf,
@@ -54,9 +54,9 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		     uint32_t *used_outlen,  uint8_t *sense);
 int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);
-int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid, 
-	     uint64_t alloc_len, uint64_t initial_oid, 
-	     struct getattr_list *get_attr, uint32_t list_id, 
+int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
+	     uint64_t alloc_len, uint64_t initial_oid,
+	     struct getattr_list *get_attr, uint32_t list_id,
 	     uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense);
 int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 			uint64_t pid, uint64_t cid, uint64_t alloc_len,
@@ -88,7 +88,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, struct setattr_list *set_attr,
 			      uint8_t *sense);
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
-	      uint64_t offset, const uint8_t *data, uint8_t *sense);
+	      uint64_t offset, const uint8_t *data, uint8_t *sense, uint8_t ddt);
 
 int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,
@@ -97,13 +97,13 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, int64_t add,
 	   uint8_t *doutbuf, uint64_t *used_outlen, uint8_t *sense);
 
-int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, 
+int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		uint32_t page, uint32_t number, const uint8_t *cmp,
-		uint16_t cmp_len, const uint8_t *swap, uint16_t swap_len, 
+		uint16_t cmp_len, const uint8_t *swap, uint16_t swap_len,
 		uint8_t **orig_val, uint16_t *orig_len, uint8_t *sense);
 
 /* helper functions */
-static inline uint64_t osd_get_created_oid(struct osd_device *osd, 
+static inline uint64_t osd_get_created_oid(struct osd_device *osd,
 					   uint32_t numoid)
 {
 	uint64_t oid =  osd->ccap.oid;

@@ -401,11 +401,11 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 		goto out_param_list_err;
 
 	if (list_len > 0) {
-		/* 
+		/*
 		 * This malloc provides for the maximum number of attrs,
 		 * but it can be much smaller if the attrs have any
-		 * values. 
-		 */ 
+		 * values.
+		 */
 		cmd->set_attr.sz = list_len >> 4; /* min(list_len) == 16 */
 		/* XXX: this leaks memory */
 		cmd->set_attr.le = Malloc(cmd->set_attr.sz *
@@ -420,12 +420,12 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	cmd->set_attr.sz = 0;  /* start counting again */
 	while (list_len > 0) {
 		cmd->set_attr.le[i].page = get_ntohl(&list_hdr[LE_PAGE_OFF]);
-		cmd->set_attr.le[i].number = 
+		cmd->set_attr.le[i].number =
 			get_ntohl(&list_hdr[LE_NUMBER_OFF]);
 		cmd->set_attr.le[i].len = get_ntohs(&list_hdr[LE_LEN_OFF]);
 		cmd->set_attr.le[i].cval = &list_hdr[LE_VAL_OFF];
 
-		pad = (0x8 - ((LE_VAL_OFF + cmd->set_attr.le[i].len) & 0x7)) & 
+		pad = (0x8 - ((LE_VAL_OFF + cmd->set_attr.le[i].len) & 0x7)) &
 			0x7;
 		list_hdr += LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
 		list_len -= LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
@@ -469,7 +469,7 @@ static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 	} else {
 		goto out_cdb_err;
 	}
-	
+
 out_cdb_err:
 	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
@@ -715,11 +715,11 @@ static int cdb_list(struct command *cmd)
 	if (ret)
 		goto out_cdb_err;
 
-	/* 
+	/*
 	 * TODO: not implementing the following:
 	 * get pids within root
 	 * get pids within root + their attrs
-	 * get/set attributes along with list for that 
+	 * get/set attributes along with list for that
 	 * setvalue not implemented
 	 */
 	return osd_list(cmd->osd, list_attr, pid, alloc_len, initial_oid,
@@ -745,12 +745,12 @@ static int cdb_set_member_attributes(struct command *cmd)
 	if (ret)
 		goto out_cdb_err;
 
-	ret = osd_set_member_attributes(cmd->osd, pid, cid, &cmd->set_attr, 
+	ret = osd_set_member_attributes(cmd->osd, pid, cid, &cmd->set_attr,
 					cmd->sense);
 	if (ret)
 		return ret;
 
-	/* 
+	/*
 	 * TODO: currently not setting any attributes in collection. Also not
 	 * getting any attributes, either for the collection or for the
 	 * objects within collection
@@ -790,15 +790,15 @@ static int cdb_cas(struct command *cmd)
 	if (len < sizeof(swap))
 		goto out_cdb_err;
 
-	/* 
+	/*
 	 * cmp & swap always start at offset 0, get/set attributes follow
-	 * them 
+	 * them
 	 */
 	cmp = get_ntohll(&cmd->indata[0]);
 	swap = get_ntohll(&cmd->indata[8]);
 
 	ret = osd_cas(cmd->osd, pid, oid, cmp, swap, cmd->outdata + off,
-		      &cmd->used_outlen, cmd->sense); 
+		      &cmd->used_outlen, cmd->sense);
 	if (ret)
 		return ret;
 
@@ -834,7 +834,7 @@ static int cdb_fa(struct command *cmd)
 	add = get_ntohll(&cmd->indata[0]);
 
 	ret = osd_fa(cmd->osd, pid, oid, add, cmd->outdata + off,
-		     &cmd->used_outlen, cmd->sense); 
+		     &cmd->used_outlen, cmd->sense);
 	if (ret)
 		return ret;
 
@@ -850,9 +850,9 @@ out_cdb_err:
 }
 
 static int exec_gen_cas(struct command *cmd, uint64_t pid, uint64_t oid,
-			const uint8_t **setattr_list, uint32_t *orig_page, 
-			uint32_t *orig_number, uint8_t **orig, 
-			uint16_t *orig_len, uint32_t *list_len, 
+			const uint8_t **setattr_list, uint32_t *orig_page,
+			uint32_t *orig_number, uint8_t **orig,
+			uint16_t *orig_len, uint32_t *list_len,
 			uint8_t *cas_res)
 {
 	int ret;
@@ -962,7 +962,7 @@ out_err:
 }
 
 
-/* 
+/*
  * Following the order of the indata where cmp and swap values are the first
  * entries in the list, in the retrieved attributes case also, the first
  * entry will be the original value returned by the CAS operation. But if
@@ -1008,12 +1008,12 @@ static int exec_getattr(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	/* stuff original value from CAS operation */
 	if (orig != NULL && orig_len > 0) {
-		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, orig_page, 
+		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, orig_page,
 				   orig_number, orig_len, orig);
 		free(orig);
 		orig = NULL;
 	} else {
-		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, orig_page, 
+		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, orig_page,
 				   orig_number, NULL_ATTR_LEN, NULL);
 	}
 	if (ret <= 0) {
@@ -1062,7 +1062,7 @@ static int cdb_gen_cas(struct command *cmd, int osd_cmd)
 	uint32_t orig_page, orig_number;
 	uint8_t cas_res;
 
-	if (cmd->getset_cdbfmt != GETLIST_SETLIST) 
+	if (cmd->getset_cdbfmt != GETLIST_SETLIST)
 		goto out_cdb_err;
 
 	ret = exec_gen_cas(cmd, pid, oid, &list, &orig_page, &orig_number,
@@ -1072,7 +1072,7 @@ static int cdb_gen_cas(struct command *cmd, int osd_cmd)
 
 	if (osd_cmd == OSD_GEN_CAS && list_len == 0)
 		goto get_attr;
-	else if (osd_cmd == OSD_COND_SETATTR && 
+	else if (osd_cmd == OSD_COND_SETATTR &&
 		 (list_len == 0 || cas_res == 0)) /* cas failed */
 		goto get_attr;
 
@@ -1081,7 +1081,7 @@ static int cdb_gen_cas(struct command *cmd, int osd_cmd)
 	if (ret != OSD_OK)
 		goto out_err;
 get_attr:
-	ret = exec_getattr(cmd, pid, oid, orig_page, orig_number, orig, 
+	ret = exec_getattr(cmd, pid, oid, orig_page, orig_number, orig,
 			   orig_len);
 	if (ret == OSD_OK)
 		return ret;
@@ -1255,7 +1255,7 @@ static void exec_service_action(struct command *cmd)
 		uint64_t cid = get_ntohll(&cdb[24]);
 		uint32_t query_list_len = get_ntohl(&cdb[48]);
 		uint64_t alloc_len = get_ntohll(&cdb[32]);
-		ret = osd_query(osd, pid, cid, query_list_len, alloc_len, 
+		ret = osd_query(osd, pid, cid, query_list_len, alloc_len,
 				cmd->indata, cmd->outdata, &cmd->used_outlen,
 				sense);
 		if (ret)
@@ -1327,11 +1327,12 @@ static void exec_service_action(struct command *cmd)
 		uint64_t oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
+		uint8_t ddt = cdb[10];
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
 		ret = osd_write(osd, pid, oid, len, offset, cmd->indata,
-				sense);
+				sense, ddt);
 		if (ret)
 			break;
 
@@ -1465,7 +1466,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	} else {
 		if (cmd.outlen) {
 			/* old way: malloc our own outbuf, iscsi will free it */
-			cmd.outdata = Malloc(cmd.outlen); 
+			cmd.outdata = Malloc(cmd.outlen);
 			if (!cmd.outdata)
 				goto out_hw_err;
 		}

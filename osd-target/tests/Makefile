@@ -1,8 +1,6 @@
 #
 # OSD target test suite makefile
 #
-# $Id: $
-#
 
 DEP := .depend
 TESTS := $(wildcard *.c)

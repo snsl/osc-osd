@@ -697,13 +697,14 @@ out:
  * -EINVAL: invalid argument
  * 0: success
  */
-int attr_run_query_1(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
-		     void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
+int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
+		   void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
 {
 	int ret = 0;
 	int pos = 0;
 	char *cp = NULL;
 	const char *op = NULL;
+	char select_stmt[MAXSQLEN];
 	char *SQL = NULL;
 	uint8_t *p = NULL;
 	uint32_t i = 0;
@@ -712,12 +713,10 @@ int attr_run_query_1(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 	uint64_t len = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (db == NULL)
-		return -EINVAL;
-
-	SQL = Malloc(MAXSQLEN);
-	if (SQL == NULL)
-		return -ENOMEM;
+	if (!db || !qc || !outdata || !used_outlen) {
+		ret = -EINVAL;
+		goto out;
+	}
 
 	if (qc->query_type == 0)
 		op = " UNION ";
@@ -727,6 +726,20 @@ int attr_run_query_1(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 		ret = -EINVAL;
 		goto out;
 	}
+
+	SQL = Malloc(MAXSQLEN);
+	if (SQL == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	cp = SQL;
+	sqlen = 0;
+
+#undef QUERY_TYPE
+#define QUERY_TYPE (2)
+
+#if QUERY_TYPE == 1
+	/* This query is fastest */
 
 	/* 
 	 * Build the query with place holders. SQLite does not support
@@ -825,89 +838,7 @@ int attr_run_query_1(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 		goto out_finalize;
 	}
 
-
-	/* execute the query */
-	p = outdata;
-	p += ML_ODL_OFF; 
-	len = ML_ODL_OFF - 8; /* subtract len of addition_len */
-	*used_outlen = ML_ODL_OFF;
-	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		if ((alloc_len - len) > 8) {
-			/* 
-			 * TODO: query is a multi-object command, so delete
-			 * the objects from the collection, once they are
-			 * selected
-			 */
-			set_htonll(p, sqlite3_column_int64(stmt, 0));
-			*used_outlen += 8;
-		}
-		p += 8; 
-		if (len + 8 < len)
-			len = 0xFFFFFFFFFFFFFFFF; /* osd2r01 Sec 6.18.3 */
-		else
-			len += 8;
-	}
-	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: sqlite3_step", __func__);
-		ret = -EIO;
-		goto out_finalize;
-	}
-	ret = 0;
-	set_htonll(outdata, len);
-
-out_finalize:
-	ret = sqlite3_finalize(stmt); 
-	if (ret != SQLITE_OK)
-		error_sql(db, "%s: finalize", __func__);
-
-out:
-	free(SQL);
-	return ret;
-}
-
-/*
- * return values:
- * -ENOMEM: out of memory
- * -EINVAL: invalid argument
- * 0: success
- */
-int attr_run_query_2(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
-		     void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
-{
-	int ret = 0;
-	int pos = 0;
-	char *cp = NULL;
-	const char *op = NULL;
-	char select_stmt[MAXSQLEN];
-	char *SQL = NULL;
-	uint8_t *p = NULL;
-	uint32_t i = 0;
-	uint32_t sqlen = 0;
-	uint32_t factor = 1;
-	uint64_t len = 0;
-	sqlite3_stmt *stmt = NULL;
-
-	if (!db || !qc || !outdata || !used_outlen) {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	if (qc->query_type == 0)
-		op = " UNION ";
-	else if (qc->query_type == 1)
-		op = " INTERSECT ";
-	else {
-		ret = -EINVAL;
-		goto out;
-	}
-
-	SQL = Malloc(MAXSQLEN);
-	if (SQL == NULL) {
-		ret = -ENOMEM;
-		goto out;
-	}
-	cp = SQL;
-	sqlen = 0;
+#elif QUERY_TYPE == 2
 
 	/* build the SQL statment */
 	sprintf(select_stmt, "SELECT oc.oid FROM object_collection AS oc, "
@@ -973,6 +904,8 @@ int attr_run_query_2(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 			pos++;
 		}
 	}
+
+#endif
 
 	/* execute the query */
 	p = outdata;
@@ -1047,6 +980,10 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		goto out;
 	}
 
+#undef LIST_QUERY_TYPE
+#define LIST_QUERY_TYPE (1)
+#if LIST_QUERY_TYPE == 1
+	/* this is fastest of the two queries */
 	cp = SQL;
 	sqlen = 0;
 	sprintf(SQL, "SELECT obj.oid, attr.page, attr.number, attr.value "
@@ -1075,6 +1012,39 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		cp = SQL + sqlen;
 	}
 	sprintf(cp, " ) ORDER BY attr.oid; ");
+
+#elif LIST_QUERY_TYPE == 2
+
+	cp = SQL;
+	sqlen = 0;
+	sprintf(SQL, "SELECT oid, page, number, value FROM attr WHERE "
+		" pid = %llu AND oid IN (SELECT oid FROM obj WHERE "
+		" pid = %llu AND oid >= %llu AND type = %u) AND "
+		" ( (page = %u AND  number = %u) OR ", llu(pid), llu(pid), 
+		llu(initial_oid), USEROBJECT, USER_TMSTMP_PG, 0);
+	sqlen += strlen(SQL);
+	cp += sqlen;
+
+	for (i = 0; i < get_attr->sz; i++) {
+		sprintf(cp, " (page = %u AND number = %u) ",
+			get_attr->le[i].page, get_attr->le[i].number);
+		if (i < (get_attr->sz - 1))
+			strcat(cp, " OR ");
+		sqlen += strlen(cp);
+		if (sqlen > MAXSQLEN*factor - 100) {
+			factor *= 2;
+			SQL = realloc(SQL, MAXSQLEN*factor);
+			if (!SQL) {
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+
+		cp = SQL + sqlen;
+	}
+	sprintf(cp, " ) ORDER BY attr.oid; ");
+
+#endif
 
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {

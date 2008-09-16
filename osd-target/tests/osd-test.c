@@ -526,7 +526,7 @@ static inline void set_qce(uint8_t *cp, uint32_t page, uint32_t number,
 
 static inline int ismember(uint64_t needle, uint64_t *hay, uint64_t haysz)
 {
-	osd_debug("%s: %016llx", __func__, llu(needle));
+	/* osd_debug("%s: %016llx", __func__, llu(needle)); */
 	while (haysz--) {
 		if (needle == hay[haysz])
 			return TRUE;

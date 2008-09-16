@@ -1215,9 +1215,9 @@ int main()
 
 	/* test_partition(&osd); */
 	/* test_create(&osd); */
-	/* test_query(&osd); */
+	test_query(&osd);
 	/* test_list(&osd); */
-	test_set_member_attributes(&osd);
+	/* test_set_member_attributes(&osd); */
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

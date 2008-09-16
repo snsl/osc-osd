@@ -9,7 +9,7 @@
 #include <math.h>
 #include <fcntl.h>
 
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "command.h"
 #include "device.h"
 #include "drivelist.h"
@@ -39,7 +39,7 @@ static uint64_t obj_create_any(int fd, uint64_t pid)
 		osd_error_xerrno(ret, "%s: attr_resolve failed", __func__);
 		exit(1);
 	}
-	oid = ntohll(command.attr[0].val);
+	oid = get_ntohll(command.attr[0].val);
 	osd_command_attr_free(&command);
 	return oid;
 }

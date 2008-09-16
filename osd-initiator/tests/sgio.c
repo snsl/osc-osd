@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "command.h"
 #include "device.h"
 #include "drivelist.h"
@@ -72,7 +72,7 @@ static int bidi_test(int fd, uint64_t pid, uint64_t oid)
 		          attr->outlen);
 
 	printf("%s: logical length 0x%016llx\n\n", __func__,
-	       llu(ntohll(attr->val)));
+	       llu(get_ntohll(attr->val)));
 
 	osd_command_attr_free(&command);
 	return 0;
@@ -245,7 +245,7 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 			osd_error("%s: attr %d short: %u not %u", __func__,
 				  i, attr[i].outlen, attr[i].len);
 	}
-	len = ntohll(attr[0].val);
+	len = get_ntohll(attr[0].val);
 	ts = attr[1].val;
 	printf("%s: len %016llx ts %02x%02x%02x%02x%02x%02x\n\n",
 	       __func__, llu(len), ts[0], ts[1], ts[2], ts[3], ts[4], ts[5]);

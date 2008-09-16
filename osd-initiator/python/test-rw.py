@@ -43,20 +43,18 @@ def compare(buf1, buf2):
 			sys.exit(1)
 
 def test_rw(pid, oid):
-	for logsize in range(1,20):
-	    basesize = 1<<logsize
-	    #for size in [ basesize-1, basesize, basesize+1 ]:
-	    for size in [ basesize ]:
-		    print "Test size", size
-		    buf = build_buf(size)
-		    command = OSDCommand()
-		    command.set_write(pid, oid, buf)
-		    run(command)
+	for size in map(lambda x: 1 << x, range(1, 19)) \
+		    + [ (1<<18) + (1<<17) ]:
+		print "Test size", size
+		buf = build_buf(size)
+		command = OSDCommand()
+		command.set_write(pid, oid, buf)
+		run(command)
 
-		    command = OSDCommand()
-		    command.set_read(pid, oid, size)
-		    run(command)
-		    compare(buf, command.indata)
+		command = OSDCommand()
+		command.set_read(pid, oid, size)
+		run(command)
+		compare(buf, command.indata)
 
 set_progname(sys.argv[0])
 random.seed()

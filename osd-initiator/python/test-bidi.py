@@ -46,7 +46,7 @@ def compare(buf1, buf2):
 			sys.exit(1)
 
 def ccap_verify(ccap, len, pid, oid):
-	print "ccap"
+	#print "ccap"
 	#print hexdump(ccap, len)
 	assert len == CCAP_TOTAL_LEN
 	assert ntohl(ccap[0:4]) == CUR_CMD_ATTR_PG
@@ -163,9 +163,11 @@ def test_bidi(pid, oid):
 	page = USEROBJECT_PG + LUN_PG_LB
 	number = 27
 
-	for size in [ 2, 4096, 8192, 65534, 262144 ]:
+	#for size in [ 2, 4096, 8192, 65534, 262144 ]:
+	for size in [ 2 ]:
 		buf = build_buf(size)
-		for attrsize in [ 2, 4096, 8192, 65534 ]:
+		#for attrsize in [ 2, 4096, 8192, 65534 ]:
+		for attrsize in [ 65534 ]:
 			attrbuf = build_buf(attrsize)
 
 			print "Buf size", size, "attrbuf size", attrsize

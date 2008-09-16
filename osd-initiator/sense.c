@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/types.h>
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "sense.h"
 
 #if 0
@@ -831,8 +831,8 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 		}
 		len = 32;
 		/* ignore not_init and completed funcs */
-		pid = ntohll(&info[16]);
-		oid = ntohll(&info[24]);
+		pid = get_ntohll(&info[16]);
+		oid = get_ntohll(&info[24]);
 		pos += sprintf(s+pos,
 			       "  Offending pid 0x%016llx oid 0x%016llx\n",
 			       llu(pid), llu(oid));
@@ -854,8 +854,8 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 		}
 		len = info[1]+1;
 		for (i=0; i<len; i+=8) {
-			uint32_t page = ntohl(&info[i*8+0]);
-			uint32_t number = ntohl(&info[i*8+4]);
+			uint32_t page = get_ntohl(&info[i*8+0]);
+			uint32_t number = get_ntohl(&info[i*8+4]);
 			pos += sprintf(s+pos, "  Offending attribute"
 			               " page 0x%08x number 0x%08x\n",
 				       page, number);
@@ -879,7 +879,7 @@ static int sense_parse_descriptor(char *s, int *ppos, const uint8_t *info,
 		len = 12;
 		/* not sure it is wise to always convert this to int, but
 		 * that is the use for read overflow at least */
-		csi = ntohll(&info[4]);
+		csi = get_ntohll(&info[4]);
 		pos += sprintf(s+pos, "  Information 0x%016llx\n", llu(csi));
 	}
 

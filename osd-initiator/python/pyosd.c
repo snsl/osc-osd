@@ -3,7 +3,7 @@
  */
 #include <Python.h>
 #include "osd-initiator/command.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "pyosd.h"
 
 /*
@@ -37,7 +37,7 @@ static PyObject *pyosd_ntohs(PyObject *self __unused, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, s);
 		return NULL;
 	}
-	return Py_BuildValue("H", ntohs(s));
+	return Py_BuildValue("H", get_ntohs(s));
 }
 
 static PyObject *pyosd_ntohl(PyObject *self __unused, PyObject *args)
@@ -53,7 +53,7 @@ static PyObject *pyosd_ntohl(PyObject *self __unused, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, s);
 		return NULL;
 	}
-	return Py_BuildValue("I", ntohl(s));
+	return Py_BuildValue("I", get_ntohl(s));
 }
 
 static PyObject *pyosd_ntohll(PyObject *self __unused, PyObject *args)
@@ -69,7 +69,7 @@ static PyObject *pyosd_ntohll(PyObject *self __unused, PyObject *args)
 		PyErr_SetString(PyExc_RuntimeError, s);
 		return NULL;
 	}
-	return Py_BuildValue("K", ntohll(s));
+	return Py_BuildValue("K", get_ntohll(s));
 }
 
 /*

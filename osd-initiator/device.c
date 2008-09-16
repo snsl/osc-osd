@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "util/bsg.h"
 #include "command.h"
 #include "device.h"

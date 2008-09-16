@@ -16,7 +16,7 @@
 
 #include <mpi.h>
 
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "command.h"
 #include "device.h"
 #include "drivelist.h"
@@ -48,7 +48,7 @@ static uint64_t obj_create_any(int fd, uint64_t pid)
 		osd_error_xerrno(ret, "%s: attr_resolve failed", __func__);
 		exit(1);
 	}
-	oid = ntohll(command.attr[0].val);
+	oid = get_ntohll(command.attr[0].val);
 	osd_command_attr_free(&command);
 	return oid;
 }
@@ -88,10 +88,11 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 		osd_error_fatal("out of memory");
 
 	/* warm up */
-	for (i=0; i< 5; i++) {
-		ret = read_osd(fd, pid, oid, buf, sz, 0);
-		assert(ret == 0);
-	}
+	if (iters > 5)
+		for (i=0; i<5; i++) {
+			ret = read_osd(fd, pid, oid, buf, sz, 0);
+			assert(ret == 0);
+		}
 
 	memset(buf, '\0', sz);
 
@@ -150,9 +151,9 @@ static void read_bw(int fd, uint64_t pid, uint64_t oid,
 	}
 	if (rank == 0) {
 		total_size = sz * iters * numproc; /*total bytes moved*/
-		printf("read  %3d %3lu %7.3lf --- Discrep %f\n",
+		printf("read  %3d %3lu %7.3lf --- Discrep %.0f is %.1f%%\n",
 			numproc, sz>>10, total_size/max_time,
-			max_time - min_time);
+			max_time - min_time, 100. * (max_time - min_time) / max_time);
 	}
 #else
 	mu = mean(b, iters);
@@ -193,10 +194,11 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 		osd_error_fatal("out of memory");
 
 	/* warm up */
-	for (i=0; i< 5; i++) {
-		ret = write_osd(fd, pid, oid, buf, sz, 0);
-		assert(ret == 0);
-	}
+	if (iters > 5)
+		for (i=0; i<5; i++) {
+			ret = write_osd(fd, pid, oid, buf, sz, 0);
+			assert(ret == 0);
+		}
 
 	memset(buf, 'D', sz);
 
@@ -248,9 +250,9 @@ static void write_bw(int fd, uint64_t pid, uint64_t oid,
 	}
 	if (rank == 0) {
 		total_size = sz * iters * numproc; /*total bytes moved*/
-		printf("write %3d %3lu %7.3lf --- Discrep %f\n",
+		printf("write %3d %3lu %7.3lf --- Discrep %.0f is %.1f%%\n",
 			numproc, sz>>10, total_size/max_time,
-			max_time - min_time);
+			max_time - min_time, 100. * (max_time - min_time) / max_time);
 	}
 #else
 	mu = mean(b, iters);
@@ -276,7 +278,7 @@ int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
 	struct osd_drive_description *drives;
-	const int iter = 500;
+	const int iter = 1000;
 	uint64_t oid;
 	int onesize = 0;
 

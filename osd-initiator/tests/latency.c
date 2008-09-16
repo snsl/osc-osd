@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #include <assert.h>
 
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "command.h"
 #include "device.h"
 #include "drivelist.h"
@@ -447,13 +447,14 @@ int main(int argc, char *argv[])
 	create_partition(fd, PARTITION_PID_LB);
 
 	noop_test(fd);
+#if 0
 	getattr_test(fd, PARTITION_PID_LB);
 	setattr_test(fd, PARTITION_PID_LB);
 	create_test(fd, PARTITION_PID_LB);
 	remove_test(fd, PARTITION_PID_LB);
 	create_remove_test(fd, PARTITION_PID_LB);
-	if (0)
-		get_set_attr(fd, PARTITION_PID_LB);
+	get_set_attr(fd, PARTITION_PID_LB);
+#endif
 
 	close(fd);
 	return 0;

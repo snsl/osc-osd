@@ -4,7 +4,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "command.h"
 #include "device.h"
 #include "drivelist.h"

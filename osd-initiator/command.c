@@ -10,7 +10,7 @@
 #include <scsi/sg.h>  /* sg_iovec */
 #endif
 
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "command.h"
 
 static void varlen_cdb_init(struct osd_command *command, uint16_t action)
@@ -488,7 +488,7 @@ int osd_command_attr_build(struct osd_command *command,
 					  __func__);
 				return -EINVAL;
 			}
-			getmulti_num_objects = ntohs(&command->cdb[36]);
+			getmulti_num_objects = get_ntohs(&command->cdb[36]);
 		}
 		use_getpage = 0;
 		if (numget == 0 && numgetmulti == 0 && numset == 1) {
@@ -917,7 +917,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 		goto unwind;
 	}
 
-	list_len = ntohl(&p[4]) + 8;
+	list_len = get_ntohl(&p[4]) + 8;
 	if (list_len > len) {
 		osd_error("%s: target says it returned %u, but really %llu",
 			  __func__, list_len, llu(len));
@@ -939,12 +939,12 @@ int osd_command_attr_resolve(struct osd_command *command)
 		if (len < 10u + 8 * !!numgetmulti)
 			break;
 		if (numgetmulti) {
-			oid = ntohll(&p[0]);
+			oid = get_ntohll(&p[0]);
 			p += 8;
 		}
-		page = ntohl(&p[0]);
-		number = ntohl(&p[4]);
-		item_len = ntohs(&p[8]);
+		page = get_ntohl(&p[0]);
+		number = get_ntohl(&p[4]);
+		item_len = get_ntohs(&p[8]);
 		p += 10;
 		len -= 10;
 
@@ -1037,9 +1037,9 @@ void osd_command_attr_free(struct osd_command *command)
 int osd_command_list_resolve(struct osd_command *command)
 {
 	uint8_t *p = command->indata;
-	uint64_t addl_len = ntohll(&p[0]);
-	uint64_t cont_oid = ntohll(&p[8]);
-	uint32_t lid = ntohl(&p[16]);
+	uint64_t addl_len = get_ntohll(&p[0]);
+	uint64_t cont_oid = get_ntohll(&p[8]);
+	uint32_t lid = get_ntohl(&p[16]);
 	int num_results = (addl_len-24)/8;
 	uint64_t list[num_results];
 	int i, listoid, list_attr;
@@ -1076,7 +1076,7 @@ int osd_command_list_resolve(struct osd_command *command)
 	}
 
 	for (i=0; i < num_results; i++) {
-		list[i] = ntohll(&p[24+8*i]);
+		list[i] = get_ntohll(&p[24+8*i]);
 		osd_debug("%s: %llu", title, llu(list[i]));
 
 	}
@@ -1087,9 +1087,9 @@ int osd_command_list_resolve(struct osd_command *command)
 int osd_command_list_collection_resolve(struct osd_command *command)
 {
 	uint8_t *p = command->indata;
-	uint64_t addl_len = ntohll(&p[0]);
-	uint64_t cont_oid = ntohll(&p[8]);
-	uint32_t lid = ntohl(&p[16]);
+	uint64_t addl_len = get_ntohll(&p[0]);
+	uint64_t cont_oid = get_ntohll(&p[8]);
+	uint32_t lid = get_ntohl(&p[16]);
 	int num_results = (addl_len-24)/8;
 	uint64_t list[num_results];
 	int i, listoid, list_attr;
@@ -1126,7 +1126,7 @@ int osd_command_list_collection_resolve(struct osd_command *command)
 	}
 
 	for (i=0; i < num_results; i++) {
-		list[i] = ntohll(&p[24+8*i]);
+		list[i] = get_ntohll(&p[24+8*i]);
 		osd_debug("%s: %llu", title, llu(list[i]));
 	}
 

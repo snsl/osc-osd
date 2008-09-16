@@ -4,7 +4,7 @@
 #include <Python.h>
 #include <structmember.h>  /* T_UBYTE */
 #include "osd-initiator/command.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "pyosd.h"
 
 /*

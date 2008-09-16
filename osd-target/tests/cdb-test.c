@@ -26,7 +26,7 @@ void test_partition(struct osd_device *osd)
 	int ret = 0;
 	struct osd_command cmd;
 	int senselen_out;
-	uint8_t sense_out[MAX_SENSE_LEN];
+	uint8_t sense_out[OSD_MAX_SENSE];
 	uint8_t *data_out;
 	const void *data_in;
 	uint64_t data_out_len, data_in_len;
@@ -81,7 +81,7 @@ void test_create(struct osd_device *osd)
 	int ret = 0;
 	struct osd_command cmd;
 	int senselen_out;
-	uint8_t sense_out[MAX_SENSE_LEN];
+	uint8_t sense_out[OSD_MAX_SENSE];
 	uint8_t *data_out;
 	const void *data_in;
 	uint64_t data_out_len, data_in_len;

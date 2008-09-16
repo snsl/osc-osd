@@ -287,14 +287,15 @@ can be implemented as a sql view on page numbers 0
 !	align Malloc and Calloc  to 8B
 	cannot handle this, as it would need bookkeeping
 -	refactor attr.c 
--	in dir page add by default for each object, CCAP and UTSAP.
--	sqlite truncates strings with 
++	in dir page add by default for each object UTSAP.
+-	sqlite truncates strings with  ??
 
 # Thu Mar  8 17:11:29 EST 2007
 -	reduce number of arguments for : getattr, setattr
--	collect all INCITS strings 
++	collect all INCITS strings 
 -	use flexible array at end of struct for le mle
 
 # Fri Mar  9 12:00:46 EST 2007
 -	change return values of db.c and attr.c from SQLITE return to OSD return
 	codes
++	add pragma 

@@ -828,7 +828,7 @@ out:
 /*
  * Return 0 if all okay.  Return >0 if some sense data was created,
  * this is the length of the sense data.  The input sense buffer is
- * known to be sized large enough to hold anything (MAX_SENSE_LEN).
+ * known to be sized large enough to hold anything (OSD_MAX_SENSE).
  * Output data goes into data_out, and puts the length in data_out_len, up to
  * the data_out_len_max.
  *

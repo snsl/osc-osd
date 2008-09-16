@@ -1690,7 +1690,7 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret == -ENOENT) {
 		ret = fill_null_attr(osd, pid, oid, page, number, outbuf,
 				     outlen, listfmt);
-		assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
+		assert(ret == -EINVAL || ret == -EOVERFLOW || ret >= 0);
 		if (ret == -EOVERFLOW)
 			*used_outlen = 0; /* not an error, Sec 5.2.2.2 */
 		else if (ret > 0)

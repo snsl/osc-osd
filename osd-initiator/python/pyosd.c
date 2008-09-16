@@ -37,6 +37,20 @@ static PyObject *pyosd_set_progname(PyObject *self __attribute__((unused)),
 }
 
 /*
+ * Retrieve the progname.
+ */
+static PyObject *pyosd_get_progname(PyObject *self __attribute__((unused)),
+				    PyObject *args)
+{
+	char *argv[1];
+
+	if (!PyArg_ParseTuple(args, ":get_progname", &argv[0]))
+		return NULL;
+
+	return Py_BuildValue("s", osd_get_progname());
+}
+
+/*
  * Byte swappers.
  */
 static PyObject *pyosd_ntohs(PyObject *self __attribute__((unused)),
@@ -111,6 +125,8 @@ static PyObject *pyosd_htonl(PyObject *self __attribute__((unused)),
 static PyMethodDef methods[] = {
 	{ "set_progname", pyosd_set_progname, METH_VARARGS,
 		"Set the program name for error reporting." },
+	{ "get_progname", pyosd_get_progname, METH_VARARGS,
+		"Get the program name." },
 	{ "ntohs", pyosd_ntohs, METH_VARARGS,
 		"Convert 16-bit word from network to host byte order." },
 	{ "ntohl", pyosd_ntohl, METH_VARARGS,

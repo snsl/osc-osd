@@ -20,6 +20,9 @@
  *
  * @cid: collection id
  * @oid: userobject id
+ * @pid: partition id ???? (is this in the db? it wasn't indicated here, 
+ *	 but all of the functions seem to act as if it does exist (and
+ * 	 I think it well should)
  * @number: attribute number of cid in CAP of oid
  */
 int oc_insert_row(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t oid, 
@@ -202,60 +205,49 @@ int oc_get_cap(sqlite3 *db, uint64_t pid, uint64_t oid, void *outbuf,
  * -EINVAL: invalid arg
  * ==0: success, buf points to memory containing oids
  */
-int oc_get_oids_in_cid(sqlite3 *db, uint64_t pid, uint64_t cid, void **buf)
+int oc_get_oids_in_cid(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t initial_oid,
+			uint64_t alloc_len, uint8_t *outdata, uint64_t *used_outlen,
+			uint64_t *add_len, uint64_t *cont_id)
 {
-	int ret = -EINVAL;
+	int ret = 0;
+	uint64_t len = 0;
 	char SQL[MAXSQLEN];
-	uint64_t cnt = 4096;
-	uint64_t cur_cnt = 0;
-	uint64_t *oids = NULL;
-	sqlite3_stmt *stmt = NULL;
+	sqlite3_stmt *stmt = NULL;		
 
 	if (db == NULL)
 		return -EINVAL;
 
-	oids = Malloc(cnt * sizeof(*oids));
-	if (!oids)
-		return -ENOMEM;
-
-	sprintf(SQL, "SELECT oid FROM object_collection WHERE pid = %llu"
-		" AND cid = %llu;", llu(pid), llu(cid));
+	sprintf(SQL, "SELECT oid FROM object_collection WHERE pid = %llu "
+			"AND cid = %llu AND oid >= %llu", llu(pid), llu(cid),
+			llu(initial_oid));
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
+	if (ret) {
 		error_sql(db, "%s: prepare", __func__);
-		goto out; /* no prepared stmt, no need to finalize */
-	}
-
-	cur_cnt = 0;
-	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		if (cur_cnt == cnt) {
-			cnt *= 2;
-			oids = realloc(oids, cnt*sizeof(*oids));
-			if (!oids) {
-				ret = -ENOMEM;
-				goto out_finalize;
-			}
-		}
-		oids[cur_cnt] = (uint64_t)sqlite3_column_int64(stmt, 0);
-		cur_cnt++;
-	}
-
-	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: sqlite3_step", __func__);
-		ret = -EIO;
-		goto out_finalize;
-	} 
-
-	*buf = oids;
-	ret = 0;
-
-out_finalize:
-	/* 'ret' must be preserved. */
-	if (sqlite3_finalize(stmt) != SQLITE_OK) {
-		ret = -EIO;
-		error_sql(db, "%s: finalize", __func__);
+		goto out;
 	}
 	
+	len = *used_outlen = 0;
+	*add_len = 0;
+	*cont_id = 0;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		if ((alloc_len - len) >= 8) {
+			set_htonll(outdata, sqlite3_column_int64(stmt,0));
+			outdata += 8;
+			len += 8;
+		} else if (*cont_id == 0) {
+			*cont_id = sqlite3_column_int64(stmt, 0);
+		}
+		*add_len += 8;
+	}
+	*used_outlen = len;
+
+	if (ret != SQLITE_DONE)
+		error_sql(db, "%s: query %s failed", __func__, SQL);
+	
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK)
+		error_sql(db, "%s: finalize", __func__);
+
 out:
 	return ret;
 }
@@ -268,60 +260,49 @@ out:
  * -EINVAL: invalid arg
  * ==0: success, buf points to memory containing oids
  */
-int oc_get_cids_in_pid(sqlite3 *db, uint64_t pid, void **buf)
+int oc_get_cids_in_pid(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
+			uint64_t alloc_len, uint8_t *outdata, uint64_t *used_outlen,
+			uint64_t *add_len, uint64_t *cont_id)
 {
-	int ret = -EINVAL;
+	int ret = 0;
+	uint64_t len = 0;
 	char SQL[MAXSQLEN];
-	uint64_t cnt = 4096;
-	uint64_t cur_cnt = 0;
-	uint64_t *cids = NULL;
-	sqlite3_stmt *stmt = NULL;
+	sqlite3_stmt *stmt = NULL;		
 
 	if (db == NULL)
 		return -EINVAL;
 
-	cids = Malloc(cnt * sizeof(*cids));
-	if (!cids)
-		return -ENOMEM;
-
-	sprintf(SQL, "SELECT cid FROM object_collection WHERE pid = %llu",
-			llu(pid));
+	sprintf(SQL, "SELECT cid FROM object_collection WHERE pid = %llu "
+			"AND cid >= %llu", llu(pid),
+			llu(initial_oid));
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
-	if (ret != SQLITE_OK) {
+	if (ret) {
 		error_sql(db, "%s: prepare", __func__);
-		goto out; /* no prepared stmt, no need to finalize */
-	}
-
-	cur_cnt = 0;
-	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		if (cur_cnt == cnt) {
-			cnt *= 2;
-			cids = realloc(cids, cnt*sizeof(*cids));
-			if (!cids) {
-				ret = -ENOMEM;
-				goto out_finalize;
-			}
-		}
-		cids[cur_cnt] = (uint64_t)sqlite3_column_int64(stmt, 0);
-		cur_cnt++;
-	}
-
-	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: sqlite3_step", __func__);
-		ret = -EIO;
-		goto out_finalize;
-	} 
-
-	*buf = cids;
-	ret = 0;
-
-out_finalize:
-	/* 'ret' must be preserved. */
-	if (sqlite3_finalize(stmt) != SQLITE_OK) {
-		ret = -EIO;
-		error_sql(db, "%s: finalize", __func__);
+		goto out;
 	}
 	
+	len = *used_outlen = 0;
+	*add_len = 0;
+	*cont_id = 0;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		if ((alloc_len - len) >= 8) {
+			set_htonll(outdata, sqlite3_column_int64(stmt,0));
+			outdata += 8;
+			len += 8;
+		} else if (*cont_id == 0) {
+			*cont_id = sqlite3_column_int64(stmt, 0);
+		}
+		*add_len += 8;
+	}
+	*used_outlen = len;
+
+	if (ret != SQLITE_DONE)
+		error_sql(db, "%s: query %s failed", __func__, SQL);
+	
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK)
+		error_sql(db, "%s: finalize", __func__);
+
 out:
 	return ret;
 }

@@ -645,13 +645,14 @@ static int cdb_remove(struct command *cmd)
 static int cdb_read(struct command *cmd)
 {
 	int ret = 0, rec_err_sense = 0;
+	uint8_t ddt = cmd->cdb[10];
 	uint64_t pid = get_ntohll(&cmd->cdb[16]);
 	uint64_t oid = get_ntohll(&cmd->cdb[24]);
 	uint64_t len = get_ntohll(&cmd->cdb[32]);
 	uint64_t offset = get_ntohll(&cmd->cdb[40]);
 
-	ret = osd_read(cmd->osd, pid, oid, len, offset, cmd->outdata,
-		       &cmd->used_outlen, cmd->sense);
+	ret = osd_read(cmd->osd, pid, oid, len, offset, cmd->indata, cmd->outdata,
+		       &cmd->used_outlen, cmd->sense, ddt);
 	if (ret) {
 		/* only tolerate recovered error, return for others */
 		if (!sense_test_type(cmd->sense, OSD_SSK_RECOVERED_ERROR,

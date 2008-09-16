@@ -1912,9 +1912,9 @@ out_cdb_err:
  * ==0: success, used_outlen is set
  * > 0: error, sense is set
  */
-int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+static int contig_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	     uint64_t offset, uint8_t *outdata, uint64_t *used_outlen,
-	     uint8_t *sense)
+             uint8_t *sense)
 {
 	ssize_t readlen;
 	int ret, fd;
@@ -1965,6 +1965,119 @@ out_cdb_err:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
+
+
+}
+
+static int sgl_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	     uint64_t offset, const uint8_t *indata, uint8_t *outdata,
+	     uint64_t *used_outlen, uint8_t *sense)
+{
+	ssize_t readlen;
+	int ret, fd;
+	char path[MAXNAMELEN];
+	uint64_t inlen, pairs, hdr_offset, offset_val, data_offset, length;
+	unsigned int i;
+
+	osd_debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
+		  llu(pid), llu(oid), llu(len), llu(offset));
+
+	if (!osd || !osd->root || !osd->dbc || !outdata || !used_outlen ||
+	    !sense)
+		goto out_cdb_err;
+
+	pairs = get_ntohll(indata);
+	inlen = (pairs * sizeof(uint64_t) * 2) + sizeof(uint64_t);
+	assert(pairs * sizeof(uint64_t) * 2 == inlen - sizeof(uint64_t));
+
+	osd_debug("%s: offset,len pairs %llu", __func__, llu(pairs));
+	osd_debug("%s: data offset %llu", __func__, llu(inlen));
+
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDONLY|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err;
+
+
+	hdr_offset = sizeof(uint64_t);
+	data_offset = 0;
+	readlen = 0;
+
+	for (i=0; i<pairs; i++) {
+		offset_val = get_ntohll(indata + hdr_offset); /* offset into dest */
+		hdr_offset += sizeof(uint64_t);
+
+		length = get_ntohll(indata + hdr_offset);   /* length */
+		hdr_offset += sizeof(uint64_t);
+
+		osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val + offset),
+			llu(length));
+
+		osd_debug("%s: Position in data buffer: %llu", __func__, llu(data_offset));
+
+		osd_debug("%s: ------------------------------", __func__);
+		ret = pread(fd, outdata+data_offset, length, offset_val+offset);
+		data_offset += length;
+		osd_debug("%s: return value is %d", __func__, ret);
+		if (ret < 0 || (uint64_t)ret != length)
+			goto out_hw_err;
+		readlen += ret;
+	}
+
+	ret = close(fd);
+	if (ret != 0)
+		goto out_hw_err;
+
+	*used_outlen = readlen;
+
+	/* valid, but return a sense code */
+	if ((size_t) readlen < len)
+		ret = sense_build_sdd_csi(sense, OSD_SSK_RECOVERED_ERROR,
+				      OSD_ASC_READ_PAST_END_OF_USER_OBJECT,
+				      pid, oid, readlen);
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	return ret;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+
+}
+
+int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
+	     uint64_t offset, const uint8_t *indata, uint8_t *outdata,
+	     uint64_t *used_outlen,uint8_t *sense, uint8_t ddt)
+{
+	/*figure out what kind of write it is based on ddt and call appropriate
+	write function*/
+
+	switch(ddt) {
+		case DDT_CONTIG: {
+			return contig_read(osd, pid, oid, len, offset, outdata,
+					used_outlen, sense);
+		}
+		case DDT_SGL: {
+			return sgl_read(osd, pid, oid, len, offset, indata,
+				outdata, used_outlen, sense);
+		}
+		default: {
+			return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			               OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+		}
+	}
+
 }
 
 
@@ -2439,13 +2552,13 @@ static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_
 		goto out_cdb_err;
 
 
-	hdr_offset = sizeof(uint64_t); /*skip count of offset/len pairs*/
+	hdr_offset = sizeof(uint64_t); /* skip count of offset/len pairs */
 
-	for(i=0; i<pairs; i++){
-		offset_val = get_ntohll(dinbuf + hdr_offset); /*offset into dest*/
+	for (i=0; i<pairs; i++) {
+		offset_val = get_ntohll(dinbuf + hdr_offset); /* offset into dest */
 		hdr_offset += sizeof(uint64_t);
 
-		length = get_ntohll(dinbuf + hdr_offset);   /*length*/
+		length = get_ntohll(dinbuf + hdr_offset);   /* length */
 		hdr_offset += sizeof(uint64_t);
 
 		osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val + offset),

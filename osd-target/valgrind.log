@@ -1,0 +1,91 @@
+==3541== Memcheck, a memory error detector.
+==3541== Copyright (C) 2002-2006, and GNU GPL'd, by Julian Seward et al.
+==3541== Using LibVEX rev 1658, a library for dynamic binary translation.
+==3541== Copyright (C) 2004-2006, and GNU GPL'd, by OpenWorks LLP.
+==3541== Using valgrind-3.2.1, a dynamic binary instrumentation framework.
+==3541== Copyright (C) 2000-2006, and GNU GPL'd, by Julian Seward et al.
+==3541== For more details, rerun with: -v
+==3541== 
+==3541== My PID = 3541, parent PID = 3540.  Prog and args are:
+==3541==    ./tgtd
+==3541==    -f
+==3541== 
+==3541== Invalid read of size 2
+==3541==    at 0x4060DF: tgt_device_update (target.c:348)
+==3541==    by 0x4045C6: device_mgmt (mgmt.c:179)
+==3541==    by 0x404926: tgt_mgmt (mgmt.c:278)
+==3541==    by 0x405204: autoconf_iscsi_osdemu (mgmt.c:546)
+==3541==    by 0x405354: ipc_init (mgmt.c:586)
+==3541==    by 0x4040E2: main (tgtd.c:335)
+==3541==  Address 0x4E62544 is 12 bytes inside a block of size 13 alloc'd
+==3541==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==3541==    by 0x4051BD: autoconf_iscsi_osdemu (mgmt.c:540)
+==3541==    by 0x405354: ipc_init (mgmt.c:586)
+==3541==    by 0x4040E2: main (tgtd.c:335)
+==3541== 
+==3541== Invalid read of size 1
+==3541==    at 0x4060E7: tgt_device_update (target.c:348)
+==3541==    by 0x4045C6: device_mgmt (mgmt.c:179)
+==3541==    by 0x404926: tgt_mgmt (mgmt.c:278)
+==3541==    by 0x405204: autoconf_iscsi_osdemu (mgmt.c:546)
+==3541==    by 0x405354: ipc_init (mgmt.c:586)
+==3541==    by 0x4040E2: main (tgtd.c:335)
+==3541==  Address 0x4E62546 is 1 bytes after a block of size 13 alloc'd
+==3541==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==3541==    by 0x4051BD: autoconf_iscsi_osdemu (mgmt.c:540)
+==3541==    by 0x405354: ipc_init (mgmt.c:586)
+==3541==    by 0x4040E2: main (tgtd.c:335)
+==3541== 
+==3541== ERROR SUMMARY: 2 errors from 2 contexts (suppressed: 5 from 1)
+==3541== malloc/free: in use at exit: 14,224 bytes in 176 blocks.
+==3541== malloc/free: 505 allocs, 329 frees, 185,051 bytes allocated.
+==3541== For counts of detected errors, rerun with: -v
+==3541== searching for pointers to 176 not-freed blocks.
+==3541== checked 294,768 bytes.
+==3541== 
+==3541== 
+==3541== 24 bytes in 1 blocks are possibly lost in loss record 1 of 8
+==3541==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==3541==    by 0x407836: acl_add (target.c:891)
+==3541==    by 0x4042A5: target_mgmt (mgmt.c:98)
+==3541==    by 0x4048FF: tgt_mgmt (mgmt.c:275)
+==3541==    by 0x405063: autoconf_iscsi_osdemu (mgmt.c:515)
+==3541==    by 0x405354: ipc_init (mgmt.c:586)
+==3541==    by 0x4040E2: main (tgtd.c:335)
+==3541== 
+==3541== 
+==3541== 80 bytes in 2 blocks are possibly lost in loss record 4 of 8
+==3541==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==3541==    by 0x4038E3: tgt_event_add (tgtd.c:141)
+==3541==    by 0x413B13: iscsi_tcp_init (iscsi_tcp.c:174)
+==3541==    by 0x413634: iscsi_init (transport.c:22)
+==3541==    by 0x403D72: lld_init (tgtd.c:243)
+==3541==    by 0x403FD1: main (tgtd.c:304)
+==3541== 
+==3541== 
+==3541== 208 bytes in 1 blocks are possibly lost in loss record 5 of 8
+==3541==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==3541==    by 0x405B84: tgt_device_create (target.c:228)
+==3541==    by 0x404590: device_mgmt (mgmt.c:173)
+==3541==    by 0x404926: tgt_mgmt (mgmt.c:278)
+==3541==    by 0x40515C: autoconf_iscsi_osdemu (mgmt.c:533)
+==3541==    by 0x405354: ipc_init (mgmt.c:586)
+==3541==    by 0x4040E2: main (tgtd.c:335)
+==3541== 
+==3541== 
+==3541== 2,488 bytes in 1 blocks are possibly lost in loss record 7 of 8
+==3541==    at 0x4A05879: malloc (vg_replace_malloc.c:149)
+==3541==    by 0x408634: tgt_target_create (target.c:1167)
+==3541==    by 0x4041E3: target_mgmt (mgmt.c:81)
+==3541==    by 0x4048FF: tgt_mgmt (mgmt.c:275)
+==3541==    by 0x405011: autoconf_iscsi_osdemu (mgmt.c:505)
+==3541==    by 0x405354: ipc_init (mgmt.c:586)
+==3541==    by 0x4040E2: main (tgtd.c:335)
+==3541== 
+==3541== LEAK SUMMARY:
+==3541==    definitely lost: 0 bytes in 0 blocks.
+==3541==      possibly lost: 2,800 bytes in 5 blocks.
+==3541==    still reachable: 11,424 bytes in 171 blocks.
+==3541==         suppressed: 0 bytes in 0 blocks.
+==3541== Reachable blocks (those to which a pointer was found) are not shown.
+==3541== To see them, rerun with: --show-reachable=yes

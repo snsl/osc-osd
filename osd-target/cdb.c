@@ -518,7 +518,9 @@ static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 		return get_attr_page(cmd, pid, oid, isembedded, numoid);
 	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
 		return get_attr_list(cmd, pid, oid, isembedded, numoid);
-	} else {
+	} else if (cmd->getset_cdbfmt == GETFIELD_SETVALUE){
+	        return 0;
+	}else {
 		goto out_cdb_err;
 	}
 
@@ -1424,8 +1426,6 @@ static void exec_service_action(struct command *cmd)
 		ret = set_attributes(cmd, pid, oid, 1);
 		if (ret)
 			break;
-		if (cmd->getset_cdbfmt == GETFIELD_SETVALUE)
-		        break;
 		ret = get_attributes(cmd, pid, oid, 1);
 		TICK_TRACE(cdb_set_attributes);
 		break;

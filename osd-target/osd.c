@@ -884,7 +884,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	assert(ret == 0);
 
 	/* fill CCAP with highest oid, osd2r00 Sec 6.3, 3rd last para */
-	fill_ccap(&(osd->ccap), NULL, USEROBJECT, pid, (oid+numoid-1), 0);
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, (oid+numoid-1), 0);
 	return OSD_OK; /* success */
 
 out_illegal_req:
@@ -960,7 +960,7 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 	if (ret)
 		goto out_cdb_err;
 
-	fill_ccap(&(osd->ccap), NULL, COLLECTION, pid, cid, 0);
+	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
 	return OSD_OK; /* success */
 
 out_cdb_err:
@@ -999,7 +999,7 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 	if (ret)
 		goto out_cdb_err;
 
-	fill_ccap(&(osd->ccap), NULL, PARTITION, pid, PARTITION_OID, 0);
+	fill_ccap(&osd->ccap, NULL, PARTITION, pid, PARTITION_OID, 0);
 	return OSD_OK; /* success */
 
 out_cdb_err:

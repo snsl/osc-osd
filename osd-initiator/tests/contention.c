@@ -1,5 +1,5 @@
 /*
- * Test contetion for CAS.
+ * contention tests
  *
  * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
  *
@@ -14,6 +14,12 @@
  * 
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+
+/*
+ * string for test,
+ * clean code,
  */
 #include <stdlib.h>
 #include <stdio.h>
@@ -38,7 +44,7 @@
 static int rank, numprocs;
 static const int WORK_MAX = 600;
 static const int test_lb = 1;
-static const int test_ub = 12;
+static const int test_ub = 18;
 
 static void usage(void)
 {
@@ -241,26 +247,251 @@ static void busy_wait(int fd, uint64_t pid, uint64_t oid, const int numlocks,
 }
 
 
-static void spec_idle(int fd, uint64_t pid, uint64_t oid, const int numlocks,
-		      const int dowork)
+static void buggy(int fd, uint64_t pid, uint64_t oid, int numlocks,
+		  int dowork, int *my_att, int *my_req, double *latency)
+{
+	int ret;
+	int reqs, attempts;
+	int locks = 0;
+	int64_t num_waiters, queued;
+	int first_attempt;
+	double rtt, mhz = get_mhz();
+	uint64_t start, end, lat_beg, lat_end;
+	struct osd_command cmd;
+
+	reqs = 0, attempts = 0, num_waiters = 0, queued = 0, first_attempt = 1;
+	while (locks < numlocks) {
+		if (first_attempt) {
+			rdtsc(lat_beg);
+			first_attempt = 0;
+		}
+		ret = cas(fd, &cmd, pid, oid, 0, 1); /* lock */
+		++attempts;
+		++reqs;
+		if (ret == 1) {
+			rdtsc(lat_end);
+			latency[locks] = ((double)(lat_end - lat_beg)/mhz);
+			first_attempt = 1;
+			if (queued) {
+				ret = fa(fd, &cmd, pid, oid, -1,
+					 &num_waiters);
+				if (ret == -1)
+					osd_error_fatal("fa failed");
+				++reqs;
+				--queued;
+			}
+			++locks;
+			if (dowork == 1) 
+				local_work();
+			else if (dowork == 2)
+				remote_work(fd, pid, oid);
+			ret = cas(fd, &cmd, pid, oid, 1, 0); /* unlock */
+			assert(ret == 1);
+			++reqs;
+		} else if (ret == 0) {
+			rdtsc(start);
+			ret = fa(fd, &cmd, pid, oid, 1, &num_waiters);
+			rdtsc(end);
+			if (ret == -1)
+				osd_error_fatal("fa error");
+			++reqs;
+			++queued;
+			if (num_waiters == 0)
+				continue;
+
+			/* speculative delay estimation */
+			rtt = ((double)(end-start))/mhz;
+			//println("num waiters %u rtt %7.3lf", num_waiters, rtt);
+			if (dowork == 0) {
+				usleep((uint64_t)((num_waiters-1)*(rtt) 
+						  + rtt/2));
+			} else if (dowork == 1) {
+				usleep((uint64_t)((num_waiters-1)*(rtt)
+						  + rtt/2 + WORK_MAX/2.)); 
+			} else if (dowork == 2) {
+				usleep((uint64_t)((num_waiters)*(rtt)
+						  + rtt/2)); 
+			}
+			continue;
+		} else {
+			osd_error_fatal("cas error");
+		}
+	}
+	*my_att = attempts;
+	*my_req = reqs;
+}
+
+static void goback(int fd, uint64_t pid, uint64_t oid, int numlocks,
+		   int dowork, int *my_att, int *my_req, double *latency)
+{
+	int ret;
+	int reqs, attempts;
+	int locks = 0;
+	int64_t num_waiters, queued;
+	int first_attempt;
+	double rtt, mhz = get_mhz();
+	uint64_t start, end, lat_beg, lat_end;
+	struct osd_command cmd;
+
+	reqs = 0, attempts = 0, num_waiters = 0, queued = 0, first_attempt = 1;
+	while (locks < numlocks) {
+		if (first_attempt) {
+			rdtsc(lat_beg);
+			first_attempt = 0;
+		}
+		ret = cas(fd, &cmd, pid, oid, 0, 1); /* lock */
+		++attempts;
+		++reqs;
+		if (ret == 1) {
+			rdtsc(lat_end);
+			latency[locks] = ((double)(lat_end - lat_beg)/mhz);
+			first_attempt = 1;
+			if (queued) {
+				ret = fa(fd, &cmd, pid, oid, -queued,
+					 &num_waiters);
+				if (ret == -1)
+					osd_error_fatal("fa failed");
+				++reqs;
+				queued = 0;
+			}
+			++locks;
+			if (dowork == 1) 
+				local_work();
+			else if (dowork == 2)
+				remote_work(fd, pid, oid);
+			ret = cas(fd, &cmd, pid, oid, 1, 0); /* unlock */
+			assert(ret == 1);
+			++reqs;
+		} else if (ret == 0) {
+			rdtsc(start);
+			ret = fa(fd, &cmd, pid, oid, 1, &num_waiters);
+			rdtsc(end);
+			if (ret == -1)
+				osd_error_fatal("fa error");
+			++reqs;
+			++queued;
+			if (num_waiters == 0)
+				continue;
+
+			/* speculative delay estimation */
+			rtt = ((double)(end-start))/mhz;
+			//println("num waiters %u rtt %7.3lf", num_waiters, rtt);
+			if (dowork == 0) {
+				usleep((uint64_t)((num_waiters-1)*(rtt) 
+						  + rtt/2));
+			} else if (dowork == 1) {
+				usleep((uint64_t)((num_waiters-1)*(rtt)
+						  + rtt/2 + WORK_MAX/2.)); 
+			} else if (dowork == 2) {
+				usleep((uint64_t)((num_waiters)*(rtt)
+						  + rtt/2)); 
+			}
+			continue;
+		} else {
+			osd_error_fatal("cas error");
+		}
+	}
+	*my_att = attempts;
+	*my_req = reqs;
+}
+
+
+static void spinpos(int fd, uint64_t pid, uint64_t oid, int numlocks,
+		    int dowork, int *my_att, int *my_req, double *latency)
+{
+	int ret;
+	int reqs, attempts;
+	int locks = 0;
+	int64_t num_waiters, queued;
+	int first_attempt;
+	double rtt, mhz = get_mhz();
+	uint64_t start, end, lat_beg, lat_end;
+	struct osd_command cmd;
+
+	reqs = 0, attempts = 0, num_waiters = 0, queued = 0, first_attempt = 1;
+	while (locks < numlocks) {
+		if (first_attempt) {
+			rdtsc(lat_beg);
+			first_attempt = 0;
+		}
+		ret = cas(fd, &cmd, pid, oid, 0, 1); /* lock */
+		++attempts;
+		++reqs;
+		if (ret == 1) {
+			rdtsc(lat_end);
+			latency[locks] = ((double)(lat_end - lat_beg)/mhz);
+			first_attempt = 1;
+			if (queued) {
+				ret = fa(fd, &cmd, pid, oid, -1, &num_waiters);
+				if (ret == -1)
+					osd_error_fatal("fa failed");
+				++reqs;
+				queued = 0;
+			}
+			++locks;
+			if (dowork == 1) 
+				local_work();
+			else if (dowork == 2)
+				remote_work(fd, pid, oid);
+			ret = cas(fd, &cmd, pid, oid, 1, 0); /* unlock */
+			assert(ret == 1);
+			++reqs;
+		} else if (ret == 0) {
+			if (!queued) {
+				rdtsc(start);
+				ret = fa(fd, &cmd, pid, oid, 1, &num_waiters);
+				rdtsc(end);
+				if (ret == -1)
+					osd_error_fatal("fa error");
+				++reqs;
+				queued = 1;
+			}
+			if (num_waiters == 0)
+				continue;
+
+			/* speculative delay estimation */
+			rtt = ((double)(end-start))/mhz;
+			//println("num waiters %u rtt %7.3lf", num_waiters, rtt);
+			if (dowork == 0) {
+				usleep((uint64_t)((num_waiters-1)*(rtt) 
+						  + rtt/2));
+			} else if (dowork == 1) {
+				usleep((uint64_t)((num_waiters-1)*(rtt)
+						  + rtt/2 + WORK_MAX/2.)); 
+			} else if (dowork == 2) {
+				usleep((uint64_t)((num_waiters)*(rtt)
+						  + rtt/2)); 
+			}
+			continue;
+		} else {
+			osd_error_fatal("cas error");
+		}
+	}
+	*my_att = attempts;
+	*my_req = reqs;
+}
+
+
+static void spec_idle(int fd, uint64_t pid, uint64_t oid, int numlocks,
+		      int dowork, int test)
 {
 	int i;
 	int ret;
-	int reqs, attempts;
-	int locks = numlocks;
-	double *global_req, *global_att;
+	double *global_req, *global_att, *global_lat, *latency;
 	int *gather;
-	uint64_t exp_beg, exp_end, start, end;
+	int reqs, attempts;
+	uint64_t exp_beg, exp_end;
 	double mu_req, sd_req, mu_att, sd_att;
-	double rtt, exp_time, mhz = get_mhz();
+	double exp_time, mhz = get_mhz();
 	struct osd_command cmd;
-	int64_t num_waiters, queued;
+	int64_t num_waiters;
 	
 	if (rank == 0) {
 		gather = calloc(numprocs, sizeof(*gather));
 		global_att = calloc(numprocs, sizeof(*global_att));
 		global_req = calloc(numprocs, sizeof(*global_req));
-		if (!gather || !global_req || !global_att) {
+		global_lat = calloc(numprocs*2, sizeof(*global_lat));
+		if (!gather || !global_req || !global_att || !global_lat) {
 			osd_error_xerrno(-ENOMEM, "out of memory");
 			exit(1);
 		}
@@ -278,60 +509,26 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, const int numlocks,
 		}
 	}
 
+	latency = calloc(numlocks, sizeof(*latency));
+	if (!latency) {
+		osd_error_xerrno(-ENOMEM, "out of memory");
+		exit(1);
+	}
 	osd_srand(); /* seed PRNG */
 
 	MPI_Barrier(MPI_COMM_WORLD);
 	if (rank == 0)
 		rdtsc(exp_beg);
 
-	reqs = 0, attempts = 0, num_waiters = 0, queued = 0;
-	while (locks) {
-		ret = cas(fd, &cmd, pid, oid, 0, 1); /* lock */
-		++attempts;
-		++reqs;
-		if (ret == 1) {
-			if (queued) {
-				ret = fa(fd, &cmd, pid, oid, -1, &num_waiters);
-				if (ret == -1)
-					osd_error_fatal("fa failed");
-				++reqs;
-				queued = 0;
-			}
-			--locks;
-			if (dowork == 1) 
-				local_work();
-			else if (dowork == 2)
-				remote_work(fd, pid, oid);
-			ret = cas(fd, &cmd, pid, oid, 1, 0); /* unlock */
-			assert(ret == 1);
-			++reqs;
-		} else if (ret == 0) {
-			rdtsc(start);
-			ret = fa(fd, &cmd, pid, oid, 1, &num_waiters);
-			rdtsc(end);
-			if (ret == -1)
-				osd_error_fatal("fa error");
-			++reqs;
-			queued = 1;
-			if (num_waiters == 0)
-				continue;
-
-			/* speculative delay estimation */
-			rtt = ((double)(end-start))/mhz;
-			if (dowork == 0) {
-				usleep((uint64_t)((num_waiters-1)*(rtt) 
-						  + rtt/2));
-			} else if (dowork == 1) {
-				usleep((uint64_t)((num_waiters-1)*(rtt)
-						  + rtt/2 + WORK_MAX/2.)); 
-			} else if (dowork == 2) {
-				usleep((uint64_t)((num_waiters)*(rtt)
-						  + rtt/2)); 
-			}
-			continue;
-		} else {
-			osd_error_fatal("cas error");
-		}
+	if (test == 1) {
+		buggy(fd, pid, oid, numlocks, dowork, &attempts, &reqs, 
+		      latency);
+	} else if (test == 2) {
+		goback(fd, pid, oid, numlocks, dowork, &attempts, &reqs,
+		       latency);
+	} else {
+		spinpos(fd, pid, oid, numlocks, dowork, &attempts, &reqs,
+		       latency);
 	}
 
 	MPI_Barrier(MPI_COMM_WORLD);
@@ -359,6 +556,16 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, const int numlocks,
 		for (i = 0; i < numprocs; i++)
 			global_att[i] = (double)gather[i];
 
+	double stats[2];
+	stats[0] = mean(latency, numlocks);
+	stats[1] = stddev(latency, stats[0], numlocks);
+	ret = MPI_Gather(stats, 2, MPI_DOUBLE, global_lat, 2, MPI_DOUBLE, 0,
+			 MPI_COMM_WORLD);
+	if (ret != 0) {
+		osd_error("MPI_Gather failed");
+		exit(1);
+	}
+
 	if (rank != 0)
 		return;
 	mu_req = mean(global_req, numprocs);
@@ -367,19 +574,21 @@ static void spec_idle(int fd, uint64_t pid, uint64_t oid, const int numlocks,
 	sd_att = stddev(global_att, mu_att, numprocs);
 
 	for (i = 0; i < numprocs; i++)
-		printf("global_reqs[%u] = %lf, global_att[%u] = %lf\n", i, 
-		       global_req[i], i, global_att[i]);
+		println("global_reqs[%u] = %lf, global_att[%u] = %lf\n"
+		       "lat[%d]: %8.3lf +- %8.3lf", i, global_req[i], i,
+		       global_att[i], i, global_lat[2*i], global_lat[2*i+1]); 
 	printf("Numlocks: %u \n"
 	       "Numprocs: %u \n"
 	       "Work: %u \n"
 	       "Total requests %7.3lf \n"
 	       "Total attempts %7.3lf \n"
+	       "Per node reqs: %6.3lf +- %6.3lf \n"
 	       "Per node attempts: %6.3lf +- %6.3lf \n"
 	       "Efficiency: %7.3lf \n"
 	       "Time %7.3lf us\n"
 	       "Throughput: %7.3lf locks/sec\n", 
 	       numlocks, numprocs, dowork, mu_req*numprocs, mu_att*numprocs,
-	       mu_att, sd_att, numlocks*2/mu_req, exp_time,
+	       mu_req, sd_req, mu_att, sd_att, numlocks*2/mu_req, exp_time,
 	       numlocks*numprocs*1e6/exp_time);
 
 	free(gather);
@@ -625,11 +834,11 @@ int main(int argc, char *argv[])
 		}
 
 		if (test == 7)
-			spec_idle(fd, pid, oid, 100, 0);
+			spec_idle(fd, pid, oid, 100, 0, 1);
 		else if (test == 8)
-			spec_idle(fd, pid, oid, 100, 1);
+			spec_idle(fd, pid, oid, 100, 1, 1);
 		else if (test == 9)
-			spec_idle(fd, pid, oid, 100, 2);
+			spec_idle(fd, pid, oid, 100, 2, 1);
 		
 		if (rank == 0) {
 			osd_command_set_remove(&cmd, pid, oid);
@@ -675,7 +884,74 @@ int main(int argc, char *argv[])
 			assert(ret == 0);
 		}
 		break;
+	case 13: /* Contention, speculative idling, goback no work */
+	case 14: /* Contention, speculative idling, goback local work */
+	case 15: /* Contention, speculative idling, goback remote work */
+		if (rank == 0) {
+			osd_command_set_format_osd(&cmd, 1<<30);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
 
+			osd_command_set_create_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_create(&cmd, pid, oid, 1);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+
+		if (test == 13)
+			spec_idle(fd, pid, oid, 100, 0, 2);
+		else if (test == 14)
+			spec_idle(fd, pid, oid, 100, 1, 2);
+		else if (test == 15)
+			spec_idle(fd, pid, oid, 100, 2, 2);
+		
+		if (rank == 0) {
+			osd_command_set_remove(&cmd, pid, oid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_remove_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+		break;
+	case 16: /* Contention, speculative idling, spinpos no work */
+	case 17: /* Contention, speculative idling, spinpos local work */
+	case 18: /* Contention, speculative idling, spinpos remote work */
+		if (rank == 0) {
+			osd_command_set_format_osd(&cmd, 1<<30);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_create_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_create(&cmd, pid, oid, 1);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+
+		if (test == 16)
+			spec_idle(fd, pid, oid, 100, 0, 3);
+		else if (test == 17)
+			spec_idle(fd, pid, oid, 100, 1, 3);
+		else if (test == 18)
+			spec_idle(fd, pid, oid, 100, 2, 3);
+		
+		if (rank == 0) {
+			osd_command_set_remove(&cmd, pid, oid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+
+			osd_command_set_remove_partition(&cmd, pid);
+			ret = osd_submit_and_wait(fd, &cmd);
+			assert(ret == 0);
+		}
+		break;
 
 	default:
 		usage();

@@ -59,12 +59,12 @@ def start():
             + "~/osd/osd-target/tgtd -d 9 \< /dev/null \&\> tgtd.log")
     assert compnodes != []
     os.system("all -p " + allify(compnodes) + " "
-	    + "sudo /home/pw/src/osd/test/initiator start " + " ".join(osdnodes))
+	    + "~/osd/osd-initiator/tests/initiator start " + " ".join(osdnodes))
 
 def stop():
     assert osdnodes != []
     os.system("all -p " + allify(compnodes) + " "
-            + "sudo /home/pw/src/osd/test/initiator stop; ")
+            + "~/osd/osd-initiator/tests/initiator stop; ")
 
     assert compnodes != []
     os.system("all -p " + allify(osdnodes) + " "

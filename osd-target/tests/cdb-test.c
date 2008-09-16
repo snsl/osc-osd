@@ -30,7 +30,8 @@ void test_partition(struct osd_device *osd)
 	int senselen_out;
 	uint8_t sense_out[MAX_SENSE_LEN];
 	uint8_t *data_out;
-	uint64_t data_out_len;
+	const void *data_in;
+	uint64_t data_out_len, data_in_len;
 
 	/* create partition + empty getpage_setlist */
 	ret = osd_command_set_create_partition(&cmd, PARTITION_PID_LB);
@@ -47,69 +48,79 @@ void test_partition(struct osd_device *osd)
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 
-}
-#if 0
 	/* create partition + empty getlist_setlist */
-	ret = osd_command_set_create_partition(cdb, PARTITION_PID_LB);
+	struct attribute_list attr = {ATTR_GET_PAGE, 0, 0, NULL, 0, 0};
+
+	ret = osd_command_set_create_partition(&cmd, PARTITION_PID_LB);
 	assert(ret == 0);
-	ret = set_cdb_getlist_setlist(cdb, 0, 0, 0, 0, 0, 0);
-	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out, &data_out_len,
-				sense_out, &senselen_out);
+	ret = osd_command_attr_build(&cmd, &attr, 1);
+	assert (ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen,
+				&data_out, &data_out_len, sense_out,
+				&senselen_out);
 	assert(ret == 0);
 
 	/* remove partition + empty getpage_setlist */
-	ret = set_cdb_osd_remove_partition(cdb, PARTITION_PID_LB);
+	ret = osd_command_set_remove_partition(&cmd, PARTITION_PID_LB);
 	assert(ret == 0);
-	ret = set_cdb_getlist_setlist(cdb, 0, 0, 0, 0, 0, 0);
-	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out, &data_out_len,
-				sense_out, &senselen_out);
+	ret = osd_command_attr_build(&cmd, &attr, 1);
+	assert (ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen,
+				&data_out, &data_out_len, sense_out,
+				&senselen_out);
 	assert(ret == 0);
 
-	/* create partition, get ccap, set value */
-/*	ret = set_cdb_osd_create_partition(cdb, PARTITION_PID_LB);
-	assert(ret == 0);
-	ret = set_cdb_getpage_set*/
+	free(cmd.attr_malloc);
+
+}
 
 void test_create(struct osd_device *osd)
 {
 	int ret = 0;
-	uint8_t cdb[CDB_SZ];
+	struct osd_command cmd;
 	int senselen_out;
 	uint8_t sense_out[MAX_SENSE_LEN];
 	uint8_t *data_out;
-	uint64_t data_out_len;
+	const void *data_in;
+	uint64_t data_out_len, data_in_len;
 
 	/* create partition + empty getpage_setlist */
-	ret = set_cdb_osd_create_partition(cdb, PARTITION_PID_LB);
+	ret = osd_command_set_create_partition(&cmd, PARTITION_PID_LB);
 	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out, &data_out_len,
-				sense_out, &senselen_out);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 
 	/* create 1 object */
-	ret = set_cdb_osd_create(cdb, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 1);
+	ret = osd_command_set_create(&cmd, USEROBJECT_PID_LB,
+				     USEROBJECT_OID_LB, 1); 
 	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out, &data_out_len,
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, &data_out_len,
 				sense_out, &senselen_out);
 	assert(ret == 0);
 
 	/* remove the object */
-	ret = set_cdb_osd_remove(cdb, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
+	ret = osd_command_set_remove(&cmd, USEROBJECT_PID_LB, 
+				     USEROBJECT_OID_LB);
 	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out, &data_out_len,
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, &data_out_len,
 				sense_out, &senselen_out);
 	assert(ret == 0);
 
+	struct attribute_list attr = {
+		ATTR_GET_PAGE, CUR_CMD_ATTR_PG, 0, NULL, CCAP_TOTAL_LEN, 0
+	};
 	/* create 5 objects & get ccap */
-	ret = set_cdb_osd_create(cdb, USEROBJECT_PID_LB, 0, 5);
+	ret = osd_command_set_create(&cmd, USEROBJECT_PID_LB, 0, 5);
 	assert(ret == 0);
-	ret = set_cdb_getpage_setvalue(cdb, CUR_CMD_ATTR_PG, CCAP_TOTAL_LEN,
-				       0, 0, 0, 0, 0); 
+	ret = osd_command_attr_build(&cmd, &attr, 1);
 	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out, &data_out_len,
-				sense_out, &senselen_out);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 
 	assert(ntohl_le(&data_out[CCAP_PAGEID_OFF]) == CUR_CMD_ATTR_PG);
@@ -123,9 +134,9 @@ void test_create(struct osd_device *osd)
 	i -= (5-1);
 	/* remove 5 objects */
 	for (;i < USEROBJECT_OID_LB + 5; i++) {
-		ret = set_cdb_osd_remove(cdb, USEROBJECT_PID_LB, i);
+		ret = osd_command_set_remove(&cmd, USEROBJECT_PID_LB, i);
 		assert(ret == 0);
-		ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out,
+		ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
 					&data_out_len, sense_out,
 					&senselen_out);
 		assert(ret == 0);
@@ -135,48 +146,53 @@ void test_create(struct osd_device *osd)
 	char str1[MAXNAMELEN], str2[MAXNAMELEN];
 	sprintf(str1, "Madhuri Dixit Rocks!!");
 	sprintf(str2, "A ciggarate a day, kills a moron anyway.");
-	struct list_entry le[] = {
-		{USEROBJECT_PG+LUN_PG_LB, 111, strlen(str1)+1, str1}, 
-		{USEROBJECT_PG+LUN_PG_LB+1, 321, strlen(str2)+1, str2}
+	struct attribute_list setattr[] = {
+		{ATTR_SET, USEROBJECT_PG+LUN_PG_LB, 111, str1, strlen(str1)+1, 
+			0
+		}, 
+		{ATTR_SET, USEROBJECT_PG+LUN_PG_LB+1, 321, str2,
+			strlen(str2)+1, 0
+		} 
 	};
 
-	ret = set_cdb_osd_create(cdb, USEROBJECT_PID_LB, 0, 5);
+	ret = osd_command_set_create(&cmd, USEROBJECT_PID_LB, 0, 5);
 	assert(ret == 0);
-
-	uint8_t indata[1024];
-	int len = set_cdb_setattr_list(&indata[512], le, 2);
-	assert(len > 0);
-
-	ret = set_cdb_getlist_setlist(cdb, 0, 0, 0, 0, len, 512);
+	ret = osd_command_attr_build(&cmd, setattr, 2);
 	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, indata, 1024, &data_out,
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 
 	/* remove 5 objects and get previously set attributes for each */
-	struct getattr_list_entry gl[] = { 
-		{USEROBJECT_PG+LUN_PG_LB+1, 321}, 
-		{USEROBJECT_PG+LUN_PG_LB, 111} 
+	struct attribute_list getattr[] = { 
+		{ATTR_GET, USEROBJECT_PG+LUN_PG_LB+1, 321, NULL, strlen(str2), 
+			0
+		}, 
+		{ATTR_GET, USEROBJECT_PG+LUN_PG_LB, 111, NULL, strlen(str1),
+			0
+		} 
 	};
 	for (i = USEROBJECT_OID_LB; i < (USEROBJECT_OID_LB + 5); i++) {
 		uint8_t *cp = NULL;
 		uint8_t pad = 0;
+		uint32_t len = 0;
 
-		ret = set_cdb_osd_remove(cdb, USEROBJECT_PID_LB, i);
+		ret = osd_command_set_remove(&cmd, USEROBJECT_PID_LB, i);
 		assert(ret == 0);
-
-		len = set_cdb_getattr_list(&indata[256], gl, 2);
-		assert(len > 0);
-		ret = set_cdb_getlist_setlist(cdb, len, 256, 1024, 512, 0, 0);
+		ret = osd_command_attr_build(&cmd, getattr, 2);
 		assert(ret == 0);
-		ret = osdemu_cmd_submit(osd, cdb, indata, 1024, &data_out,
-					&data_out_len, sense_out,
+		data_in = cmd.outdata;
+		data_in_len = cmd.outlen;
+		ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len,
+					&data_out, &data_out_len, sense_out,
 					&senselen_out);
 		assert(ret == 0);
-		assert(data_out[512] == RTRVD_SET_ATTR_LIST);
-		len = ntohl(&data_out[512+4]);
+		assert(data_out[0] == RTRVD_SET_ATTR_LIST);
+		len = ntohl(&data_out[4]);
 		assert(len > 0);
-		cp = &data_out[512+8];
+		cp = &data_out[8];
 		assert(ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB+1);
 		assert(ntohl(&cp[LE_NUMBER_OFF]) == 321);
 		len = ntohs(&cp[LE_LEN_OFF]);
@@ -198,13 +214,14 @@ void test_create(struct osd_device *osd)
 	}
 
 	/* remove partition */
-	ret = set_cdb_osd_remove_partition(cdb, PARTITION_PID_LB);
+	ret = osd_command_set_remove_partition(&cmd, PARTITION_PID_LB);
 	assert(ret == 0);
-	ret = osdemu_cmd_submit(osd, cdb, NULL, 0, &data_out, &data_out_len,
-				sense_out, &senselen_out);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
+
+	free(cmd.attr_malloc);
 }
-#endif
 
 int main()
 {
@@ -215,8 +232,8 @@ int main()
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
 
-	test_partition(&osd);
-	/* test_create(&osd); */
+	/* test_partition(&osd); */
+	test_create(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

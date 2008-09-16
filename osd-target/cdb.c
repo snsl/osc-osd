@@ -727,7 +727,7 @@ static void exec_service_action(struct command *cmd)
  * uaddrlen: output var with number of valid bytes put in uaddr after a read
  */
 int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
-		      uint8_t *data_in, uint64_t data_in_len,
+		      const uint8_t *data_in, uint64_t data_in_len,
 		      uint8_t **data_out, uint64_t *data_out_len,
 		      uint8_t *sense_out, int *senselen_out)
 {

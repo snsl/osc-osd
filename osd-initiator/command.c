@@ -19,7 +19,13 @@
 #include <errno.h>
 #include <stdint.h>
 #include <scsi/scsi.h>
+
+/* turn this on automatically with configure some day */
+#if 0
 #include <valgrind/memcheck.h>
+#else
+#define VALGRIND_MAKE_MEM_DEFINED(p, len)
+#endif
 
 /* #define BSG_BACK_TO_SG_IOVEC */
 
@@ -41,8 +47,7 @@ static void varlen_cdb_init(struct osd_command *command, uint16_t action)
 	command->cdb[7] = OSD_CDB_SIZE - 8;
         command->cdb[8] = (action & 0xff00U) >> 8;
         command->cdb[9] = (action & 0x00ffU);
-	/*default to contiguous buffer*/
-	osd_command_set_ddt(command, DDT_CONTIG);
+	/* default data distribution type is contiguous (0) */
 	command->cdb[11] = 3 << 4;  /* default to list, but empty list lens */
 	/* Update timestamps based on action 5.2.8 */
 	command->cdb[12] = 0x7f;  /* timestamps not updated */
@@ -403,16 +408,18 @@ int osd_command_set_cond_setattr(struct osd_command *command, uint64_t pid,
 	return 0;
 }
 
-void osd_command_set_ddt(struct osd_command *command, uint8_t type)
+void osd_command_set_ddt(struct osd_command *command, uint8_t ddt_type)
 {
-	/*need a sep function, might not always be 00 for the default*/
-	command->cdb[10] = type;  /*using last 2 bits of option byte see 5.2.5*/
+	/*
+	 * Using last 2 bits of option byte, just like flush_scope, see 5.2.5
+	 */
+        command->cdb[10] = (command->cdb[10] & ~0x3) | ddt_type;
 }
 
 
 uint8_t osd_command_get_ddt(struct osd_command *command)
 {
-	return command->cdb[10];
+	return command->cdb[10] & 0x3;
 }
 
 /*

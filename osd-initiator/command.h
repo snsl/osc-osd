@@ -146,7 +146,7 @@ int osd_command_set_set_member_attributes(struct osd_command *command,
 					  uint64_t pid, uint64_t cid);
 int osd_command_set_write(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
-void osd_command_set_ddt(struct osd_command *command, uint8_t type);
+void osd_command_set_ddt(struct osd_command *command, uint8_t ddt_type);
 uint8_t osd_command_get_ddt(struct osd_command *command);
 /*
  * Extensions, not yet in T10 or SNIA OSD spec.

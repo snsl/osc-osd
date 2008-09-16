@@ -55,10 +55,14 @@ static const char *bsg_dev(const char *block_dev)
 	const char *sd = block_dev + strlen("/dev/");
 	char s[1024], t[1024], *cp;
 	static char *u = NULL;
+	int ret;
 
 	if (u == NULL) {
 		sprintf(s, "/sys/block/%s/queue/bsg", sd);
-		readlink(s, t, sizeof(t));
+		ret = readlink(s, t, sizeof(t));
+		if (ret < 0)
+			osd_error_fatal("%s: readlink %s", __func__, s);
+		t[ret] = 0;  /* dumb readlink api */
 		cp = strrchr(t, '/') + 1;
 		u = malloc(strlen("/dev/bsg/") + strlen(cp) + 1);
 		sprintf(u, "/dev/bsg/%s", cp);

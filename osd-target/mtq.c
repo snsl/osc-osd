@@ -17,7 +17,7 @@
 #include "list-entry.h"
 
 /*
- * mtq: mutitable query, all queries dealing with >=2 tables are implemented
+ * mtq: multitable query, all queries dealing with >=2 tables are implemented
  * here
  */
 

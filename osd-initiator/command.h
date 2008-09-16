@@ -124,6 +124,9 @@ int osd_command_set_set_member_attributes(struct osd_command *command,
 int osd_command_set_write(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
 
+/*
+ * Extensions, not yet in T10 or SNIA OSD spec.
+ */
 int osd_command_set_cas(struct osd_command *command, uint64_t pid,
 			uint64_t oid, uint64_t len, uint64_t offset);
 

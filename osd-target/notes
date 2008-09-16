@@ -738,3 +738,13 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
 
 # Thu Nov  1 16:45:05 EDT 2007
 - change arguments tests in functions to assertions
+
+# Fri Nov  2 14:37:31 EDT 2007
+- improve SQLite's performance
+
+# Mon Nov  5 15:09:35 EST 2007
+- combine partition/object testing into one
+
+# Fri Nov 30 17:29:47 EST 2007
+- create branch in svn to handle the debug cases. for eg. tick tracing to
+  debug the fairness for different clients

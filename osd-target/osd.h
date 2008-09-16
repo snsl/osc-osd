@@ -104,8 +104,10 @@ int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
 int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, struct setattr_list *set_attr,
 			      uint8_t *sense);
-int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
-	      uint64_t offset, const uint8_t *data, uint8_t *sense, uint8_t ddt);
+
+int osd_write(struct osd_device *osd, uint64_t pid, uint64_t uid, 
+	      uint64_t len, uint64_t offset, const uint8_t *data, 
+	      uint8_t *sense, uint8_t ddt);
 
 int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,

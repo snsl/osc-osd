@@ -2576,8 +2576,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 /*	osd_debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid),
 		  llu(oid)); */
 
-	if (!osd || !osd->root || !osd->dbc || !val || !sense)
-		goto out_cdb_err;
+	assert(osd && osd->root && osd->dbc && sense);
 
 	ret = obj_ispresent(osd->dbc, pid, oid, &present);
 	if (ret != OSD_OK || !present) /* object not present! */
@@ -2593,7 +2592,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (number == ATTRNUM_UNMODIFIABLE)
 		goto out_param_list;
 
-	if (val == NULL)
+	if ((val == NULL && len != 0) || (val != NULL && len == 0))
 		goto out_cdb_err;
 
 	/* information page, make sure null terminated. osd2r00 7.1.2.2 */
@@ -3015,6 +3014,8 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 			   sizeof(val), &val, &usedlen);
 	if (ret != OSD_OK)
 		goto out_hw_err;
+
+	osd_debug("cmp %lu swap %lu", cmp, swap);
 
 	if (val == cmp) {
 		ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG,

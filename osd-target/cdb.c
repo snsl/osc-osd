@@ -171,7 +171,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		goto out_param_list_err;
 	outbuf = &cmd->outdata[cmd->retrieved_attr_off];
 
-	if (getattr_list_len != 0 && getattr_list_len < MIN_LIST_LEN)
+	if (getattr_list_len != 0 && getattr_list_len < LIST_HDR_LEN)
 		goto out_param_list_err;
 
 	if (list_off + list_alloc_len > cmd->outlen)
@@ -257,7 +257,7 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if (setattr_list_len == 0)
 		return 0; /* nothing to set, osd2r00 Sec 5.2.2.3 */
 
-	if (setattr_list_len != 0 && setattr_list_len < MIN_LIST_LEN)
+	if (setattr_list_len != 0 && setattr_list_len < LIST_HDR_LEN)
 		goto out_param_list_err;
 
 	list_type = list_hdr[0] & 0xF;
@@ -484,13 +484,14 @@ static int cdb_remove(struct command *cmd)
 	return osd_remove(cmd->osd, pid, oid, cmd->sense);
 }
 
-static int std_get_set_attr(struct command *cmd, uint64_t pid, uint64_t oid)
+static inline int std_get_set_attr(struct command *cmd, uint64_t pid, 
+				   uint64_t oid)
 {
 		int ret = set_attributes(cmd, pid, oid, 1);
-		if (ret){ return ret; }
+		if (ret) 
+			return ret;
 
-		ret = get_attributes(cmd, pid, oid, 1);
-		return ret;
+		return get_attributes(cmd, pid, oid, 1);
 }
 
 static void exec_service_action(struct command *cmd)
@@ -505,15 +506,16 @@ static void exec_service_action(struct command *cmd)
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
+
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
-		ret = osd_append(osd, pid, oid, len, cmd->indata, sense);
 
+		ret = osd_append(osd, pid, oid, len, cmd->indata, sense);
 		if (ret)
 			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
+
+		ret = std_get_set_attr(cmd, pid, oid);
 		break;
 	}
 	case OSD_CREATE: {
@@ -525,6 +527,7 @@ static void exec_service_action(struct command *cmd)
 		uint64_t requested_oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
 		uint64_t offset = ntohll(&cdb[44]);
+
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
@@ -535,6 +538,7 @@ static void exec_service_action(struct command *cmd)
 	case OSD_CREATE_COLLECTION: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t requested_cid = ntohll(&cdb[24]);
+
 		ret = osd_create_collection(osd, pid, requested_cid, sense);
 		break;
 	}
@@ -546,55 +550,33 @@ static void exec_service_action(struct command *cmd)
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 		int flush_scope = cdb[10] & 0x3;
-		ret = osd_flush(osd, pid, oid, flush_scope, sense);
 
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
+		ret = osd_flush(osd, pid, oid, flush_scope, sense);
 		break;
 	}
 	case OSD_FLUSH_COLLECTION: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
 		int flush_scope = cdb[10] & 0x3;
-		ret = osd_flush_collection(osd, pid, cid, flush_scope, sense);
 
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
+		ret = osd_flush_collection(osd, pid, cid, flush_scope, sense);
 		break;
 	}
 	case OSD_FLUSH_OSD: {
 		int flush_scope = cdb[10] & 0x3;
-		ret = osd_flush_osd(osd, flush_scope, sense);
 
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
+		ret = osd_flush_osd(osd, flush_scope, sense);
 		break;
 	}
 	case OSD_FLUSH_PARTITION: {
 		uint64_t pid = ntohll(&cdb[16]);
 		int flush_scope = cdb[10] & 0x3;
 		ret = osd_flush_partition(osd, pid, flush_scope, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_FORMAT_OSD: {
 		uint64_t capacity = ntohll(&cdb[36]);
 		ret = osd_format_osd(osd, capacity, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_GET_ATTRIBUTES: {
@@ -621,11 +603,6 @@ static void exec_service_action(struct command *cmd)
 		uint64_t initial_oid = ntohll(&cdb[44]);
 		ret = osd_list(osd, pid, list_id, alloc_len, initial_oid,
 			       cmd->outdata, &cmd->used_outlen, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_LIST_COLLECTION: {
@@ -637,11 +614,6 @@ static void exec_service_action(struct command *cmd)
 		ret = osd_list_collection(osd, pid, cid, list_id, alloc_len,
 					  initial_oid, cmd->outdata,
 					  &cmd->used_outlen, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_PERFORM_SCSI_COMMAND:
@@ -659,16 +631,6 @@ static void exec_service_action(struct command *cmd)
 		uint32_t query_len = ntohl(&cdb[32]);
 		uint64_t alloc_len = ntohll(&cdb[36]);
 		ret = osd_query(osd, pid, cid, query_len, alloc_len, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_READ: {
@@ -678,16 +640,6 @@ static void exec_service_action(struct command *cmd)
 		uint64_t offset = ntohll(&cdb[44]);
 		ret = osd_read(osd, pid, oid, len, offset, cmd->outdata,
 			       &cmd->used_outlen, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_REMOVE: {
@@ -711,11 +663,13 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_SET_ATTRIBUTES: {
-		// ret = set_attributes();
-		// Check for errors, return debug/sense
-		// ret = get_attributes();
-		// Check for errors, return debug/sense
-		ret = 0;
+		uint64_t pid = ntohll(&cdb[16]);
+		uint64_t oid = ntohll(&cdb[24]);
+
+		ret = set_attributes(cmd, pid, oid, 1);
+		if (ret)
+			break;
+		ret = get_attributes(cmd, pid, oid, 1);
 		break;
 	}
 	case OSD_SET_KEY: {
@@ -725,11 +679,6 @@ static void exec_service_action(struct command *cmd)
 		uint8_t seed[20];
 		memcpy(seed, &cdb[32], 20);
 		ret = osd_set_key(osd, key_to_set, pid, key, seed, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_SET_MASTER_KEY: {
@@ -740,11 +689,6 @@ static void exec_service_action(struct command *cmd)
 		ret = osd_set_master_key(osd, dh_step, key, param_len,
 					 alloc_len, cmd->outdata,
 					 &cmd->used_outlen, sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	case OSD_SET_MEMBER_ATTRIBUTES: {
@@ -763,11 +707,6 @@ static void exec_service_action(struct command *cmd)
 			break;
 		ret = osd_write(osd, pid, oid, len, offset, cmd->indata,
 				sense);
-
-		if (ret)
-			break;
-		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, sense);
 		break;
 	}
 	default:

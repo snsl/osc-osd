@@ -1,14 +1,13 @@
-iscsi tcp nodelay
-
+From 810a3dca6dd9250bf789bf899a96d1d15271d739 Mon Sep 17 00:00:00 2001
 From: Pete Wyckoff <pw@osc.edu>
+Date: Tue, 16 Oct 2007 15:21:39 -0400
+Subject: [PATCH 7/7] iscsi tcp nodelay
 
 Set TCP_NODELAY to avoid big latency between sending data-in and sending
 command response.
 ---
-
  usr/iscsi/iscsi_tcp.c |   13 +++++++++++++
  1 files changed, 13 insertions(+), 0 deletions(-)
-
 
 diff --git a/usr/iscsi/iscsi_tcp.c b/usr/iscsi/iscsi_tcp.c
 index 1e818a0..9c09558 100644
@@ -41,3 +40,6 @@ index 1e818a0..9c09558 100644
  	tcp_conn = zalloc(sizeof(*tcp_conn));
  	if (!tcp_conn)
  		goto out;
+-- 
+1.5.3.6
+

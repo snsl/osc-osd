@@ -1,16 +1,15 @@
-local allow non root to run
-
+From 0fa4419f0fb46d51329ebc0809f854ed2ca2b0e3 Mon Sep 17 00:00:00 2001
 From: Pete Wyckoff <pw@osc.edu>
+Date: Tue, 16 Oct 2007 15:21:32 -0400
+Subject: [PATCH 4/7] local allow non root to run
 
 Modify so that IPC matches credentials rather than requiring root.
 Do not try to adjust oom-killer if non root.  Also die on signal rather
 than catch and continue.
 ---
-
  usr/mgmt.c |    2 +-
  usr/tgtd.c |   17 +++++++++++++----
  2 files changed, 14 insertions(+), 5 deletions(-)
-
 
 diff --git a/usr/mgmt.c b/usr/mgmt.c
 index e54d83e..b4a4829 100644
@@ -74,3 +73,6 @@ index 5fcded0..238551d 100644
  		exit(1);
  
  	err = oom_adjust();
+-- 
+1.5.3.6
+

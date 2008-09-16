@@ -1,19 +1,18 @@
-osd emulation backingstore
-
+From 83b9c3f1139740a885d3aa092f27f54a9198a84a Mon Sep 17 00:00:00 2001
 From: Pete Wyckoff <pw@osc.edu>
+Date: Tue, 16 Oct 2007 15:21:37 -0400
+Subject: [PATCH 1/7] osd emulation backingstore
 
 This adds code that calls out into an external library to actually
 implement OSD commands.  It defines a new backingstore to process
 OSD commands.  Will not compile unless you have an external library
 that is not supplied in this patch.
 ---
-
  usr/Makefile    |   19 +++
  usr/bs_osdemu.c |  361 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
- usr/target.c    |   12 ++
+ usr/target.c    |   12 ++-
  3 files changed, 390 insertions(+), 2 deletions(-)
  create mode 100644 usr/bs_osdemu.c
-
 
 diff --git a/usr/Makefile b/usr/Makefile
 index 5ad6017..5e92302 100644
@@ -448,3 +447,6 @@ index 9b9df41..2cafd55 100644
  	} else {
  		eprintf("Unknown device type %d\n", dev_type);
  		ret = TGTADM_INVALID_REQUEST;
+-- 
+1.5.3.6
+

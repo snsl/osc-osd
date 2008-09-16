@@ -1,6 +1,7 @@
-local logging changes
-
+From a3768e9da7c0ce661252ffdc2cbfbfd134d3ef71 Mon Sep 17 00:00:00 2001
 From: Pete Wyckoff <pw@osc.edu>
+Date: Tue, 16 Oct 2007 15:21:33 -0400
+Subject: [PATCH 5/7] local logging changes
 
 Do not use syslog for error messages, just send them to stdout/stderr where
 they can be redirected.  Add NDEBUG ifdef around log_debug to avoid
@@ -8,12 +9,10 @@ compiling those lines for optimized performance, and fix a compiler warning
 that falls out due to this.  Put timestamps on messages for performance
 debugging.
 ---
-
  usr/log.c |   19 +++++++++++++++----
  usr/log.h |    6 ++++++
  usr/spc.c |    2 ++
  3 files changed, 23 insertions(+), 4 deletions(-)
-
 
 diff --git a/usr/log.c b/usr/log.c
 index 414f9f4..f7cb240 100644
@@ -116,3 +115,6 @@ index 0d52164..8931b31 100644
  }
  
  int spc_illegal_op(int host_no, struct scsi_cmd *cmd)
+-- 
+1.5.3.6
+

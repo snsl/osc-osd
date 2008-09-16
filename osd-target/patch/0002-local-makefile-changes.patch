@@ -1,13 +1,12 @@
-local makefile changes
-
+From 23d070cdcf21396d37a38c9a851614e3a881a8a8 Mon Sep 17 00:00:00 2001
 From: Pete Wyckoff <pw@osc.edu>
+Date: Tue, 16 Oct 2007 15:21:30 -0400
+Subject: [PATCH 2/7] local makefile changes
 
 Build osdemu iscsi target only.  Link with local osd-target emulator code.
 ---
-
  usr/Makefile |   22 +++++++++++++++++++---
  1 files changed, 19 insertions(+), 3 deletions(-)
-
 
 diff --git a/usr/Makefile b/usr/Makefile
 index 5e92302..7b83d92 100644
@@ -53,3 +52,6 @@ index 5e92302..7b83d92 100644
 +tags:
 +	ctags $$(find . -name '*.[ch]')
 +
+-- 
+1.5.3.6
+

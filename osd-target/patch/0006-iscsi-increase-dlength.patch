@@ -1,6 +1,7 @@
-iscsi increase dlength
-
+From ac3810d59aef349c863906d4b1eac1b7e640d763 Mon Sep 17 00:00:00 2001
 From: Pete Wyckoff <pw@osc.edu>
+Date: Tue, 16 Oct 2007 15:21:35 -0400
+Subject: [PATCH 6/7] iscsi increase dlength
 
 Change recv dlength and first burst from 64k to 256k for better
 performance.  You can instead do something like:
@@ -14,10 +15,8 @@ performance.  You can instead do something like:
 
 And get the same effect without a patch.
 ---
-
  usr/iscsi/target.c |    6 +++---
  1 files changed, 3 insertions(+), 3 deletions(-)
-
 
 diff --git a/usr/iscsi/target.c b/usr/iscsi/target.c
 index 0471d15..e5ea968 100644
@@ -41,3 +40,6 @@ index 0471d15..e5ea968 100644
  		[ISCSI_PARAM_MAX_BURST] = {0, 262144},
  		[ISCSI_PARAM_PDU_INORDER_EN] = {0, 1},
  		[ISCSI_PARAM_DATASEQ_INORDER_EN] = {0, 1},
+-- 
+1.5.3.6
+

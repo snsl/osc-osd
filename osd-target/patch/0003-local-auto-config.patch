@@ -1,14 +1,13 @@
-local auto config
-
+From 7f431099f403f5b584fc6a89b074e7b84b468750 Mon Sep 17 00:00:00 2001
 From: Pete Wyckoff <pw@osc.edu>
+Date: Tue, 16 Oct 2007 15:21:31 -0400
+Subject: [PATCH 3/7] local auto config
 
 Hack in auto-configuration of an OSD emulation LUN with a big hardcoded
 section in mgmt.c.  It uses /tmp/tgt-<username> for the storage directory.
 ---
-
  usr/mgmt.c |  164 ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  1 files changed, 164 insertions(+), 0 deletions(-)
-
 
 diff --git a/usr/mgmt.c b/usr/mgmt.c
 index 287c03c..e54d83e 100644
@@ -206,3 +205,6 @@ index 287c03c..e54d83e 100644
  	return 0;
  out:
  	close(fd);
+-- 
+1.5.3.6
+

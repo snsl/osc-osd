@@ -10,16 +10,17 @@
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, version 2 of the License.
-#
+# 
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-#
+# 
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import os
+import errno
 import sys
 import pwd
 import csv
@@ -34,7 +35,6 @@ options = {
     "meta_on_io": "no",
     "one_config_file" : "yes",
     "mirror": "",
-    "ismirror": "no", # XXX: later remove either mirror or ismirror
     "pvfs_osd_integrated": "no",
     "rdma": "no",
 }
@@ -46,8 +46,6 @@ id = pwd.getpwuid(os.getuid())[0]
 
 if id == "pw":
     osd_dir = "/home/pw/src/osd"
-elif id == "dennis":
-    osd_dir = "/home/dennis/Projects/OSD/osd"
 elif id == "alin":
     osd_dir = "/home/alin/research/osd"
 elif id == "ananth":
@@ -59,7 +57,6 @@ initiator = osd_dir + "/osd-util/initiator"
 tgtd      = osd_dir + "/stgt/tgtd"
 pvfs_init = osd_dir + "/osd-initiator/python/pvfs-init.py"
 pvfs_osd_integrated_init = osd_dir + "/osd-initiator/python/pvfs-osd-integrated-init.py"
-eat_tur = osd_dir + "/osd-initiator/python/eat-tur.py"
 allify_code = "/home/pw/bin/allify"
 
 # old location in target dir
@@ -129,10 +126,9 @@ def usage():
     print >>sys.stderr, "  -mio : metadata servers on IO servers (-o none", \
     			"only), not default"
     print >>sys.stderr, "  -2 : two config files (ancient PVFS), not default"
-    print >>sys.stderr, "  -mirror <ionodes> : use given ionodes file to", \
-    			"build a mirror MD setup"
-    print >>sys.stderr, "  -ismirror, to make mirror servers. In this case",\
-                        "it uses its own ionodes"
+    print >>sys.stderr, "  -remote-mount <metanodes file> <ionodes file>"
+    print >>sys.stderr, "  -meta-mirror <ionodes file>"
+    print >>sys.stderr, "  -data-cache"
     print >>sys.stderr, "  -poi : for PVFS_OSD_INTEGRATED, connect to OSDs"
     print >>sys.stderr, "  -rdma : connect to OSDs using iSER"
     sys.exit(1)
@@ -151,12 +147,17 @@ tabfile = testdir + "/pvfs2tab"
 fsconf = testdir + "/fs.conf"
 serverconf = testdir + "/server.conf"
 
+# possible locations of remote nodes for mirror config
+mirror_metanodes = ""
+mirror_ionodes = ""
+
 def allbut(nodes, numservers):
     # keep 1 extra as a compute node
-    if numservers >= len(nodes):
-	print >>sys.stderr, \
-	      "Too many server nodes for PBS request, need a client."
+    if numservers > len(nodes):
+	print >>sys.stderr, "Too many server nodes for PBS request."
 	sys.exit(1)
+    if numservers == len(nodes):
+	print >>sys.stderr, "Warning: no nodes left to be clients."
 
     # these are the compnodes, high nodes will be pvfs or osd servers
     return nodes[0:-numservers]
@@ -330,17 +331,37 @@ def buildfiles():
 	print >>sys.stderr, "Unknown dirtype", options["dirtype"]
 	sys.exit(1)
 
-    # Override the above, using this give list of ionodes.
-    if options["mirror"] != "":
-	pvfsnodes = [x for x in pvfsnodes if x not in ionodes]
+    # Override the above, possibly, using given list(s) of ionodes, metanodes.
+    if options["mirror"] == "remote-mount" or \
+       options["mirror"] == "meta-mirror":
+	# replace ionodes
+	for x in ionodes:
+	    pvfsnodes.remove(x)
+	    compnodes.append(x)
 	ionodes = []
-	fd = open(options["mirror"])
+	fd = open(mirror_ionodes)
 	while True:
 	    line = fd.readline()
 	    if line == "":
 		break
-	    ionodes.append(line[:-1])
-	    pvfsnodes.append(line[:-1])
+	    line = line[:-1]
+	    ionodes.append(line)
+	    pvfsnodes.append(line)
+	fd.close()
+    if options["mirror"] == "remote-mount":
+	# replace metanodes
+	for x in metanodes:
+	    pvfsnodes.remove(x)
+	    compnodes.append(x)
+	metanodes = []
+	fd = open(mirror_metanodes)
+	while True:
+	    line = fd.readline()
+	    if line == "":
+		break
+	    line = line[:-1]
+	    metanodes.append(line)
+	    pvfsnodes.append(line)
 	fd.close()
 
     # figure out the meta and data handle ranges
@@ -403,7 +424,7 @@ def buildfiles():
     print >>fd, "<Filesystem>"
     print >>fd, "    Name pvfs2-fs"
     print >>fd, "    ID", pid
-    if options["ismirror"] == "yes":
+    if options["mirror"] != "":
         print >>fd, "    IsMirror", 1
 
     print >>fd, "    <DataHandleRanges>"
@@ -442,15 +463,7 @@ def buildfiles():
 #    print >>fd, "        Value 256"
 #    print >>fd, "    </Distribution>"
     print >>fd, "    FlowBufferSizeBytes 16777216"
-
-    # mark it as read-only, still allowing localhost to write
-    if options["mirror"] != "":
-	print >>fd, "    <ExportOptions>"
-	print >>fd, "        ReadOnly 10.0.0.0@8"
-	print >>fd, "    </ExportOptions>"
-
     print >>fd, "</Filesystem>"
-
     fd.close()
 
     # generate server.conf-* for pvfs server nodes
@@ -528,24 +541,29 @@ def allify(n):
 
 
 def start():
-    # don't mess with io nodes if just a mirror
+    # don't mess with certain classes of nodes if mirror
     mypvfsnodes = pvfsnodes
-    if options["mirror"] != "":
-	mypvfsnodes = [x for x in pvfsnodes if x not in ionodes]
+
+    if options["mirror"] == "remote-mount" or \
+       options["mirror"] == "meta-mirror":
+	mypvfsnodes = [x for x in mypvfsnodes if x not in ionodes]
+    if options["mirror"] == "remote-mount":
+	mypvfsnodes = [x for x in mypvfsnodes if x not in metanodes]
 
     # sync files to pvfs nodes
-    for n in pvfsnodes:
+    for n in mypvfsnodes:
 	if options["one_config_file"] == "yes":
-	    os.system("rcp " + testdir + "/fs.conf " + n + ":" + testdir)
+	    os.system("rcp "
+		       + testdir + "/fs.conf " + n + ":" + testdir)
 	else:
-	    os.system("rcp " + testdir + "/{fs.conf,server.conf-" + n + "} " + \
-		      n + ":" + testdir)
+	    os.system("rcp "
+		       + testdir + "/{fs.conf,server.conf-" + n + "} "
+		       + n + ":" + testdir)
 
     # start osd targets
     if len(osdnodes) > 0:
 	if options["storage"] == "tmpfs":
-	    mountup = "sudo mount -t tmpfs -o size=1800m none /tmp/tgt-" + \
-	    	      id + " \; "
+	    mountup = "sudo mount -t tmpfs -o size=1800m none /tmp/tgt-" + id + " \; "
 	else:
 	    mountup = ""
 
@@ -558,8 +576,7 @@ def start():
 
     if len(mypvfsnodes) > 0:
 	if options["storage"] == "tmpfs":
-	    mountup = "sudo mount -t tmpfs -o size=1800m none " + testdir + \
-		      "/storage \;"
+	    mountup = "sudo mount -t tmpfs -o size=1800m none " + testdir + "/storage \;"
 	else:
 	    mountup = ""
 
@@ -586,10 +603,9 @@ def start():
     # compnodes
     myosdnodes = osdnodes
     if options["pvfs_osd_integrated"] == "yes":
-	myosdnodes = osdnodes + pvfsnodes
+	myosdnodes = osdnodes + mypvfsnodes
 
-    # append "-ib" to the osdnodes. we probably need a new option here so that
-    # we append "-ib" to the nodes only if we'e using IB.
+    # append "-ib" to the osdnodes if using rdma
     if options["rdma"] == "yes":
 	startcmd = "start --rdma"
 	if host.rfind("opt") == -1:
@@ -601,33 +617,31 @@ def start():
 	startcmd = "start"
 
     if len(myibosdnodes) > 0:
-	# would like to do this, but some bug in python code perhaps
-	# eat_tur + " " + " ".join(myosdnodes))
-	s = ("all " + allify(compnodes) + " "
+	os.system("all " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile + " \; "
 	    + "sudo " + initiator + " " + startcmd + " "
-	    + " ".join(myibosdnodes) + " \; sleep 1 \; " + eat_tur + " "
-	    + (" \; " + eat_tur + " ").join(myosdnodes))
-	print s
-	os.system(s)
-    else:
+	    + " ".join(myibosdnodes))
+    elif len(compnodes) > 0:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile)
+    else:
+	# leave it on this starting machine at least
+    	os.system("echo " + tabfile_contents + " > " + tabfile)
 
     # format and initial pvfs layout on osd nodes.  The machine where
     # this script runs must be one of the compnodes so it can talk to
     # all the OSDs with iscsi.  (Or could rsh to one.)
     for n in osdnodes:
-	if datahandles.has_key(n):
-	    d = datahandles[n][0]
-	else:
+	if datahandles.has_key(n): 
+	    d = datahandles[n][0] 
+	else: 
 	    d = 0
-	if metahandles.has_key(n):
-	    m = metahandles[n][0]
-	else:
+	if metahandles.has_key(n): 
+	    m = metahandles[n][0] 
+	else: 
 	    m = 0
-	if m == roothandle:
-   	    s = " " + str(m) + " " + fsconf
+	if m == roothandle: 
+   	    s = " " + str(m) + " " + fsconf 
 	else:
 	    s = " "
 	#print pvfs_init + " " + n + " " + str(d) + " " + str(m) + s
@@ -637,7 +651,7 @@ def start():
 
     # just format and create the partition on these
     if options["pvfs_osd_integrated"] == "yes":
-	for n in pvfsnodes:
+	for n in mypvfsnodes:
 	    ret = os.system(pvfs_osd_integrated_init + " " + n + " " + str(pid))
 	    if ret:
 		print >>sys.stderr, pvfs_osd_integrated_init + " failed"
@@ -649,6 +663,7 @@ def status():
     print "Storage:                ", options["storage"]
     print "Meta-on-io:             ", options["meta_on_io"]
     print "One config file:        ", options["one_config_file"]
+    print "Mirror:                 ", options["mirror"]
 
     n = filter(lambda x: x in metanodes, osdnodes)
     if len(n) > 0:
@@ -683,9 +698,11 @@ def stop():
 	os.system("all -p " + allify(compnodes) + " "
 	    + "sudo " + initiator + " stop \; "
 	    + "rm " + tabfile)
-    else:
+    elif len(compnodes) > 0:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "rm " + tabfile)
+    else:
+	os.system("rm " + tabfile)
 
     if len(osdnodes) > 0:
 	os.system("all -p " + allify(osdnodes) + " "
@@ -704,7 +721,15 @@ def stop():
 
     for f in [fnodes, fcompnodes, fpvfsnodes, fosdnodes, fionodes, fmetanodes,
     	      fsconf, foptions]:
-	os.unlink(f)
+	try:
+	    os.unlink(f)
+	except OSError,e:
+	    if e[0] == errno.ENOENT and f == fsconf and \
+	       numion + nummeta == len(nodes):
+		# no compute nodes, data side of mirror case
+		pass
+	    else:
+		raise e
     if not options["one_config_file"] == "yes":
 	for n in mypvfsnodes:
 	    os.unlink(serverconf + "-" + n)
@@ -743,20 +768,28 @@ while i < len(sys.argv):
     elif sys.argv[i] == "-2":
 	options["one_config_file"] = "no"
 	i += 1
-    elif sys.argv[i] == "-mirror":
+    elif sys.argv[i] == "-remote-mount":
+	if i+2 >= len(sys.argv):
+	    usage()
+	mirror_metanodes = sys.argv[i+1]
+	mirror_ionodes = sys.argv[i+2]
+	options["mirror"] = sys.argv[i][1:]
+	i += 3
+    elif sys.argv[i] == "-meta-mirror":
 	if i+1 == len(sys.argv):
 	    usage()
-	options["mirror"] = sys.argv[i+1]
+	mirror_ionodes = sys.argv[i+1]
+	options["mirror"] = sys.argv[i][1:]
 	i += 2
+    elif sys.argv[i] == "-data-cache":
+	options["mirror"] = sys.argv[i][1:]
+	i += 1
     elif sys.argv[i] == "-poi":
 	options["pvfs_osd_integrated"] = "yes"
 	i += 1
     elif sys.argv[i] == "-rdma":
 	options["rdma"] = "yes"
 	i += 1
-    elif sys.argv[i] == "-ismirror":
-        options["ismirror"] = "yes"
-        i += 1
     else:
 	break
 

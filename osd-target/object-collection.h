@@ -22,5 +22,6 @@ int oc_get_cap(sqlite3 *db, uint64_t pid, uint64_t oid, void *outbuf,
 	       uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen);
 
 int oc_get_oids_in_cid(sqlite3 *db, uint64_t pid, uint64_t cid, void **buf);
+int oc_get_cids_in_pid(sqlite3 *db, uint64_t pid, void **buf);
 
 #endif /* __OBJECT_COLLECTION_H */

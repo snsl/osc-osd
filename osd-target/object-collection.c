@@ -260,4 +260,68 @@ out:
 	return ret;
 }
 
+/*
+ * NOTE: buf needs to be freed by the caller
+ *
+ * returns:
+ * -ENOMEM: out of memory
+ * -EINVAL: invalid arg
+ * ==0: success, buf points to memory containing oids
+ */
+int oc_get_cids_in_pid(sqlite3 *db, uint64_t pid, void **buf)
+{
+	int ret = -EINVAL;
+	char SQL[MAXSQLEN];
+	uint64_t cnt = 4096;
+	uint64_t cur_cnt = 0;
+	uint64_t *cids = NULL;
+	sqlite3_stmt *stmt = NULL;
 
+	if (db == NULL)
+		return -EINVAL;
+
+	cids = Malloc(cnt * sizeof(*cids));
+	if (!cids)
+		return -ENOMEM;
+
+	sprintf(SQL, "SELECT cid FROM object_collection WHERE pid = %llu",
+			llu(pid));
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: prepare", __func__);
+		goto out; /* no prepared stmt, no need to finalize */
+	}
+
+	cur_cnt = 0;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		if (cur_cnt == cnt) {
+			cnt *= 2;
+			cids = realloc(cids, cnt*sizeof(*cids));
+			if (!cids) {
+				ret = -ENOMEM;
+				goto out_finalize;
+			}
+		}
+		cids[cur_cnt] = (uint64_t)sqlite3_column_int64(stmt, 0);
+		cur_cnt++;
+	}
+
+	if (ret != SQLITE_DONE) {
+		error_sql(db, "%s: sqlite3_step", __func__);
+		ret = -EIO;
+		goto out_finalize;
+	} 
+
+	*buf = cids;
+	ret = 0;
+
+out_finalize:
+	/* 'ret' must be preserved. */
+	if (sqlite3_finalize(stmt) != SQLITE_OK) {
+		ret = -EIO;
+		error_sql(db, "%s: finalize", __func__);
+	}
+	
+out:
+	return ret;
+}

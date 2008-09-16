@@ -165,7 +165,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	case OSD_GET_ATTRIBUTES: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
-		uint32_t page = 0; /* XXX: fillme */
+		uint32_t page = ntohl(&cdb[52]);
 		uint32_t number = 0; /* XXX: fillme */
 		void *outbuf = NULL; /* XXX: fillme */
 		uint16_t len = 0; /* XXX: fillme */
@@ -246,10 +246,10 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	case OSD_SET_ATTRIBUTES: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
-		uint32_t page = 0; /* XXX: fillme */
-		uint32_t number = 0; /* XXX: fillme */
-		void *val = NULL; /* XXX: fillme */
-		uint16_t len = 0; /* XXX: fillme */
+		uint32_t page = ntohl(&cdb[64]);
+		uint32_t number = ntohl(&cdb[68]);
+		void *val = NULL; /* XXX: fillme, not sure what this does*/
+		uint16_t len = ntohs(&cdb[76]);
 		ret = osd_set_attributes(osd, pid, oid, page, number, val,
 					 len, sense);
 		break;

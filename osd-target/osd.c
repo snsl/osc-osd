@@ -904,10 +904,45 @@ out_hw_err:
 int osd_flush(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	      int flush_scope, uint8_t *sense)
 {
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
-}
+	char path[MAXNAMELEN];
+	int ret, fd;
 
+	osd_debug("%s: pid %llu oid %llu scope %d",
+		  __func__, llu(pid), llu(oid), flush_scope);
+
+	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
+		goto out_cdb_err;
+
+	get_dfile_name(path, osd->root, pid, oid);
+	fd = open(path, O_RDWR|O_LARGEFILE); /* fails on non-existent obj */
+	if (fd < 0)
+		goto out_cdb_err; 
+
+	if (flush_scope == 0) {   /* data and attributes */
+		ret = fdatasync(fd);
+		if (ret)
+			goto out_hw_err;
+	}
+
+	/* attributes always flushed?  need sqlite call here? */
+
+	ret = close(fd);
+	if (ret)
+		goto out_hw_err;
+
+	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
+	return OSD_OK; /* success */
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}
 
 int osd_flush_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 			 int flush_scope, uint8_t *sense)

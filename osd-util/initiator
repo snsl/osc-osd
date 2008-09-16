@@ -46,6 +46,8 @@ start() {
     if (( $# < 1 )) ; then usage ; fi
     if [[ $1 = --rdma ]] ; then
 	transport_type=iser
+	# XXX: debugging
+	#modprobe ib_iser debug_level=1
 	modprobe ib_iser
 	shift
 	if (( $# < 1 )) ; then usage ; fi

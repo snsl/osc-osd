@@ -5,7 +5,7 @@
 #
 # Relies on pvfs2 commands being in the path already.
 #
-# Copyright (C) 2007 Pete Wyckoff <pw@osc.edu>
+# Copyright (C) 2007-8 Pete Wyckoff <pw@osc.edu>
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -33,6 +33,7 @@ options = {
     "meta_on_io": "no",
     "one_config_file" : "yes",
     "mirror": "",
+    "pvfs_osd_integrated": "no",
 }
 
 # locations of external codes
@@ -46,6 +47,7 @@ else:
 initiator = osd_dir + "/osd-util/initiator"
 tgtd      = osd_dir + "/stgt/tgtd"
 pvfs_init = osd_dir + "/osd-initiator/python/pvfs-init.py"
+pvfs_osd_integrated_init = osd_dir + "/osd-initiator/python/pvfs-osd-integrated-init.py"
 allify_code = "/home/pw/bin/allify"
 
 # old location in target dir
@@ -117,6 +119,7 @@ def usage():
     print >>sys.stderr, "  -2 : two config files (ancient PVFS), not default"
     print >>sys.stderr, "  -mirror <ionodes> : use given ionodes file to", \
     			"build a mirror MD setup"
+    print >>sys.stderr, "  -poi : for PVFS_OSD_INTEGRATED, connect to OSDs"
     sys.exit(1)
 
 # filenames
@@ -375,10 +378,12 @@ def buildfiles():
 	            str(port)
     print >>fd, "</Aliases>"
 
+    global pid
+    pid = 424242
     print >>fd
     print >>fd, "<Filesystem>"
     print >>fd, "    Name pvfs2-fs"
-    print >>fd, "    ID 42"
+    print >>fd, "    ID", pid
 
     print >>fd, "    <DataHandleRanges>"
     for n in ionodes:
@@ -551,11 +556,16 @@ def start():
 		+ "TZ=EST5EDT pvfs2-server fs.conf server.conf")
 
     # compnodes
-    if len(osdnodes) > 0:
+    print "osdnodes", osdnodes
+    myosdnodes = osdnodes
+    if options["pvfs_osd_integrated"] == "yes":
+	myosdnodes = osdnodes + pvfsnodes
+
+    if len(myosdnodes) > 0:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile + " \; "
 	    + "sudo " + initiator + " start "
-	    + " ".join(osdnodes))
+	    + " ".join(myosdnodes))
     else:
 	os.system("all -p " + allify(compnodes) + " "
 	    + "echo " + tabfile_contents + " \> " + tabfile)
@@ -563,6 +573,7 @@ def start():
     # format and initial pvfs layout on osd nodes.  The machine where
     # this script runs must be one of the compnodes so it can talk to
     # all the OSDs with iscsi.  (Or could rsh to one.)
+    print "osdnodes", osdnodes
     for n in osdnodes:
 	d = datahandles[n][0] if datahandles.has_key(n) else 0
 	m = metahandles[n][0] if metahandles.has_key(n) else 0
@@ -570,6 +581,13 @@ def start():
 	ret = os.system(pvfs_init + " " + n + " " + str(d) + " " + str(m) + s)
 	if ret:
 	    print >>sys.stderr, pvfs_init + " failed"
+
+    # just format and create the partition on these
+    if options["pvfs_osd_integrated"] == "yes":
+	for n in pvfsnodes:
+	    ret = os.system(pvfs_osd_integrated_init + " " + n + " " + str(pid))
+	    if ret:
+		print >>sys.stderr, pvfs_osd_integrated_init + " failed"
 
 def status():
     print "Protocol:               ", options["protocol"]
@@ -677,6 +695,9 @@ while i < len(sys.argv):
 	    usage()
 	options["mirror"] = sys.argv[i+1]
 	i += 2
+    elif sys.argv[i] == "-poi":
+	options["pvfs_osd_integrated"] = "yes"
+	i += 1
     else:
 	break
 

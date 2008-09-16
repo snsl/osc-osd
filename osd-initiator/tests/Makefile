@@ -10,15 +10,16 @@ LIB :=  ../libosdinit.a ../../util/libosdutil.a
 
 # auto-find by walking up from your path to mpicc
 MPIDIR := $(dir $(shell type -p mpicc 2>/dev/null))
+MPICC := $(shell type -p mpicc 2>/dev/null)
 ifneq (,$(MPIDIR))
     MPIDIR := $(MPIDIR)..
-    MPISRC := iospeed-mpi.c
+    MPISRC := iospeed-mpi.c contention.c
     MPIOBJ := $(MPISRC:.c=.o)
     MPIEXE := $(MPISRC:.c=)
     # needed for some MPI builds
     PVFSDIR := $(dir $(shell type -p pvfs2-ls 2>/dev/null))..
     MPIINC := -I$(MPIDIR)/include
-    MPILIB := -L$(MPIDIR)/lib -lmpich -L$(PVFSDIR)/lib -lpvfs2 -lrt
+    MPILIB := -L/usr/local/mpich2-eth/lib -lmpich -L$(PVFSDIR)/lib -lpvfs2 -lrt
 endif
 
 include ../../Makedefs
@@ -38,13 +39,13 @@ $(PROGEXE): %: %.o $(LIB)
 	$(CC) -o $@ $^ $(LIB) -lm
 
 $(MPIEXE): %: %.o $(LIB)
-	$(CC) -o $@ $^ $(LIB) -lm $(MPILIB)
+	$(MPICC) -o $@ $^ $(MPILIB) $(LIB) -lm
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(MPIOBJ): %.o: %.c
-	$(CC) $(CFLAGS) $(MPIINC) -c $< -o $@
+	$(MPICC) $(CFLAGS) $(MPIINC) -c $< -o $@
 
 ifeq (,$(filter clean distclean dist,$(MAKECMDGOALS)))
 -include .depend

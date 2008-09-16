@@ -203,8 +203,7 @@ int coll_insert(struct db_context *dbc, uint64_t pid, uint64_t cid,
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->insert)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->insert);
 
 repeat:
 	ret = 0;
@@ -231,8 +230,7 @@ int coll_delete(struct db_context *dbc, uint64_t pid, uint64_t cid,
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->delete)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->delete);
 
 repeat:
 	ret = 0;
@@ -257,8 +255,7 @@ int coll_delete_cid(struct db_context *dbc, uint64_t pid, uint64_t cid)
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->delcid)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->delcid);
 
 repeat:
 	ret = 0;
@@ -282,8 +279,7 @@ int coll_delete_oid(struct db_context *dbc, uint64_t pid, uint64_t oid)
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->deloid)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->deloid);
 
 repeat:
 	ret = 0;
@@ -314,10 +310,7 @@ int coll_isempty_cid(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	int bound = 0;
 	*isempty = 0;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->emptycid) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->emptycid);
 
 repeat:
 	ret = 0;
@@ -354,8 +347,7 @@ int coll_get_cid(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	int bound = 0;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->getcid)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->getcid);
 
 repeat:
 	ret = 0;
@@ -396,8 +388,7 @@ int coll_get_oids_in_cid(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	uint64_t len = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->getoids)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->getoids);
 
 repeat:
 	ret = 0;

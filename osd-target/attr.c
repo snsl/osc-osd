@@ -245,8 +245,7 @@ int attr_set_attr(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->setattr)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->setattr);
 
 repeat:
 	ret = 0;
@@ -276,8 +275,7 @@ int attr_delete_attr(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->delattr)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->delattr);
 
 repeat:
 	ret = 0;
@@ -304,8 +302,7 @@ int attr_delete_all(struct db_context *dbc, uint64_t pid, uint64_t oid)
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->delall)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->delall);
 
 repeat:
 	ret = 0;
@@ -482,8 +479,7 @@ int attr_get_attr(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->getattr)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->getattr);
 
 repeat:
 	ret = 0;
@@ -521,8 +517,7 @@ int attr_get_val(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->getval)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->getval);
 
 repeat:
 	ret = 0;
@@ -562,8 +557,7 @@ int attr_get_page_as_list(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->pgaslst)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->pgaslst);
 
 repeat:
 	ret = 0;
@@ -603,8 +597,7 @@ int attr_get_for_all_pages(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->forallpg)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->forallpg);
 
 repeat:
 	ret = 0;
@@ -645,8 +638,7 @@ int attr_get_all_attrs(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->getall)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->getall);
 
 repeat:
 	ret = 0;
@@ -683,8 +675,7 @@ int attr_get_dir_page(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->attr || !dbc->attr->dirpage)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->attr && dbc->attr->dirpage);
 
 	if (page != USEROBJECT_DIR_PG && page != COLLECTION_DIR_PG &&
 	    page != PARTITION_DIR_PG && page != ROOT_DIR_PG)

@@ -64,11 +64,8 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	const char *coll = coll_getname(dbc);
 	const char *attr = attr_getname(dbc);
 
-	if (!dbc || !dbc->db || !qc || !outdata || !used_outlen || !coll ||
-	    !attr ) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && qc && outdata && used_outlen && coll 
+	       && attr);
 
 	if (qc->query_type == 0) {
 		op = " UNION ";
@@ -237,11 +234,8 @@ int mtq_list_oids_attr(struct db_context *dbc, uint64_t pid,
 	const char *obj = obj_getname(dbc);
 	const char *attr = attr_getname(dbc);
 
-	if (!dbc || !dbc->db || !get_attr || !outdata || !used_outlen || 
-	    !add_len || !obj || !attr) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && get_attr && outdata && used_outlen 
+	       && add_len && obj && attr);
 
 	if (get_attr->sz == 0) {
 		ret = -EINVAL;
@@ -452,10 +446,7 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	const char *coll = coll_getname(dbc);
 	const char *attr = attr_getname(dbc);
 
-	if (!dbc || !dbc->db || !set_attr || !coll || !attr) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && set_attr && coll && attr);
 
 	if (set_attr->sz == 0) {
 		ret = 0;

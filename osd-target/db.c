@@ -21,6 +21,7 @@
 #include <sqlite3.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <assert.h>
 
 #include "osd-util/osd-defs.h"
 #include "osd-types.h"
@@ -157,8 +158,7 @@ int db_close(struct osd_device *osd)
 {
 	int ret = 0;
 
-	if (!osd || !osd->dbc || !osd->dbc->db)
-		return -EINVAL;
+	assert(osd && osd->dbc && osd->dbc->db);
 
 	db_finalize(osd->dbc);
 	sqlite3_close(osd->dbc->db);
@@ -225,8 +225,7 @@ int db_begin_txn(struct db_context *dbc)
 	int ret = 0;
 	char *err = NULL;
 
-	if (!dbc || !dbc->db)
-		return OSD_ERROR;
+	assert(dbc && dbc->db);
 
 	ret = sqlite3_exec(dbc->db, "BEGIN TRANSACTION;", NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
@@ -244,8 +243,7 @@ int db_end_txn(struct db_context *dbc)
 	int ret = 0;
 	char *err = NULL;
 
-	if (!dbc || !dbc->db)
-		return OSD_ERROR;
+	assert(dbc && dbc->db);
 
 	ret = sqlite3_exec(dbc->db, "END TRANSACTION;", NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
@@ -263,8 +261,7 @@ int db_exec_pragma(struct db_context *dbc)
 	char *err = NULL;
 	char SQL[MAXSQLEN];
 
-	if (!dbc || !dbc->db)
-		return -EINVAL;
+	assert(dbc && dbc->db);
 
 	sprintf(SQL,
 		"PRAGMA synchronous = OFF; " /* sync off */
@@ -296,8 +293,7 @@ int db_print_pragma(struct db_context *dbc)
 	char *err = NULL;
 	char SQL[MAXSQLEN];
 
-	if (!dbc || !dbc->db)
-		return -EINVAL;
+	assert(dbc && dbc->db);
 
 	sprintf(SQL,
 		" PRAGMA synchronous;"

@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <string.h>
 #include <sqlite3.h>
+#include <assert.h>
 
 #include "osd-types.h"
 #include "osd-util/osd-defs.h"
@@ -234,8 +235,7 @@ int obj_insert(struct db_context *dbc, uint64_t pid, uint64_t oid,
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->insert) 
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->insert);
 
 repeat:
 	ret = 0;
@@ -262,8 +262,7 @@ int obj_delete(struct db_context *dbc, uint64_t pid, uint64_t oid)
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->delete) 
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->delete);
 
 repeat:
 	ret = 0;
@@ -287,8 +286,7 @@ int obj_delete_pid(struct db_context *dbc, uint64_t pid)
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->delpid) 
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->delpid);
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->delpid, 1, pid);
@@ -313,10 +311,7 @@ int obj_get_nextoid(struct db_context *dbc, uint64_t pid, uint64_t *oid)
 	int ret = 0;
 	int bound = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->nextoid) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->nextoid);
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->nextoid, 1, pid);
@@ -351,10 +346,7 @@ int obj_get_nextpid(struct db_context *dbc, uint64_t *pid)
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->nextpid) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->nextpid);
 
 repeat:
 	while ((ret = sqlite3_step(dbc->obj->nextpid)) == SQLITE_BUSY);
@@ -388,10 +380,7 @@ int obj_ispresent(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int bound = 0;
 	*present = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->isprsnt) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->isprsnt);
 
 repeat:
 	ret = 0;
@@ -432,10 +421,7 @@ int obj_isempty_pid(struct db_context *dbc, uint64_t pid, int *isempty)
 	int bound = 0;
 	*isempty = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->emptypid) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->emptypid);
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->emptypid, 1, pid);
@@ -474,10 +460,7 @@ int obj_get_type(struct db_context *dbc, uint64_t pid, uint64_t oid,
 	int bound = 0;
 	*obj_type = ILLEGAL_OBJ;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->gettype) {
-		ret = -EINVAL;
-		goto out;
-	}
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->gettype);
 
 repeat:
 	ret = 0;
@@ -521,8 +504,7 @@ int obj_get_oids_in_pid(struct db_context *dbc, uint64_t pid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->getoids)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->getoids);
 
 repeat:
 	ret = 0;
@@ -553,8 +535,7 @@ int obj_get_cids_in_pid(struct db_context *dbc, uint64_t pid,
 	int ret = 0;
 	sqlite3_stmt *stmt = NULL;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->getcids)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->getcids);
 
 repeat:
 	ret = 0;
@@ -584,8 +565,7 @@ int obj_get_all_pids(struct db_context *dbc, uint64_t initial_pid,
 {
 	int ret = 0;
 
-	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->getpids)
-		return -EINVAL;
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->getpids);
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->getpids, 1, initial_pid);

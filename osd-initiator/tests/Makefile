@@ -2,21 +2,24 @@
 # OSD initiator tests
 #
 
-PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c 
+PROGSRC := sgio.c generic_iface_test.c iovec.c iospeed.c latency.c atomic.c
 PROGSRC += blk-iospeed.c
 PROGOBJ := $(PROGSRC:.c=.o)
 PROGEXE := $(PROGSRC:.c=)
 LIB :=  ../libosdinit.a ../../util/libosdutil.a
 
-MPISRC := iospeed-mpi.c
-MPIOBJ := $(MPISRC:.c=.o)
-MPIEXE := $(MPISRC:.c=)
 # auto-find by walking up from your path to mpicc
-MPIDIR := $(dir $(shell type -p mpicc 2>/dev/null))..
-# needed for some MPI builds
-PVFSDIR := $(dir $(shell type -p pvfs2-ls 2>/dev/null))..
-MPIINC := -I$(MPIDIR)/include
-MPILIB := -L$(MPIDIR)/lib -lmpich -L$(PVFSDIR)/lib -lpvfs2 -lrt
+MPIDIR := $(dir $(shell type -p mpicc 2>/dev/null))
+ifneq (,$(MPIDIR))
+    MPIDIR := $(MPIDIR)..
+    MPISRC := iospeed-mpi.c
+    MPIOBJ := $(MPISRC:.c=.o)
+    MPIEXE := $(MPISRC:.c=)
+    # needed for some MPI builds
+    PVFSDIR := $(dir $(shell type -p pvfs2-ls 2>/dev/null))..
+    MPIINC := -I$(MPIDIR)/include
+    MPILIB := -L$(MPIDIR)/lib -lmpich -L$(PVFSDIR)/lib -lpvfs2 -lrt
+endif
 
 include ../../Makedefs
 

@@ -1016,6 +1016,7 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 					*cont_id = oid;
 			}
 		}
+		/* TODO: take care of overflow */
 		*add_len += roundup8(4+4+2+len);
 	}
 	if (ret != SQLITE_DONE) {

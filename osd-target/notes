@@ -532,3 +532,6 @@ to the cid
 # Fri May 11 15:15:01 EDT 2007
 -   remove init_attr if possible
 -   list of incompatibilities with spec, where spec is wrong
+-   can empty partition or collection be determined w/o actually counting the
+    rows?
+-   timing test for object_collection before and after optimization

@@ -340,3 +340,61 @@ class sma(test):
 			t = sp.split(o)
 			results.append((tid, float(t[12]), float(t[14]), t[15]))
 		return results
+
+
+class timecoll(test):
+	def __init__(self, cur, name, ref, cmd):
+		test.__init__(self, cur, name, ref, cmd)
+	
+	def create(self):
+		q = """ 
+			CREATE TABLE IF NOT EXISTS %s (
+				testid INTEGER NOT NULL,
+				numobj INTEGER NOT NULL,
+				test TEXT NOT NULL,
+				numiter INTEGER NOT NULL,
+				desc TEXT,
+				PRIMARY KEY (testid),
+				UNIQUE (numobj, test, numiter),
+				FOREIGN KEY (testid) REFERENCES %s (testid)
+			); """ % (self.name, self.gentestid.name)
+		self.cur.execute(q)
+
+	def insert(self, numobj, test, numiter, desc='NULL'):
+		q = "INSERT INTO %s SELECT MAX(testid), %d, '%s', %d, %s FROM %s;" % \
+				(self.name, numobj, test, numiter, desc, self.gentestid.name)
+		err = "test case %d, %s, %d exists!" % (numobj, test, numiter)
+		self.inserttest(str(q), str(err))
+
+	def delete(self, numobj, collsz, numattr, numset, numiter):
+		q = """ SELECT testid FROM %s WHERE numobj = %d AND test = '%s' AND
+			numiter = %d; """ % (self.name, test, numset, numiter)
+		self.deletetest(str(q))
+
+	def populate(self):
+		# time one row insert after numobj
+		for no in range(15):
+			self.insert(1 << no, 'insertone', 10)
+
+		# time numobj insertions
+		for no in range(15):
+			self.insert(1 << no, 'insert', 10)
+
+		# time one row delete after numobj
+		for no in range(15):
+			self.insert(1 << no, 'deleteone', 10)
+
+		# time numobj deletions
+		for no in range(15):
+			self.insert(1 << no, 'delete', 10)
+
+	def runall(self):
+		results = []
+		sp = re.compile('\s+')
+		for tid, no, te, ni, x in self.getall():
+			cmd = './%s -o %d -i %d -t %s' % (self.cmd, no, ni, te)
+			o = commands.getoutput(str(cmd))
+			print o
+			t = sp.split(o)
+			results.append((tid, float(t[8]), float(t[10]), t[11]))
+		return results

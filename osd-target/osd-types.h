@@ -141,13 +141,16 @@ struct id_list {
 	uint64_t *ids;
 };
 
+/* abstract declarations of db tables */
+struct coll_tab;
+
 /* 
- * Encapsulate all db fields in db context. each db context is can be handled
- * by an independent thread.
+ * Encapsulate all db structs in db context. each db context is handled by an
+ * independent thread.
  */
 struct db_context {
 	sqlite3 *db;
-	struct buffer attr_blob;
+	struct coll_tab *coll;
 };
 
 /*
@@ -156,11 +159,12 @@ struct db_context {
  * specific state information will be contained in this struct
  */
 struct osd_context {
+	struct db_context *dbc;
 	struct cur_cmd_attr_pg ccap;
 	struct id_cache ic;
-	struct db_context dbc;
 	struct id_list idl;
 };
+
 
 struct osd_device {
 	char *root;
@@ -168,6 +172,7 @@ struct osd_device {
 	struct cur_cmd_attr_pg ccap;
 	struct id_cache ic;
 	struct id_list idl;
+	struct db_context *dbc;
 };
 
 enum {

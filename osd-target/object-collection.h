@@ -4,6 +4,11 @@
 #include <sqlite3.h>
 #include "osd-types.h"
 
+
+int oc_initialize(struct db_context *dbc);
+
+int oc_finalize(struct db_context *dbc);
+
 int oc_insert_row(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t oid, 
 		  uint32_t number);
 

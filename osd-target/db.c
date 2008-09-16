@@ -16,7 +16,7 @@
 static int check_membership(void *arg, int count, char **val, 
 			    char **colname)
 {
-	int i = 0;
+	size_t i = 0;
 	struct array *arr = arg;
 	const char **tables = arr->a;
 

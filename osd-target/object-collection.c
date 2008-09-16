@@ -13,6 +13,91 @@
 #include "util/util.h"
 #include "list-entry.h"
 
+struct coll_tab {
+	const char *name;      /* name of the table */
+	sqlite3_stmt *insert;  /* insert a row */
+	sqlite3_stmt *delete;  /* delete a row */
+};
+
+/*
+ * returns:
+ * -ENOMEM: out of memory
+ * -EINVAL: invalid args
+ * -EIO: if any prepare statement fails
+ *  OSD_OK: success
+ */
+int oc_initialize(struct db_context *dbc)
+{
+	int ret = 0;
+	int sqlret = 0;
+	char SQL[MAXSQLEN];
+
+	if (dbc == NULL || dbc->db == NULL || dbc->coll != NULL) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dbc->coll = Malloc(sizeof(*dbc->coll));
+	if (!dbc->coll) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	
+	dbc->coll->name = "coll"; 
+
+	sprintf(SQL, "INSERT INTO %s VALUES (?, ?, ?, ?);", dbc->coll->name);
+	sqlret = sqlite3_prepare(dbc->db, SQL, strlen(SQL)+1, 
+				 &dbc->coll->insert, NULL);
+	if (sqlret != SQLITE_OK) {
+		ret = -EIO;
+		error_sql(dbc->db, "%s: prepare of %s failed", __func__,
+			  SQL); 
+		goto out;
+	}
+
+	sprintf(SQL, "DELETE FROM %s WHERE pid = ? AND cid = ? AND oid = ?;", 
+		dbc->coll->name);
+	sqlret = sqlite3_prepare(dbc->db, SQL, strlen(SQL)+1, 
+				 &dbc->coll->delete, NULL);
+	if (ret != SQLITE_OK) {
+		ret = -EIO;
+		error_sql(dbc->db, "%s: prepare of %s failed", __func__, 
+			  SQL);
+		goto out_finalize_insert;
+	}
+
+	return OSD_OK; /* success */
+
+out_finalize_insert:
+	sqlret = sqlite3_finalize(dbc->coll->insert);
+	if (sqlret != SQLITE_OK) {
+		ret = -EIO;
+		error_sql(dbc->db, "%s: insert finalize failed", __func__);
+		goto out;
+	}
+out:
+	return ret;
+}
+
+
+int oc_finalize(struct db_context *dbc)
+{
+
+	/* finalize statements; ignore return values */
+	sqlite3_finalize(dbc->coll->insert);
+	sqlite3_finalize(dbc->coll->delete);
+	free(dbc->coll);
+
+	return OSD_OK;
+}
+
+const char *coll_getname(struct db_context *dbc)
+{
+	if (dbc == NULL || dbc->coll == NULL)
+		return NULL;
+	return dbc->coll->name;
+}
+
 /* 
  * object_collection table stores many-to-many relationship between
  * userobjects and collections. Using this table members of a collection and
@@ -54,7 +139,7 @@ int oc_delete_row(sqlite3 *db, uint64_t pid, uint64_t cid, uint64_t oid)
 	if (db == NULL)
 		return -EINVAL;
 
-	sprintf(SQL, "DELETE FROM object_collection pid = %llu AND "
+	sprintf(SQL, "DELETE FROM object_collection WHERE pid = %llu AND "
 		" cid = %llu AND oid = %llu;", llu(pid), llu(cid), llu(oid));
 	ret = sqlite3_exec(db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK) {
@@ -122,7 +207,7 @@ int oc_isempty_cid(sqlite3 *db, uint64_t pid, uint64_t cid)
 		return -EINVAL;
 
 	sprintf(SQL, "SELECT COUNT (*) FROM object_collection WHERE "
-		" pid = %llu AND cid = %llu;", llu(pid), llu(cid));
+		" pid = %llu AND cid = %llu LIMIT 1;", llu(pid), llu(cid));
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret) {
 		ret = -EIO;
@@ -170,7 +255,7 @@ int oc_get_cid(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t number,
 		goto out;
 	}
 	while ((ret == sqlite3_step(stmt)) == SQLITE_ROW) {
-		*cid = sqlite3_column_int(stmt, 0);
+		*cid = sqlite3_column_int64(stmt, 0);
 	}
 	if (ret != SQLITE_DONE)
 		error_sql(db, "%s: query %s failed", __func__, SQL);
@@ -196,12 +281,9 @@ int oc_get_cap(sqlite3 *db, uint64_t pid, uint64_t oid, void *outbuf,
 
 
 /*
- * NOTE: buf needs to be freed by the caller
- *
  * returns:
- * -ENOMEM: out of memory
  * -EINVAL: invalid arg
- * ==0: success, buf points to memory containing oids
+ * ==0: success, oids copied into outbuf, cont_id set if necessary
  */
 int oc_get_oids_in_cid(sqlite3 *db, uint64_t pid, uint64_t cid, 
 		       uint64_t initial_oid, uint64_t alloc_len, 
@@ -252,12 +334,9 @@ out:
 }
 
 /*
- * NOTE: buf needs to be freed by the caller
- *
  * returns:
- * -ENOMEM: out of memory
  * -EINVAL: invalid arg
- * ==0: success, buf points to memory containing oids
+ * ==0: success, cids copied into outbuf, cont_id set if necessary
  */
 int oc_get_cids_in_pid(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		       uint64_t alloc_len, uint8_t *outdata, 

@@ -29,6 +29,7 @@ class runtests:
 		self.listattr = listattr(self.cur, "listattr", ref, "list")
 		self.query = query(self.cur, "query", ref, "query")
 		self.sma = sma(self.cur, "sma", ref, "set_member_attributes")
+		self.timecoll = timecoll(self.cur, "timecoll", ref, "time-coll")
 		self.date = time.strftime('%F-%T')
 		v = commands.getoutput('svn info | grep "^Rev" | cut -f2 -d\ ')
 		self.version = int(v)
@@ -43,6 +44,7 @@ class runtests:
 		self.listattr.create()
 		self.query.create()
 		self.sma.create()
+		self.timecoll.create()
 		self.con.commit()
 
 	def drop_tests(self):
@@ -53,6 +55,7 @@ class runtests:
 		self.listattr.drop()
 		self.query.drop()
 		self.sma.drop()
+		self.timecoll.drop()
 		self.results.drop()
 		self.gentestid.drop()
 		self.con.commit()
@@ -66,12 +69,13 @@ class runtests:
 		self.listattr.populate()
 		self.query.populate()
 		self.sma.populate()
+		self.timecoll.populate()
 		self.con.commit()
 
 	def populate_results(self):
 		self.con.isolation_level = "DEFERRED"
 		tests = [self.create, self.setattr, self.getattr, self.list,
-				self.listattr, self.query, self.sma]
+				self.listattr, self.query, self.sma, self.timecoll]
 		for t in tests:
 			for tid, mu, sd, u in t.runall():
 				self.results.insert(self.date, self.version, tid, mu, sd, 
@@ -100,8 +104,14 @@ class runtests:
 
 if __name__ == "__main__":
 	rt = runtests()
-	rt.drop_tests()
-	rt.create_tests()
-	rt.populate_tests()
-	rt.populate_results()
+#	rt.drop_tests()
+#	rt.create_tests()
+#	rt.populate_tests()
+#	rt.populate_results()
+	rt.timecoll.drop()
+	rt.timecoll.create()
+	rt.timecoll.populate()
+	for tid, mu, sd, u in rt.timecoll.runall():
+		rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
+	rt.con.commit()
 

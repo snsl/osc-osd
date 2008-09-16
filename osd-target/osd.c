@@ -1605,7 +1605,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		 * actual contents of the list, so this should work,
 		 * unless we want attrs
 		 */
-		ret = (pid == 0 ? 
+		ret = (cid == 0 ? 
 		       oc_get_cids_in_pid(osd->db, pid, initial_oid,
 					  alloc_len, &outdata[24],
 					  used_outlen, &add_len, &cont_id) 
@@ -1620,7 +1620,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
 
-	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
+	} else if (list_attr == 1 && get_attr->sz != 0 && cid != 0) {
 		if (list_id) 
 			initial_oid = cont_id;
 		goto out_cdb_err; /* XXX: unimplemented */

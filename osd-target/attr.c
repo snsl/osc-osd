@@ -115,36 +115,45 @@ int attr_delete_all(sqlite3 *db, uint64_t pid, uint64_t oid)
 
 /* 
  * Gather the results into list_entry format. Each row has page, number, len,
- * value. Look at queries in attr_get_attr attr_get_attr_page.
+ * value. Look at queries in attr_get_attr attr_get_attr_page.  See page 163.
+ * Returns -EOVERFLOW if not enough room to even start the entry.  Returns
+ * >=0 for number of bytes copied into outbuf.
  */
 static int attr_gather_attr(sqlite3_stmt *stmt, void *outbuf, uint16_t len)
 {
-	uint16_t valen = 0;
-	list_entry_t *ent = (list_entry_t *)outbuf;
-	assert(len > ATTR_VAL_OFFSET);
+	uint16_t valen;
+	list_entry_t *ent = outbuf;
+
+	/* need at least 10 bytes for the page, number, value len fields */
+	if (len > ATTR_VAL_OFFSET)
+		return -EOVERFLOW;
 
 	set_htonl_le((uint8_t *)&(ent->page), sqlite3_column_int(stmt, 0));
 	set_htonl_le((uint8_t *)&(ent->number), sqlite3_column_int(stmt, 1));
+
+	/* length field is not modified to reflect truncation */
 	valen = sqlite3_column_bytes(stmt, 2);
 	set_htons_le((uint8_t *)&(ent->len), valen);
-	if (valen + ATTR_VAL_OFFSET < len)
-		memcpy((uint8_t *)ent + ATTR_VAL_OFFSET, 
-		       sqlite3_column_blob(stmt, 2), valen);
-	else
-		memcpy((uint8_t *)ent + ATTR_VAL_OFFSET, 
-		       sqlite3_column_blob(stmt, 2), len - ATTR_VAL_OFFSET);
 
-	return 0;
+	len -= ATTR_VAL_OFFSET;
+	if (valen > len)
+		valen = len;
+	memcpy((uint8_t *)ent + ATTR_VAL_OFFSET,
+	       sqlite3_column_blob(stmt, 2), valen);
+	return valen;
 }
 
 /* 40 bytes including terminating NUL */
 static const char unidentified_page_identification[40]
 = "        unidentified attributes page   ";
 
+/*
+ * Request one attribute, list format.
+ */
 int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page, 
 		  uint32_t number, void *outbuf, uint16_t len)
 {
-	int ret = -EINVAL, found = 0;
+	int ret = -EINVAL, fret, found, outlen;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
@@ -179,21 +188,35 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		goto out_finalize;
 	}
 
+	found = 0;
+	outlen = 0;
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		if ((ret = attr_gather_attr(stmt, outbuf, len)) != SQLITE_OK) {
-			error_sql(db, "%s: attr_gather_attr", __func__);
+		if (found) {
+			error("%s: attr (%llu %llu %u %u) found twice",
+			      __func__, llu(pid), llu(oid), page, number);
+			ret = -EIO;
 			goto out_finalize;
 		}
 		found = 1;
+		outlen = attr_gather_attr(stmt, outbuf, len);
+		if (outlen < 0) {
+			ret = outlen;
+			goto out_finalize;  /* out of room in buf */
+		}
 	}
+
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: sqlite3_step", __func__);
+		ret = -EIO;
 		goto out_finalize;
 	} else if (found == 0) {
 		error("%s: attr (%llu %llu %u %u) not found", __func__,
 		      llu(pid), llu(oid), page, number);
+		ret = -EEXIST;
 		goto out_finalize;
 	}
+
+	ret = outlen;  /* return number of bytes consumed in buf */
 
 	/* XXX:
 	 * if number == 0 and page not found, return this:
@@ -201,14 +224,24 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	 */
 
 out_finalize:
-	ret = sqlite3_finalize(stmt);
-	if (ret != SQLITE_OK) 
+	fret = sqlite3_finalize(stmt);
+	if (fret != SQLITE_OK) 
 		error_sql(db, "%s: finalize", __func__);
 	
 out:
 	return ret;
 }
 
+/*
+ * This function can only be used for pages that have a defined
+ * format.  Those appear to be only:
+ *    quotas:          root,partition,userobj
+ *    timestamps:      root,partition,collection,userobj
+ *    policy/security: root,partition,collection,userobj
+ *    collection attributes: userobj (shows membership)
+ *    current command
+ *    null
+ */
 int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		       uint32_t page, void *outbuf, uint16_t len)
 {

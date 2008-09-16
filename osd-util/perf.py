@@ -43,9 +43,13 @@ else:
     osd_dir = sys.environ["HOME"]
 
 initiator = osd_dir + "/osd-util/initiator"
-tgtd      = osd_dir + "/osd-target/tgtd"
+tgtd      = osd_dir + "/stgt/tgtd"
 pvfs_init = osd_dir + "/osd-initiator/python/pvfs-init.py"
 allify_code = "/home/pw/bin/allify"
+
+# old location in target dir
+if not os.access(tgtd, os.X_OK):
+    tgtd = osd_dir + "/osd-target/tgtd"
 
 #
 # All the possibilities for -o and -d.
@@ -106,6 +110,7 @@ def usage():
     print >>sys.stderr, "  -d {dirtype pvfs|attr4|attr1|obj},", \
     			"default", options["dirtype"]
     print >>sys.stderr, "  -s {storage disk|tmpfs}, default", options["storage"]
+    print >>sys.stderr, "  -m <nummeta>, default 1"
     print >>sys.stderr, "  -mio : metadata servers on IO servers (-o none", \
     			"only), not default"
     print >>sys.stderr, "  -2 : two config files (ancient PVFS), not default"
@@ -153,6 +158,9 @@ def handle_alloc():
 	h += step
 
     # if directories are being handled by OSDs, put the root handle there
+    if len(metanodes) == 0:
+	print >>sys.stderr, "No metanodes to alloc."
+	sys.exit(1)
     metahandles = {}
     for n in metanodes:
 	metahandles[n] = (h, h + step-1)
@@ -299,6 +307,7 @@ def buildfiles():
 	sys.exit(1)
 
     # figure out the meta and data handle ranges
+    global roothandle, roothandle_node
     handle_alloc()
 
     # store the options for status reporting later
@@ -451,9 +460,11 @@ def readfiles():
     ionodes = read_one_file(fionodes)
     metanodes = read_one_file(fmetanodes)
 
-    global numion
+    global numion, nummeta
     if numion == -1:
 	numion = len(ionodes)
+    if nummeta == -1:
+	nummeta = len(metaodes)
 
 
 def allify(n):
@@ -624,6 +635,11 @@ while i < len(sys.argv):
 	    usage()
 	options["storage"] = sys.argv[i+1]
 	i += 2
+    elif sys.argv[i] == "-m":
+	if i+1 == len(sys.argv):
+	    usage()
+	nummeta = int(sys.argv[i+1])
+	i += 2
     elif sys.argv[i] == "-mio":
 	options["meta_on_io"] = "yes"
 	i += 1
@@ -645,6 +661,7 @@ if sys.argv[i] == "start":
 elif sys.argv[i] == "restart":
     if len(sys.argv) == i+1:
 	numion = -1  # get from readfiles
+	nummeta = -1
     elif len(sys.argv) == i+2:
 	numion = int(sys.argv[i+1])
     else:

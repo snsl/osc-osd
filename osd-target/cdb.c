@@ -43,9 +43,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	uint8_t sense[MAX_SENSE_LEN];  /* for output sense data */
 
 	//figure out if get/set attribute is using page or list mode
-	uint8_t get_set_page_or_list = ntohs(&cdb[11]);
-	get_set_page_or_list >>=  4;
-	get_set_page_or_list &= 3;   
+	uint8_t get_set_page_or_list = (cdb[11] & 0x30) >> 4;
 
 	memset(sense, 0, MAX_SENSE_LEN);
 
@@ -152,6 +150,7 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		else{// shouldn't happen, 0&1 are reserved
 			debug("%s: GET/SET CDBFMT code error, value is: %d", 
 					__func__, get_set_page_or_list);
+			/* XXX: generate sense and return that */
 			break;
 		}
 			

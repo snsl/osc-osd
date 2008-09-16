@@ -1617,6 +1617,8 @@ static int fill_null_attr(struct osd_device *osd, uint64_t pid, uint64_t oid,
 {
 	int ret;
 
+	osd_debug("GETALLATTR_PG %x ATTRNUM_GETALL %x page %x " "number %x\n", 
+		  GETALLATTR_PG, ATTRNUM_GETALL, page, number);
 	if (page != GETALLATTR_PG && number != ATTRNUM_GETALL) {
 		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
 			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
@@ -1687,7 +1689,7 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		assert(ret == -EINVAL || ret == -EOVERFLOW || ret >= 0);
 		if (ret == -EOVERFLOW)
 			*used_outlen = 0; /* not an error, Sec 5.2.2.2 */
-		else if (ret > 0)
+		else if (ret >= 0)
 			*used_outlen = ret;
 		else
 			goto out_param_list;

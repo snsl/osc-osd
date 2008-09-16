@@ -18,7 +18,7 @@
 
 import re
 import os
-import sqlite
+import sqlite3
 import commands
 from table import table
 
@@ -70,14 +70,14 @@ class test(table):
                     self.name, self.name)
         try:
             self.cur.execute(q)
-        except sqlite.DatabaseError:
+        except sqlite3.DatabaseError:
             pass
 
     def inserttest(self, q, err):
         self.gentestid.insert()
         try:
             self.cur.execute(q)
-        except sqlite.IntegrityError:
+        except sqlite3.IntegrityError:
             print err
             self.gentestid.deletemax()
 

@@ -19,7 +19,7 @@
 import re
 import os
 import time
-import sqlite
+import sqlite3
 import commands
 from results import results
 from tests import *
@@ -28,9 +28,9 @@ class runtests:
     def __init__(self, dbname=None):
         self.__checkmakedef()
         if dbname == None:
-            self.con = sqlite.connect("results.db")
+            self.con = sqlite3.connect("results.db")
         else: 
-            self.con = sqlite.connect(dbname)
+            self.con = sqlite3.connect(dbname)
         self.con.check_same_thread = False
         self.con.enable_callback_tracebacks = True
         self.cur = self.con.cursor()

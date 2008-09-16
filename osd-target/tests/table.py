@@ -18,7 +18,7 @@
 
 import re
 import os
-import sqlite
+import sqlite3
 import commands
 
 class table:

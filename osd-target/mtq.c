@@ -163,10 +163,10 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 		}
 		p += 8; 
 		/* handle overflow: osd2r01 Sec 6.18.3 */
-		if (len != 0xFFFFFFFFFFFFFFFF && (len + 8) > len) {
+		if (len != (uint64_t) -1 && (len + 8) > len) {
 			len += 8;
 		} else {
-			len = 0xFFFFFFFFFFFFFFFF;
+			len = (uint64_t) -1;
 		}
 	}
 	if (ret != SQLITE_DONE) {
@@ -339,7 +339,7 @@ int mtq_list_oids_attr(struct db_context *dbc, uint64_t pid,
 				*add_len += 16;
 			} else {
 				/* terminate since add_len overflew */
-				*add_len = 0xFFFFFFFFFFFFFFFF;
+				*add_len = (uint64_t) -1;
 				ret = SQLITE_DONE; 
 				break;
 			}
@@ -382,7 +382,7 @@ int mtq_list_oids_attr(struct db_context *dbc, uint64_t pid,
 			*add_len += roundup8(4+4+2+len);
 		} else {
 			/* terminate since add_len overflew */
-			*add_len = 0xFFFFFFFFFFFFFFFF; 
+			*add_len = (uint64_t) -1; 
 			ret = SQLITE_DONE; 
 			break;
 		}

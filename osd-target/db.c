@@ -385,7 +385,7 @@ int db_exec_id_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt,
 				*add_len += 8;
 			} else {
 				/* terminate since add_len overflew */
-				*add_len = 0xFFFFFFFFFFFFFFFF;
+				*add_len = (uint64_t) -1;
 				break;
 
 			} 

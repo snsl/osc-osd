@@ -1597,7 +1597,7 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		if (add_len + 16 > add_len) /* overflow: osd2r01 Sec 6.14.2 */
 			add_len += 16;
 		else
-			add_len = 0xFFFFFFFFFFFFFFFF;
+			add_len = (uint64_t) -1;
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
 	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
@@ -1615,7 +1615,7 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 		if (add_len + 16 > add_len) /* overflow: osd2r01 Sec 6.14.2 */
 			add_len += 16;
 		else
-			add_len = 0xFFFFFFFFFFFFFFFF;
+			add_len = (uint64_t) -1;
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
 	}

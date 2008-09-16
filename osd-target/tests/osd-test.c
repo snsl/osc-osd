@@ -858,8 +858,8 @@ void test_osd_query(struct osd_device *osd)
 	cp[0] = 0x1; /* INTERSECTION */
 	page = USEROBJECT_PG+LUN_PG_LB;
 	set_qce(&cp[4], page, 1, 3, "aa", 4, "zzz");
-	qll += 4 + (4+4+4+2+3+2+3);
-	cp += 4 + (4+4+4+2+3+2+3);
+	qll += 4 + (4+4+4+2+3+2+4);
+	cp += 4 + (4+4+4+2+3+2+4);
 
 	/* second query */
 	min = 50;
@@ -906,14 +906,14 @@ int main()
 	assert(ret == 0);
 
 	test_osd_format(&osd);
-	test_osd_create(&osd);
+/* 	test_osd_create(&osd);
 	test_osd_set_attributes(&osd);
 	test_osd_read_write(&osd);
 	test_osd_create_partition(&osd);
 	test_osd_get_attributes(&osd);
 	test_osd_get_ccap(&osd); 
 	test_osd_get_utsap(&osd);
-	test_osd_create_collection(&osd);
+	test_osd_create_collection(&osd); */
 	test_osd_query(&osd);
 
 	ret = osd_close(&osd);

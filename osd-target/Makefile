@@ -40,8 +40,12 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../util
 
 all :: TESTS tgtd
 
+# Need -whole-archive this to get the constructors for the various device
+# types.  Another way would be to force a ref to an object in the file
+# somehow, or just use shared libs.
 tgtd: $(STGTLIB) $(OSDTARGETLIB) $(UTILLIB)
-	$(LD) -o $@ $^ $(LIBS)
+	$(LD) -o $@ -Wl,-whole-archive $(STGTLIB) -Wl,-no-whole-archive \
+		$(OSDTARGETLIB) $(UTILLIB) $(LIBS)
 
 TESTS: $(UTILLIB) $(OSDTARGETLIB)
 	make -C $(TESTDIR)

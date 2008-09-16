@@ -820,29 +820,22 @@ static void test_osd_create_user_tracking_collection(struct osd_device *osd)
 
 	sprintf(buffer, "%i \n", *(outdata+7));
 	printf("addtional len is: %i \n", atoi(buffer));
-/* 	assert(atoi(buffer) == 40); */
+	assert(atoi(buffer) == 40);
 
 	printf("used len is: %i \n", used_outlen);
 	assert(used_outlen == (3*8) + 24);
 	
-	printf("1st object id =: \n");
-	printf(" %i \n", *(outdata+29));
-	printf(" %i \n", *(outdata+30));
-	printf(" %i \n", *(outdata+31));
-	printf(" 0x10001 = 65537 \n");
+	oid = get_ntohll(outdata+24);
+	printf("1st object id =: %d \n", oid);
+	assert(oid == USEROBJECT_OID_LB + 1);
 
-	printf("2nd object id =: \n");
-	printf(" %i \n", *(outdata+37));
-	printf(" %i \n", *(outdata+38));
-	printf(" %i \n", *(outdata+39));
-	printf(" 0x10002 = 65538 \n");
+	oid = get_ntohll(outdata+32);
+	printf("2nd object id =: %d \n", oid);
+	assert(oid == USEROBJECT_OID_LB + 2);
 
-	printf("3rd object id =: \n");
-	printf(" %i \n", *(outdata+45));
-	printf(" %i \n", *(outdata+46));
-	printf(" %i \n", *(outdata+47));
-	printf(" 0x10003 = 65539 \n");
-	
+	oid = get_ntohll(outdata+40);
+	printf("3rd object id =: %d \n", oid);
+	assert(oid == USEROBJECT_OID_LB + 3);
 
 	/* remove objects */
 	ret = osd_remove(osd, PARTITION_PID_LB, USEROBJECT_PID_LB+3, cdb_cont_len, sense);
@@ -862,7 +855,6 @@ static void test_osd_create_user_tracking_collection(struct osd_device *osd)
 	cid = COLLECTION_OID_LB;
 	ret = osd_remove_collection(osd, PARTITION_PID_LB, COLLECTION_PID_LB + 5, 1, cdb_cont_len, sense);
 	assert(ret == 0);
-
 	
 	/* remove partition */
 	ret = osd_remove_partition(osd, PARTITION_PID_LB, cdb_cont_len, sense);

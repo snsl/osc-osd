@@ -1070,6 +1070,8 @@ static int vec_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		data_offset += length;
 		offset_val += stride;
 		bytes -= length;
+		if (bytes < length)
+			length = bytes;
 		osd_debug("%s: Total Bytes Left to write: %llu", __func__,
 			  llu(bytes));
 	}
@@ -1672,10 +1674,10 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		 * page are requested.
 		 */
 
-		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST) 
+		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
 			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
 						    page, number, 0, NULL);
-		else 
+		else
 			ret = le_pack_attr(outbuf, outlen, page, number, 0,
 					   NULL);
 
@@ -2329,6 +2331,8 @@ static int vec_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t
 		data_offset += length;
 		offset_val += stride;
 		bytes -= length;
+		if (bytes < length)
+			length = bytes;
 		osd_debug("%s: Total Bytes Left to read: %llu", __func__,
 			  llu(bytes));
 	}
@@ -2948,6 +2952,8 @@ static int vec_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_
 		data_offset += length;
 		offset_val += stride;
 		bytes -= length;
+		if (bytes < length)
+			length = bytes;
 		osd_debug("%s: Total Bytes Left to write: %llu", __func__,
 			  llu(bytes));
 	}
@@ -3149,7 +3155,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	 * entry is to be removed.
 	 */
 	if ((swap_len > 0 && swap != NULL) &&
-	    (ret == -ENOENT || 
+	    (ret == -ENOENT ||
 	     (valen == cmp_len && memcmp(cmp, val, valen) == 0))) {
 		ret = attr_set_attr(osd->dbc, pid, oid, page, number, swap,
 				    swap_len);

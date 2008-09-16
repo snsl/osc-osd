@@ -1596,6 +1596,7 @@ mutiplex_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 }
 
+
 /*
  * returns:
  * == OSD_OK: success, used_outlen modified
@@ -1609,14 +1610,7 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint8_t obj_type = 0;
 
-#if 0
-	osd_debug("%s: get attr for (%llu, %llu) page %u number %u", __func__,
-		  llu(pid), llu(oid), page, number);
-#endif
-
-	if (!osd || !osd->root || !osd->dbc || !outbuf || !used_outlen ||
-	    !sense)
-		goto out_param_list;
+	assert(osd && osd->root && osd->dbc && outbuf && used_outlen && sense);
 
 	obj_type = get_obj_type(osd, pid, oid);
 	if (obj_type == ILLEGAL_OBJ)
@@ -1654,13 +1648,36 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_param_list;
 
 	if (ret == -ENOENT) {
-		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		/*
+		 * Treatment of undefined attributes: Sec 7.1.3.1. The ver 2
+		 * draft changed the semantics of handling undefined
+		 * attributed from ver 1. Instead of sending null attributes
+		 * entry, list entry with attribute length 0 is sent (Sec
+		 * 7.1.1). If attr page is undefined then null attributes
+		 * page is returned (7.1.2.25)
+		 *
+		 * XXX:SD There is ambiguity wrt actions taken for "undefined
+		 * page".  If the "undefined page" means a page with no
+		 * defined attributes, then a get all attr on that page can
+		 * either send a null attributes page (7.1.2.25) or one can
+		 * send list with list length 0 (7.1.3.1). We choose the
+		 * latter option.
+		 *
+		 * XXX:SD Since we don't give names to pages when the pages
+		 * are created (doing so would increase complexity of set
+		 * attr), when all attributes of a page is requested we don't
+		 * have attr num 0, which defines name of the page. However,
+		 * if the user has explicitly defined the name of the page,
+		 * then it would be returned if all the attributes of the
+		 * page are requested.
+		 */
+
+		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST) 
 			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
-						    page, number,
-						    NULL_ATTR_LEN, NULL);
-		else
-			ret = le_pack_attr(outbuf, outlen, page, number,
-					   NULL_ATTR_LEN, NULL);
+						    page, number, 0, NULL);
+		else 
+			ret = le_pack_attr(outbuf, outlen, page, number, 0,
+					   NULL);
 
 		assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
 		if (ret == -EOVERFLOW)

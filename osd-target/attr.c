@@ -547,6 +547,9 @@ repeat:
 /*
  * get one page in list format
  *
+ * XXX:SD If the page is defined and we don't have name for the page (attr
+ * num == 0), then we don't return its name. That is a bug
+ *
  * -EINVAL: invalid arg, ignore used_len 
  * -ENOENT: error, attribute not found
  * OSD_ERROR: some other error
@@ -585,6 +588,9 @@ repeat:
 /*
  * for each defined page of an object get attribute with specified number
  *
+ * XXX:SD If the page is defined and we don't have name for the page (attr
+ * num == 0), then we don't return its name. That is a bug
+ *
  * -EINVAL: invalid arg, ignore used_len 
  * -ENOENT: error, attribute not found
  * OSD_ERROR: some other error
@@ -622,6 +628,9 @@ repeat:
 
 /*
  * get all attributes for an object in a list format
+ *
+ * XXX:SD If the page is defined and we don't have name for the page (attr
+ * num == 0), then we don't return its name. That is a bug
  *
  * returns: 
  * -EINVAL: invalid arg, ignore used_len 

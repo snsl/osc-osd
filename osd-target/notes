@@ -702,3 +702,22 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
 -   make mem management efficient
 -   take care of buf outruns
 
+# Mon Jul 16 21:09:32 EDT 2007
+-   use new SQLite api for prepared statements
+-   use new SQLite return semantics
+-   try to write configure script to enable dependencies
+-   complete some of the todos like optimizing create, optimizing obj_type
+    lookup etc
+
+# Fri Jul 20 15:08:01 EDT 2007
+-   improve setattr perf
+-   clean up iscsi_iser
+
+# Mon Jul 30 15:45:48 EDT 2007
+-   iobench bonnie tests for OSD target
+
+# Thu Aug  2 13:06:05 EDT 2007
+-   combine get/set attrs initial functions
+
+# Mon Aug  6 13:15:05 EDT 2007
+-   coding style: keep all types together

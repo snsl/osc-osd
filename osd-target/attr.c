@@ -201,6 +201,10 @@ const char *attr_getname(struct db_context *dbc)
 
 
 /*
+ * Note: Current SQLITE INSERT syntax does not support bulk inserts in a
+ * single INSERT SQL statement. Therefore this function needs to be called
+ * for each table insert.
+ *
  * returns:
  * -EINVAL: invalid arg
  * OSD_ERROR: some other error
@@ -600,3 +604,4 @@ repeat:
 
 	return ret;
 }
+

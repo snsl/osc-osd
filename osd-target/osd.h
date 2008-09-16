@@ -11,6 +11,10 @@ int osd_close(struct osd_device *osd);
 int osd_error_unimplemented(uint16_t action, uint8_t *sense);
 int osd_error_bad_cdb(uint8_t *sense);
 
+/* db ops */
+int osd_begin_txn(struct osd_device *osd);
+int osd_end_txn(struct osd_device *osd);
+
 /*
  * Commands.
  *

@@ -834,6 +834,16 @@ int osd_close(struct osd_device *osd)
 	return ret;
 }
 
+int osd_begin_txn(struct osd_device *osd)
+{
+	return db_begin_txn(osd->dbc);
+}
+
+int osd_end_txn(struct osd_device *osd)
+{
+	return db_end_txn(osd->dbc);
+}
+
 /*
  * Externally callable error response generators.
  */
@@ -951,7 +961,6 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t numoid, uint8_t *sense)
 {
 	int ret = 0;
-	int within_txn = 0;
 	int present = 0;
 	uint64_t i = 0;
 	uint64_t oid = 0;
@@ -967,11 +976,6 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 
 	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB)
 		goto out_illegal_req;
-
-	/* encapsulate all db ops in txn */
-	ret = db_begin_txn(osd->dbc);
-	assert(ret == 0);
-	within_txn = 1;
 
 	/* Make sure partition is present. */
 	ret = obj_ispresent(osd->dbc, pid, PARTITION_OID, &present);
@@ -1041,28 +1045,17 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	}
 	osd->ic.next_id += (numoid - 1);
 
-	ret = db_end_txn(osd->dbc);
-	assert(ret == 0);
-
 	/* fill CCAP with highest oid, osd2r00 Sec 6.3, 3rd last para */
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, (oid+numoid-1), 0);
 	return OSD_OK; /* success */
 
 out_illegal_req:
-	if (within_txn) {
-		ret = db_end_txn(osd->dbc);
-		assert(ret == 0);
-	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			       OSD_ASC_INVALID_FIELD_IN_CDB,
 			       pid, requested_oid);
 
 out_hw_err:
 	osd->ic.cur_pid = osd->ic.next_id = 0; /* invalidate cache */
-	if (within_txn) {
-		ret = db_end_txn(osd->dbc);
-		assert(ret == 0);
-	}
 	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			       OSD_ASC_INVALID_FIELD_IN_CDB,
 			       pid, requested_oid);
@@ -1948,7 +1941,6 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 {
 	int ret = 0;
 	char path[MAXNAMELEN];
-	uint8_t within_txn = 0;
 
 	osd_debug("%s: removing userobject pid %llu oid %llu", __func__,
 		  llu(pid), llu(oid));
@@ -1968,10 +1960,6 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != 0)
 		goto out_hw_err;
 
-	ret = db_begin_txn(osd->dbc);
-	assert(ret == 0);
-	within_txn = 1;
-
 	/* delete all attr of the object */
 	ret = attr_delete_all(osd->dbc, pid, oid);
 	if (ret != 0)
@@ -1986,26 +1974,15 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != 0)
 		goto out_hw_err;
 
-	ret = db_end_txn(osd->dbc);
-	assert(ret == 0);
-
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return OSD_OK; /* success */
 
 out_cdb_err:
-	if (within_txn) {
-		ret = db_end_txn(osd->dbc);
-		assert(ret == 0);
-	}
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
 
 out_hw_err:
-	if (within_txn) {
-		ret = db_end_txn(osd->dbc);
-		assert(ret == 0);
-	}
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
@@ -2157,18 +2134,12 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	int present = 0;
 	uint8_t obj_type = 0;
-	uint8_t within_txn = 0;
 
 /*	osd_debug("%s: set attr on pid %llu oid %llu", __func__, llu(pid),
 		  llu(oid)); */
 
 	if (!osd || !osd->root || !osd->dbc || !val || !sense)
 		goto out_cdb_err;
-
-	/* encapsulate all db ops in txn */
-	ret = db_begin_txn(osd->dbc);
-	assert(ret == 0);
-	within_txn = 1;
 
 	ret = obj_ispresent(osd->dbc, pid, oid, &present);
 	if (ret != OSD_OK || !present) /* object not present! */
@@ -2241,34 +2212,19 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_hw_err;
 
 out_success:
-	ret = db_end_txn(osd->dbc);
-	assert(ret == 0);
-
 	if (!isembedded)
 		fill_ccap(&osd->ccap, NULL, obj_type, pid, oid, 0);
 	return OSD_OK; /* success */
 
 out_param_list:
-	if (within_txn) {
-		ret = db_end_txn(osd->dbc);
-		assert(ret == 0);
-	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			       OSD_ASC_INVALID_FIELD_IN_PARAM_LIST,
 			       pid, oid);
 
 out_cdb_err:
-	if (within_txn) {
-		ret = db_end_txn(osd->dbc);
-		assert(ret == 0);
-	}
 	return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 out_hw_err:
-	if (within_txn) {
-		ret = db_end_txn(osd->dbc);
-		assert(ret == 0);
-	}
 	return sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
 			       OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 }

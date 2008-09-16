@@ -21,6 +21,8 @@ Optimization:
 +   optimize sql query setup
 -   multithreading sqlite: 
         fine grain locking. transactions
+-   optimize setattr: parse input attributes in one go and call setattr
+    function only once
 -   implement cache near the table, for eg. id cache in obj.c
         table manipulators need local cache. for eg. attr needs cache for
         blob, obj needs cache for id & storing results of list command. These

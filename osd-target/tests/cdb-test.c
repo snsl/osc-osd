@@ -27,7 +27,7 @@ void test_partition(struct osd_device *osd)
 	struct osd_command cmd;
 	int senselen_out;
 	uint8_t sense_out[OSD_MAX_SENSE];
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	const void *data_in;
 	uint64_t data_out_len, data_in_len;
 
@@ -82,7 +82,7 @@ void test_create(struct osd_device *osd)
 	struct osd_command cmd;
 	int senselen_out;
 	uint8_t sense_out[OSD_MAX_SENSE];
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	const void *data_in;
 	uint64_t data_out_len, data_in_len;
 
@@ -228,16 +228,16 @@ static void set_attr_int(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	struct osd_command cmd;
 	uint8_t sense_out[OSD_MAX_SENSE];
 	int senselen_out;
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	uint64_t data_out_len;
 	uint64_t attrval;
 	int ret;
 	struct attribute_list attr = {
-	    .type = ATTR_SET,
-	    .page = page,
-	    .number = number,
-	    .len = 8,
-	    .val = &attrval,
+		.type = ATTR_SET,
+		.page = page,
+		.number = number,
+		.len = 8,
+		.val = &attrval,
 	};
 
 	set_htonll((uint8_t *) &attrval, val);
@@ -259,15 +259,15 @@ static void set_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	struct osd_command cmd;
 	uint8_t sense_out[OSD_MAX_SENSE];
 	int senselen_out;
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	uint64_t data_out_len;
 	int ret;
 	struct attribute_list attr = {
-	    .type = ATTR_SET,
-	    .page = page,
-	    .number = number,
-	    .len = len,
-	    .val = (void *)(uintptr_t) val,
+		.type = ATTR_SET,
+		.page = page,
+		.number = number,
+		.len = len,
+		.val = (void *)(uintptr_t) val,
 	};
 
 	ret = osd_command_set_set_attributes(&cmd, pid, oid);
@@ -306,7 +306,7 @@ static int ismember(uint64_t needle, uint64_t *hay, uint64_t haysz)
 }
 
 static void check_results(uint8_t *matches, uint64_t matchlen,
-                          uint64_t *idlist, uint64_t idlistlen)
+			  uint64_t *idlist, uint64_t idlistlen)
 {
 	uint32_t add_len = get_ntohll(&matches[0]);
 
@@ -328,7 +328,7 @@ static void test_query(struct osd_device *osd)
 	uint64_t pid = PARTITION_PID_LB;
 	uint64_t cid = COLLECTION_OID_LB;
 	uint64_t oid = USEROBJECT_OID_LB + 1;  /* leave room for cid */
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	uint64_t data_out_len;
 	uint8_t sense_out[OSD_MAX_SENSE];
 	int senselen_out;
@@ -350,11 +350,11 @@ static void test_query(struct osd_device *osd)
 	for (i=0; i<10; i++) {
 		uint64_t attrval;
 		struct attribute_list attr = {
-		    .type = ATTR_SET,
-		    .page = USER_COLL_PG,
-		    .number = 1,
-		    .len = 8,
-		    .val = &attrval,
+			.type = ATTR_SET,
+			.page = USER_COLL_PG,
+			.number = 1,
+			.len = 8,
+			.val = &attrval,
 		};
 		set_htonll((uint8_t *) &attrval, cid);
 		ret = osd_command_set_create(&cmd, pid, oid + i, 1);
@@ -397,7 +397,7 @@ static void test_query(struct osd_device *osd)
 	uint32_t qll;
 	uint64_t matchlen;
 	uint64_t idlist[8];
-	
+
 	qll = MINQLISTLEN;
 	memset(buf, 0, 1024);
 	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
@@ -739,7 +739,7 @@ static void test_oids_with_attr(struct osd_device *osd, uint64_t pid,
 	uint32_t page = 0, number = 0;
 	uint64_t data_in_len, data_out_len;
 	const void *data_in;
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	uint64_t oid = 0; 
 	uint8_t sense_out[OSD_MAX_SENSE];
 	uint16_t len = 0;
@@ -799,6 +799,7 @@ static void test_oids_with_attr(struct osd_device *osd, uint64_t pid,
 		}
 	}
 	free(data_out);
+	data_out = NULL;
 	osd_command_attr_free(&cmd);
 }
 
@@ -808,7 +809,7 @@ void test_list(struct osd_device *osd)
 	uint64_t pid = PARTITION_PID_LB;
 	uint64_t cid = 0;
 	uint64_t oid = 0; 
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	uint8_t *cp;
 	uint32_t page = 0, number = 0;
 	uint64_t data_out_len;
@@ -931,6 +932,7 @@ void test_list(struct osd_device *osd)
 		data_out_len -= 8;
 	}
 	free(data_out);
+	data_out = NULL;
 	osd_command_attr_free(&cmd);
 
 	/* execute list command with less space */
@@ -961,8 +963,9 @@ void test_list(struct osd_device *osd)
 		data_out_len -= 8;
 	}
 	free(data_out);
+	data_out = NULL;
 	osd_command_attr_free(&cmd);
-				
+
 	page = USEROBJECT_PG + LUN_PG_LB;
 	number = 1;
 	struct attribute_list getattr[] = {
@@ -1075,7 +1078,7 @@ void test_set_member_attributes(struct osd_device *osd)
 	uint64_t pid = PARTITION_PID_LB;
 	uint64_t cid = COLLECTION_OID_LB;
 	uint64_t oid = 0; 
-	uint8_t *data_out;
+	uint8_t *data_out = NULL;
 	uint32_t page = 0;
 	const void *data_in;
 	uint64_t data_out_len, data_in_len;
@@ -1110,11 +1113,11 @@ void test_set_member_attributes(struct osd_device *osd)
 	for (i = 0; i < 100; i += 2) {
 		uint64_t attrval;
 		struct attribute_list attr = {
-		    .type = ATTR_SET,
-		    .page = USER_COLL_PG,
-		    .number = 1,
-		    .len = sizeof(attrval),
-		    .val = &attrval,
+			.type = ATTR_SET,
+			.page = USER_COLL_PG,
+			.number = 1,
+			.len = sizeof(attrval),
+			.val = &attrval,
 		};
 		set_htonll((uint8_t *) &attrval, cid);
 		ret = osd_command_set_set_attributes(&cmd, pid, oid + i);

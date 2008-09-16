@@ -404,5 +404,3 @@ int obj_get_all_pids(sqlite3 *db, uint64_t initial_oid, uint64_t alloc_len,
 out:
 	return ret;
 }
-	return 0;
-}

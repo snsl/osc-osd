@@ -552,17 +552,19 @@ int main(int argc, char *argv[])
 	format_osd(fd, 1<<30); 
 	create_partition(fd, PARTITION_PID_LB);
 
-	noop_test(fd);
 #if 0
+	noop_test(fd);
 	create_test(fd, PARTITION_PID_LB);
 	remove_test(fd, PARTITION_PID_LB);
+#endif
 	getattr_test(fd, PARTITION_PID_LB);
+#if 0
 	setattr_test(fd, PARTITION_PID_LB);
 	create_remove_test(fd, PARTITION_PID_LB);
 	get_set_attr(fd, PARTITION_PID_LB);
-#endif
 	unimplemented_test(fd, PARTITION_PID_LB);
 	flush_test(fd, PARTITION_PID_LB);
+#endif
 
 	close(fd);
 	return 0;

@@ -11,8 +11,8 @@ struct getattr_list_entry {
 } __attribute__((packed));
 
 #define LIST_HDR_LEN (8) /* XXX: osd-errata */
-#define ATTR_LEN_UB (0xFFFEU) /* undefined attr have length 0xFFFF, hence max
-				 length is 0xFFFE */
+#define ATTR_LEN_UB (0xFFFEU) /* undefined attr have length 0xFFFF, hence 
+				 max length is 0xFFFE */
 #define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
 #define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
 

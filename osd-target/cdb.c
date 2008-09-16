@@ -192,7 +192,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	err = osd_end_txn(cmd->osd);
 	assert(err == 0);
 
-	return 0; /* success */
+	return OSD_OK; /* success */
 
 out_err:
 	if (within_txn) {
@@ -228,9 +228,9 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t i = 0;
 	uint8_t list_type;
 	uint8_t *cdb = cmd->cdb;
-	uint32_t setattr_list_len = get_ntohl(&cmd->cdb[68]);
+	uint32_t setattr_list_len = get_ntohl(&cdb[68]);
 	uint32_t list_len = 0;
-	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
+	uint32_t list_off = get_ntohoffset(&cdb[72]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 
 	if (setattr_list_len == 0)
@@ -786,7 +786,7 @@ static int cdb_cas(struct command *cmd)
 	if (cmd->outdata == NULL || cmd->indata == NULL)
 		goto out_cdb_err;
 
-	if (len < sizeof(swap))
+	if (len < 2*sizeof(swap))
 		goto out_cdb_err;
 
 	/* 
@@ -848,6 +848,166 @@ out_cdb_err:
 	return ret;
 }
 
+/*
+ * OSD_GEN_CAS: the CAS operation is applied to the first attribute being
+ * set. Even when there is only attribute, the set attribute value format
+ * *CANNOT* be used, since initiator needs to pass two values: 'cmp' and
+ * 'swap'. The 'cmp' and 'swap' will always be first and second values in
+ * the set attribute list format.
+ */
+static int cdb_gen_cas(struct command *cmd)
+{
+	int ret = 0;
+	uint8_t *cdb = cmd->cdb;
+	uint64_t pid = get_ntohll(&cdb[16]);
+	uint64_t oid = get_ntohll(&cdb[24]);
+	uint8_t list_type;
+	uint32_t setattr_list_len = get_ntohl(&cdb[68]);
+	uint32_t list_len = 0;
+	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
+	const uint8_t *list_hdr = &cmd->indata[list_off];
+	uint8_t *cmp, *swap, *orig;
+	uint16_t cmp_len, swap_len, orig_len;
+	uint8_t pad;
+	uint8_t *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
+	uint32_t page, number;
+	uint32_t alloc_len = get_ntohl(&cdb[60]);
+	uint32_t used_outlen, orig_retr_attr_off;
+
+	if (cmd->getset_cdbfmt != GETLIST_SETLIST) 
+		goto out_cdb_err;
+
+	if (setattr_list_len < LIST_HDR_LEN) /* need atleast cmp & swap */
+		goto out_param_list_err;
+
+	list_type = list_hdr[0] & 0xF;
+	if (list_type != RTRVD_SET_ATTR_LIST)
+		goto out_param_list_err;
+
+	list_len = get_ntohl(&list_hdr[4]); /* XXX: osd errata */
+	if ((list_len + 8) != setattr_list_len)
+		goto out_param_list_err;
+	if (list_len & 0x7) /* multiple of 8, values are padded */
+		goto out_param_list_err;
+
+	/* grab cmp & swap */
+	list_hdr = &list_hdr[8]; /* XXX: osd errata */
+	page = get_ntohl(&list_hdr[0]);
+	number = get_ntohl(&list_hdr[4]);
+	cmp_len = get_ntohs(&list_hdr[8]);
+	cmp = &list_hdr[10];
+	pad = (0x8 - ((LE_VAL_OFF + cmp_len) & 0x7)) & 0x7;
+	list_hdr += LE_VAL_OFF + cmp_len + pad;
+	list_len -= LE_VAL_OFF + cmp_len + pad;
+	if (list_len < LE_VAL_OFF)
+		goto out_cdb_err; /* need both cmp & swap */
+	assert(page == get_ntohl(&list_hdr[0]));
+	assert(number == get_ntohl(&list_hdr[4]));
+	swap_len = get_ntohs(&list_hdr[8]);
+	swap = &list_hdr[10];
+	pad = (0x8 - ((LE_VAL_OFF + swap_len) & 0x7)) & 0x7;
+	list_hdr += LE_VAL_OFF + swap_len + pad;
+	list_len -= LE_VAL_OFF + swap_len + pad;
+
+	ret = osd_gen_cas(cmd->osd, pid, oid, page, number, cmp, cmp_len,
+			  swap, swap_len, &orig, &orig_len, cmd->sense);
+	if (ret != OSD_OK) {
+		cmd->senselen = ret;
+		goto out_err;
+	}
+
+	/* set remaining attributes */
+	if (list_len == 0) /* no more attrs to set */
+		goto get_attr;
+
+	if (list_len < LE_VAL_OFF) /* need atleast one list entry */
+		goto out_cdb_err;
+
+	while (list_len > 0) {
+		page = get_ntohl(&list_hdr[0]);
+		number = get_ntohl(&list_hdr[4]);
+		len = get_ntohs(&list_hdr[8]);
+		pad = 0;
+
+		ret = osd_set_attributes(cmd->osd, pid, oid, page, number,
+					 &list_hdr[10], len, TRUE,
+					 cmd->sense);
+		if (ret != 0) {
+			cmd->senselen = ret;
+			goto out_err;
+		}
+
+		pad = (0x8 - ((LE_VAL_OFF + len) & 0x7)) & 0x7;
+		list_hdr += LE_VAL_OFF + len + pad;
+		list_len -= LE_VAL_OFF + len + pad;
+	}
+
+get_attr:
+	/* 
+	 * Following the order of the indata where cmp and swap values are
+	 * the first entries in the list, in the retrieved attributes case
+	 * also, the first entry will be the original value returned by the
+	 * CAS operation. But if there are more attributes to be fetched,
+	 * then we need to call get_attributes function. Since get_attributes
+	 * creates the whole list along with header, we need a way to stuff
+	 * original value in the front of the list. To do this we tamper with
+	 * the retrieved_attr_off so that get_attributes creates its list at
+	 * an offset. Then we stuff the original value from CAS op after the
+	 * list header making it the first entry.
+	 */
+
+	/* modify retrieved_attr_off and then get attr */
+	orig_retr_attr_off = cmd->retrieved_attr_off;
+	orig_le_len = roundup8(LE_VAL_OFF + orig_len);
+	cmd->retrieved_attr_off += orig_le_len;
+	cp = &cmd->outdata[cmd->retrieved_attr_off];
+	memset(cp, 0, LIST_HDR_LEN);
+	if (alloc_len < orig_le_len) /* need space for atleast 1 le */
+		goto out_cdb_err;
+	set_htonl(&cdb[60], alloc_len - orig_le_len);
+	ret = get_attributes(cmd, pid, oid, 1);
+	if (ret != OSD_OK)
+		goto out_err;
+	if (cp[0] != RTRVD_SET_ATTR_LIST) /* getattr list was empty */
+		cp[0] = RTRVD_SET_ATTR_LIST;
+
+	/* move header to the start of the buffer */
+	cp = &cmd->outdata[orig_retr_attr_off];
+	sp = &cmd->outdata[orig_retr_attr_off + orig_le_len];
+	memcpy(cp, sp, LIST_HDR_LEN);
+	cp += LIST_HDR_LEN;
+
+	/* stuff original value from CAS operation */
+	if (orig != NULL && orig_len > 0) {
+		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, page, number, 
+				   orig, orig_len);
+		free(orig);
+	} else {
+		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, page, number, 
+				   NULL_ATTR_LEN, NULL);
+	}
+	if (ret <= 0) {
+		goto out_cdb_err;
+	} else {
+		if (orig_le_len <= alloc_len - LIST_HDR_LEN)
+			assert(ret == orig_le_len);
+		else
+			assert(ret == alloc_len - LIST_HDR_LEN);
+	}
+
+	/* modify list len to reflect new entry */
+	cp -= LIST_HDR_LEN;
+	len = get_ntohl(&cp[4]) + roundup8(LE_VAL_OFF + orig_len);
+	set_htonl(&cp[4], len);
+	return OSD_OK;
+
+out_cdb_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+
+out_err:
+	return ret;
+}
 
 /*
  * Compare, and complain if iscsi did not deliver enough bytes to
@@ -1096,6 +1256,10 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_FA: {
 		ret = cdb_fa(cmd);
+		break;
+	}
+	case OSD_GEN_CAS: {
+		ret = cdb_gen_cas(cmd);
 		break;
 	}
 	default:

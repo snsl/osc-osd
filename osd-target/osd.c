@@ -2513,3 +2513,72 @@ out_cdb_err:
 	return ret;
 }
 
+/*
+ * OSD_GEN_CAS: generalized cas
+ *
+ * max(cmp_len and swap_len) == ATTR_LEN_UB == 0xFFFE
+ *
+ */
+int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, 
+		uint32_t page, uint32_t number, uint8_t *cmp,
+		uint16_t cmp_len, uint8_t *swap, uint16_t swap_len, 
+		void **orig_val, uint16_t *orig_len, uint8_t *sense) 
+{
+	int ret = 0;
+	int present = 0;
+	uint8_t obj_type = 0;
+	uint8_t *val = NULL;
+	uint32_t usedlen = 0;
+
+	if (!osd || !osd->dbc || !cmp || !swap || !outbuf || !used_outlen ||
+	    !sense)
+		goto out_cdb_err;
+
+	val = malloc(ATTR_LEN_UB);
+	if (!val)
+		goto out_hw_err;
+
+	ret = obj_ispresent(osd->dbc, pid, oid, &present);
+	if (ret != OSD_OK || !present) /* object not present */
+		goto out_cdb_err;
+
+	obj_type = get_obj_type(osd, pid, oid);
+	if (obj_type != USEROBJECT)
+		goto out_cdb_err;
+
+	ret = attr_get_val(osd->dbc, pid, oid, page, number, ATTR_LEN_UB,
+			   val, &usedlen);
+	if (ret != OSD_OK || ret != -ENOENT)
+		goto out_hw_err;
+
+	if (ret == -ENOENT || 
+	    (usedlen == cmp_len && memcmp(cmp, val, cmp_len) == 0)) {
+		ret = attr_set_attr(osd->dbc, pid, oid, page, number, swap,
+				    swap_len);
+		if (ret != OSD_OK)
+			goto out_hw_err;
+	}
+
+	/* 
+	 * regardless of successful swap, we return original value, if
+	 * present, else undefined value
+	 */
+	if (ret == -ENOENT) {
+		*orig_val = NULL;
+		*orig_len = 0;
+	} else {
+		*orig_val = val;
+		*orig_len = usedlen
+	}
+	return OSD_OK;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	return ret;
+}

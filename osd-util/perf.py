@@ -33,6 +33,7 @@ options = {
     "meta_on_io": "no",
     "one_config_file" : "yes",
     "mirror": "",
+    "ismirror": "no", # XXX: later remove either mirror or ismirror
     "pvfs_osd_integrated": "no",
     "rdma": "no",
 }
@@ -42,6 +43,8 @@ id = pwd.getpwuid(os.getuid())[0]
 
 if id == "pw":
     osd_dir = "/home/pw/src/osd"
+elif id == "ananth":
+    osd_dir = "/home/ananth/osd"
 else:
     osd_dir = os.environ["HOME"] + "/osd"
 
@@ -120,6 +123,8 @@ def usage():
     print >>sys.stderr, "  -2 : two config files (ancient PVFS), not default"
     print >>sys.stderr, "  -mirror <ionodes> : use given ionodes file to", \
     			"build a mirror MD setup"
+    print >>sys.stderr, "  -ismirror, to make mirror servers. In this case",\
+                        "it uses its own ionodes"
     print >>sys.stderr, "  -poi : for PVFS_OSD_INTEGRATED, connect to OSDs"
     print >>sys.stderr, "  -rdma : connect to OSDs using iSER"
     sys.exit(1)
@@ -389,6 +394,10 @@ def buildfiles():
     print >>fd, "<Filesystem>"
     print >>fd, "    Name pvfs2-fs"
     print >>fd, "    ID", pid
+    if options["ismirror"] == "yes":
+        print >>fd, "    IsMirror", 1
+    else:
+        print >>fd, "    IsMirror", 0
 
     print >>fd, "    <DataHandleRanges>"
     for n in ionodes:
@@ -597,6 +606,7 @@ def start():
 	d = datahandles[n][0] if datahandles.has_key(n) else 0
 	m = metahandles[n][0] if metahandles.has_key(n) else 0
 	s = " " + str(m) + " " + fsconf if m == roothandle else ""
+	#print pvfs_init + " " + n + " " + str(d) + " " + str(m) + s
 	ret = os.system(pvfs_init + " " + n + " " + str(d) + " " + str(m) + s)
 	if ret:
 	    print >>sys.stderr, pvfs_init + " failed"
@@ -720,6 +730,9 @@ while i < len(sys.argv):
     elif sys.argv[i] == "-rdma":
 	options["rdma"] = "yes"
 	i += 1
+    elif sys.argv[i] == "-ismirror":
+        options["ismirror"] = "yes"
+        i += 1
     else:
 	break
 

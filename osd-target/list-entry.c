@@ -52,7 +52,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	cp += len; 
 	len += pad;
 	while (pad--)
-		*cp++ = 0; /* pad with zeros XXX: osd-errata */
+		*cp++ = 0;
 	return len;
 }
 

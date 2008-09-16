@@ -147,9 +147,6 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t i = 0;
 	uint8_t list_type;
 	uint8_t listfmt = RTRVD_SET_ATTR_LIST;
-	uint32_t page;
-	uint32_t number;
-	uint32_t get_used_outlen;
 	uint32_t list_len = ntohl(&cmd->cdb[52]); 
 	uint64_t list_off = ntohoffset_le(&cmd->cdb[56]);
 	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
@@ -163,31 +160,36 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if (list_len != 0 && list_len < MIN_LIST_LEN)
 		goto out_param_list_err;
 
-	if (list_off + list_alloc_len > cmd->inlen)
+	if (list_off + list_alloc_len > cmd->outlen)
 		goto out_param_list_err;
 
 	if ((list_off & 0x7) || (list_alloc_len & 0x7))
-		goto out_param_list_err; /*XXX: osd-errata 8B aligned */
+		goto out_param_list_err;
 
 	list_type = list_hdr[0] & 0xF;
 	if (list_type != RTRV_ATTR_LIST)
 		goto out_invalid_param_list;
 
-	list_len = ntohl(&list_hdr[4]); /* XXX: osd-errata */
+	list_len = ntohl(&list_hdr[4]);
 	if (list_len & 0x7) /* multiple of 8 */
 		goto out_param_list_err;
 
 	if (numoid > 1)
 		listfmt = RTRVD_CREATE_ATTR_LIST;
 	outbuf[0] = listfmt; /* fill list header */
+	outbuf[1] = 0;
+	outbuf[2] = 0;
+	outbuf[3] = 0;
 
-	list_hdr = &list_hdr[8]; /* XXX: osd-errata */
-	cp = &outbuf[8]; /* XXX: osd-errata */
+	list_hdr += 8;
+	cp = outbuf + 8;
+	cmd->get_used_outlen = 8;
 	while (list_len > 0) {
-		page = ntohl(&list_hdr[0]);
-		number = ntohl(&list_hdr[4]);
+		uint32_t page = ntohl(&list_hdr[0]);
+		uint32_t number = ntohl(&list_hdr[4]);
 
 		for (i = oid; i < oid+numoid; i++) {
+			uint32_t get_used_outlen;
 			ret = osd_getattr_list(cmd->osd, pid, i, page, number,
 					       cp, list_alloc_len, isembedded,
 					       listfmt, &get_used_outlen,
@@ -205,8 +207,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		list_len -= 8;
 		list_hdr += 8;
 	}
-	/* XXX: osd-errata. Set list length */
-	set_htonl_le(&outbuf[8], cmd->get_used_outlen - 8);
+	set_htonl_le(&outbuf[4], cmd->get_used_outlen - 8);
 
 	return 0; /* success */
 
@@ -528,19 +529,10 @@ static void exec_service_action(struct command *cmd)
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 
-		// malloc(dataout) first based on passed-in expected length
-		// from user, pass this to the functions
-		//
-		// dataout = malloc(expected_from_initiator);
-		// ret = get_attributes(..., dataout, data_out_len, sense);
-		// Check for errors, return debug/sense
-		//
-		// ret = set_attributes();
-		// Check for errors, return debug/sense
-		//
-		// return this new array to initiator
-		// *data_out = dataout;
-		ret = 0;
+		ret = get_attributes(cmd, pid, oid, 1);
+		if (ret)
+			break;
+		ret = set_attributes(cmd, pid, oid, 1);
 		break;
 
 	}

@@ -15,7 +15,7 @@ struct list_entry {
 	uint32_t number;
 	uint16_t len;
 	void *val;
-};
+} __attribute__((packed));
 
 enum {
 	LE_PAGE_OFF = offsetof(struct list_entry, page),
@@ -30,7 +30,7 @@ struct multiobj_list_entry {
 	uint32_t number;
 	uint16_t len;
 	void *val;
-};
+} __attribute__((packed));
 
 enum {
 	MLE_OID_OFF = offsetof(struct multiobj_list_entry, oid),

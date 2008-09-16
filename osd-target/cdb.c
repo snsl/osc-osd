@@ -70,6 +70,7 @@ static void get_attributes(struct command *command)
 	uint64_t oid = ntohll(&command->cdb[24]);
 	uint8_t *outdata = command->outdata + command->retrieved_attr_off;
 	uint64_t outlen = command->outlen - command->retrieved_attr_off;
+	uint32_t get_used_outlen = 0;
 
 	/* if =2, get an attribute page and set an attribute value */
 	if (command->getset_cdbfmt == 2)
@@ -79,14 +80,12 @@ static void get_attributes(struct command *command)
 		/* if page = 0, no attributes are to be gotten */
 		if (page != 0)
 		{
-			uint16_t len = outlen;
-
 			ret = osd_get_attributes(command->osd, pid, oid,
-				page, 0, outdata, &len, 1, EMBEDDED,
-				command->sense);
+				page, 0, outdata, outlen, 1, EMBEDDED,
+				command->sense, &get_used_outlen);
 			if (ret > 0)
 				command->senselen = ret;
-			command->get_used_outlen = len;
+			command->get_used_outlen = get_used_outlen;
 		}
 	}
 

@@ -45,7 +45,7 @@
 #define SAM_STAT_ACA_ACTIVE      0x30
 #define SAM_STAT_TASK_ABORTED    0x40
 
-/* OSD object constants */
+/* OSD object constants, osd2r00 Sec 4.6.2 tab 2 */
 #define ROOT_PID (0LLU)
 #define ROOT_OID (0LLU)
 #define PARTITION_PID_LB (0x10000LLU)
@@ -66,7 +66,7 @@ enum {
 	ILLEGAL_OBJ = 0x00 /* XXX: this is not in standard */
 };
 
-/* osd2r00 Section 4.7.3 */
+/* osd2r00 tab 3, Section 4.7.3 */
 enum {
 	USEROBJECT_PG = 0x0U,
 	PARTITION_PG  = 0x30000000U,
@@ -78,17 +78,41 @@ enum {
 	GETALLATTR_PG = 0xFFFFFFFFU
 };
 /* current command attr list length */
-#define CCAP_LIST_LEN (85 + 6*ATTR_VAL_OFFSET)
-#define CCAP_ID_LEN (40)
+/*#define CCAP_LIST_LEN (85 + 6*ATTR_VAL_OFFSET)
+#define CCAP_ID_LEN (40)*/
 
-/* osd2r00, Table 4, Section 4.7.3 */
+/* Current command attributes page constants, osd2r00 Sec 7.1.2.24 tab 124 */
 enum {
-	VALID_PG_LB = 0x10000,
-	VALID_PG_UB = 0x1FFFFFFF
+	CCAP_PAGEID_OFF = 0,
+	CCAP_LEN_OFF = 4,
+	CCAP_RICV_OFF = 8,
+	CCAP_OBJT_OFF = 28,
+	CCAP_PID_OFF = 32,
+	CCAP_OID_OFF = 40,
+	CCAP_APPADDR_OFF = 48,
+	CCAP_RICV_LEN = 20,
+	CCAP_LEN = 48, /* 0x30 */
+	CCAP_TOTAL_LEN = 56
+};
+
+/* osd2r00, tab 4, Section 4.7.3 */
+enum {
+	STD_PG_LB = 0x0,
+	STD_PG_UB = 0x7F,
+	RSRV_PG_LB = 0x80,
+	RSRV_PG_UB = 0x7FFF,
+	OSTD_PG_LB = 0x8000,
+	OSTD_PG_UB = 0xEFFF,
+	MSPC_PG_LB = 0xF000,
+	MSPC_PG_UB = 0xFFFF,
+	LUN_PG_LB = 0x10000,
+	LUN_PG_UB = 0x1FFFFFFF,
+	VEND_PG_LB = 0x20000000,
+	VEND_PG_UB = 0x2FFFFFFF
 };
 
 /* osd2r00 Section 4.7.3 */
-enum {
+/*enum {
 	USEROBJECT_PG_LB = USEROBJECT_PG + VALID_PG_LB,
 	USEROBJECT_PG_UB = USEROBJECT_PG + VALID_PG_UB,       
 	PARTITION_PG_LB = PARTITION_PG + VALID_PG_LB,  
@@ -98,7 +122,7 @@ enum {
 	ROOT_PG_LB = ROOT_PG + VALID_PG_LB,       
 	ROOT_PG_UB = ROOT_PG + VALID_PG_UB,
 	ANY_PG_UB = ANY_PG + (0xFFFFFFFE)
-};
+};*/
 	
 /* osd2r00, Section 4.7.4 */
 enum {
@@ -117,8 +141,8 @@ enum {
 };
 
 enum {
-	INVALID_PAGE = 0,
-	VALID_PAGE = 1
+	FALSE = 0,
+	TRUE = 1
 };
 
 enum {

@@ -50,54 +50,53 @@ static struct init_attr partition_info[] = {
 	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
 };
 
-static inline uint8_t get_obj_type(uint64_t pid, uint64_t oid)
+static inline uint8_t get_obj_type(struct osd_device *osd,
+				   uint64_t pid, uint64_t oid)
 {
 	if (pid == ROOT_PID && oid == ROOT_OID) {
 		return ROOT;
 	} else if (pid >= PARTITION_PID_LB && oid == PARTITION_OID) {
 		return PARTITION;
 	} else if (pid >= OBJECT_PID_LB && oid >= OBJECT_OID_LB) {
-		return COLLECTION | USEROBJECT;
+		return obj_get_type(osd->db, pid, oid);
 	} 		
 	return ILLEGAL_OBJ;
 }
 
-/* 
- * For each kind of object, check if the page is within bounds.  This also
- * traps attribute directory page assignments.
- */
-static inline int isvalid_page(uint8_t obj_type, uint32_t page)
+static inline int get_rel_page(uint8_t obj_type, uint32_t page)
 {
-	if (page == CUR_CMD_ATTR_PG || page == GETALLATTR_PG)
-		return VALID_PAGE;
-	if (obj_type == ROOT) {
-		if (page < ROOT_PG_LB || page == GETALLATTR_PG ||
-		    (page > ROOT_PG_UB && page < ANY_PG))
-			return VALID_PAGE;
-		else 
-			return INVALID_PAGE;
-	} else if (obj_type == PARTITION) {
-		obj_type = PARTITION;
-		if (page < PARTITION_PG_LB || page == GETALLATTR_PG ||
-		    (page > PARTITION_PG_UB && page < ANY_PG))
-			return VALID_PAGE;
-		else 
-			return INVALID_PAGE;
+	if (obj_type == ROOT)
+		return (page - ROOT_PG);
+	else if (obj_type == PARTITION)
+		return (page - PARTITION_PG);
+	else if (obj_type == COLLECTION)
+		return (page - COLLECTION_PG);
+	else if (obj_type == USEROBJECT)
+		return (page - USEROBJECT_PG);
+	else
+		return -1;
+}
 
-	} else if (obj_type & COLLECTION || obj_type & USEROBJECT) {
-		if ((COLLECTION_PG_LB <= page && page <=COLLECTION_PG_UB) ||
-		    (page != GETALLATTR_PG && page >= ANY_PG)) {
-			return VALID_PAGE;
-		} else if ((USEROBJECT_PG_LB <= page && 
-			    page <= USEROBJECT_PG_UB) ||
-			   (page != GETALLATTR_PG && page >= ANY_PG)) {
-			return VALID_PAGE;
+static int issettable_page(uint8_t obj_type, uint32_t page) 
+{
+	int rel_page = get_rel_page(obj_type, page);
 
-		} else {
-			return INVALID_PAGE;
-		}
-	} 
-	return INVALID_PAGE;
+	if (LUN_PG_LB <= rel_page && rel_page <= LUN_PG_UB)
+		return TRUE;
+	else 
+		return FALSE;
+}
+
+static int isgettable_page(uint8_t obj_type, uint32_t page) 
+{
+	int rel_page = get_rel_page(obj_type, page);
+
+	if ((RSRV_PG_LB <= rel_page && rel_page <= RSRV_PG_UB) || 
+	    rel_page > VEND_PG_UB)
+		return FALSE;
+	else
+		return TRUE;
+
 }
 
 static int create_dir(const char *dirname)
@@ -189,33 +188,40 @@ static inline void fill_attr(void *buf, uint32_t page, uint32_t number,
 /*
  * Fill current command attributes page (osd2r00 Sec 7.1.2.24) in retrieved
  * attribute format described in osd2r00 Sec 7.1.3.3
+ *
+ * returns:
+ * < 0: if error
+ * ==0: success, used_outlen stores consumed outbuf len
  */
-static int get_ccap(struct osd_device *osd, void *outbuf, uint16_t len)
+static int get_ccap(struct osd_device *osd, void *outbuf, uint64_t outlen,
+		    uint32_t *used_outlen)
 {
 	int ret = 0;
-	size_t sz = 0;
 	uint8_t *cp = outbuf;
-	char page_id[CCAP_ID_LEN];
+
+	if (osd == NULL || outbuf == NULL)
+		return -EINVAL;
 
 	/*
 	 * If len < CCAP_LIST_LEN, i.e. the buffer size is not sufficient to
 	 * fill in all attributes, then it is not an error. osd2r00 Sec
 	 * 5.2.2.2
 	 */
-	if (osd == NULL || outbuf == NULL)
-		return -EINVAL;
-
-	sz = 56;
-	if (len < sz)
+	if (outlen < CCAP_TOTAL_LEN) {
+		*used_outlen = 0;
 		goto out;
+	}
 
-	memset(cp, 0, 56);
-	set_htonl(&cp[0], CUR_CMD_ATTR_PG);
-	set_htonl(&cp[4], 56 - 8);
-	cp[28] = osd->ccap.obj_type;
-	set_htonll(&cp[32], osd->ccap.pid);
-	set_htonll(&cp[40], osd->ccap.oid);
-	set_htonll(&cp[48], osd->ccap.append_off);
+	memset(cp, 0, CCAP_TOTAL_LEN);
+	set_htonl(&cp[CCAP_PAGEID_OFF], CUR_CMD_ATTR_PG);
+	set_htonl(&cp[CCAP_LEN_OFF], CCAP_LEN);
+	memcpy(&cp[CCAP_RICV_OFF], osd->ccap.ricv, sizeof(osd->ccap.ricv));
+	cp[CCAP_OBJT_OFF] = osd->ccap.obj_type;
+	set_htonll(&cp[CCAP_PID_OFF], osd->ccap.pid);
+	set_htonll(&cp[CCAP_OID_OFF], osd->ccap.oid);
+	set_htonll(&cp[CCAP_APPADDR_OFF], osd->ccap.append_off);
+	*used_outlen = CCAP_TOTAL_LEN;
+
 out:
 	return 0;
 }
@@ -407,7 +413,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		goto out_illegal_req;
 
 	/* Make sure partition is present. */
-	if (!obj_ispresent(osd->db, pid, PARTITION_OID))
+	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
 		goto out_illegal_req;
 
 	if (num > 1 && requested_oid != 0) 
@@ -620,13 +626,14 @@ out:
 }
 
 /*
- * Returns >=0: valid bytes in sense; ==0: good result, data in outbuf
- * and len modified to mean outlen; <0: error.
+ * return values:
+ * ==0: success, used_outlen modified
+ *  >0: failed, sense set accordingly
  */
 int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
                        uint32_t page, uint32_t number, void *outbuf, 
-		       uint16_t *len, int getpage, uint8_t cmd_type,
-		       uint8_t *sense)
+		       uint64_t outlen, int getpage, uint8_t cmd_type,
+		       uint8_t *sense, uint32_t *used_outlen)
 {
 	int ret = 0;
 	uint8_t obj_type = 0;
@@ -636,36 +643,34 @@ int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (outbuf == NULL || sense == NULL)
 		goto out_param_list;
 
-	obj_type = get_obj_type(pid, oid);
+	obj_type = get_obj_type(osd, pid, oid);
 	if (obj_type == ILLEGAL_OBJ)
 		goto out_cdb_err;
 
-	if (isvalid_page(obj_type, page) == INVALID_PAGE)
+	if (isgettable_page(obj_type, page) == FALSE)
 		goto out_param_list;
 
 	if (getpage == 0) {
-		ret = attr_get_attr(osd->db, pid, oid, page, number, 
-				    outbuf, *len);
+		ret = attr_get_attr(osd->db, pid, oid, page, number, outbuf,
+				    outlen, used_outlen);
 		if (ret < 0) {
-			/* not an error, just not enough room */
 			if (ret == -EOVERFLOW) {
-			    *len = 0;
-			    return 0;
+				/* overflow is not an error, Sec 5.2.2.2 */
+				*used_outlen = 0;
+				goto out_success;
 			}
 			goto out_param_list;
 		}
-		*len = ret;  /* bytes filled */
-
 	} else if (getpage == 1) {
 		if (page == CUR_CMD_ATTR_PG) {
 			/* 
 			 * XXX: it is possible to read stale ccap, or ccap
 			 * of another object 
 			 */
-			ret = get_ccap(osd, outbuf, *len);
+			ret = get_ccap(osd, outbuf, outlen, used_outlen);
 		} else {
 			ret = attr_get_attr_page(osd->db, pid, oid, page, 
-						 outbuf, *len);
+						 outbuf, outlen, used_outlen);
 		}
 		if (ret != 0) 
 			goto out_param_list;
@@ -673,6 +678,7 @@ int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_param_list;
 	}
 
+out_success:
 	if (cmd_type == STANDALONE)
 		fill_ccap(&osd->ccap, OSD_GET_ATTRIBUTES, NULL, obj_type, 
 			  pid, oid, 0);
@@ -730,13 +736,17 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
  * @len: length of data to be read
  * @doutbuf: pointer to pointer start of the data-out-buffer: destination 
  * 	of read
+ *
+ * returns:
+ * ==0: success, used_outlen is set
+ * > 0: error, sense is set
  */
 
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
-	     uint64_t offset, uint8_t *outdata, uint64_t *outlen, 
+	     uint64_t offset, uint8_t *outdata, uint64_t *used_outlen, 
 	     uint8_t *sense)
 {
-	ssize_t retlen;
+	ssize_t readlen;
 	int ret, fd;
 	char path[MAXNAMELEN];
 
@@ -744,7 +754,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	      llu(pid), llu(oid), llu(len), llu(offset));
 	
 	if (osd == NULL || osd->root == NULL || outdata == NULL || 
-	    outlen == NULL)
+	    used_outlen == NULL)
 		goto out_cdb_err;
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
@@ -755,8 +765,8 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	if (fd < 0)
 		goto out_cdb_err;
 
-	retlen = pread(fd, outdata, len, offset);
-	if (retlen < 0) {
+	readlen = pread(fd, outdata, len, offset);
+	if (readlen < 0) {
 		close(fd);
 		goto out_hw_err;
 	}
@@ -765,7 +775,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	if (ret != 0)
 		goto out_hw_err;
 
-	*outlen = retlen;
+	*used_outlen = readlen;
 
 #if 0   /* Causes scsi transport problems.  Will debug later.  --pw */
 	/* valid, but return a sense code */
@@ -912,11 +922,11 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (obj_ispresent(osd->db, pid, oid) == 0) /* object not present! */
 		goto out_cdb_err;
 
-	obj_type = get_obj_type(pid, oid);
+	obj_type = get_obj_type(osd, pid, oid);
 	if (obj_type == ILLEGAL_OBJ)
 		goto out_cdb_err;
 
-	if (isvalid_page(obj_type, page) == INVALID_PAGE)
+	if (issettable_page(obj_type, page) == FALSE)
 		goto out_param_list;
 
 	if (number == ATTRNUM_UNMODIFIABLE)

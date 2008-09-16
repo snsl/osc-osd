@@ -175,7 +175,7 @@ can be implemented as a sql view on page numbers 0
 	back to initiator: eg. assigned pid, oid etc.
 -	set initial attributes on every object when it is created
 +	mv initial_populate into osd.c
--	get_next* funcs assume monotonic increase in ids, resulting in holes
+!	get_next* funcs assume monotonic increase in ids, resulting in holes
 +	implement remove partition
 +	new oid should start from USEROBJECT_OID_LB and pid from PARTITION_PID_LB
 ?	how are contents within attr page returned?
@@ -195,4 +195,18 @@ can be implemented as a sql view on page numbers 0
 ?	what happens on removal of non existent obj
 		sqlite successfully complete removal of non existent object
 +	gettype func in obj.c
--	make depend targets
++	make depend targets
+
+# Mon Feb 19 13:08:31 EST 2007
+-	use gettype in obj disambiguation
+-	fix fret/ret bugs
+-	fix attr_get_* bugs
+-	fix test codes with asserts
+-	test different format scenarios
+-	replace magic numbers with descriptive codes
+-	change valid page to is settable
+-	page format Sec 7, 
+
+# Tue Feb 20 15:34:32 EST 2007
+-	get size, atime, mtime attr
+-	write get page for other pages like timestamps

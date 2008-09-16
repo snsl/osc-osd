@@ -119,14 +119,10 @@ int obj_get_nextoid(sqlite3 *db, uint64_t pid, uint64_t *oid)
 
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		/* store next oid; if illegal (pid, oid), *oid will be 1 */
-		*oid = sqlite3_column_int64(stmt, 0); 
-		if (*oid != 1)
-		    ++*oid;  /* return next, not current max */
+		*oid = sqlite3_column_int64(stmt, 0) + 1; 
 	}
-	if (ret != SQLITE_DONE) {
+	if (ret != SQLITE_DONE)
 		error_sql(db, "%s: max oid for pid %llu", __func__, llu(pid));
-		goto out_finalize;
-	} 
 
 out_finalize:
 	ret = sqlite3_finalize(stmt);
@@ -164,10 +160,8 @@ int obj_get_nextpid(sqlite3 *db, uint64_t *pid)
 		/* store next pid; if illegal pid, *pid will be 1 */
 		*pid = sqlite3_column_int64(stmt, 0) + 1; 
 	}
-	if (ret != SQLITE_DONE) {
+	if (ret != SQLITE_DONE) 
 		error_sql(db, "%s: max pid error", __func__);
-		goto out_finalize;
-	} 
 
 out_finalize:
 	ret = sqlite3_finalize(stmt);
@@ -213,11 +207,9 @@ int obj_ispresent(sqlite3 *db, uint64_t pid, uint64_t oid)
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
 		present = sqlite3_column_int(stmt, 0);
 	}
-	if (ret != SQLITE_DONE) {
+	if (ret != SQLITE_DONE)
 		error_sql(db, "%s: max oid for pid %llu, oid %llu", __func__, 
 			  llu(pid), llu(oid));
-		goto out_finalize;
-	} 
 
 out_finalize:
 	ret = sqlite3_finalize(stmt);
@@ -307,7 +299,6 @@ int obj_get_type(sqlite3 *db, uint64_t pid, uint64_t oid)
 	if (ret != SQLITE_DONE)
 		error_sql(db, "%s: count query failed pid %llu", __func__, 
 			  llu(pid));
-	
 
 out_finalize:
 	ret = sqlite3_finalize(stmt);

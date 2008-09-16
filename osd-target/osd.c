@@ -1514,6 +1514,21 @@ out_hw_err:
 			       requested_pid, 0);
 }
 
+static inline int is_linked_coll(uint64_t source_cid)
+{
+        return source_cid > LINKED_COLLECTION_OID_LB;
+}
+
+static inline int is_tracking_coll(uint64_t source_cid)
+{
+  return source_cid = 0x1082;
+}
+
+static inline int is_spontaneous_coll(uint64_t source_cid)
+{
+        return source_cid < TRACKING_COLLECTION_OID_LB;
+}
+
 int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid, 
 					uint64_t requested_cid,	uint64_t source_cid,
 				        uint32_t cdb_cont_len, uint8_t *sense)
@@ -1521,6 +1536,7 @@ int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid,
 	int ret = 0;
 	uint64_t cid = 0;
 	int present = 0;
+	int to_do_1, to_do_2, to_do_3;
 
 	osd_debug("%s: pid %llu requested_cid %llu source_cid %llu cdb_cont_len %u",
 		  __func__, llu(pid), llu(requested_cid), llu(source_cid), cdb_cont_len);
@@ -1546,25 +1562,22 @@ int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid,
 	/* Checks on cdb_cont_len */
 	if (((source_cid != 0) && (cdb_cont_len == 0)) || ((source_cid == 0) && (cdb_cont_len != 0)))
 	        goto out_cdb_err;
-	
-	if ((cdb_cont_len != 0) /* && (CDB continuation segment does not contain one extension capabilitys 
-				     CDB continuation descriptor(5.4.6) || Contains any CDB continuation
-				     descriptors other than the extension capabilities CDB continuation 
-				     descriptor) */) {
+		
+	/* to_do_1 = CDB continuation segment does not contain one extension capabilities CDB continuation descriptor(5.4.6)
+	   to_do_2 = CDB continuation segment contains any cdb continuation descriptor other than the extension capabilities CDB 
+	   continuation descriptor */
+	if ((cdb_cont_len !=0) && (to_do_1 || to_do_2))
 	        goto out_cdb_err;
-	}
-	
+
 	/* Checking validity of the source collection */
 	if (source_cid != 0) {
-	        if((source_cid < LINKED_COLLECTION_OID_LB) || (source_cid != 0x1082)
-		   || (source_cid < TRACKING_COLLECTION_OID_LB)) {
+
+	        if ((! is_linked_coll(source_cid)) && (! is_tracking_coll(source_cid)) && (! is_spontaneous_coll(source_cid)))
 		        goto out_cdb_err;
-		}else if((source_cid > TRACKING_COLLECTION_OID_LB || source_cid > 
-			  USER_TRACKING_COLLECTION_OID_LB) /* && the active command status 
-			 attribute in the Command Tracking attribute page(7.1.3.20) is not
-			 set to zero*/) {
-		  goto out_cdb_err;
-		}
+	
+		/* to_do_3 = the active command status attribute in the Command Tracking attribute page(7.1.3.20) is not set to zero*/
+		else if (is_tracking_coll(source_cid) && to_do_3)
+		        goto out_cdb_err;  
 	}
 
 	if (requested_cid == 0) {
@@ -2224,12 +2237,12 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 
 	memset(outdata, 0, 24);
 
-	if (list_attr == 0 && get_attr->sz != 0)
-		goto out_cdb_err; /* XXX: unimplemented */
-	if (list_attr == 1 && get_attr->sz == 0)
-		goto out_cdb_err; /* XXX: this seems like error? */
+/* 	if (list_attr == 0 && get_attr->sz != 0) */
+/* 		goto out_cdb_err; /\* XXX: unimplemented *\/ */
+/* 	if (list_attr == 1 && get_attr->sz == 0) */
+/* 		goto out_cdb_err; /\* XXX: this seems like error? *\/ */
 
-	if (list_attr == 0 && get_attr->sz == 0)  {
+	if (list_attr == 0 /* && get_attr->sz == 0 */)  {
 		/*
 		 * If list_id is not 0, we are continuing
 		 * an old list, starting from cont_id

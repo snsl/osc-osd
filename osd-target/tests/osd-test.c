@@ -848,9 +848,9 @@ void test_osd_query(struct osd_device *osd)
 	cp = buf;
 	cp[0] = 0x1; /* INTERSECTION */
 	page = USEROBJECT_PG+LUN_PG_LB;
-	set_qce(&cp[4], page, 1, 2, "aa", 4, "zzz");
-	qll += 4 + (4+4+4+2+2+2+3);
-	cp += 4 + (4+4+4+2+2+2+3);
+	set_qce(&cp[4], page, 1, 3, "aa", 4, "zzz");
+	qll += 4 + (4+4+4+2+3+2+3);
+	cp += 4 + (4+4+4+2+3+2+3);
 
 	/* second query */
 	min = 50;

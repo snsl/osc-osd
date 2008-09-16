@@ -650,9 +650,9 @@ static void test_query(struct osd_device *osd)
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x1; /* INTERSECTION */
-	set_qce(&cp[4], page, 1, 2, "aa", 3, "zzz");
-	qll += 4 + (4+4+4+2+2+2+3);
-	cp += 4 + (4+4+4+2+2+2+3);
+	set_qce(&cp[4], page, 1, 3, "aa", 4, "zzz");
+	qll += 4 + (4+4+4+2+3+2+4);
+	cp += 4 + (4+4+4+2+3+2+4);
 
 	/* second query */
 	min = 50;

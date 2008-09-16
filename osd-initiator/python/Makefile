@@ -24,13 +24,16 @@ CWARN := -Wall -W -Wno-missing-field-initializers \
 	 -Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) $(INCDIR)
 
-all:: $(LIB)
+all:: $(LIB) writefile.py
 
 $(LIB): $(OBJ) $(OSDLIBS)
 	gcc -shared -o $@ $^
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+writefile.py:
+	ln -fs readfile.py writefile.py
 
 ifeq (,$(filter clean distclean dist,$(MAKECMDGOALS)))
 -include .depend
@@ -42,6 +45,7 @@ all:: .depend
 clean:
 	rm -f $(LIB) $(OBJ)
 	rm -f .depend tags
+	rm -f writefile.py
 
 tags: FORCE
 	ctags $(SRC)

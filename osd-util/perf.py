@@ -556,7 +556,6 @@ def start():
 		+ "TZ=EST5EDT pvfs2-server fs.conf server.conf")
 
     # compnodes
-    print "osdnodes", osdnodes
     myosdnodes = osdnodes
     if options["pvfs_osd_integrated"] == "yes":
 	myosdnodes = osdnodes + pvfsnodes
@@ -573,7 +572,6 @@ def start():
     # format and initial pvfs layout on osd nodes.  The machine where
     # this script runs must be one of the compnodes so it can talk to
     # all the OSDs with iscsi.  (Or could rsh to one.)
-    print "osdnodes", osdnodes
     for n in osdnodes:
 	d = datahandles[n][0] if datahandles.has_key(n) else 0
 	m = metahandles[n][0] if metahandles.has_key(n) else 0

@@ -23,7 +23,8 @@
 /*
  * Initialize util.h error reporting.
  */
-static PyObject *pyosd_set_progname(PyObject *self __unused, PyObject *args)
+static PyObject *pyosd_set_progname(PyObject *self __attribute__((unused)),
+				    PyObject *args)
 {
 	char *argv[1];
 
@@ -38,7 +39,8 @@ static PyObject *pyosd_set_progname(PyObject *self __unused, PyObject *args)
 /*
  * Byte swappers.
  */
-static PyObject *pyosd_ntohs(PyObject *self __unused, PyObject *args)
+static PyObject *pyosd_ntohs(PyObject *self __attribute__((unused)),
+			     PyObject *args)
 {
 	const uint8_t *s;
 	int len;
@@ -54,7 +56,8 @@ static PyObject *pyosd_ntohs(PyObject *self __unused, PyObject *args)
 	return Py_BuildValue("H", get_ntohs(s));
 }
 
-static PyObject *pyosd_ntohl(PyObject *self __unused, PyObject *args)
+static PyObject *pyosd_ntohl(PyObject *self __attribute__((unused)),
+			     PyObject *args)
 {
 	const uint8_t *s;
 	int len;
@@ -70,7 +73,8 @@ static PyObject *pyosd_ntohl(PyObject *self __unused, PyObject *args)
 	return Py_BuildValue("I", get_ntohl(s));
 }
 
-static PyObject *pyosd_ntohll(PyObject *self __unused, PyObject *args)
+static PyObject *pyosd_ntohll(PyObject *self __attribute__((unused)),
+			      PyObject *args)
 {
 	const uint8_t *s;
 	int len;
@@ -86,7 +90,8 @@ static PyObject *pyosd_ntohll(PyObject *self __unused, PyObject *args)
 	return Py_BuildValue("K", get_ntohll(s));
 }
 
-static PyObject *pyosd_htonl(PyObject *self __unused, PyObject *args)
+static PyObject *pyosd_htonl(PyObject *self __attribute__((unused)),
+			     PyObject *args)
 {
 	uint32_t w;
 	union {

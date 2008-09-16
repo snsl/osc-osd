@@ -30,7 +30,7 @@
  *    SET      page number       None  == delete
  */
 static int pyosd_attr_init(PyObject *self, PyObject *args,
-			   PyObject *keywords __unused)
+			   PyObject *keywords __attribute__((unused)))
 {
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	struct attribute_list *attr = &py_attr->attr;
@@ -139,7 +139,8 @@ static PyObject *pyosd_attr_print(PyObject *self)
 /*
  * Return val.  Should keep a ref to the command to check if it is done.
  */
-static PyObject *pyosd_attr_get_val(PyObject *self, void *closure __unused)
+static PyObject *pyosd_attr_get_val(PyObject *self,
+				    void *closure __attribute__((unused)))
 {
 	struct pyosd_attr *py_attr = (struct pyosd_attr *) self;
 	const struct attribute_list *attr = &py_attr->attr;

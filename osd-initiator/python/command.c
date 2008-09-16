@@ -25,8 +25,9 @@
 /*
  * Clear everything.  Command will be cleared by a set function.
  */
-static int pyosd_command_init(PyObject *self, PyObject *args __unused,
-			      PyObject *keywords __unused)
+static int pyosd_command_init(PyObject *self,
+			      PyObject *args __attribute__((unused)),
+			      PyObject *keywords __attribute__((unused)))
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 
@@ -49,7 +50,7 @@ static void pyosd_command_dealloc(PyObject *self)
 }
 
 static PyObject *pyosd_command_get_indata(PyObject *self,
-					  void *closure __unused)
+					  void *closure __attribute__((unused)))
 {
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
@@ -616,15 +617,17 @@ static PyObject *pyosd_command_set_list_collection(PyObject *self,
 	return self;
 }
 
-static PyObject *pyosd_command_set_perform_scsi_command(PyObject *self __unused,
-							PyObject *args __unused)
+static PyObject *pyosd_command_set_perform_scsi_command(
+					PyObject *self __attribute__((unused)),
+					PyObject *args __attribute__((unused)))
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;
 }
 
-static PyObject *pyosd_command_set_perform_task_mgmt_func(PyObject *self __unused,
-							  PyObject *args __unused)
+static PyObject *pyosd_command_set_perform_task_mgmt_func(
+					PyObject *self __attribute__((unused)),
+					PyObject *args __attribute__((unused)))
 {
 	PyErr_SetString(PyExc_RuntimeError, "unimplemented");
 	return NULL;

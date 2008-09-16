@@ -32,7 +32,7 @@
 #include "sense.h"
 
 static int check_response(int ret, struct osd_command *command,
-			  uint8_t *buf __unused)
+			  uint8_t *buf __attribute__((unused)))
 {
 	if (ret) {
 		osd_error("%s: submit_and_wait failed", __func__);

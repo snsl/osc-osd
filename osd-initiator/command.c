@@ -230,13 +230,15 @@ int osd_command_set_list_collection(struct osd_command *command, uint64_t pid,
         return 0;
 }
 
-int osd_command_set_perform_scsi_command(struct osd_command *command __unused)
+int osd_command_set_perform_scsi_command(
+			struct osd_command *command __attribute__((unused)))
 {
         osd_error("%s: unimplemented", __func__);
         return 1;
 }
 
-int osd_command_set_perform_task_mgmt_func(struct osd_command *command __unused)
+int osd_command_set_perform_task_mgmt_func(
+			struct osd_command *command __attribute__((unused)))
 {
         osd_error("%s: unimplemented", __func__);
         return 1;

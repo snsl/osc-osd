@@ -52,7 +52,8 @@ static double *b;
 static void *buf;
 static int pbsg_parallelism = 1;
 
-static void block_write_bw(int iters, int bursts __unused, int sz)
+static void block_write_bw(int iters, int bursts __attribute__((unused)),
+			   int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -78,7 +79,7 @@ static void block_write_bw(int iters, int bursts __unused, int sz)
 	close(fd);
 }
 
-static void block_read_bw(int iters, int bursts __unused, int sz)
+static void block_read_bw(int iters, int bursts __attribute__((unused)), int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -104,7 +105,7 @@ static void block_read_bw(int iters, int bursts __unused, int sz)
 	close(fd);
 }
 
-static void sg_write_bw(int iters, int bursts __unused, int sz)
+static void sg_write_bw(int iters, int bursts __attribute__((unused)), int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -154,7 +155,7 @@ static void sg_write_bw(int iters, int bursts __unused, int sz)
 	close(fd);
 }
 
-static void sg_read_bw(int iters, int bursts __unused, int sz)
+static void sg_read_bw(int iters, int bursts __attribute__((unused)), int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -204,7 +205,7 @@ static void sg_read_bw(int iters, int bursts __unused, int sz)
 	close(fd);
 }
 
-static void bsg_write_bw(int iters, int bursts __unused, int sz)
+static void bsg_write_bw(int iters, int bursts __attribute__((unused)), int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;
@@ -251,7 +252,7 @@ static void bsg_write_bw(int iters, int bursts __unused, int sz)
 	close(fd);
 }
 
-static void bsg_read_bw(int iters, int bursts __unused, int sz)
+static void bsg_read_bw(int iters, int bursts __attribute__((unused)), int sz)
 {
 	int i, ret, fd;
 	uint64_t start, end;

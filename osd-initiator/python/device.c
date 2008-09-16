@@ -52,7 +52,7 @@ static PyObject *pyosd_device_open(PyObject *self, PyObject *args)
 }
 
 static int pyosd_device_init(PyObject *self, PyObject *args,
-			     PyObject *keywords __unused)
+			     PyObject *keywords __attribute__((unused)))
 {
 	struct pyosd_device *py_device = (struct pyosd_device *) self;
 	const char *s = NULL;

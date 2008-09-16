@@ -30,8 +30,6 @@
 
 #include "osd-util.h"
 
-#define __unused __attribute__((unused))
-
 /* global */
 const char *progname = "(pre-main)";
 double mhz = -1.0;
@@ -39,7 +37,7 @@ double mhz = -1.0;
 /*
  * Set the program name, first statement of code usually.
  */
-void osd_set_progname(int argc __unused, char *const argv[])
+void osd_set_progname(int argc __attribute__((unused)), char *const argv[])
 {
 	const char *cp;
 

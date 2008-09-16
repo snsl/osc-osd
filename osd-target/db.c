@@ -13,7 +13,7 @@
 #include "util/util.h"
 #include "attr.h"
 
-static int db_print_pragma(struct osd_device *osd);
+/* static int db_print_pragma(struct osd_device *osd); */
 
 /*
  * < 0: error
@@ -63,6 +63,34 @@ out:
 	return ret;
 }
 
+int db_begin_txn(struct osd_device *osd)
+{
+	int ret = 0;
+	char *err = NULL;
+
+	ret = sqlite3_exec(osd->db, "BEGIN TRANSACTION;", NULL, NULL, &err);
+	if (ret != SQLITE_OK) {
+		osd_error("pragma failed: %s", err);
+		sqlite3_free(err);
+	}
+
+	return ret;
+}
+
+int db_end_txn(struct osd_device *osd)
+{
+	int ret = 0;
+	char *err = NULL;
+
+	ret = sqlite3_exec(osd->db, "END TRANSACTION;", NULL, NULL, &err);
+	if (ret != SQLITE_OK) {
+		osd_error("pragma failed: %s", err);
+		sqlite3_free(err);
+	}
+
+	return ret;
+}
+
 int db_close(struct osd_device *osd)
 {
 	int ret = 0;
@@ -98,6 +126,16 @@ int db_exec_pragma(struct osd_device *osd)
 	if (ret != SQLITE_OK)
 		goto spit_err;
 
+	sprintf(SQL, "PRAGMA count_changes = 0;"); /* ignore count changes */
+	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
+	if (ret != SQLITE_OK)
+		goto spit_err;
+
+	sprintf(SQL, "PRAGMA temp_store = 2;"); /* memory as scratchpad */
+	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
+	if (ret != SQLITE_OK)
+		goto spit_err;
+
 	goto out;
 
 spit_err:
@@ -114,7 +152,7 @@ static int callback(void *ignore, int count, char **val, char **colname)
 	return 0;
 }
 
-static int db_print_pragma(struct osd_device *osd)
+int db_print_pragma(struct osd_device *osd)
 {
 	int ret = 0;
 	char *err = NULL;
@@ -126,6 +164,10 @@ static int db_print_pragma(struct osd_device *osd)
 	sprintf(SQL, "PRAGMA synchronous;"); 
 	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
 	sprintf(SQL, "PRAGMA auto_vacuum;"); 
+	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
+	sprintf(SQL, "PRAGMA count_changes;"); 
+	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
+	sprintf(SQL, "PRAGMA temp_store;"); 
 	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
 	return ret;
 }

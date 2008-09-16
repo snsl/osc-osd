@@ -302,3 +302,6 @@ can be implemented as a sql view on page numbers 0
 
 # Wed Mar 14 17:07:06 EDT 2007
 -	standardize goto labels
+
+# Wed Apr  4 18:23:26 EDT 2007
+-	rewrite makefiles like pvfs, look at the paper

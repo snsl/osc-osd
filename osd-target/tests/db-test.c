@@ -267,6 +267,9 @@ int main()
 	ret = db_open(path, &osd);
 	assert(ret == 0);
 
+	ret = db_exec_pragma(&osd);
+	assert(ret == 0);
+
 	test_obj(&osd);
 	test_dup_obj(&osd);
 	test_obj_manip(&osd);
@@ -274,6 +277,9 @@ int main()
 	test_get_obj_type(&osd);
 	test_attr(&osd);
 	test_dir_page(&osd);
+
+	ret = db_print_pragma(&osd);
+	assert(ret == 0);
 
 	ret = db_close(&osd);
 	assert(ret == 0);

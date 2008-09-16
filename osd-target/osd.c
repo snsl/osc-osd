@@ -776,6 +776,8 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	int ret = 0;
 	uint64_t i = 0;
 	uint64_t oid = 0;
+	uint64_t start, end;
+	double mhz = get_mhz();
 
 	osd_debug("%s: pid %llu requested oid %llu numoid %hu", __func__, 
 		  llu(pid), llu(requested_oid), numoid);
@@ -810,22 +812,38 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		numoid = 1; /* create atleast one object */
 
 	for (i = oid; i < (oid + numoid); i++) {
+		ret = db_begin_txn(osd);
+		assert(ret == 0);
+
+		/* rdtsc(start); */
 		ret = obj_insert(osd->db, pid, i, USEROBJECT);
+		/* rdtsc(end); */
 		if (ret != 0) {
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
+		/* osd_info("%s OI: %lf",  __func__, ((double)(end - start))/mhz); */
 
+		/* rdtsc(start); */
 		ret = osd_create_datafile(osd, pid, i);
+		/* rdtsc(end); */
 		if (ret != 0) {
 			obj_delete(osd->db, pid, i);
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
+		/* osd_info("%s FS: %lf",  __func__, ((double)(end - start))/mhz); */
+				
+		/* rdtsc(start); */
 		ret = attr_set_attr(osd->db, pid, i, USER_TMSTMP_PG, 0,
 				    incits.user_tmstmp_page,
 				    sizeof(incits.user_tmstmp_page));
-				
+		/* rdtsc(end); */
+		/* osd_info("%s SA: %lf",  __func__, ((double)(end - start))/mhz); */
+
+		ret = db_end_txn(osd);
+		assert(ret == 0);
+
 		if (ret != 0) {
 			char path[MAXNAMELEN];
 			get_dfile_name(path, osd->root, pid, i);

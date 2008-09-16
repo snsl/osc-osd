@@ -31,7 +31,7 @@ receive diagnostic results
 report supported operation codes
 
 
-OPTIONAL
+NOT IMPLEMENTED/OPTIONAL
 log select
 log sense
 mode select
@@ -48,6 +48,8 @@ send diagnostic
 set target port groups
 test unit ready
 
+directory pages
+quotas
 
 ========================================
 root object
@@ -64,10 +66,27 @@ questions:
 -	
 
 design:
-root directory for the root object
-each partition is a directory within the root directory
-objects are stored within the partition
-collection objects are stored within the directory
+	root directory for the root object
+	each partition is a directory within the root directory
+	objects are stored within the partition
+	collection objects are stored within the directory
+
+db requirements:
+	get all attr for an oid
+	get all attr for an oid in an attr page
+	get an attr for an oid on an attr page
+	set an attr on oid on an attr page
+	for an oid check for duplicate attr numbers
+	check for duplicate attr pages across attr types
+
+solution:
+	use one db file per object storing is attr
+	don't allow attribute pages beyond F000 0000h
+	restrict attribute pages in range as specified in p22
+	get all attr using db cursor
+	use environment to store database of multiple objects
+
+
 
 # Wed Dec  6 11:54:17 EST 2006
 What is the meaning of the following (p21):
@@ -77,3 +96,10 @@ assigned to any OSD object types, the same attributes page shall not be
 associated with more than one OSD object type.
 Two object types cannot share same page number but two objects can.
 
+#if 0 /* > 3.8.8 of sqlite */
+	ret = sqlite3_extended_result_codes(dbp, 1);
+	if (ret != SQLITE_OK) {
+		fprintf(stderr, "SQL ERROR: %s\n", sqlite3_errmsg(dbp));
+		return -1;
+	}
+#endif

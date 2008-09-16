@@ -2,15 +2,15 @@
 #define __OBFS_TYPES_H
 
 #include <stdint.h>
+#include <stddef.h>
 
+typedef uint64_t object_id_t;
+typedef uint64_t object_len_t;
+typedef uint64_t object_off_t;
 typedef uint64_t partition_id_t;
 typedef uint64_t usrobject_id_t;
 typedef uint64_t collection_id_t;
-typedef uint64_t object_id_t;
 typedef uint16_t num_of_usr_object_t;
-typedef uint64_t object_len_t;
-typedef uint64_t object_off_t;
-
 
 typedef uint32_t attr_pgnum_t;
 typedef uint32_t attr_num_t;
@@ -22,11 +22,41 @@ typedef uint32_t list_len_t;
 typedef uint32_t list_off_t;
 typedef uint32_t list_alloc_len_t;
 
-typedef struct list_entry_t {
+typedef uint64_t osd_size_t;
+
+typedef enum {
+	ROOT = 1,
+	PARTITION,
+	COLLECTION,
+	USEROBJECT
+} object_t;
+
+typedef enum {
+	USER_PG = 0,
+	PARTITION_PG = 0x30000000,
+	COLLECTION_PG = 0x60000000,
+	ROOT_PG = 0x90000000,
+	RESERVED_PG = 0xC0000000
+} attrpg_range_t;
+
+typedef struct attr_t {
 	attr_pgnum_t pgnum;
 	attr_num_t num;
 	attr_val_len_t len;
 	void *val;
-} list_entry_t;
+} attr_t;
+typedef  attr_t list_entry_t;
+#define ATTR_T_DSZ (offsetof(attr_t , val))
+
+#define MAXSQLEN (2048UL)
+#define MAXNAMELEN (256UL)
+
+typedef struct osd_t {
+	char *root;
+	void *db;
+	usrobject_id_t uid;
+	collection_id_t cid;
+	partition_id_t pid;
+} osd_t;
 
 #endif /* __OBFS_TYPES_H */

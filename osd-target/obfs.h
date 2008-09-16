@@ -3,6 +3,12 @@
 
 #include <obfs-types.h>
 
+int osd_format(osd_size_t cap);
+
+int osd_open();
+
+int osd_close();
+
 int osd_create(partition_id_t pid, usrobject_id_t uid, 
 	       num_of_usr_object_t num);
 

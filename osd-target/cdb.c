@@ -584,6 +584,37 @@ out_cdb_err:
  * ==0: on success
  *  >0: on failure. no side-effects of create partition remain.
  */
+static int cdb_create_collection(struct command *cmd)
+{
+	int ret;
+	uint8_t sense[OSD_MAX_SENSE];
+	uint64_t pid = get_ntohll(&cmd->cdb[16]);
+	uint64_t cid, requested_cid = get_ntohll(&cmd->cdb[24]);
+
+	ret = osd_create_collection(cmd->osd, pid, requested_cid, sense);
+	if (ret != 0)
+		return ret;
+
+	cid = cmd->osd->ccap.oid;
+	ret = set_attributes(cmd, pid, cid, 1);
+	if (ret != 0)
+		goto out_remove_obj;
+	ret = get_attributes(cmd, pid, cid, 1);
+	if (ret != 0)
+		goto out_remove_obj;
+
+	return ret;
+
+out_remove_obj:
+	osd_remove(cmd->osd, pid, cid, sense);
+	return ret;
+}
+
+/*
+ * returns:
+ * ==0: on success
+ *  >0: on failure. no side-effects of create partition remain.
+ */
 static int cdb_create_partition(struct command *cmd)
 {
 	int ret = 0;
@@ -1181,10 +1212,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {
-		uint64_t pid = get_ntohll(&cdb[16]);
-		uint64_t requested_cid = get_ntohll(&cdb[24]);
-
-		ret = osd_create_collection(osd, pid, requested_cid, sense);
+		ret = cdb_create_collection(cmd);
 		break;
 	}
 	case OSD_CREATE_PARTITION: {

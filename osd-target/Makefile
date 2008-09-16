@@ -16,24 +16,28 @@ OSDTARGETLIB := libosdtgt.a
 
 STGTLIB := ../stgt/libstgt.a
 UTILLIB := ../util/libosdutil.a
-LIBS := -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common
+
+IB_HW_OF_LIBS= -L/usr/local/openib-iser/lib
+
+LIBS := -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common \
+	$(IB_HW_OF_LIBS) -libverbs -lrdmacm
 
 include ../Makedefs
 
 CC := gcc
 CPP_M := -MM
 LD := $(CC)
-COPTS := $(OPT) -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
+COPTS := -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
-	-Wmissing-declarations -Wnested-externs 
+	-Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../util
 
 .PHONY: UTIL TESTS STGT
 
 .SUFFIXES: .c .o .i
 
-all :: TESTS tgtd 
+all :: TESTS tgtd
 
 tgtd: $(STGTLIB) $(OSDTARGETLIB) $(UTILLIB)
 	$(LD) -o $@ $^ $(LIBS)
@@ -65,7 +69,7 @@ endif
 
 all :: $(DEP)
 $(DEP) : osd-schema.c
-	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > $(DEP) 
+	@$(CC) $(CPP_M) $(CFLAGS) $(SRC) > $(DEP)
 
 clean:
 	make -C $(UTILDIR) clean

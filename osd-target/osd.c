@@ -674,13 +674,13 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 out_cdb_err:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST, 
 			      OSD_ASC_INVALID_FIELD_IN_CDB, 
-			      pid, requested_pid);
+			      requested_pid, 0);
 	return ret;
 
 out_hw_err:
 	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR, 
 			      OSD_ASC_INVALID_FIELD_IN_CDB, 
-			      pid, requested_pid);
+			      requested_pid, 0);
 	return ret;
 }
 

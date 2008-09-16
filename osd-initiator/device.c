@@ -1,5 +1,6 @@
 /*
- * Talk to the kernel module.
+ * Use the BSG interface in the kernel to submit SCSI commands and retrieve
+ * responses.
  */
 #include <stdint.h>
 #include <string.h>

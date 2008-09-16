@@ -2140,10 +2140,42 @@ int osd_set_master_key(struct osd_device *osd, int dh_step, uint64_t key,
 
 
 int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
-			      uint64_t cid, uint8_t *sense)
+			      uint64_t cid, struct setattr_list *set_attr,
+			      uint8_t *sense)
 {
-	osd_debug(__func__);
-	return osd_error_unimplemented(0, sense);
+	int ret = 0;
+	size_t i = 0;
+	uint8_t obj_type = 0;
+
+	osd_debug("%s: set attrs on pid %llu cid %llu", __func__, llu(pid),
+		  llu(cid));
+
+	if (obj_ispresent(osd->db, pid, cid) == 0) /* collection absent! */
+		goto out_cdb_err;
+
+	obj_type = get_obj_type(osd, pid, cid);
+	if (obj_type != COLLECTION)
+		goto out_cdb_err;
+
+	/*
+	 * XXX: presently we only allow attrs to modify useobjects, not the
+	 * collection
+	 */
+	for (i = 0; i < set_attr->sz; i++) {
+		if (issettable_page(USEROBJECT, set_attr->le[i].page) == FALSE)
+			goto out_param_list;
+
+	}
+	
+out_param_list:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_PARAM_LIST, pid, cid);
+	return ret;
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	return ret;
 }
 
 

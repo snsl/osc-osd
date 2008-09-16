@@ -599,6 +599,69 @@ out_hw_err:
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 }
 
+static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
+{
+	int ret = 0;
+	uint32_t i = 0;
+	uint8_t list_type;
+	uint8_t *cdb = cmd->cdb;
+	uint32_t setattr_list_len = ntohl(&cmd->cdb[68]);
+	uint32_t list_len = 0;
+	uint32_t list_off = ntohoffset(&cmd->cdb[72]);
+	const uint8_t *list_hdr = &cmd->indata[list_off];
+	uint8_t pad = 0;
+
+	if (setattr_list_len == 0)
+		return 0; /* nothing to set, osd2r00 Sec 5.2.2.3 */
+
+	if (setattr_list_len != 0 && setattr_list_len < LIST_HDR_LEN)
+		goto out_param_list_err;
+
+	list_type = list_hdr[0] & 0xF;
+	if (list_type != RTRVD_SET_ATTR_LIST)
+		goto out_param_list_err;
+
+	list_len = ntohl(&list_hdr[4]); /* XXX: osd errata */
+	if ((list_len + 8) != setattr_list_len)
+		goto out_param_list_err;
+	if (list_len & 0x7) /* multiple of 8, values are padded */
+		goto out_param_list_err;
+
+	if (list_len > 0) {
+		cmd->set_attr.sz = list_len/10; /* overcompensate */
+		cmd->set_attr.le = Malloc(cmd->set_attr.sz *
+					  sizeof(*(cmd->set_attr.le)));
+		if (!cmd->get_attr.le)
+			goto out_hw_err;
+	}
+
+	i = 0;
+	pad = 0;
+	list_hdr = &list_hdr[8]; /* XXX: osd errata */
+	while (list_len > 0) {
+		cmd->set_attr.le[i].page = ntohl(&list_hdr[LE_PAGE_OFF]);
+		cmd->set_attr.le[i].number = ntohl(&list_hdr[LE_NUMBER_OFF]);
+		cmd->set_attr.le[i].len = ntohs(&list_hdr[LE_LEN_OFF]);
+		cmd->set_attr.le[i].val = &list_hdr[LE_VAL_OFF];
+
+		pad = (0x8 - ((LE_VAL_OFF + cmd->set_attr.le[i].len) & 0x7)) & 
+			0x7;
+		list_hdr += LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
+		list_len -= LE_VAL_OFF + cmd->set_attr.le[i].len + pad;
+		i++;
+	}
+
+	return 0;
+
+out_param_list_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
+				 oid);
+out_hw_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_HARDWARE_ERROR,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+}
+
 /*
  *  actions for various (pid, list_attr) combinations:
  *
@@ -666,6 +729,26 @@ out_cdb_err:
 				initial_oid);
 	return ret;
 }
+
+static int cdb_set_member_attributes(struct command *cmd)
+{
+	int ret = 0;
+	uint64_t pid = ntohll(&cmd->cdb[16]);
+	uint64_t cid = ntohll(&cmd->cdb[24]);
+
+	ret = parse_setattr_list(cmd, pid, cid);
+	if (ret)
+		goto out_cdb_err;
+
+	ret = osd_set_member_attributes(cmd->osd, pid, cid, &cmd->set_attr, 
+					cmd->sense);
+
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	return ret;
+}
+
 
 static inline int std_get_set_attr(struct command *cmd, uint64_t pid,
 				   uint64_t oid)
@@ -878,9 +961,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_SET_MEMBER_ATTRIBUTES: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t cid = ntohll(&cdb[24]);
-		ret = osd_set_member_attributes(osd, pid, cid, sense);
+		ret = cdb_set_member_attributes(cmd);
 		break;
 	}
 	case OSD_WRITE: {

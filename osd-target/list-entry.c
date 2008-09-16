@@ -24,8 +24,13 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	uint8_t *cp = buf;
 	uint32_t len = buflen;
 
-	/* cannot ensure alignment:  LIST with list_attr puts these at
-	 * odd places. */
+	/* 
+	 * XXX: osd-errata: buf and buflen must be 8B aligned cannot ensure
+	 * alignment: XXX:SD  LIST with list_attr does not follow the spec,
+	 * see the comment in attr.c:attr_list_oids_attr. 
+	 */
+	if ((buflen & 0x7) || ((uintptr_t) buf & 0x7))
+		return -EINVAL;
 
 	if (buflen < LE_MIN_ITEM_LEN)
 		return -EOVERFLOW;

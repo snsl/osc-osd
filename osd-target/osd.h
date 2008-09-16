@@ -51,8 +51,8 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
-	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *outdata,
-	     uint64_t *outlen, uint8_t *sense, int list_attr);
+	     uint64_t alloc_len, uint64_t initial_oid, int list_attr,
+	     uint8_t *outdata, uint64_t *outlen, uint8_t *sense);
 int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
                         uint32_t list_id, uint64_t alloc_len,
 			uint64_t initial_oid,  uint8_t *outdata,

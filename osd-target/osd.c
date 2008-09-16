@@ -1289,13 +1289,31 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 	return osd_error_unimplemented(0, sense);
 }
 
+/*
+ * @outdata: pointer to start of the data-out-buffer: destination of
+ * 	generated list results
+ *
+ * returns:
+ * ==0: success, used_outlen is set
+ * > 0: error, sense is set
+ */
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
-	     uint64_t alloc_len, uint64_t initial_oid, uint8_t *outdata,
-	     uint64_t *outlen, uint8_t *sense, int list_attr)
+	     uint64_t alloc_len, uint64_t initial_oid, int list_attr,
+	     uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
 {
 	int ret = 0;
 	uint64_t addl_length, obj_descriptor, continuation_id, len = 24;
-	memset(outdata, 0, *outlen);
+	int listoid = 0;
+
+	if (alloc_len < 24) {
+		/* not an error, but fill with zeroes */
+		memset(outdata, 0, alloc_len);
+		*used_outlen = alloc_len;
+		return 0;
+	}
+
+	if (pid != 0)
+		listoid = 1;  /* list oids in this pid, not pids */
 
 	if (list_id != 0) {
 		/* Need to continue a list that was previously
@@ -1304,8 +1322,9 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 		   need to store list_ids somewhere or just
 		   interpret a nonzero list_id as an indicator to
 		   start our list at continuation_id? */
-	}
-	else {
+		goto out_hw_err;
+
+	} else {
 		/* If pid is zero, list pids; otherwise, list oids in that pid */
 		obj_descriptor = initial_oid;
 		while (len < alloc_len) {
@@ -1315,15 +1334,18 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 			ret = (pid != 0 ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
 				        : obj_get_nextpid(osd->db, &obj_descriptor));	
 			if (ret != 0) {
-				osd_error("%s: error retrieving next oid/pid", __func__);
-				return ret;	
+				osd_error("%s: error retrieving next oid/pid",
+					  __func__);
+				goto out_hw_err;
 			}
 			/* Fill up the list before we get to the header data */
 			set_htonll(&outdata[len], obj_descriptor);
 			len += 7;
 		}
-		ret = (pid != 0 ? obj_get_nextoid(osd->db, pid, &obj_descriptor) 
-			        : obj_get_nextpid(osd->db, &obj_descriptor));	
+		if (listoid)
+			ret = obj_get_nextoid(osd->db, pid, &obj_descriptor);
+		else
+			ret = obj_get_nextpid(osd->db, &obj_descriptor);
 		addl_length = len - 7;
 
 		/* Check to see if more pid/oids exist */
@@ -1338,18 +1360,26 @@ int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 					        : obj_get_nextpid(osd->db, &obj_descriptor));	
 				addl_length += 7;
 			}
-		}
-		else {
+		} else {
 			continuation_id = 0;
 			list_id = 0;
 		}
 		set_htonll(&outdata[0], addl_length);
 		set_htonll(&outdata[8], continuation_id);
-		set_htonll(&outdata[16], list_id);
-		*outlen = addl_length + 7;
+		set_htonl(&outdata[16], list_id);
+		outdata[20] = 0;
+		outdata[21] = 0;
+		outdata[22] = 0;
+		outdata[23] = ((listoid ? 0x20 : 0) | (list_attr ? 2 : 1)) << 2;
+		*used_outlen = addl_length + 7;
 	}
 
 	return ret; 
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, initial_oid);
+	return ret;
 }
 
 
@@ -1373,14 +1403,12 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 /*
  * @offset: offset from byte zero of the object where data will be read
  * @len: length of data to be read
- * @doutbuf: pointer to pointer start of the data-out-buffer: destination 
- * 	of read
+ * @outdata: pointer to start of the data-out-buffer: destination of read
  *
  * returns:
  * ==0: success, used_outlen is set
  * > 0: error, sense is set
  */
-
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	     uint64_t offset, uint8_t *outdata, uint64_t *used_outlen, 
 	     uint8_t *sense)

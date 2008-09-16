@@ -410,8 +410,8 @@ static int cdb_create(struct command *cmd)
 	ret = get_attributes(cmd, pid, oid, numoid);
 	if (ret != 0)
 		goto out_remove_obj;
-/*	rdtsc(end);
-	printf("%s: %lf\n", __func__, ((double)(end - start))/mhz);*/
+	/* rdtsc(end); */
+	/* printf("%s: %lf\n", __func__, ((double)(end - start))/mhz); */
 
 	return ret; /* success */
 
@@ -651,7 +651,8 @@ static void exec_service_action(struct command *cmd)
 		uint64_t initial_oid = ntohll(&cdb[40]);
 		int list_attr = (ntohll(&cdb[11]) & 0x40);
 		ret = osd_list(osd, pid, list_id, alloc_len, initial_oid,
-			       cmd->outdata, &cmd->used_outlen, sense, list_attr);
+			       list_attr, cmd->outdata, &cmd->used_outlen,
+			       sense);
 		break;
 	}
 	case OSD_LIST_COLLECTION: {

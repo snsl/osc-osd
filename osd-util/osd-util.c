@@ -31,7 +31,7 @@
 #include "osd-util.h"
 
 /* global */
-const char *progname = "(pre-main)";
+static const char *progname = "(pre-main)";
 double mhz = -1.0;
 
 /*

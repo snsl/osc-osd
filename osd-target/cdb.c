@@ -388,7 +388,6 @@ static int cdb_create(struct command *cmd)
 	uint64_t requested_oid = ntohll(&cdb[24]);
 	uint16_t numoid = ntohs(&cdb[32]);
 	uint8_t local_sense[OSD_MAX_SENSE];
-	/* uint64_t start, end; */
 
 	if (numoid > 1 && cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 		page = ntohl(&cmd->cdb[52]);
@@ -396,7 +395,6 @@ static int cdb_create(struct command *cmd)
 			goto out_cdb_err;
 	}
 
-	/* rdtsc(start); */
 	ret = osd_create(cmd->osd, pid, requested_oid, numoid, cmd->sense);
 	if (ret != 0)
 		return ret;
@@ -410,8 +408,6 @@ static int cdb_create(struct command *cmd)
 	ret = get_attributes(cmd, pid, oid, numoid);
 	if (ret != 0)
 		goto out_remove_obj;
-	/* rdtsc(end); */
-	/* printf("%s: %lf\n", __func__, ((double)(end - start))/mhz); */
 
 	return ret; /* success */
 
@@ -872,14 +868,3 @@ out:
 	}
 }
 
-/*
- * Return 0 if all okay.  Return >0 if some sense data was created,
- * this is the length of the sense data.  The input sense buffer is
- * known to be sized large enough to hold anything (OSD_MAX_SENSE).
- * Output data goes into data_out, and puts the length in data_out_len, up to
- * the data_out_len_max.
- *
- * The data_out buf is already allocated and pointing at the retrieved
- * attributes offset.  Just fill it up to _max and report how much you
- * used.
- */

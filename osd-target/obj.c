@@ -312,3 +312,17 @@ out:
 
 }
 
+#if 0
+int obj_get_all_pids(sqlite3 *db)
+{
+	return 0;
+}
+
+int obj_get_cids_in_pid(sqlite3 *db, uint64_t pid)
+{
+}
+
+int obj_get_oids_in_pid(sqlite3 *db, uint64_t pid)
+{
+}
+#endif

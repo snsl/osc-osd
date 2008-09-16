@@ -138,6 +138,13 @@ define return values, we return same return values as sqlite or should
 we assume this is single threaded app => no table locking, no checking for
 EBUSY. in future keep sqlite3_step in a infinite loop
 
+# legend for the development log
+#
+# -: issue
+# +: issue is resolved
+# ?: question. the answer to question is usually indented
+# !: important point, make a note of it
+
 # Fri Jan 26 11:03:52 EST 2007
 +	single makefile for tests and libosd
 -	make rules for dependencies
@@ -326,3 +333,42 @@ can be implemented as a sql view on page numbers 0
 -	proper sense codes with the point where command failed
 -	flexible handle allocation in PVFS
 -	speeding up file create operations with OSDs
+
+# Fri Apr 20 15:28:45 EDT 2007
+-	remove global variables in attr.c
++	clean setattr hack
+-	implement collections
+-	efficient way of generating next id
+
+# Mon Apr 23 15:54:10 EDT 2007
+-	rev 1652: submitted to SC
+-	collection, lists, query list, building collection (N steps). 
+
+# Wed Apr 25 12:47:05 EDT 2007
+-	collection ids grow from botton, user ids grow from top.
+?	who determines collection type?
+?	how are userobjects added to collection of type == 1?
+?	what is the use of removal of userobjects from collection after the
+	execution of multiobject command?
+
+# Thu Apr 26 14:25:09 EDT 2007
+-   initialize attr, db, object-collection
+-   implement cache near the table, for eg. id cache in obj.c
+-   a table to store ranges, to plug the holes in handles
+?   list command: what is returned when list_attr == 0 and get_set_cdbfmt ==
+    2? 
+		list_attr means list the attributes along with the objects. Therefore
+		when list_attr == 0 no attrs are sent. When list_attr == 1 then attrs
+		are sent in list format only.
+
+# Fri Apr 27 13:15:42 EDT 2007
+-	table manipulators need local cache. for eg. attr needs cache for blob,
+	obj needs cache for id & storing results of list command. These need to
+	be incorporated in the db_context
+!	getting rowcount and the results in a single sql query
+	http://searchoracle.techtarget.com/ateQuestionNResponse/0,289625,sid41_gci1072588,00.html
+
+-	scaling as function of objects, putting and taking out of collecitons
+-	implement query
+-	implement collection
+-	implement list, list collection, list + attr

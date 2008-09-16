@@ -21,6 +21,14 @@ CREATE TABLE attr (
 	PRIMARY KEY (pid, oid, page, number)
 );
 
+-- object_collection table is used as an intersection table to hold
+-- many-to-many mappings between userobjects and collections.
+CREATE TABLE object_collection (
+	cid INTEGER,
+	oid INTEGER,
+	PRIMARY KEY (cid, oid)
+);
+
 -- Add index on most varying fields for performance
 -- CREATE INDEX OBJ_INDEX ON obj (oid);
 -- CREATE INDEX ATTR_INDEX ON attr (oid,page);

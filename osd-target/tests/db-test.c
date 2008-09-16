@@ -10,6 +10,7 @@
 #include "db.h"
 #include "attr.h"
 #include "obj.h"
+#include "object-collection.h"
 #include "util/util.h"
 
 void test_obj(struct osd_device *osd);
@@ -19,6 +20,7 @@ void test_pid_isempty(struct osd_device *osd);
 void test_get_obj_type(struct osd_device *osd);
 void test_attr(struct osd_device *osd);
 void test_dir_page(struct osd_device *osd);
+void test_object_collection(struct osd_device *osd);
 
 void test_obj(struct osd_device *osd)
 {
@@ -258,6 +260,46 @@ void test_dir_page(struct osd_device *osd)
 	delete_obj(osd, 1, 1);
 }
 
+void test_object_collection(struct osd_device *osd)
+{
+	int ret = 0;
+	void *buf = NULL;
+	uint64_t *oids = NULL;
+
+	ret = oc_insert_cid_oid(osd->db, 0x1, 0x1111111111111111);
+	assert(ret == 0);
+	ret = oc_insert_cid_oid(osd->db, 0x2, 0x2222);
+	assert(ret == 0);
+	ret = oc_insert_cid_oid(osd->db, 0x2, 0x3333333333333333);
+	assert(ret == 0);
+	ret = oc_insert_cid_oid(osd->db, 0x2, 0x7888888888888888);
+	assert(ret == 0);
+	ret = oc_insert_cid_oid(osd->db, 0x2, 0x7AAAAAAAAAAAAAAA);
+	assert(ret == 0);
+	ret = oc_insert_cid_oid(osd->db, 0x2, 0xFFFFFFFFFFFFFFFF);
+	assert(ret == 0);
+	assert(ret == 0);
+	ret = oc_insert_cid_oid(osd->db, 0x1, 0x111);
+	assert(ret == 0);
+
+	ret = oc_get_oids_in_cid(osd->db, 0x2, &buf);
+	assert(ret == 0);
+	oids = (uint64_t *)buf;
+	assert(oids[0] == 0x2222);
+	assert(oids[1] == 0x3333333333333333);
+	assert(oids[2] == 0x7888888888888888);
+	assert(oids[3] == 0x7AAAAAAAAAAAAAAA);
+	assert(oids[4] != 0xFFFFFFFFFFFFFFFF); /* XXX: sqlite bug */
+
+	free(oids);
+
+	ret = oc_delete_cid(osd->db, 0x1);
+	assert(ret == 0);
+	ret = oc_delete_cid(osd->db, 0x2);
+	assert(ret == 0);
+}
+
+
 int main()
 {
 	char path[]="/tmp/osd/osd.db";
@@ -270,13 +312,14 @@ int main()
 	ret = db_exec_pragma(&osd);
 	assert(ret == 0);
 
-	test_obj(&osd);
+/*	test_obj(&osd);
 	test_dup_obj(&osd);
 	test_obj_manip(&osd);
 	test_pid_isempty(&osd);
 	test_get_obj_type(&osd);
 	test_attr(&osd);
-	test_dir_page(&osd);
+	test_dir_page(&osd);*/
+	test_object_collection(&osd);
 
 	ret = db_print_pragma(&osd);
 	assert(ret == 0);

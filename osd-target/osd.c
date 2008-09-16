@@ -114,8 +114,8 @@ static int issettable_page(uint8_t obj_type, uint32_t page)
 {
 	int rel_page = get_rel_page(obj_type, page);
 
-	if ((LUN_PG_LB <= rel_page && rel_page <= LUN_PG_UB) ||
-	    (rel_page == USER_INFO_PG)) /* XXX hack fix for truncate */
+	if ((STD_PG_LB <= rel_page && rel_page <= STD_PG_UB) ||
+	    (LUN_PG_LB <= rel_page && rel_page <= LUN_PG_UB))
 		return TRUE;
 	else
 		return FALSE;
@@ -259,7 +259,7 @@ out:
 }
 
 /*
- * Fill current command attributes page (osd2r00 Sec 7.1.2.24) attributes.
+ * Get current command attributes page (osd2r00 Sec 7.1.2.24) attributes.
  *
  * NOTE: since RTRVD_CREATE_MULTIOBJ_LIST listfmt is set only when multiple
  * objects are created, and CCAP has room for only one (pid, oid), the
@@ -589,6 +589,36 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 }
 
 /*
+ * returns:
+ * OSD_ERROR: in case of error
+ * OSD_OK: on success
+ */
+static int set_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		    uint32_t number, const void *val)
+{
+	int ret = 0;
+
+	switch (number) {
+	case UIAP_USERNAME: {
+		return OSD_ERROR; /* TODO: to be implemented */
+	}
+	case UIAP_LOGICAL_LEN: {
+		char path[MAXNAMELEN];
+		uint64_t len = ntohll((const uint8_t *)val);
+		get_dfile_name(path, osd->root, pid, oid);
+		osd_debug("%s: %s %llu\n", __func__, path, llu(len));
+		ret = truncate(path, len);
+		if (ret < 0)
+			return OSD_ERROR;
+		else
+			return OSD_OK;
+	}
+	default: 
+		return OSD_ERROR;
+	}
+}
+		   
+/*
  * Create root object and set attributes for root and partition zero.
  * = 0: success
  * !=0: failure
@@ -781,7 +811,6 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	int within_txn = 0;
 	uint64_t i = 0;
 	uint64_t oid = 0;
-	/* uint64_t start, end; */
 
 	osd_debug("%s: pid %llu requested oid %llu numoid %hu", __func__,
 		  llu(pid), llu(requested_oid), numoid);
@@ -798,12 +827,8 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	within_txn = 1;
 
 	/* Make sure partition is present. */
-	/* rdtsc(start); */
 	if (obj_ispresent(osd->db, pid, PARTITION_OID) == 0)
 		goto out_illegal_req;
-/*	rdtsc(end);
-	printf("ispresent pid: %lf\n", ((double)(end - start))/mhz);*/
-
 
 	if (numoid > 1 && requested_oid != 0)
 		goto out_illegal_req;
@@ -828,11 +853,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			osd->ic.next_oid = oid + 1;
 		}
 	} else {
-		/* rdtsc(start); */
 		ret = obj_ispresent(osd->db, pid, requested_oid);
-/*		rdtsc(end);
-		printf("ispresent oid %lf\n", ((double)(end - start))/mhz);*/
-
 		if (ret == 1)
 			goto out_illegal_req; /* requested_oid exists! */
 		oid = requested_oid; /* requested_oid works! */
@@ -842,31 +863,22 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		numoid = 1; /* create atleast one object */
 
 	for (i = oid; i < (oid + numoid); i++) {
-		/* rdtsc(start); */
 		ret = obj_insert(osd->db, pid, i, USEROBJECT);
-/*		rdtsc(end);
-		printf("insert: %lf\n", ((double)(end - start))/mhz);*/
 		if (ret != 0) {
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
 
-		/* rdtsc(start); */
 		ret = osd_create_datafile(osd, pid, i);
-/*		rdtsc(end);
-		printf("datafile: %lf\n", ((double)(end - start))/mhz);*/
 		if (ret != 0) {
 			obj_delete(osd->db, pid, i);
 			osd_remove_tmp_objects(osd, pid, oid, i, sense);
 			goto out_hw_err;
 		}
 
-		/* rdtsc(start); */
 		ret = attr_set_attr(osd->db, pid, i, USER_TMSTMP_PG, 0,
 				    incits.user_tmstmp_page,
 				    sizeof(incits.user_tmstmp_page));
-/*		rdtsc(end);
-		printf("setattr: %lf\n", ((double)(end - start))/mhz);*/
 		if (ret != 0) {
 			char path[MAXNAMELEN];
 			get_dfile_name(path, osd->root, pid, i);
@@ -895,7 +907,7 @@ out_illegal_req:
 			       pid, requested_oid);
 
 out_hw_err:
-	memset(&osd->ic, 0, sizeof(osd->ic)); /* invalidate cache */
+	osd->ic.cur_pid = osd->ic.next_oid = 0; /* invalidate cache */
 	if (within_txn) {
 		ret = db_end_txn(osd);
 		assert(ret == 0);
@@ -921,7 +933,8 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 	int ret = 0;
 	uint64_t cid = 0;
 
-	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid), llu(requested_cid));
+	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid), 
+		  llu(requested_cid));
 
 	if (pid == 0 || pid < COLLECTION_PID_LB)
 		goto out_cdb_err;
@@ -934,10 +947,8 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 		goto out_cdb_err;
 
 	/*
-	 * It's my understanding that oid's and cid's share
-	 * identifiers (sec 4.6.2), so I used
-	 * things like get_nextoid, and replaced parameters
-	 * that normally call for oid's with cid's
+	 * Collections and Userobjects share same namespace, so we can use
+	 * get_nextoid.
 	 */
 	if (requested_cid == 0) {
 		ret = obj_get_nextoid(osd->db, pid, &cid);
@@ -957,6 +968,8 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 	ret = obj_insert(osd->db, pid, cid, COLLECTION);
 	if (ret)
 		goto out_cdb_err;
+
+	/* TODO: set some of the default attributes of the collection */
 
 	fill_ccap(&osd->ccap, NULL, COLLECTION, pid, cid, 0);
 	return OSD_OK; /* success */
@@ -1526,7 +1539,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_cdb_err;
 
 	/* XXX: invalidate ic_cache immediately */
-	memset(&osd->ic, 0, sizeof(osd->ic));
+	osd->ic.cur_pid = osd->ic.next_oid = 0;
 
 	get_dfile_name(path, osd->root, pid, oid);
 	ret = unlink(path);
@@ -1596,7 +1609,7 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 		goto out_not_empty;
 
 	/* XXX: invalidate ic_cache */
-	memset(&osd->ic, 0, sizeof(osd->ic));
+	osd->ic.cur_pid = osd->ic.next_oid = 0;
 
 	ret = attr_delete_all(osd->db, pid, PARTITION_OID);
 	if (ret != 0)
@@ -1676,14 +1689,9 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			goto out_cdb_err;
 	}
 
-	/* XXX: dirty hack for truncate */
-	if (page == USER_INFO_PG && number == UIAP_LOGICAL_LEN) {
-		char path[MAXNAMELEN];
-		uint64_t len = ntohll((const uint8_t *)val);
-		get_dfile_name(path, osd->root, pid, oid);
-		osd_debug("%s: %s %llu\n", __func__, path, llu(len));
-		ret = truncate(path, len);
-		if (ret != 0)
+	if (page == USER_INFO_PG) {
+		ret = set_uiap(osd, pid, oid, number, val);
+		if (ret != OSD_OK)
 			goto out_cdb_err;
 		else
 			goto out_success;

@@ -75,19 +75,44 @@ struct init_attr {
 #define BLOCK_SZ (512UL)
 #define TIME_SZ (6) 
 
-struct id_cache {
-	uint64_t cur_pid; /* last pid referenced */
-	uint64_t next_oid; /* next free oid within partition (cur_pid) */
-};
-
 struct __attribute__((packed)) cur_cmd_attr_pg {
-	uint16_t cdb_srvc_act; /* current cmd  */
-	uint8_t ricv[20]; /* response integrity check value */
+	uint16_t cdb_srvc_act; 	/* current cmd  */
+	uint8_t ricv[20]; 	/* response integrity check value */
 	uint8_t obj_type;
 	uint8_t reserved[3];
 	uint64_t pid;
 	uint64_t oid;
 	uint64_t append_off;
+};
+
+struct id_cache {
+	uint64_t cur_pid; 	/* last pid referenced */
+	uint64_t next_oid; 	/* next free oid within partition (cur_pid) */
+};
+
+struct blob {
+	void *buf;
+	size_t sz;
+};
+
+/* 
+ * Encapsulate all db fields in db context. each db context is can be handled
+ * by an independent thread.
+ */
+struct db_context {
+	sqlite3 *db;
+	struct blob attr_blob;
+};
+
+/*
+ * 'osd_context' will replace 'osd_device' in future. Each osd context is a
+ * thread safe structure allocated as a private data for the thread. Thread
+ * specific state information will be contained in this struct
+ */
+struct osd_context {
+	struct cur_cmd_attr_pg ccap;
+	struct id_cache ic;
+	struct db_context dbc;
 };
 
 struct osd_device {

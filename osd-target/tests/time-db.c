@@ -11,7 +11,7 @@
 #include "coll.h"
 #include "obj.h"
 #include "attr.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 
 static void time_coll_insert(struct osd_device *osd, int numobj, int numiter, 
 			     int testone)
@@ -542,7 +542,7 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 		ret = obj_get_oids_in_pid(osd->dbc, 20, 0, sizeof(*ids)*1,
 					  cp, &usedlen, &addlen, &contid);
 		assert(ret == 0);
-		assert(ntohll(cp) == 11);
+		assert(get_ntohll(cp) == 11);
 		assert(usedlen == 8), usedlen = 0;
 		assert(addlen == 8), addlen = 0;
 		assert(contid == 0);
@@ -558,7 +558,7 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 		ret = obj_get_cids_in_pid(osd->dbc, 20, 0, sizeof(*ids)*1,
 					  cp, &usedlen, &addlen, &contid);
 		assert(ret == 0);
-		assert(ntohll(cp) == 11);
+		assert(get_ntohll(cp) == 11);
 		assert(usedlen == 8), usedlen = 0;
 		assert(addlen == 8), addlen = 0;
 		assert(contid == 0);
@@ -577,8 +577,8 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 		ret = obj_get_all_pids(osd->dbc, 0, sizeof(*ids)*2, cp,
 				       &usedlen, &addlen, &contid);
 		assert(ret == 0);
-		assert(ntohll(cp) == 20 || ntohll(cp) == 10);
-		assert(ntohll(cp+8) == 20 || ntohll(cp+8) == 10);
+		assert(get_ntohll(cp) == 20 || get_ntohll(cp) == 10);
+		assert(get_ntohll(cp+8) == 20 || get_ntohll(cp+8) == 10);
 		assert(usedlen == 2*sizeof(*ids));
 		assert(addlen == usedlen);
 		assert(contid == 0);
@@ -712,9 +712,9 @@ static void test_le(uint32_t page, uint32_t num, uint16_t len,
 {
 	uint8_t pad = 0;
 
-	assert(ntohl(cp) == page), cp += 4;
-	assert(ntohl(cp) == num), cp += 4;
-	assert(ntohs(cp) == len), cp += 2;
+	assert(get_ntohl(cp) == page), cp += 4;
+	assert(get_ntohl(cp) == num), cp += 4;
+	assert(get_ntohs(cp) == len), cp += 2;
 	assert(memcmp(cp, val, len) == 0), cp += len;
 	pad = roundup8(10+len) - (10+len);
 	while (pad--)

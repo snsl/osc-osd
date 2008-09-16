@@ -10,7 +10,7 @@
 #include "util/osd-defs.h"
 #include "db.h"
 #include "attr.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "list-entry.h"
 
 /* attr table stores all the attributes of all the objects in the OSD */

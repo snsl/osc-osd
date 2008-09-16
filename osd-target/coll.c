@@ -10,7 +10,7 @@
 #include "util/osd-defs.h"
 #include "db.h"
 #include "coll.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "list-entry.h"
 
 /*

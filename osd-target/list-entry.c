@@ -6,7 +6,7 @@
 #include "util/osd-defs.h"
 #include "osd.h"
 #include "list-entry.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 
 /* 
  * retrieve attr in list entry format; tab 129 Sec 7.1.3.3

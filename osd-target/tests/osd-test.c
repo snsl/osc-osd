@@ -14,7 +14,7 @@
 #include "attr.h"
 #include "obj.h"
 #include "coll.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "util/osd-sense.h"
 #include "target-sense.h"
 
@@ -146,7 +146,7 @@ static void test_osd_io(struct osd_device *osd)
 	if (ret > 0) {
 		assert(sense_test_type(sense, OSD_SSK_RECOVERED_ERROR,
 				       OSD_ASC_READ_PAST_END_OF_USER_OBJECT));
-		assert(ntohll(&sense[44]) == len);
+		assert(get_ntohll(&sense[44]) == len);
 	}
 	assert(len == strlen(wrbuf)+1);
 	assert(strcmp(rdbuf, wrbuf) == 0);
@@ -163,7 +163,7 @@ static void test_osd_io(struct osd_device *osd)
 	if (ret > 0) {
 		assert(sense_test_type(sense, OSD_SSK_RECOVERED_ERROR,
 				       OSD_ASC_READ_PAST_END_OF_USER_OBJECT));
-		assert(ntohll(&sense[44]) == len);
+		assert(get_ntohll(&sense[44]) == len);
 	}
 	assert(len == strlen(wrbuf)+1+strlen(apbuf)+1);
 	cp = rdbuf;
@@ -230,14 +230,14 @@ static void test_osd_get_ccap(struct osd_device *osd)
 	assert(used_len == CCAP_TOTAL_LEN);
 
 	cp = val;
-	assert(ntohl_le(&cp[0]) == CUR_CMD_ATTR_PG);
-	assert(ntohl_le(&cp[4]) == CCAP_TOTAL_LEN - 8);
+	assert(get_ntohl(&cp[0]) == CUR_CMD_ATTR_PG);
+	assert(get_ntohl(&cp[4]) == CCAP_TOTAL_LEN - 8);
 	for (i = CCAP_RICV_OFF; i < CCAP_RICV_OFF + CCAP_RICV_LEN; i++)
 		assert(cp[i] == 0);
 	assert(cp[CCAP_OBJT_OFF] == USEROBJECT);
-	assert(ntohll_le(&cp[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
-	assert(ntohll_le(&cp[CCAP_OID_OFF]) == USEROBJECT_OID_LB);
-	assert(ntohll_le(&cp[CCAP_APPADDR_OFF]) == 0);
+	assert(get_ntohll(&cp[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
+	assert(get_ntohll(&cp[CCAP_OID_OFF]) == USEROBJECT_OID_LB);
+	assert(get_ntohll(&cp[CCAP_APPADDR_OFF]) == 0);
 
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	assert(ret == 0);
@@ -251,7 +251,7 @@ static void test_osd_get_ccap(struct osd_device *osd)
 
 static inline time_t ntoh_time(void *buf)
 {
-	time_t t = ntohll_le((uint8_t *)buf) & ~0xFFFFULL;
+	time_t t = get_ntohll((uint8_t *)buf) & ~0xFFFFULL;
 	return (t >> 16);
 }
 
@@ -297,8 +297,8 @@ static void test_osd_get_utsap(struct osd_device *osd)
 	assert(ret == 0);
 
 	cp = buf;
-	assert(ntohl_le(&cp[0]) == USER_TMSTMP_PG);
-	assert(ntohl_le(&cp[4]) == UTSAP_TOTAL_LEN - 8);
+	assert(get_ntohl(&cp[0]) == USER_TMSTMP_PG);
+	assert(get_ntohl(&cp[4]) == UTSAP_TOTAL_LEN - 8);
 
 	time_t atime = ntoh_time(&cp[UTSAP_DATA_ATIME_OFF]);
 	time_t mtime = ntoh_time(&cp[UTSAP_DATA_MTIME_OFF]);
@@ -347,9 +347,9 @@ static void test_osd_get_attributes(struct osd_device *osd)
 			       RTRVD_SET_ATTR_LIST, &used_len, sense);
 	assert(ret == 0);
 	le = val;
-	assert(ntohl_le((uint8_t *)&le->page) == USEROBJECT_PG + LUN_PG_LB);
-	assert(ntohl_le((uint8_t *)&le->number) == 1);
-	assert(ntohs_le((uint8_t *)&le->len) == strlen("Madhuri Dixit")+1);
+	assert(get_ntohl((uint8_t *)&le->page) == USEROBJECT_PG + LUN_PG_LB);
+	assert(get_ntohl((uint8_t *)&le->number) == 1);
+	assert(get_ntohs((uint8_t *)&le->len) == strlen("Madhuri Dixit")+1);
 	assert(strcmp((char *)le +  LE_VAL_OFF, "Madhuri Dixit") == 0);
 	len = LE_VAL_OFF + strlen("Madhuri Dixit")+1;
 	len += (0x8 - (len & 0x7)) & 0x7;
@@ -367,10 +367,10 @@ static void test_osd_get_attributes(struct osd_device *osd)
 			       TRUE, RTRVD_SET_ATTR_LIST, &used_len, sense);
 	assert(ret == 0);
 	le = getval;
-	assert(ntohl_le((uint8_t *)&le->page) == USER_INFO_PG);
-	assert(ntohl_le((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
-	assert(ntohs_le((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
-	assert(ntohll_le((uint8_t *)le + LE_VAL_OFF) == strlen(val)+1);
+	assert(get_ntohl((uint8_t *)&le->page) == USER_INFO_PG);
+	assert(get_ntohl((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
+	assert(get_ntohs((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
+	assert(get_ntohll((uint8_t *)le + LE_VAL_OFF) == strlen(val)+1);
 	len = LE_VAL_OFF + UIAP_LOGICAL_LEN_LEN;
 	len += (0x8 - (len & 0x7)) & 0x7;
 	assert(used_len == len);
@@ -387,10 +387,10 @@ static void test_osd_get_attributes(struct osd_device *osd)
 			       TRUE, RTRVD_SET_ATTR_LIST, &used_len, sense);
 	assert(ret == 0);
 	le = getval;
-	assert(ntohl_le((uint8_t *)&le->page) == USER_INFO_PG);
-	assert(ntohl_le((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
-	assert(ntohs_le((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
-	assert(ntohll_le((uint8_t *)le + LE_VAL_OFF) == 0);
+	assert(get_ntohl((uint8_t *)&le->page) == USER_INFO_PG);
+	assert(get_ntohl((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
+	assert(get_ntohs((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
+	assert(get_ntohll((uint8_t *)le + LE_VAL_OFF) == 0);
 	len = LE_VAL_OFF + UIAP_LOGICAL_LEN_LEN;
 	len += (0x8 - (len & 0x7)) & 0x7;
 	assert(used_len == len);
@@ -554,14 +554,14 @@ static void check_results(void *ml, uint64_t *idlist, uint64_t sz,
 			  uint64_t usedlen)
 {
 	uint8_t *cp = ml;
-	uint32_t add_len = ntohll(&cp[0]);
+	uint32_t add_len = get_ntohll(&cp[0]);
 	assert(add_len == (5+8*sz));
 	assert(cp[12] == (0x21 << 2));
 	assert(usedlen == add_len+8);
 	add_len -= 5;
 	cp += MIN_ML_LEN;
 	while (add_len) {
-		assert(ismember(ntohll(cp), idlist, 8));
+		assert(ismember(get_ntohll(cp), idlist, 8));
 		cp += 8;
 		add_len -= 8;
 	}

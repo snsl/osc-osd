@@ -13,7 +13,7 @@
 #include "attr.h"
 #include "coll.h" 
 #include "mtq.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "list-entry.h"
 
 /*

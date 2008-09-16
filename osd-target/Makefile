@@ -38,7 +38,7 @@ CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../util
 
 .SUFFIXES: .c .o .i
 
-all :: TESTS tgtd
+all :: tgtd
 
 # Need -whole-archive this to get the constructors for the various device
 # types.  Another way would be to force a ref to an object in the file

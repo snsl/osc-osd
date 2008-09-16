@@ -14,7 +14,7 @@
 #include "util/osd-defs.h"
 #include "target-sense.h"
 #include "cdb.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 
 /*
  * Aggregate parameters for function calls in this file.
@@ -67,10 +67,10 @@ static int calc_max_out_len(struct command *cmd)
 	case OSD_LIST_COLLECTION:
 	case OSD_READ:
 	case OSD_QUERY:
-		cmd->outlen = ntohll(&cmd->cdb[32]);
+		cmd->outlen = get_ntohll(&cmd->cdb[32]);
 		break;
 	case OSD_SET_MASTER_KEY:
-		cmd->outlen = ntohl(&cmd->cdb[36]);
+		cmd->outlen = get_ntohl(&cmd->cdb[36]);
 		break;
 	default:
 		cmd->outlen = 0;
@@ -83,11 +83,11 @@ static int calc_max_out_len(struct command *cmd)
 	 */
 	cmd->retrieved_attr_off = 0;
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
-		cmd->retrieved_attr_off = ntohoffset(&cmd->cdb[60]);
-		end = cmd->retrieved_attr_off + ntohl(&cmd->cdb[56]);
+		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[60]);
+		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[56]);
 	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
-		cmd->retrieved_attr_off = ntohoffset(&cmd->cdb[64]);
-		end = cmd->retrieved_attr_off + ntohl(&cmd->cdb[60]);
+		cmd->retrieved_attr_off = get_ntohoffset(&cmd->cdb[64]);
+		end = cmd->retrieved_attr_off + get_ntohl(&cmd->cdb[60]);
 	} else {
 		return -1; /* TODO: proper error code */
 	}
@@ -103,8 +103,8 @@ static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
 {
 	int ret = 0;
 	uint8_t *cdb = cmd->cdb;
-	uint32_t page = ntohl(&cmd->cdb[52]);
-	uint32_t alloc_len = ntohl(&cdb[56]);
+	uint32_t page = get_ntohl(&cmd->cdb[52]);
+	uint32_t alloc_len = get_ntohl(&cdb[56]);
 	void *outbuf = NULL;
 
 
@@ -134,10 +134,10 @@ static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint64_t i = 0;
 	uint8_t *cdb = cmd->cdb;
-	uint32_t page = ntohl(&cmd->cdb[64]);
-	uint32_t number = ntohl(&cdb[68]);
-	uint32_t len = ntohl(&cdb[72]); /* XXX: bug in std? sizeof(len) = 4B */
-	uint64_t offset = ntohoffset(&cdb[76]);
+	uint32_t page = get_ntohl(&cmd->cdb[64]);
+	uint32_t number = get_ntohl(&cdb[68]);
+	uint32_t len = get_ntohl(&cdb[72]); /* XXX: bug in std? sizeof(len) = 4B */
+	uint64_t offset = get_ntohoffset(&cdb[76]);
 
 	if (page == 0)
 		return 0; /* nothing to set. osd2r00 Sec 5.2.2.2 */
@@ -166,10 +166,10 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t i = 0;
 	uint8_t list_type;
 	uint8_t listfmt = RTRVD_SET_ATTR_LIST;
-	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]);
+	uint32_t getattr_list_len = get_ntohl(&cmd->cdb[52]);
 	uint32_t list_in_len, list_len = 0;
-	uint64_t list_off = ntohoffset(&cmd->cdb[56]);
-	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
+	uint64_t list_off = get_ntohoffset(&cmd->cdb[56]);
+	uint32_t list_alloc_len = get_ntohl(&cmd->cdb[60]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 	uint8_t *outbuf;
 	uint8_t *cp = NULL;
@@ -196,7 +196,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if (list_type != RTRV_ATTR_LIST)
 		goto out_invalid_param_list;
 
-	list_len = ntohl(&list_hdr[4]);
+	list_len = get_ntohl(&list_hdr[4]);
 	if ((list_len + 8) != getattr_list_len)
 		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8 */
@@ -213,8 +213,8 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	cp = outbuf + 8;
 	cmd->get_used_outlen = 8;
 	while (list_len > 0) {
-		uint32_t page = ntohl(&list_hdr[0]);
-		uint32_t number = ntohl(&list_hdr[4]);
+		uint32_t page = get_ntohl(&list_hdr[0]);
+		uint32_t number = get_ntohl(&list_hdr[4]);
 
 		for (i = oid; i < oid+numoid; i++) {
 			uint32_t get_used_outlen;
@@ -263,9 +263,9 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t i = 0;
 	uint8_t list_type;
 	uint8_t *cdb = cmd->cdb;
-	uint32_t setattr_list_len = ntohl(&cmd->cdb[68]);
+	uint32_t setattr_list_len = get_ntohl(&cmd->cdb[68]);
 	uint32_t list_len = 0;
-	uint32_t list_off = ntohoffset(&cmd->cdb[72]);
+	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 
 	if (setattr_list_len == 0)
@@ -278,7 +278,7 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if (list_type != RTRVD_SET_ATTR_LIST)
 		goto out_param_list_err;
 
-	list_len = ntohl(&list_hdr[4]); /* XXX: osd errata */
+	list_len = get_ntohl(&list_hdr[4]); /* XXX: osd errata */
 	if ((list_len + 8) != setattr_list_len)
 		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8, values are padded */
@@ -286,9 +286,9 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	list_hdr = &list_hdr[8]; /* XXX: osd errata */
 	while (list_len > 0) {
-		uint32_t page = ntohl(&list_hdr[0]);
-		uint32_t number = ntohl(&list_hdr[4]);
-		uint32_t len = ntohs(&list_hdr[8]);
+		uint32_t page = get_ntohl(&list_hdr[0]);
+		uint32_t number = get_ntohl(&list_hdr[4]);
+		uint32_t len = get_ntohs(&list_hdr[8]);
 		uint32_t pad = 0;
 
 		/* set attr on multiple objects if that is the case */
@@ -386,13 +386,13 @@ static int cdb_create(struct command *cmd)
 	uint32_t page;
 	uint64_t oid;
 	uint8_t *cdb = cmd->cdb;
-	uint64_t pid = ntohll(&cdb[16]);
-	uint64_t requested_oid = ntohll(&cdb[24]);
-	uint16_t numoid = ntohs(&cdb[32]);
+	uint64_t pid = get_ntohll(&cdb[16]);
+	uint64_t requested_oid = get_ntohll(&cdb[24]);
+	uint16_t numoid = get_ntohs(&cdb[32]);
 	uint8_t local_sense[OSD_MAX_SENSE];
 
 	if (numoid > 1 && cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
-		page = ntohl(&cmd->cdb[52]);
+		page = get_ntohl(&cmd->cdb[52]);
 		if (page != CUR_CMD_ATTR_PG)
 			goto out_cdb_err;
 	}
@@ -434,7 +434,7 @@ static int cdb_create_partition(struct command *cmd)
 {
 	int ret = 0;
 	uint64_t pid = 0;
-	uint64_t requested_pid = ntohll(&cmd->cdb[16]);
+	uint64_t requested_pid = get_ntohll(&cmd->cdb[16]);
 	uint8_t local_sense[OSD_MAX_SENSE];
 
 	ret = osd_create_partition(cmd->osd, requested_pid, cmd->sense);
@@ -464,7 +464,7 @@ out_remove_obj:
 static int cdb_remove_partition(struct command *cmd)
 {
 	int ret = 0;
-	uint64_t pid = ntohll(&cmd->cdb[16]);
+	uint64_t pid = get_ntohll(&cmd->cdb[16]);
 
 	ret = set_attributes(cmd, pid, PARTITION_OID, 1);
 	if (ret != 0)
@@ -484,8 +484,8 @@ static int cdb_remove_partition(struct command *cmd)
 static int cdb_remove(struct command *cmd)
 {
 	int ret = 0;
-	uint64_t pid = ntohll(&cmd->cdb[16]);
-	uint64_t oid = ntohll(&cmd->cdb[24]);
+	uint64_t pid = get_ntohll(&cmd->cdb[16]);
+	uint64_t oid = get_ntohll(&cmd->cdb[24]);
 
 	ret = set_attributes(cmd, pid, oid, 1);
 	if (ret != 0)
@@ -505,10 +505,10 @@ static int cdb_remove(struct command *cmd)
 static int cdb_read(struct command *cmd)
 {
 	int ret = 0, rec_err_sense = 0;
-	uint64_t pid = ntohll(&cmd->cdb[16]);
-	uint64_t oid = ntohll(&cmd->cdb[24]);
-	uint64_t len = ntohll(&cmd->cdb[32]);
-	uint64_t offset = ntohll(&cmd->cdb[40]);
+	uint64_t pid = get_ntohll(&cmd->cdb[16]);
+	uint64_t oid = get_ntohll(&cmd->cdb[24]);
+	uint64_t len = get_ntohll(&cmd->cdb[32]);
+	uint64_t offset = get_ntohll(&cmd->cdb[40]);
 
 	ret = osd_read(cmd->osd, pid, oid, len, offset, cmd->outdata,
 		       &cmd->used_outlen, cmd->sense);
@@ -534,10 +534,10 @@ static int parse_getattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	int ret = 0;
 	uint64_t i = 0;
 	uint8_t list_type;
-	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]);
+	uint32_t getattr_list_len = get_ntohl(&cmd->cdb[52]);
 	uint32_t list_in_len, list_len = 0;
-	uint64_t list_off = ntohoffset(&cmd->cdb[56]);
-	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
+	uint64_t list_off = get_ntohoffset(&cmd->cdb[56]);
+	uint32_t list_alloc_len = get_ntohl(&cmd->cdb[60]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 	uint8_t *cp = NULL;
 
@@ -559,7 +559,7 @@ static int parse_getattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	if (list_type != RTRV_ATTR_LIST)
 		goto out_invalid_param_list;
 
-	list_len = ntohl(&list_hdr[4]);
+	list_len = get_ntohl(&list_hdr[4]);
 	if ((list_len + 8) != getattr_list_len)
 		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8 */
@@ -579,8 +579,8 @@ static int parse_getattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	i = 0;
 	list_hdr += 8;
 	for (i = 0; i < list_len/8; i++) {
-		cmd->get_attr.le[i].page = ntohl(&list_hdr[0]);
-		cmd->get_attr.le[i].number = ntohl(&list_hdr[4]);
+		cmd->get_attr.le[i].page = get_ntohl(&list_hdr[0]);
+		cmd->get_attr.le[i].number = get_ntohl(&list_hdr[4]);
 		list_hdr += 8;
 	}
 
@@ -606,9 +606,9 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	uint32_t i = 0;
 	uint8_t list_type;
 	uint8_t *cdb = cmd->cdb;
-	uint32_t setattr_list_len = ntohl(&cmd->cdb[68]);
+	uint32_t setattr_list_len = get_ntohl(&cmd->cdb[68]);
 	uint32_t list_len = 0;
-	uint32_t list_off = ntohoffset(&cmd->cdb[72]);
+	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
 	uint8_t pad = 0;
 
@@ -622,7 +622,7 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	if (list_type != RTRVD_SET_ATTR_LIST)
 		goto out_param_list_err;
 
-	list_len = ntohl(&list_hdr[4]);
+	list_len = get_ntohl(&list_hdr[4]);
 	if ((list_len + 8) != setattr_list_len)
 		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8, values are padded */
@@ -646,9 +646,9 @@ static int parse_setattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
 	list_hdr += 8;
 	cmd->set_attr.sz = 0;  /* start counting again */
 	while (list_len > 0) {
-		cmd->set_attr.le[i].page = ntohl(&list_hdr[LE_PAGE_OFF]);
-		cmd->set_attr.le[i].number = ntohl(&list_hdr[LE_NUMBER_OFF]);
-		cmd->set_attr.le[i].len = ntohs(&list_hdr[LE_LEN_OFF]);
+		cmd->set_attr.le[i].page = get_ntohl(&list_hdr[LE_PAGE_OFF]);
+		cmd->set_attr.le[i].number = get_ntohl(&list_hdr[LE_NUMBER_OFF]);
+		cmd->set_attr.le[i].len = get_ntohs(&list_hdr[LE_LEN_OFF]);
 		cmd->set_attr.le[i].cval = &list_hdr[LE_VAL_OFF];
 
 		pad = (0x8 - ((LE_VAL_OFF + cmd->set_attr.le[i].len) & 0x7)) & 
@@ -698,10 +698,10 @@ static int cdb_list(struct command *cmd)
 	uint8_t *cdb = cmd->cdb;
 	uint8_t list_attr = (cdb[11] & 0x40) >> 6;
 	uint8_t sort_order = (cdb[11] & 0x0F);
-	uint64_t pid = ntohll(&cdb[16]);
-	uint32_t list_id = ntohl(&cdb[48]);
-	uint64_t alloc_len = ntohll(&cdb[32]);
-	uint64_t initial_oid = ntohll(&cdb[40]);
+	uint64_t pid = get_ntohll(&cdb[16]);
+	uint32_t list_id = get_ntohl(&cdb[48]);
+	uint64_t alloc_len = get_ntohll(&cdb[32]);
+	uint64_t initial_oid = get_ntohll(&cdb[40]);
 
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE)
 		goto out_cdb_err; /* TODO: implement this */
@@ -739,8 +739,8 @@ out_cdb_err:
 static int cdb_set_member_attributes(struct command *cmd)
 {
 	int ret = 0;
-	uint64_t pid = ntohll(&cmd->cdb[16]);
-	uint64_t cid = ntohll(&cmd->cdb[24]);
+	uint64_t pid = get_ntohll(&cmd->cdb[16]);
+	uint64_t cid = get_ntohll(&cmd->cdb[24]);
 
 	ret = parse_setattr_list(cmd, pid, cid);
 	if (ret)
@@ -784,9 +784,9 @@ static void exec_service_action(struct command *cmd)
 
 	switch (cmd->action) {
 	case OSD_APPEND: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[32]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t oid = get_ntohll(&cdb[24]);
+		uint64_t len = get_ntohll(&cdb[32]);
 
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
@@ -804,10 +804,10 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_CREATE_AND_WRITE: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t requested_oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[32]);
-		uint64_t offset = ntohll(&cdb[40]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t requested_oid = get_ntohll(&cdb[24]);
+		uint64_t len = get_ntohll(&cdb[32]);
+		uint64_t offset = get_ntohll(&cdb[40]);
 
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
@@ -817,8 +817,8 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t requested_cid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t requested_cid = get_ntohll(&cdb[24]);
 
 		ret = osd_create_collection(osd, pid, requested_cid, sense);
 		break;
@@ -828,16 +828,16 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_FLUSH: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t oid = get_ntohll(&cdb[24]);
 		int flush_scope = cdb[10] & 0x3;
 
 		ret = osd_flush(osd, pid, oid, flush_scope, sense);
 		break;
 	}
 	case OSD_FLUSH_COLLECTION: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t cid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t cid = get_ntohll(&cdb[24]);
 		int flush_scope = cdb[10] & 0x3;
 
 		ret = osd_flush_collection(osd, pid, cid, flush_scope, sense);
@@ -850,20 +850,20 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_FLUSH_PARTITION: {
-		uint64_t pid = ntohll(&cdb[16]);
+		uint64_t pid = get_ntohll(&cdb[16]);
 		int flush_scope = cdb[10] & 0x3;
 		ret = osd_flush_partition(osd, pid, flush_scope, sense);
 		break;
 	}
 	case OSD_FORMAT_OSD: {
-		uint64_t capacity = ntohll(&cdb[32]);
+		uint64_t capacity = get_ntohll(&cdb[32]);
 		ret = osd_format_osd(osd, capacity, sense);
 		/* TODO: what is corresponding get/set attr? */
 		break;
 	}
 	case OSD_GET_ATTRIBUTES: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t oid = get_ntohll(&cdb[24]);
 
 		ret = get_attributes(cmd, pid, oid, 1);
 		if (ret)
@@ -873,8 +873,8 @@ static void exec_service_action(struct command *cmd)
 
 	}
 	case OSD_GET_MEMBER_ATTRIBUTES: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t cid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t cid = get_ntohll(&cdb[24]);
 		ret = osd_get_member_attributes(osd, pid, cid, sense);
 		break;
 	}
@@ -884,11 +884,11 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_LIST_COLLECTION: {
 		uint8_t list_attr = (cdb[11] & 0x40) >> 6;
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t cid = ntohll(&cdb[24]);
-		uint32_t list_id = ntohl(&cdb[48]);
-		uint64_t alloc_len = ntohll(&cdb[32]);
-		uint64_t initial_oid = ntohll(&cdb[40]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t cid = get_ntohll(&cdb[24]);
+		uint32_t list_id = get_ntohl(&cdb[48]);
+		uint64_t alloc_len = get_ntohll(&cdb[32]);
+		uint64_t initial_oid = get_ntohll(&cdb[40]);
 		ret = osd_list_collection(cmd->osd, list_attr, pid, cid,
 					  alloc_len, initial_oid,
 					  &cmd->get_attr, list_id,
@@ -911,10 +911,10 @@ static void exec_service_action(struct command *cmd)
 		ret = std_get_set_attr(cmd, pid, oid);*/
 		break;
 	case OSD_QUERY: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t cid = ntohll(&cdb[24]);
-		uint32_t query_list_len = ntohl(&cdb[48]);
-		uint64_t alloc_len = ntohll(&cdb[32]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t cid = get_ntohll(&cdb[24]);
+		uint32_t query_list_len = get_ntohl(&cdb[48]);
+		uint64_t alloc_len = get_ntohll(&cdb[32]);
 		ret = osd_query(osd, pid, cid, query_list_len, alloc_len, 
 				cmd->indata, cmd->outdata, &cmd->used_outlen,
 				sense);
@@ -934,14 +934,14 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_REMOVE_COLLECTION: {
 		uint8_t fcr = (cdb[11] & 0x1);
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t cid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t cid = get_ntohll(&cdb[24]);
 		ret = osd_remove_collection(osd, pid, cid, fcr, sense);
 		break;
 	}
 	case OSD_REMOVE_MEMBER_OBJECTS: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t cid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t cid = get_ntohll(&cdb[24]);
 		ret = osd_remove_member_objects(osd, pid, cid, sense);
 		break;
 	}
@@ -950,8 +950,8 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_SET_ATTRIBUTES: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t oid = get_ntohll(&cdb[24]);
 
 		ret = set_attributes(cmd, pid, oid, 1);
 		if (ret)
@@ -961,8 +961,8 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_SET_KEY: {
 		int key_to_set = cdb[11] & 0x3;
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t key = ntohll(&cdb[24]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t key = get_ntohll(&cdb[24]);
 		uint8_t seed[20];
 		memcpy(seed, &cdb[32], 20);
 		ret = osd_set_key(osd, key_to_set, pid, key, seed, sense);
@@ -970,9 +970,9 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_SET_MASTER_KEY: {
 		int dh_step = cdb[11] & 0x3;
-		uint64_t key = ntohll(&cdb[24]);
-		uint32_t param_len = ntohl(&cdb[32]);
-		uint32_t alloc_len = ntohl(&cdb[36]);
+		uint64_t key = get_ntohll(&cdb[24]);
+		uint32_t param_len = get_ntohl(&cdb[32]);
+		uint32_t alloc_len = get_ntohl(&cdb[36]);
 		ret = osd_set_master_key(osd, dh_step, key, param_len,
 					 alloc_len, cmd->outdata,
 					 &cmd->used_outlen, sense);
@@ -983,10 +983,10 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_WRITE: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
-		uint64_t len = ntohll(&cdb[32]);
-		uint64_t offset = ntohll(&cdb[40]);
+		uint64_t pid = get_ntohll(&cdb[16]);
+		uint64_t oid = get_ntohll(&cdb[24]);
+		uint64_t len = get_ntohll(&cdb[32]);
+		uint64_t offset = get_ntohll(&cdb[40]);
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;

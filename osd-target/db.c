@@ -11,7 +11,7 @@
 #include "db.h"
 #include "obj.h"
 #include "coll.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "attr.h"
 
 extern const char osd_schema[];

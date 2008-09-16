@@ -12,7 +12,7 @@
 #include "osd.h"
 #include "cdb.h"
 #include "util/osd-defs.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "util/osd-sense.h"
 #include "osd-initiator/command.h"
 
@@ -121,12 +121,12 @@ void test_create(struct osd_device *osd)
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 
-	assert(ntohl_le(&data_out[0]) == CUR_CMD_ATTR_PG);
-	assert(ntohl_le(&data_out[4]) == CCAP_TOTAL_LEN - 8);
+	assert(get_ntohl(&data_out[0]) == CUR_CMD_ATTR_PG);
+	assert(get_ntohl(&data_out[4]) == CCAP_TOTAL_LEN - 8);
 	assert(data_out[CCAP_OBJT_OFF] == USEROBJECT);
-	assert(ntohll_le(&data_out[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
-	assert(ntohll_le(&data_out[CCAP_APPADDR_OFF]) == 0);
-	uint64_t i = ntohll_le(&data_out[CCAP_OID_OFF]);
+	assert(get_ntohll(&data_out[CCAP_PID_OFF]) == USEROBJECT_PID_LB);
+	assert(get_ntohll(&data_out[CCAP_APPADDR_OFF]) == 0);
+	uint64_t i = get_ntohll(&data_out[CCAP_OID_OFF]);
 	assert (i == (USEROBJECT_PID_LB + 5 - 1));
 
 	i -= (5-1);
@@ -188,21 +188,21 @@ void test_create(struct osd_device *osd)
 					&senselen_out);
 		assert(ret == 0);
 		assert(data_out[0] == RTRVD_SET_ATTR_LIST);
-		len = ntohl(&data_out[4]);
+		len = get_ntohl(&data_out[4]);
 		assert(len > 0);
 		cp = &data_out[8];
-		assert(ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB+1);
-		assert(ntohl(&cp[LE_NUMBER_OFF]) == 321);
-		len = ntohs(&cp[LE_LEN_OFF]);
+		assert(get_ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB+1);
+		assert(get_ntohl(&cp[LE_NUMBER_OFF]) == 321);
+		len = get_ntohs(&cp[LE_LEN_OFF]);
 		assert((uint32_t)len == (strlen(str2)+1));
 		assert(memcmp(&cp[LE_VAL_OFF], str2, len) == 0);
 		cp += len + LE_VAL_OFF;
 		pad = (0x8 - ((uintptr_t)cp & 0x7)) & 0x7;
 		while (pad--)
 			assert(*cp == 0), cp++;
-		assert(ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB);
-		assert(ntohl(&cp[LE_NUMBER_OFF]) == 111);
-		len = ntohs(&cp[LE_LEN_OFF]);
+		assert(get_ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB);
+		assert(get_ntohl(&cp[LE_NUMBER_OFF]) == 111);
+		len = get_ntohs(&cp[LE_LEN_OFF]);
 		assert((uint32_t)len == (strlen(str1)+1));
 		assert(memcmp(&cp[LE_VAL_OFF], str1, len) == 0);
 		cp += len + LE_VAL_OFF;
@@ -308,7 +308,7 @@ static int ismember(uint64_t needle, uint64_t *hay, uint64_t haysz)
 static void check_results(uint8_t *matches, uint64_t matchlen,
                           uint64_t *idlist, uint64_t idlistlen)
 {
-	uint32_t add_len = ntohll(&matches[0]);
+	uint32_t add_len = get_ntohll(&matches[0]);
 
 	assert(add_len == (5+8*idlistlen));
 	assert(matches[12] == (0x21 << 2));
@@ -316,7 +316,7 @@ static void check_results(uint8_t *matches, uint64_t matchlen,
 	add_len -= 5;
 	matches += MIN_ML_LEN;
 	while (add_len) {
-		assert(ismember(ntohll(matches), idlist, 8));
+		assert(ismember(get_ntohll(matches), idlist, 8));
 		matches += 8;
 		add_len -= 8;
 	}
@@ -714,7 +714,7 @@ static void ismember_attr(struct test_attr *attr, size_t sz, uint64_t oid,
 			assert(valen <= attr[i].valen);
 			if (attr[i].type == 1) {
 				if (valen == attr[i].valen)
-					assert(attr[i].intval == ntohll(val));
+					assert(attr[i].intval == get_ntohll(val));
 			} else {
 				assert(memcmp(attr[i].val, val, valen) == 0);
 			}
@@ -758,11 +758,11 @@ static void test_oids_with_attr(struct osd_device *osd, uint64_t pid,
 	assert(ret == 0);
 	cp = data_out;
 	assert(data_out_len == exp_data_out_len);
-	assert(ntohll(cp) == exp_add_len);
+	assert(get_ntohll(cp) == exp_add_len);
 	cp += 8;
-	assert(ntohll(cp) == exp_cont_id);
+	assert(get_ntohll(cp) == exp_cont_id);
 	cp += 8;
-	assert(ntohl(cp) == 0);
+	assert(get_ntohl(cp) == 0);
 	cp += 7;
 	assert(cp[0] == exp_odf);
 	cp += 1;
@@ -771,17 +771,17 @@ static void test_oids_with_attr(struct osd_device *osd, uint64_t pid,
 	len = 0;
 	data_out_len -= 24;
 	while (data_out_len > 0) {
-		oid = ntohll(cp);
+		oid = get_ntohll(cp);
 		cp += 12;
-		attr_list_len = ntohl(cp);
+		attr_list_len = get_ntohl(cp);
 		cp += 4;
 		data_out_len -= 16;
 		while (attr_list_len > 0) {
-			page = ntohl(cp);
+			page = get_ntohl(cp);
 			cp += 4;
-			number = ntohl(cp);
+			number = get_ntohl(cp);
 			cp += 4;
-			len = ntohs(cp);
+			len = get_ntohs(cp);
 			cp += 2;
 			attr_list_len -= (4+4+2);
 			data_out_len -= (4+4+2);
@@ -909,12 +909,12 @@ void test_list(struct osd_device *osd)
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 	cp = data_out;
-	assert(ntohll(cp) == 10*8+16);
+	assert(get_ntohll(cp) == 10*8+16);
 	assert(data_out_len == 10*8+24);
 	cp += 8;
-	assert(ntohll(cp) == 0);
+	assert(get_ntohll(cp) == 0);
 	cp += 8;
-	assert(ntohl(cp) == 0);
+	assert(get_ntohl(cp) == 0);
 	cp += 7;
 	assert(cp[0] == (0x21 << 2));
 	cp += 1;
@@ -926,7 +926,7 @@ void test_list(struct osd_device *osd)
 	for (i = 0; i < 4; i++)
 		idlist[6+i] = oid + i;
 	while (data_out_len > 0) {
-		assert(ismember(ntohll(cp), idlist, 10));
+		assert(ismember(get_ntohll(cp), idlist, 10));
 		cp += 8;
 		data_out_len -= 8;
 	}
@@ -940,12 +940,12 @@ void test_list(struct osd_device *osd)
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
 	cp = data_out;
-	assert(ntohll(cp) == 10*8+16);
+	assert(get_ntohll(cp) == 10*8+16);
 	assert(data_out_len == 72);
 	cp += 8;
-	assert(ntohll(cp) == COLLECTION_OID_LB + 8);
+	assert(get_ntohll(cp) == COLLECTION_OID_LB + 8);
 	cp += 8;
-	assert(ntohl(cp) == 0);
+	assert(get_ntohl(cp) == 0);
 	cp += 7;
 	assert(cp[0] == (0x21 << 2));
 	cp += 1;
@@ -956,7 +956,7 @@ void test_list(struct osd_device *osd)
 	for (i = 0; i < 4; i++)
 		idlist[6+i] = 0;
 	while (data_out_len > 0) {
-		assert(ismember(ntohll(cp), idlist, 10));
+		assert(ismember(get_ntohll(cp), idlist, 10));
 		cp += 8;
 		data_out_len -= 8;
 	}
@@ -1039,14 +1039,14 @@ static void test_attr_vals(uint8_t *cp, struct attribute_list *attrs,
 
 	assert((cp[0] & 0x0F) == 0x9);
 	cp += 4;
-	list_len = ntohl(cp);
+	list_len = get_ntohl(cp);
 	cp += 4;
 	while (list_len > 0) {
-		page = ntohl(cp);
+		page = get_ntohl(cp);
 		cp += 4;
-		num = ntohl(cp);
+		num = get_ntohl(cp);
 		cp += 4;
-		len = ntohs(cp);
+		len = get_ntohs(cp);
 		cp += 2;
 		for (i = 0; i < sz; i++) {
 			if (!(attrs[i].page==page && attrs[i].number==num)) 
@@ -1054,8 +1054,8 @@ static void test_attr_vals(uint8_t *cp, struct attribute_list *attrs,
 
 			assert(len == attrs[i].len);
 			if (len == 8) {
-				assert(ntohll((uint8_t *)attrs[i].val) == 
-				       ntohll(cp));
+				assert(get_ntohll((uint8_t *)attrs[i].val) == 
+				       get_ntohll(cp));
 			} else {
 				assert(!memcmp(attrs[i].val, cp, len));
 			}

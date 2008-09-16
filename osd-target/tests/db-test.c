@@ -11,7 +11,7 @@
 #include "attr.h"
 #include "obj.h"
 #include "coll.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 
 static void test_obj(struct osd_device *osd)
 {
@@ -62,9 +62,9 @@ static void test_attr(struct osd_device *osd)
 #ifndef NDEBUG
 	/* ifdef to avoid unused warning */
 	struct list_entry *ent = (struct list_entry *)val;
-	assert(ntohl_le((uint8_t *)&ent->page) == 2);
-	assert(ntohl_le((uint8_t *)&ent->number) == 12);
-	assert(ntohs_le((uint8_t *)&ent->len) == strlen(attr)+1);
+	assert(get_ntohl((uint8_t *)&ent->page) == 2);
+	assert(get_ntohl((uint8_t *)&ent->number) == 12);
+	assert(get_ntohs((uint8_t *)&ent->len) == strlen(attr)+1);
 	assert(strcmp((char *)ent + LE_VAL_OFF, attr) == 0); 
 #endif
 
@@ -234,10 +234,10 @@ static void test_dir_page(struct osd_device *osd)
 		uint8_t pad = 0;
 		uint16_t len = 0;
 		uint32_t j = 0;
-		assert(ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_DIR_PG);
-		j = ntohl(&cp[LE_NUMBER_OFF]);
+		assert(get_ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_DIR_PG);
+		j = get_ntohl(&cp[LE_NUMBER_OFF]);
 		assert(j == (uint32_t)i);
-		len = ntohs(&cp[LE_LEN_OFF]);
+		len = get_ntohs(&cp[LE_LEN_OFF]);
 		assert(len == 40);
 		cp += 10;
 		if (i == 1 || i == 2)
@@ -292,16 +292,16 @@ static void test_coll(struct osd_device *osd)
 	assert(usedlen == 4*8);
 	assert(addlen == 4*8);
 	assert(cont_id == 0);
-	assert(ntohll((uint8_t *)&oids[0]) == 0x2222);
-	assert(ntohll((uint8_t *)&oids[1]) == 0x3333333333333333);
-	assert(ntohll((uint8_t *)&oids[2]) == 0x7888888888888888);
-	assert(ntohll((uint8_t *)&oids[3]) == 0x7AAAAAAAAAAAAAAA);
+	assert(get_ntohll((uint8_t *)&oids[0]) == 0x2222);
+	assert(get_ntohll((uint8_t *)&oids[1]) == 0x3333333333333333);
+	assert(get_ntohll((uint8_t *)&oids[2]) == 0x7888888888888888);
+	assert(get_ntohll((uint8_t *)&oids[3]) == 0x7AAAAAAAAAAAAAAA);
 
 	/* 
 	 * XXX: following is sqlite bug. sqlite converts uint64_t to double
 	 * and looses precision 
 	 */
-	assert(ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); 
+	assert(get_ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); 
 
 	/* test empty cid */
 	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1, &isempty);

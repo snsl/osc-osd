@@ -15,7 +15,7 @@
 #include "target-sense.h"
 #include "db.h"
 #include "attr.h"
-#include "util/util.h"
+#include "util/osd-util.h"
 #include "obj.h"
 #include "coll.h"
 #include "mtq.h"
@@ -633,7 +633,7 @@ static int set_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 	case UIAP_LOGICAL_LEN: {
 		char path[MAXNAMELEN];
-		uint64_t len = ntohll((const uint8_t *)val);
+		uint64_t len = get_ntohll((const uint8_t *)val);
 		get_dfile_name(path, osd->root, pid, oid);
 		osd_debug("%s: %s %llu\n", __func__, path, llu(len));
 		ret = truncate(path, len);
@@ -685,7 +685,7 @@ static int set_cap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (len != 8)
 		return OSD_ERROR;
 
-	cid = ntohll(val);
+	cid = get_ntohll(val);
 	/* cid = *((uint64_t *)val);  *//* XXX: endian of cid?? */
 	ret = obj_ispresent(osd->dbc, pid, cid, &present);
 	if (ret != OSD_OK || !present)
@@ -1776,20 +1776,20 @@ static int parse_query_criteria(const uint8_t *cp, uint32_t qll,
 	cp += 4;
 	qll -= 4; /* remove query list header */
 	while (qll > 0) {
-		qc->qce_len[qc->qc_cnt] = ntohs(&cp[2]);
+		qc->qce_len[qc->qc_cnt] = get_ntohs(&cp[2]);
 		if (qc->qce_len[qc->qc_cnt] == MINQCELEN)
 			break; /* qce is empty */
 
-		qc->page[qc->qc_cnt] = ntohl(&cp[4]);
+		qc->page[qc->qc_cnt] = get_ntohl(&cp[4]);
 		if (qc->page[qc->qc_cnt] >= PARTITION_PG) /* osd2r01 p 120 */
 			return OSD_ERROR;
 
-		qc->number[qc->qc_cnt] = ntohl(&cp[8]);
-		qc->min_len[qc->qc_cnt] = ntohs(&cp[12]);
+		qc->number[qc->qc_cnt] = get_ntohl(&cp[8]);
+		qc->min_len[qc->qc_cnt] = get_ntohs(&cp[12]);
 		qc->min_val[qc->qc_cnt] = &cp[14];
 		cp += (14 + qc->min_len[qc->qc_cnt]);
 		qll -= (14 + qc->min_len[qc->qc_cnt]);
-		qc->max_len[qc->qc_cnt] = ntohs(&cp[0]);
+		qc->max_len[qc->qc_cnt] = get_ntohs(&cp[0]);
 		qc->max_val[qc->qc_cnt] = &cp[2];
 		cp += (2 + qc->max_len[qc->qc_cnt]);
 		qll -= (2 + qc->max_len[qc->qc_cnt]);

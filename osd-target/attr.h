@@ -26,8 +26,10 @@ int attr_get_for_all_pages(sqlite3 *db, uint64_t pid, uint64_t  oid,
 int attr_get_dir_page(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		      void *outbuf, uint64_t outlen, uint8_t listfmt,
 		      uint32_t *used_outlen);
-int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
-		   void *outdata, uint32_t alloc_len, uint64_t *used_outlen);
+int attr_run_query_1(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
+		     void *outdata, uint32_t alloc_len, uint64_t *used_outlen);
+int attr_run_query_2(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
+		     void *outdata, uint32_t alloc_len, uint64_t *used_outlen);
 int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid, 
 			struct getattr_list *get_attr, uint64_t alloc_len,
 			void *outdata, uint64_t *used_outlen, 

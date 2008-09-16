@@ -697,8 +697,8 @@ out:
  * -EINVAL: invalid argument
  * 0: success
  */
-int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
-		   void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
+int attr_run_query_1(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
+		     void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
 {
 	int ret = 0;
 	int pos = 0;
@@ -742,9 +742,9 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 		sprintf(cp, "SELECT oid FROM attr WHERE page = ? AND "
 			" number = ? ");
 		if (qc->min_len[i] > 0)
-			strcat(cp, "AND ? <= value ");
+			cp = strcat(cp, "AND ? <= value ");
 		if (qc->max_len[i] > 0)
-			strcat(cp, "AND value <= ? ");
+			cp = strcat(cp, "AND value <= ? ");
 
 		/* if this is not the last one qce, append op */
 		if ((i+1) < qc->qc_cnt) 
@@ -776,6 +776,7 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(db, "%s: sqlite3_prepare", __func__);
+		ret = -EIO;
 		goto out;
 	}
 
@@ -863,6 +864,155 @@ out:
 	free(SQL);
 	return ret;
 }
+
+/*
+ * return values:
+ * -ENOMEM: out of memory
+ * -EINVAL: invalid argument
+ * 0: success
+ */
+int attr_run_query_2(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
+		     void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
+{
+	int ret = 0;
+	int pos = 0;
+	char *cp = NULL;
+	const char *op = NULL;
+	char select_stmt[MAXSQLEN];
+	char *SQL = NULL;
+	uint8_t *p = NULL;
+	uint32_t i = 0;
+	uint32_t sqlen = 0;
+	uint32_t factor = 1;
+	uint64_t len = 0;
+	sqlite3_stmt *stmt = NULL;
+
+	if (!db || !qc || !outdata || !used_outlen) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (qc->query_type == 0)
+		op = " UNION ";
+	else if (qc->query_type == 1)
+		op = " INTERSECT ";
+	else {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	SQL = Malloc(MAXSQLEN);
+	if (SQL == NULL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	cp = SQL;
+	sqlen = 0;
+
+	/* build the SQL statment */
+	sprintf(select_stmt, "SELECT oc.oid FROM object_collection AS oc, "
+		" attr WHERE oc.cid = %llu AND oc.oid = attr.oid ", llu(cid));
+	sprintf(cp, select_stmt);
+	sqlen += strlen(cp);
+	cp += sqlen;
+	for (i = 0; i < qc->qc_cnt; i++) {
+		sprintf(cp, " AND attr.page = %u AND attr.number = %u ",
+			qc->page[i], qc->number[i]);
+		if (qc->min_len[i] > 0)
+			cp = strcat(cp, " AND ? <= attr.value ");
+		if (qc->max_len[i] > 0)
+			cp = strcat(cp, " AND attr.value <= ? ");
+		if ((i+1) < qc->qc_cnt) {
+			cp = strcat(cp, op);
+			cp = strcat(cp, select_stmt);
+		}
+		sqlen += strlen(cp);
+
+		if (sqlen >= (MAXSQLEN*factor - 400)) {
+			factor *= 2;
+			SQL = realloc(SQL, MAXSQLEN*factor);
+			if (!SQL) {
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+		cp = SQL + sqlen;
+	}
+	cp = strcat(cp, " GROUP BY oc.oid ORDER BY oc.oid;");
+
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: sqlite3_prepare", __func__);
+		ret = -EIO;
+		goto out;
+	}
+
+	/* bind the values */
+	pos = 1;
+	for (i = 0; i < qc->qc_cnt; i++) {
+		if (qc->min_len[i] > 0) {
+			ret = sqlite3_bind_blob(stmt, pos, qc->min_val[i], 
+						qc->min_len[i], 
+						SQLITE_TRANSIENT);
+			if (ret != SQLITE_OK) {
+				error_sql(db, "%s: bind min_val @ %d", 
+					  __func__, pos);
+				goto out_finalize;
+			}
+			pos++;
+		}
+		if (qc->max_len[i] > 0) {
+			ret = sqlite3_bind_blob(stmt, pos, qc->max_val[i], 
+						qc->max_len[i], 
+						SQLITE_TRANSIENT);
+			if (ret != SQLITE_OK) {
+				error_sql(db, "%s: bind max_val @ %d", 
+					  __func__, pos);
+				goto out_finalize;
+			}
+			pos++;
+		}
+	}
+
+	/* execute the query */
+	p = outdata;
+	p += ML_ODL_OFF; 
+	len = ML_ODL_OFF - 8; /* subtract len of addition_len */
+	*used_outlen = ML_ODL_OFF;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		if ((alloc_len - len) > 8) {
+			/* 
+			 * TODO: query is a multi-object command, so delete
+			 * the objects from the collection, once they are
+			 * selected
+			 */
+			set_htonll(p, sqlite3_column_int64(stmt, 0));
+			*used_outlen += 8;
+		}
+		p += 8; 
+		if (len + 8 < len)
+			len = 0xFFFFFFFFFFFFFFFF; /* osd2r01 Sec 6.18.3 */
+		else
+			len += 8;
+	}
+	if (ret != SQLITE_DONE) {
+		error_sql(db, "%s: sqlite3_step", __func__);
+		ret = -EIO;
+		goto out_finalize;
+	}
+	ret = 0;
+	set_htonll(outdata, len);
+
+out_finalize:
+	ret = sqlite3_finalize(stmt); 
+	if (ret != SQLITE_OK)
+		error_sql(db, "%s: finalize", __func__);
+
+out:
+	free(SQL);
+	return ret;
+}
+
 
 int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid, 
 			struct getattr_list *get_attr, uint64_t alloc_len,

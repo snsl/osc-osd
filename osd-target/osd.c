@@ -1363,6 +1363,9 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (ret != 0) 
 		goto out_hw_err;
 
+	ret = db_begin_txn(osd);
+	assert(ret == 0);
+
 	/* delete all attr of the object */
 	ret = attr_delete_all(osd->db, pid, oid);
 	if (ret != 0) 
@@ -1371,6 +1374,9 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	ret = obj_delete(osd->db, pid, oid);
 	if (ret != 0)
 		goto out_hw_err;
+
+	ret = db_end_txn(osd);
+	assert(ret == 0);
 
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return OSD_OK; /* success */

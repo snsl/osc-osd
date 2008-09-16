@@ -131,7 +131,7 @@ int db_exec_pragma(struct osd_device *osd)
 	if (ret != SQLITE_OK)
 		goto spit_err;
 
-	sprintf(SQL, "PRAGMA temp_store = 2;"); /* memory as scratchpad */
+	sprintf(SQL, "PRAGMA temp_store = 0;"); /* memory as scratchpad */
 	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
 	if (ret != SQLITE_OK)
 		goto spit_err;

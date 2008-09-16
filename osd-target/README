@@ -30,4 +30,81 @@ Major components:
 	converted into a C file during the build process.
     osd-sense.c - Generating sense (error) return values.
 
+    patch/ - Changes to tgt to allow it to use this osd target library.
+
+
+Building
+--------
+
+This requires the osd-util library, and expects it to be in ../osd-util/
+by default.  Edit $(UTILDIR) in the Makefile if not.
+
+Type "make" to build the osd target library, libosdtgt.a.
+
+
+Building a SCSI target
+----------------------
+
+To build a full iSCSI target that uses OSD, you'll need to get
+the tgt code from its git repository, patch it, then build it
+to link against this OSD target library.
+
+The tgt git repository is:
+
+    git://git.kernel.org/pub/scm/linux/kernel/git/tomo/tgt.git
+
+It is browseable at:
+
+    http://git.kernel.org/?p=linux/kernel/git/tomo/tgt.git
+
+This library has been tested with commit
+448fe4bd7a8fce622f9efab05a3251a297a1a815 from 13 Dec 2007.
+
+0.  Assuming you will put all of osd-target, osd-util, and tgt in one
+    directory, else adjust paths.
+
+1.  Build osd-util
+
+    cd osd-util
+    make
+    cd ..
+
+2.  Build osd-target
+
+    cd osd-target
+    make
+    cd ..
+
+3.  Download tgt.
+
+    git clone git://git.kernel.org/pub/scm/linux/kernel/git/tomo/tgt.git
+
+4.  Apply the patches from osd-target
+
+    cd tgt
+    git am ../osd-target/patch/*
+    cd usr
+    make
+
+
+Running tgt with OSD target
+---------------------------
+
+The patches you applied above make a few changes to tgt to make it
+easier to deal with for testing scenarios.
+
+It will create or reuse a directory /tmp/tgt-$(id -un) where
+$(id -un) is your username.  It sends logging to stderr, not
+to syslog.  A convenient way to run it is:
+
+    ./tgtd -d 9 -f
+
+If you prefer to run it in the background, do not use -f.
+If you prefer no debugging messages, do not use -d 9.
+You can redirect debug output to a file too.
+
+Now, point an iSCSI initiator at this machine, port 3260, and
+issue OSD commands.
+
+
 # vim: set tw=72 :

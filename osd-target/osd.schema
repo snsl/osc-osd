@@ -40,3 +40,6 @@ CREATE TABLE coll (
 -- index on value helps OSD_QUERY 
 CREATE INDEX val_ind ON attr (value);
 
+-- this index help get_dir_page query, but might slow down set_attr
+-- CREATE INDEX num_ind ON attr (pid,oid,number);
+

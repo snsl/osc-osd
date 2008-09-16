@@ -294,6 +294,7 @@ repeat:
 int obj_get_nextoid(struct db_context *dbc, uint64_t pid, uint64_t *oid)
 {
 	int ret = 0;
+	int bound = 0;
 
 	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->nextoid) {
 		ret = -EINVAL;
@@ -302,7 +303,8 @@ int obj_get_nextoid(struct db_context *dbc, uint64_t pid, uint64_t *oid)
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->nextoid, 1, pid);
-	if (ret != SQLITE_OK) {
+	bound = (ret == SQLITE_OK);
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", __func__);
 		goto out_reset;
 	}
@@ -312,7 +314,7 @@ repeat:
 		*oid = sqlite3_column_int64(dbc->obj->nextoid, 0) + 1;
 
 out_reset:
-	ret = db_reset_stmt(dbc, dbc->obj->nextoid, __func__);
+	ret = db_reset_stmt(dbc, dbc->obj->nextoid, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:
@@ -343,7 +345,7 @@ repeat:
 		*pid = sqlite3_column_int64(dbc->obj->nextpid, 0) + 1;
 
 out_reset:
-	ret = db_reset_stmt(dbc, dbc->obj->nextpid, __func__);
+	ret = db_reset_stmt(dbc, dbc->obj->nextpid, 1, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:
@@ -366,6 +368,7 @@ int obj_ispresent(struct db_context *dbc, uint64_t pid, uint64_t oid,
 		  int *present)
 {
 	int ret = 0;
+	int bound = 0;
 	*present = 0;
 
 	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->isprsnt) {
@@ -377,7 +380,8 @@ repeat:
 	ret = 0;
 	ret |= sqlite3_bind_int64(dbc->obj->isprsnt, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->obj->isprsnt, 2, oid);
-	if (ret != SQLITE_OK) {
+	bound = (ret == SQLITE_OK);
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", __func__);
 		goto out_reset;
 	}
@@ -387,7 +391,7 @@ repeat:
 		*present = sqlite3_column_int(dbc->obj->isprsnt, 0);
 
 out_reset:
-	ret = db_reset_stmt(dbc, dbc->obj->isprsnt, __func__);
+	ret = db_reset_stmt(dbc, dbc->obj->isprsnt, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:
@@ -408,6 +412,7 @@ out:
 int obj_isempty_pid(struct db_context *dbc, uint64_t pid, int *isempty)
 {
 	int ret = 0;
+	int bound = 0;
 	*isempty = 0;
 
 	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->emptypid) {
@@ -417,7 +422,8 @@ int obj_isempty_pid(struct db_context *dbc, uint64_t pid, int *isempty)
 
 repeat:
 	ret = sqlite3_bind_int64(dbc->obj->emptypid, 1, pid);
-	if (ret != SQLITE_OK) {
+	bound = (ret == SQLITE_OK);
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", __func__);
 		goto out_reset;
 	}
@@ -427,7 +433,7 @@ repeat:
 		*isempty = (0 == sqlite3_column_int(dbc->obj->emptypid, 0));
 
 out_reset:
-	ret = db_reset_stmt(dbc, dbc->obj->emptypid, __func__);
+	ret = db_reset_stmt(dbc, dbc->obj->emptypid, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:
@@ -448,6 +454,7 @@ int obj_get_type(struct db_context *dbc, uint64_t pid, uint64_t oid,
 		 uint8_t *obj_type)
 {
 	int ret = 0;
+	int bound = 0;
 	*obj_type = ILLEGAL_OBJ;
 
 	if (!dbc || !dbc->db || !dbc->obj || !dbc->obj->gettype) {
@@ -459,7 +466,8 @@ repeat:
 	ret = 0;
 	ret |= sqlite3_bind_int64(dbc->obj->gettype, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->obj->gettype, 2, oid);
-	if (ret != SQLITE_OK) {
+	bound = (ret == SQLITE_OK);
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", __func__);
 		goto out_reset;
 	}
@@ -473,7 +481,7 @@ repeat:
 	} 
 
 out_reset:
-	ret = db_reset_stmt(dbc, dbc->obj->gettype, __func__);
+	ret = db_reset_stmt(dbc, dbc->obj->gettype, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:

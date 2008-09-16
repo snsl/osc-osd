@@ -129,25 +129,26 @@ if __name__ == "__main__":
     #for tid, mu, sd, u in rt.timedb.runobj():
     #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
 
-    rt.coll.drop()
-    rt.coll.create()
-    rt.coll.populate()
-    rt.coll.runall()
+    #rt.coll.drop()
+    #rt.coll.create()
+    #rt.coll.populate()
+    #rt.coll.runall()
     #for tid, mu, sd, u in rt.coll.runall():
     #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
 
-    rt.obj.drop()
-    rt.obj.create()
-    rt.obj.populate()
-    rt.obj.runall()
+    #rt.obj.drop()
+    #rt.obj.create()
+    #rt.obj.populate()
+    #rt.obj.runall()
     #for tid, mu, sd, u in rt.obj.runall():
     #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
 
     #rt.attr.drop()
     #rt.attr.create()
     #rt.attr.populate()
+    rt.attr.runtests(rt.attr.gettest('attrdirpg'))
     #for tid, mu, sd, u in rt.attr.runall():
     #    rt.results.insert(rt.date, rt.version, tid, mu, sd, None, u)
 
-    rt.con.commit()
+    #rt.con.commit()
 

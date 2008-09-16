@@ -470,6 +470,12 @@ class attr(test):
                 numattr, test, numiter)
         self.deletetest(str(q))
 
+    def gettest(self, test):
+        assert test != None
+        q = "SELECT * FROM %s WHERE test = '%s';" % (self.name, test)
+        self.cur.execute(str(q))
+        return self.cur.fetchall()
+
     def populate(self):
         test = [
                 'attrsetone', #time to set one attr after numobj*numattr

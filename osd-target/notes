@@ -607,3 +607,12 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
 -	get profile/bashprofile cleared up
 -	oprofile the whole stack
 -	function to set attrs in bulk
+
+# Sat May 19 21:30:48 EDT 2007
+-	XXX:SD the spec does not make it clear whether only the length of the
+	individual attribute is left unmodified or does the length of the whole
+	list is left unmodified if not enough space for the attributes.
+-	change osd.c to reflect changes in return values of coll, obj, attr
+-	what if it fails to bind but reset is successfull?
+	
+	runtimes of different versions of get_dir_page

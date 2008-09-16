@@ -731,7 +731,7 @@ static void pre_create_attrs(struct osd_device *osd, int numpg, int numattr)
 	for (np = 1; np < numpg+1; np++) {
 		for (na = 1; na < numattr+1; na++) {
 			val = na;
-			ret = attr_set_attr(osd->db, 1, 1, np, na, &val, 
+			ret = attr_set_attr(osd->dbc, 1, 1, np, na, &val, 
 					    sizeof(val));
 			assert(ret == 0);
 		}
@@ -767,21 +767,21 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 	case 2:
 	case 3:
 		val = 4;
-		ret = attr_set_attr(osd->db, 1, 1, 2, 22, &val, sizeof(val));
+		ret = attr_set_attr(osd->dbc, 1, 1, 2, 22, &val, sizeof(val));
 		assert(ret == 0);
 		usedlen = 0;
 		memset(attr, 0, le_sz);
-		ret = attr_get_attr(osd->db, 1, 1, 2, 22, attr, le_sz, 
+		ret = attr_get_attr(osd->dbc, 1, 1, 2, 22, le_sz, attr, 
 				    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == 0);
 		assert(usedlen == le_sz);
 		cp = (uint8_t *)attr;
 		test_le(2, 22, sizeof(val), &val, cp);
-		ret = attr_delete_attr(osd->db, 1, 1, 2, 22);
+		ret = attr_delete_attr(osd->dbc, 1, 1, 2, 22);
 		assert(ret == 0);
 		usedlen = 0;
 		memset(attr, 0, le_sz);
-		ret = attr_get_attr(osd->db, 1, 1, 2, 22, attr, le_sz, 
+		ret = attr_get_attr(osd->dbc, 1, 1, 2, 22, le_sz, attr, 
 				    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == -ENOENT);
 		break;
@@ -793,14 +793,14 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			return;
 		}
 		val = 200;
-		ret = attr_set_attr(osd->db, 1, 1, 2, 22, &val, sizeof(val));
+		ret = attr_set_attr(osd->dbc, 1, 1, 2, 22, &val, sizeof(val));
 		assert(ret == 0);
 		val = 400;
-		ret = attr_set_attr(osd->db, 1, 1, 4, 44, &val, sizeof(val));
+		ret = attr_set_attr(osd->dbc, 1, 1, 4, 44, &val, sizeof(val));
 		assert(ret == 0);
 		usedlen = 0;
 		memset(attr, 0, 2*le_sz);
-		ret = attr_get_all_attrs(osd->db, 1, 1, attr, 2*le_sz, 
+		ret = attr_get_all_attrs(osd->dbc, 1, 1, 2*le_sz, attr, 
 				    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == 0);
 		assert(usedlen == 2*le_sz);
@@ -810,14 +810,14 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		val = 400;
 		cp += le_sz;
 		test_le(4, 44, sizeof(val), &val, cp);
-		ret = attr_delete_all(osd->db, 1, 1);
+		ret = attr_delete_all(osd->dbc, 1, 1);
 		assert(ret == 0);
 		usedlen = 0;
 		memset(attr, 0, 2*le_sz);
-		ret = attr_get_attr(osd->db, 1, 1, 2, 22, attr, le_sz, 
+		ret = attr_get_attr(osd->dbc, 1, 1, 2, 22, le_sz, attr, 
 				    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == -ENOENT);
-		ret = attr_get_attr(osd->db, 1, 1, 4, 44, attr, le_sz, 
+		ret = attr_get_attr(osd->dbc, 1, 1, 4, 44, le_sz, attr, 
 				    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == -ENOENT);
 		break;
@@ -827,15 +827,15 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			goto out;
 		}
 		val = 200;
-		ret = attr_set_attr(osd->db, 1, 1, 2, 22, &val, sizeof(val));
+		ret = attr_set_attr(osd->dbc, 1, 1, 2, 22, &val, sizeof(val));
 		assert(ret == 0);
 		val = 400;
-		ret = attr_set_attr(osd->db, 1, 1, 4, 44, &val, sizeof(val));
+		ret = attr_set_attr(osd->dbc, 1, 1, 4, 44, &val, sizeof(val));
 		assert(ret == 0);
 		usedlen = 0;
 		memset(vattr, 0, 2*vle_sz);
-		ret = attr_get_dir_page(osd->db, 1, 1, USEROBJECT_PG, vattr,
-					vle_sz*2, RTRVD_SET_ATTR_LIST, 
+		ret = attr_get_dir_page(osd->dbc, 1, 1, USEROBJECT_PG,
+					vle_sz*2, vattr, RTRVD_SET_ATTR_LIST,
 					&usedlen);
 		assert(ret == 0);
 		assert(usedlen == vle_sz*2);
@@ -843,14 +843,14 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		test_le(USEROBJECT_PG, 2, sizeof(uidp), uidp, cp);
 		cp += vle_sz;
 		test_le(USEROBJECT_PG, 4, sizeof(uidp), uidp, cp);
-		ret = attr_delete_all(osd->db, 1, 1);
+		ret = attr_delete_all(osd->dbc, 1, 1);
 		assert(ret == 0);
 		usedlen = 0;
 		memset(attr, 0, 2*le_sz);
-		ret = attr_get_attr(osd->db, 1, 1, 2, 22, attr, le_sz, 
+		ret = attr_get_attr(osd->dbc, 1, 1, 2, 22, le_sz, attr, 
 				    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == -ENOENT);
-		ret = attr_get_attr(osd->db, 1, 1, 4, 44, attr, le_sz, 
+		ret = attr_get_attr(osd->dbc, 1, 1, 4, 44, le_sz, attr, 
 				    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == -ENOENT);
 		break;
@@ -861,16 +861,16 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		}
 		for (i = 0; i < 4; i++) {
 			val = i*100 + 1;
-			ret = attr_set_attr(osd->db, 1, 1, i, 1, &val, 
+			ret = attr_set_attr(osd->dbc, 1, 1, i, 1, &val, 
 					    sizeof(val));
 			assert(ret == 0);
-			ret = attr_set_attr(osd->db, 1, 1, i, 2, &val, 
+			ret = attr_set_attr(osd->dbc, 1, 1, i, 2, &val, 
 					    sizeof(val));
 			assert(ret == 0);
 		}
 		usedlen = 0;
 		memset(attr, 0, 4*le_sz);
-		ret = attr_get_for_all_pages(osd->db, 1, 1, 1, attr, 4*le_sz,
+		ret = attr_get_for_all_pages(osd->dbc, 1, 1, 1, 4*le_sz, attr,
 					     RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == 0);
 		assert(usedlen == 4*le_sz);
@@ -880,15 +880,15 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			test_le(i, 1, sizeof(val), &val, cp);
 			cp += le_sz;
 		}
-		ret = attr_delete_all(osd->db, 1, 1);
+		ret = attr_delete_all(osd->dbc, 1, 1);
 		assert(ret == 0);
 		usedlen = 0;
 		memset(attr, 0, 4*le_sz);
 		for (i = 0; i < 4; i++) {
-			ret = attr_get_attr(osd->db, 1, 1, i, 1, attr, le_sz, 
+			ret = attr_get_attr(osd->dbc, 1, 1, i, 1, le_sz, attr, 
 					    RTRVD_SET_ATTR_LIST, &usedlen);
 			assert(ret == -ENOENT);
-			ret = attr_get_attr(osd->db, 1, 1, i, 2, attr, le_sz, 
+			ret = attr_get_attr(osd->dbc, 1, 1, i, 2, le_sz, attr, 
 					    RTRVD_SET_ATTR_LIST, &usedlen);
 			assert(ret == -ENOENT);
 		}
@@ -900,16 +900,16 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		}
 		for (i = 0; i < 2; i++) {
 			val = i*100 + 1;
-			ret = attr_set_attr(osd->db, 1, 1, i, 1, &val, 
+			ret = attr_set_attr(osd->dbc, 1, 1, i, 1, &val, 
 					    sizeof(val));
 			assert(ret == 0);
-			ret = attr_set_attr(osd->db, 1, 1, i, 2, &val, 
+			ret = attr_set_attr(osd->dbc, 1, 1, i, 2, &val, 
 					    sizeof(val));
 			assert(ret == 0);
 		}
 		usedlen = 0;
 		memset(attr, 0, 2*le_sz);
-		ret = attr_get_page_as_list(osd->db, 1, 1, 1, attr, 2*le_sz,
+		ret = attr_get_page_as_list(osd->dbc, 1, 1, 1, 2*le_sz, attr,
 					    RTRVD_SET_ATTR_LIST, &usedlen);
 		assert(ret == 0);
 		assert(usedlen == 2*le_sz);
@@ -918,15 +918,15 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		test_le(1, 1, 8, &val, cp);
 		cp += le_sz;
 		test_le(1, 2, 8, &val, cp);
-		ret = attr_delete_all(osd->db, 1, 1);
+		ret = attr_delete_all(osd->dbc, 1, 1);
 		assert(ret == 0);
 		usedlen = 0;
 		memset(attr, 0, 2*le_sz);
 		for (i = 0; i < 2; i++) {
-			ret = attr_get_attr(osd->db, 1, 1, i, 1, attr, le_sz, 
+			ret = attr_get_attr(osd->dbc, 1, 1, i, 1, le_sz, attr, 
 					    RTRVD_SET_ATTR_LIST, &usedlen);
 			assert(ret == -ENOENT);
-			ret = attr_get_attr(osd->db, 1, 1, i, 2, attr, le_sz, 
+			ret = attr_get_attr(osd->dbc, 1, 1, i, 2, le_sz, attr, 
 					    RTRVD_SET_ATTR_LIST, &usedlen);
 			assert(ret == -ENOENT);
 		}
@@ -944,7 +944,7 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		case 3:
 			/* set one attr used to get/del */
 			val = 400;
-			ret = attr_set_attr(osd->db, 2, 2, 1, 1, &val,
+			ret = attr_set_attr(osd->dbc, 2, 2, 1, 1, &val,
 					    sizeof(val));
 			assert(ret == 0);
 		case 1:
@@ -961,7 +961,7 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 				for (na = 1; na < numattr+1; na++) {
 					val = na;
 					rdtsc(start);
-					ret = attr_set_attr(osd->db, 1, 1,
+					ret = attr_set_attr(osd->dbc, 1, 1,
 							    np, na, &val, 
 							    sizeof(val));
 					rdtsc(end);
@@ -980,7 +980,7 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		case 1:
 			val = 400;
 			rdtsc(start);
-			ret = attr_set_attr(osd->db, 2, 2, 1, 1, 
+			ret = attr_set_attr(osd->dbc, 2, 2, 1, 1, 
 					    &val, sizeof(val));
 			rdtsc(end);
 			assert(ret == 0);
@@ -989,7 +989,7 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			usedlen = 0;
 			memset(attr, 0, le_sz);
 			rdtsc(start);
-			ret = attr_get_attr(osd->db, 2, 2, 1, 1, attr, le_sz, 
+			ret = attr_get_attr(osd->dbc, 2, 2, 1, 1, le_sz, attr, 
 					    RTRVD_SET_ATTR_LIST, &usedlen);
 			rdtsc(end);
 			assert(ret == 0);
@@ -999,7 +999,7 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			usedlen = 0;
 			memset(attr, 0, le_sz);
 			rdtsc(start);
-			ret = attr_delete_attr(osd->db, 2, 2, 1, 1);
+			ret = attr_delete_attr(osd->dbc, 2, 2, 1, 1);
 			rdtsc(end);
 			assert(ret == 0);
 			break;
@@ -1007,8 +1007,8 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			break;
 		case 5:
 			rdtsc(start);
-			ret = attr_get_all_attrs(osd->db, 1, 1, attr, 
-						 numpg*numattr*le_sz, 
+			ret = attr_get_all_attrs(osd->dbc, 1, 1,
+						 numpg*numattr*le_sz, attr,
 						 RTRVD_SET_ATTR_LIST,
 						 &usedlen);
 			rdtsc(end);
@@ -1017,14 +1017,14 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			break;
 		case 6:
 			rdtsc(start);
-			ret = attr_delete_all(osd->db, 1, 1);
+			ret = attr_delete_all(osd->dbc, 1, 1);
 			rdtsc(end);
 			assert(ret == 0);
 			break;
 		case 7:
 			rdtsc(start);
-			ret = attr_get_dir_page(osd->db, 1, 1, USEROBJECT_PG,
-						vattr, numpg*vle_sz, 
+			ret = attr_get_dir_page(osd->dbc, 1, 1, USEROBJECT_PG,
+						numpg*vle_sz, vattr, 
 						RTRVD_SET_ATTR_LIST, 
 						&usedlen);
 			rdtsc(end);
@@ -1033,8 +1033,8 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			break;
 		case 8:
 			rdtsc(start);
-			ret = attr_get_for_all_pages(osd->db, 1, 1, 1, attr,
-						     numpg*le_sz,
+			ret = attr_get_for_all_pages(osd->dbc, 1, 1, 1,
+						     numpg*le_sz, attr,
 						     RTRVD_SET_ATTR_LIST,
 						     &usedlen);
 			rdtsc(end);
@@ -1043,8 +1043,8 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 			break;
 		case 9:
 			rdtsc(start);
-			ret = attr_get_page_as_list(osd->db, 1, 1, 1, attr,
-						    numattr*le_sz,
+			ret = attr_get_page_as_list(osd->dbc, 1, 1, 1,
+						    numattr*le_sz, attr,
 						    RTRVD_SET_ATTR_LIST,
 						    &usedlen);
 			rdtsc(end);
@@ -1063,7 +1063,7 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		switch (test) {
 		case 1:
 		case 2:
-			ret = attr_delete_attr(osd->db, 2, 2, 1, 1);
+			ret = attr_delete_attr(osd->dbc, 2, 2, 1, 1);
 			assert(ret == 0);
 		case 3:
 		case 4:
@@ -1073,7 +1073,7 @@ static void time_attr(struct osd_device *osd, int numpg, int numattr,
 		case 7:
 		case 8:
 		case 9:
-			ret = attr_delete_all(osd->db, 1, 1);
+			ret = attr_delete_all(osd->dbc, 1, 1);
 			assert(ret == 0);
 			break;
 		default:

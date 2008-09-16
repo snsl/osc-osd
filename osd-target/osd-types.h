@@ -144,6 +144,7 @@ struct id_list {
 /* abstract declarations of db tables */
 struct coll_tab;
 struct obj_tab;
+struct attr_tab;
 
 /* 
  * Encapsulate all db structs in db context. each db context is handled by an
@@ -153,6 +154,7 @@ struct db_context {
 	sqlite3 *db;
 	struct coll_tab *coll;
 	struct obj_tab *obj;
+	struct attr_tab *attr;
 };
 
 /*

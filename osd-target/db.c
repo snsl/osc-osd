@@ -162,6 +162,9 @@ int db_initialize(struct db_context *dbc)
 	ret = obj_initialize(dbc);
 	if (ret != OSD_OK)
 		return ret;
+	ret = attr_initialize(dbc);
+	if (ret != OSD_OK)
+		return ret;
 	return OSD_OK;
 }
 
@@ -173,10 +176,13 @@ int db_finalize(struct db_context *dbc)
 	if (dbc == NULL)
 		return -EINVAL;
 
-	ret |= coll_finalize(dbc);
+	ret = coll_finalize(dbc);
 	if (ret != OSD_OK)
 		return ret;
-	ret |= obj_finalize(dbc);
+	ret = obj_finalize(dbc);
+	if (ret != OSD_OK)
+		return ret;
+	ret = attr_finalize(dbc);
 	if (ret != OSD_OK)
 		return ret;
 	return OSD_OK;
@@ -311,7 +317,8 @@ error_sql(sqlite3 *db, const char *fmt, ...)
 int db_exec_dms(struct db_context *dbc, sqlite3_stmt *stmt, int ret, 
 		const char *func)
 {
-	if (ret != SQLITE_OK) {
+	int bound = (ret == SQLITE_OK);
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", func);
 		goto out_reset;
 	}
@@ -319,7 +326,7 @@ int db_exec_dms(struct db_context *dbc, sqlite3_stmt *stmt, int ret,
 	while ((ret = sqlite3_step(stmt)) == SQLITE_BUSY);
 
 out_reset:
-	return db_reset_stmt(dbc, stmt, func);
+	return db_reset_stmt(dbc, stmt, bound, func);
 }
 
 
@@ -339,8 +346,9 @@ int db_exec_id_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt,
 			  uint64_t *add_len, uint64_t *cont_id)
 {
 	uint64_t len = 0;
+	int bound = (ret == SQLITE_OK);
 
-	if (ret != SQLITE_OK) {
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", func);
 		goto out_reset;
 	}
@@ -369,7 +377,7 @@ int db_exec_id_rtrvl_stmt(struct db_context *dbc, sqlite3_stmt *stmt,
 	}
 
 out_reset:
-	ret = db_reset_stmt(dbc, stmt, func);
+	ret = db_reset_stmt(dbc, stmt, bound, func);
 	if (ret == OSD_OK)
 		*used_outlen = len;
 	return ret;

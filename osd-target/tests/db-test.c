@@ -46,7 +46,7 @@ static void test_attr(struct osd_device *osd)
 	uint32_t len = 0;
 	uint8_t listfmt = 0;
 
-	ret = attr_set_attr(osd->db, 1, 1, 2, 12, attr, strlen(attr)+1);
+	ret = attr_set_attr(osd->dbc, 1, 1, 2, 12, attr, strlen(attr)+1);
 	assert(ret == 0);
 
 	void *val = Calloc(1, 1024);
@@ -54,7 +54,7 @@ static void test_attr(struct osd_device *osd)
 		osd_error_errno("%s: Calloc failed", __func__);
 
 	listfmt = RTRVD_SET_ATTR_LIST;
-	ret = attr_get_attr(osd->db, 1, 1, 2, 12, val, 1024, listfmt, &len);
+	ret = attr_get_attr(osd->dbc, 1, 1, 2, 12, 1024, val, listfmt, &len);
 	assert(ret == 0);
 	uint32_t l = strlen(attr)+1+LE_VAL_OFF;
 	l += (0x8 - (l & 0x7)) & 0x7;
@@ -69,7 +69,7 @@ static void test_attr(struct osd_device *osd)
 #endif
 
 	/* get non-existing attr, must fail */
-	ret = attr_get_attr(osd->db, 2, 1, 2, 12, val, 1024, listfmt, &len);
+	ret = attr_get_attr(osd->dbc, 2, 1, 2, 12, 1024, val, listfmt, &len);
 	assert(ret != 0);
 
 	free(val);
@@ -184,7 +184,7 @@ static inline void delete_obj(struct osd_device *osd, uint64_t pid,
 	int ret = 0;
 	ret = obj_delete(osd->dbc, pid, oid);
 	assert (ret == 0);
-	ret = attr_delete_all(osd->db, pid, oid);
+	ret = attr_delete_all(osd->dbc, pid, oid);
 	assert (ret == 0);
 }
 
@@ -206,25 +206,26 @@ static void test_dir_page(struct osd_device *osd)
 	assert(ret == 0);
 
 	val = 44;
-	ret = attr_set_attr(osd->db, 1, 1, 1, 2, &val, sizeof(val));
+	ret = attr_set_attr(osd->dbc, 1, 1, 1, 2, &val, sizeof(val));
 	assert(ret == 0);
 	val = 444;
-	ret = attr_set_attr(osd->db, 1, 1, 1, 3, &val, sizeof(val));
+	ret = attr_set_attr(osd->dbc, 1, 1, 1, 3, &val, sizeof(val));
 	assert(ret == 0);
 	val = 333;
-	ret = attr_set_attr(osd->db, 1, 1, 2, 22, &val, sizeof(val));
+	ret = attr_set_attr(osd->dbc, 1, 1, 2, 22, &val, sizeof(val));
 	assert(ret == 0);
-	ret = attr_set_attr(osd->db, 1, 1, 3, 0, pg3, sizeof(pg3));
+	ret = attr_set_attr(osd->dbc, 1, 1, 3, 0, pg3, sizeof(pg3));
 	assert(ret == 0);
 	val = 321;
-	ret = attr_set_attr(osd->db, 1, 1, 3, 3, &val, sizeof(val));
+	ret = attr_set_attr(osd->dbc, 1, 1, 3, 3, &val, sizeof(val));
 	assert(ret == 0);
-	ret = attr_set_attr(osd->db, 1, 1, 4, 0, pg4, sizeof(pg4));
+	ret = attr_set_attr(osd->dbc, 1, 1, 4, 0, pg4, sizeof(pg4));
 	assert(ret == 0);
 
 	memset(buf, 0, sizeof(buf));
-	ret = attr_get_dir_page(osd->db, 1, 1, USEROBJECT_DIR_PG, buf, 
-				sizeof(buf), RTRVD_SET_ATTR_LIST, &used_len);
+	ret = attr_get_dir_page(osd->dbc, 1, 1, USEROBJECT_DIR_PG,
+				sizeof(buf), buf, RTRVD_SET_ATTR_LIST,
+				&used_len);
 	assert (ret == 0);
 
 	uint8_t *cp = buf;

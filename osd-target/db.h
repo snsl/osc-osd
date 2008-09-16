@@ -35,15 +35,17 @@ static inline void db_sqfinalize(sqlite3 *db, sqlite3_stmt *stmt,
  * reset the sql stmt and test the return status
  *
  * returns:
- * OSD_ERROR: stmt failed
+ * OSD_ERROR: bind failed or stmt execution failed
  * OSD_OK: success
  * OSD_REPEAT: stmt needs to be run again
  */
 static inline int db_reset_stmt(struct db_context *dbc, sqlite3_stmt *stmt,
-				const char *func)
+				int bound, const char *func)
 {
 	int ret = sqlite3_reset(stmt);
-	if (ret == SQLITE_OK) {
+	if (!bound) {
+		return OSD_ERROR;
+	} else if (ret == SQLITE_OK) {
 		return OSD_OK;
 	} else if (ret == SQLITE_SCHEMA) {
 		db_finalize(dbc);

@@ -294,6 +294,7 @@ int coll_isempty_cid(struct db_context *dbc, uint64_t pid, uint64_t cid,
 		     int *isempty)
 {
 	int ret = 0;
+	int bound = 0;
 	*isempty = 0;
 
 	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->emptycid) {
@@ -305,7 +306,8 @@ repeat:
 	ret = 0;
 	ret |= sqlite3_bind_int64(dbc->coll->emptycid, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->coll->emptycid, 2, cid);
-	if (ret != SQLITE_OK) {
+	bound = (ret == SQLITE_OK);
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", __func__);
 		goto out_reset;
 	}
@@ -315,7 +317,7 @@ repeat:
 		*isempty = (0 == sqlite3_column_int(dbc->coll->emptycid, 0));
 
 out_reset:
-	ret = db_reset_stmt(dbc, dbc->coll->emptycid, __func__);
+	ret = db_reset_stmt(dbc, dbc->coll->emptycid, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:
@@ -333,6 +335,7 @@ int coll_get_cid(struct db_context *dbc, uint64_t pid, uint64_t oid,
 		 uint32_t number, uint64_t *cid)
 {
 	int ret = 0;
+	int bound = 0;
 
 	if (!dbc || !dbc->db || !dbc->coll || !dbc->coll->getcid)
 		return -EINVAL;
@@ -342,7 +345,8 @@ repeat:
 	ret |= sqlite3_bind_int64(dbc->coll->getcid, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->coll->getcid, 2, oid);
 	ret |= sqlite3_bind_int64(dbc->coll->getcid, 3, number);
-	if (ret != SQLITE_OK) {
+	bound = (ret == SQLITE_OK);
+	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", __func__);
 		goto out_reset;
 	}
@@ -352,7 +356,7 @@ repeat:
 		*cid = sqlite3_column_int64(dbc->coll->getcid, 0);
 
 out_reset:
-	ret = db_reset_stmt(dbc, dbc->coll->getcid, __func__);
+	ret = db_reset_stmt(dbc, dbc->coll->getcid, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:

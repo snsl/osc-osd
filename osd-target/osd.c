@@ -738,7 +738,7 @@ static int osd_initialize_db(struct osd_device *osd)
 	/* set root object attributes */
 	for (i=0; i<ARRAY_SIZE(root_info); i++) {
 		struct init_attr *ia = &root_info[i];
-		ret = attr_set_attr(osd->db, ROOT_PID , ROOT_OID, ia->page,
+		ret = attr_set_attr(osd->dbc, ROOT_PID , ROOT_OID, ia->page,
 				    ia->number, ia->s, strlen(ia->s)+1);
 		if (ret != SQLITE_OK)
 			goto out;
@@ -751,14 +751,14 @@ static int osd_initialize_db(struct osd_device *osd)
 	 */
 	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
 		struct init_attr *ia = &partition_info[i];
-		ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, ia->page,
+		ret = attr_set_attr(osd->dbc, ROOT_PID, ROOT_OID, ia->page,
 				    ia->number, ia->s, strlen(ia->s)+1);
 		if (ret)
 			goto out;
 	}
 
 	/* assign pid as attr, osd2r00 Section 7.1.2.9 table 92  */
-	ret = attr_set_attr(osd->db, ROOT_PID, ROOT_OID, PARTITION_PG + 1, 1,
+	ret = attr_set_attr(osd->dbc, ROOT_PID, ROOT_OID, PARTITION_PG + 1, 1,
 			    &pid, sizeof(pid));
 
 out:
@@ -1032,7 +1032,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			goto out_hw_err;
 		}
 
-		ret = attr_set_attr(osd->db, pid, i, USER_TMSTMP_PG, 0,
+		ret = attr_set_attr(osd->dbc, pid, i, USER_TMSTMP_PG, 0,
 				    incits.user_tmstmp_page,
 				    sizeof(incits.user_tmstmp_page));
 		if (ret != 0) {
@@ -1338,18 +1338,18 @@ mutiplex_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		      uint32_t *used_outlen, uint8_t *sense)
 {
 	if (page == GETALLATTR_PG && number == ATTRNUM_GETALL) {
-		return attr_get_all_attrs(osd->db, pid, oid, outbuf, outlen,
+		return attr_get_all_attrs(osd->dbc, pid, oid, outlen, outbuf,
 					  listfmt, used_outlen);
 	} else if (page != GETALLATTR_PG && number == ATTRNUM_GETALL) {
-		return attr_get_page_as_list(osd->db, pid, oid, page, outbuf,
-					     outlen, listfmt, used_outlen);
+		return attr_get_page_as_list(osd->dbc, pid, oid, page, outlen,
+					     outbuf, listfmt, used_outlen); 
 	} else if (page == GETALLATTR_PG && number != ATTRNUM_GETALL) {
-		return attr_get_for_all_pages(osd->db, pid, oid, number,
-					      outbuf, outlen, listfmt,
+		return attr_get_for_all_pages(osd->dbc, pid, oid, number,
+					      outlen, outbuf, listfmt,
 					      used_outlen);
 	} else {
-		return attr_get_attr(osd->db, pid, oid, page, number, outbuf,
-				     outlen, listfmt, used_outlen);
+		return attr_get_attr(osd->dbc, pid, oid, page, number,
+				     outlen, outbuf, listfmt, used_outlen);
 	}
 }
 
@@ -1492,9 +1492,8 @@ int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
 				used_outlen);
 		break;
 	case GETALLATTR_PG:
-		ret = attr_get_all_attrs(osd->db, pid, oid, outbuf,
-					 outlen, RTRVD_SET_ATTR_LIST,
-					 used_outlen);
+		ret = attr_get_all_attrs(osd->dbc, pid, oid, outlen, outbuf,
+					 RTRVD_SET_ATTR_LIST, used_outlen);
 		break;
 	default:
 		goto out_cdb_err;
@@ -1925,7 +1924,7 @@ int osd_remove(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert(ret == 0);
 
 	/* delete all attr of the object */
-	ret = attr_delete_all(osd->db, pid, oid);
+	ret = attr_delete_all(osd->dbc, pid, oid);
 	if (ret != 0)
 		goto out_hw_err;
 
@@ -1993,7 +1992,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 			goto out_hw_err;
 	}
 
-	ret = attr_delete_all(osd->db, pid, cid);
+	ret = attr_delete_all(osd->dbc, pid, cid);
 	if (ret != 0)
 		goto out_hw_err;
 
@@ -2051,7 +2050,7 @@ int osd_remove_partition(struct osd_device *osd, uint64_t pid, uint8_t *sense)
 	/* XXX: invalidate ic_cache */
 	osd->ic.cur_pid = osd->ic.next_id = 0;
 
-	ret = attr_delete_all(osd->db, pid, PARTITION_OID);
+	ret = attr_delete_all(osd->dbc, pid, PARTITION_OID);
 	if (ret != 0)
 		goto out_err;
 
@@ -2164,14 +2163,14 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	 * retrieveable
 	 */
 	if (len == 0) {
-		ret = attr_delete_attr(osd->db, pid, oid, page, number);
+		ret = attr_delete_attr(osd->dbc, pid, oid, page, number);
 		if (ret == 0)
 			goto out_success;
 		else 
 			goto out_cdb_err;
 	}
 
-	ret = attr_set_attr(osd->db, pid, oid, page, number, val, len);
+	ret = attr_set_attr(osd->dbc, pid, oid, page, number, val, len);
 	if (ret != 0)
 		goto out_hw_err;
 

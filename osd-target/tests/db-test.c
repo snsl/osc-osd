@@ -344,6 +344,46 @@ static void test_coll(struct osd_device *osd)
 }
 
 
+static void test_copy_coll(struct osd_device *osd)
+{
+	int ret = 0;
+	uint64_t usedlen;
+	uint64_t addlen;
+	int isempty = 0;
+	uint64_t oids[64] = {0};
+	uint64_t cont_id = 0xFUL;
+
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x2222, 2);
+	assert(ret == 0);
+	ret = coll_insert(osd->dbc, 0x20, 0x1, 0x1111111111111111, 2);
+	assert(ret == 0);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x3333333333333333, 2);
+	assert(ret == 0);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x7888888888888888, 2);
+	assert(ret == 0);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0x7AAAAAAAAAAAAAAA, 2);
+	assert(ret == 0);
+	ret = coll_insert(osd->dbc, 0x20, 0x2, 0xFFFFFFFFFFFFFFFF, 2);
+	assert(ret == 0);
+	ret = coll_insert(osd->dbc, 0x20, 0x1, 0x111, 2);
+	assert(ret == 0);
+
+	/* copy collection */
+	ret = coll_copyoids(osd->dbc, 0x20, 0x3, 0x1);
+	assert(ret == 0);
+
+	/* list elements in dest collection */
+	ret = coll_get_oids_in_cid(osd->dbc, 0x20, 0x3, 0, 64*8, 
+				   (uint8_t *)oids, &usedlen, &addlen,
+				   &cont_id); 
+	assert(ret == 0);
+	assert(usedlen == 2*8);
+	assert(addlen == 2*8);
+	assert(cont_id == 0);
+	assert(get_ntohll((uint8_t *)&oids[0]) == 0x111);
+	assert(get_ntohll((uint8_t *)&oids[1]) == 0x1111111111111111);
+}
+
 int main()
 {
 	int ret = 0;
@@ -357,14 +397,15 @@ int main()
  	ret = db_exec_pragma(osd.dbc);
 	assert(ret == 0); 
 
-     	test_obj(&osd);
+/*      	test_obj(&osd);
 	test_dup_obj(&osd);
 	test_obj_manip(&osd);
 	test_pid_isempty(&osd);
 	test_get_obj_type(&osd);
 	test_attr(&osd);  
  	test_dir_page(&osd); 
-	test_coll(&osd);
+	test_coll(&osd); */
+	test_copy_coll(&osd);
 
 	ret = db_print_pragma(osd.dbc);
 	assert(ret == 0);

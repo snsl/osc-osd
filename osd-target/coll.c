@@ -130,8 +130,8 @@ int coll_initialize(struct db_context *dbc)
 	if (ret != SQLITE_OK)
 		goto out_finalize_getoids;
 
-	sprintf(SQL, "INSERT INTO %s SELECT ?, ?, oid, 0, WHERE pid = ? AND "
-		" cid = ?;", dbc->coll->name);
+	sprintf(SQL, "INSERT INTO %s SELECT ?, ?, oid, 0 FROM %s WHERE "
+		"pid = ? AND cid = ?;", dbc->coll->name, dbc->coll->name);
 	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->coll->copyoids, NULL);
 	if (ret != SQLITE_OK)
 		goto out_finalize_copyoids;

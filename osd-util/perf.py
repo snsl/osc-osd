@@ -32,6 +32,7 @@ options = {
     "storage": "disk",
     "meta_on_io": "no",
     "one_config_file" : "yes",
+    "mirror": "",
 }
 
 # locations of external codes
@@ -114,6 +115,8 @@ def usage():
     print >>sys.stderr, "  -mio : metadata servers on IO servers (-o none", \
     			"only), not default"
     print >>sys.stderr, "  -2 : two config files (ancient PVFS), not default"
+    print >>sys.stderr, "  -mirror <ionodes> : use given ionodes file to", \
+    			"build a mirror MD setup"
     sys.exit(1)
 
 # filenames
@@ -306,6 +309,19 @@ def buildfiles():
 	print >>sys.stderr, "Unknown dirtype", options["dirtype"]
 	sys.exit(1)
 
+    # Override the above, using this give list of ionodes.
+    if options["mirror"] != "":
+	pvfsnodes = [x for x in pvfsnodes if x not in ionodes]
+	ionodes = []
+	fd = open(options["mirror"])
+	while True:
+	    line = fd.readline()
+	    if line == "":
+		break
+	    ionodes.append(line[:-1])
+	    pvfsnodes.append(line[:-1])
+	fd.close()
+
     # figure out the meta and data handle ranges
     global roothandle, roothandle_node
     handle_alloc()
@@ -479,6 +495,11 @@ def allify(n):
 
 
 def start():
+    # don't mess with io nodes if just a mirror
+    mypvfsnodes = pvfsnodes
+    if options["mirror"] != "":
+	mypvfsnodes = [x for x in pvfsnodes if x not in ionodes]
+
     # sync files to pvfs nodes
     for n in pvfsnodes:
 	if options["one_config_file"] == "yes":
@@ -503,14 +524,14 @@ def start():
 	    + mountup
 	    + tgtd + " -d 9 \< /dev/null \&\> tgtd.log")
 
-    if len(pvfsnodes) > 0:
+    if len(mypvfsnodes) > 0:
 	if options["storage"] == "tmpfs":
 	    mountup = "sudo mount -t tmpfs none " + testdir + "/storage \;"
 	else:
 	    mountup = ""
 
 	if options["one_config_file"] == "yes":
-	    os.system("all -p " + allify(pvfsnodes) + " "
+	    os.system("all -p " + allify(mypvfsnodes) + " "
 		+ "cd " + testdir + " \; "
 		+ "rm -rf " + testdir + "/storage \; "
 		+ "mkdir " + testdir + "/storage \; "
@@ -519,7 +540,7 @@ def start():
 		+ "pvfs2-server --mkfs fs.conf \;"
 		+ "TZ=EST5EDT pvfs2-server fs.conf")
 	else:
-	    os.system("all -p " + allify(pvfsnodes) + " "
+	    os.system("all -p " + allify(mypvfsnodes) + " "
 		+ "cd " + testdir + " \; "
 		+ "rm -rf " + testdir + "/storage \; "
 		+ "mkdir " + testdir + "/storage \; "
@@ -581,6 +602,11 @@ def status():
 
 
 def stop():
+    # don't mess with io nodes if just a mirror
+    mypvfsnodes = pvfsnodes
+    if options["mirror"] != "":
+	mypvfsnodes = [x for x in pvfsnodes if x not in ionodes]
+
     # compnodes
     if len(osdnodes) > 0:
 	os.system("all -p " + allify(compnodes) + " "
@@ -597,8 +623,8 @@ def stop():
 	    + "sleep 1 \; "
 	    + "sudo umount /tmp/tgt-" + id + " 2>/dev/null \; "
 	    + "rm -f tgtd.log")
-    if len(pvfsnodes) > 0:
-	os.system("all -p " + allify(pvfsnodes) + " "
+    if len(mypvfsnodes) > 0:
+	os.system("all -p " + allify(mypvfsnodes) + " "
 	    + "cd " + testdir + " \; "
 	    + "killall -9 pvfs2-server \; "
 	    + "sleep 1 \; "
@@ -609,7 +635,7 @@ def stop():
     	      fsconf, foptions]:
 	os.unlink(f)
     if not options["one_config_file"] == "yes":
-	for n in pvfsnodes:
+	for n in mypvfsnodes:
 	    os.unlink(serverconf + "-" + n)
 
 
@@ -646,6 +672,11 @@ while i < len(sys.argv):
     elif sys.argv[i] == "-2":
 	options["one_config_file"] = "no"
 	i += 1
+    elif sys.argv[i] == "-mirror":
+	if i+1 == len(sys.argv):
+	    usage()
+	options["mirror"] = sys.argv[i+1]
+	i += 2
     else:
 	break
 

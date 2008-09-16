@@ -197,7 +197,7 @@ static int create_dir(const char *dirname)
 	return 0;
 }
 
-/* only empties 1-level deep directories */
+/* This function recursively empties the directories */
 static int empty_dir(const char *dirname)
 {
 	int ret = 0;
@@ -211,14 +211,16 @@ static int empty_dir(const char *dirname)
 	while ((ent = readdir(dir)) != NULL) {
 		if (!strcmp(ent->d_name, ".") || !strcmp(ent->d_name, ".."))
 			continue;
-		/* NOTE: no need to memset path with zeros */
 		sprintf(path, "%s/%s", dirname, ent->d_name);
-		ret = unlink(path);
+		if (ent->d_type == DT_DIR) {
+			ret = empty_dir(path);
+		} else {
+			ret = unlink(path);
+		}
 		if (ret != 0)
 			return -1;
 	}
 
-	/* This leaks a ton of memory if we don't close it */
 	closedir(dir);
 
 	ret = rmdir(dirname);
@@ -231,7 +233,8 @@ static int empty_dir(const char *dirname)
 static inline void get_dfile_name(char *path, const char *root,
 				  uint64_t pid, uint64_t oid)
 {
-	sprintf(path, "%s/%s/%llu.%llu", root, dfiles, llu(pid), llu(oid));
+	sprintf(path, "%s/%s/%02x/%llu.%llu", root, dfiles, 
+		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
 }
 
 static inline void get_dbname(char *path, const char *root)
@@ -764,7 +767,8 @@ out:
 
 int osd_open(const char *root, struct osd_device *osd)
 {
-	int ret;
+	int i = 0;
+	int ret = 0;
 	char path[MAXNAMELEN];
 
 	progname = "osd-target";  /* for debug messages from libosdutil */
@@ -786,6 +790,14 @@ int osd_open(const char *root, struct osd_device *osd)
 	ret = create_dir(path);
 	if (ret != 0)
 		goto out;
+
+	/* to prevent fan-out create 256 subdirs under dfiles */
+	for (i = 0; i < 256; i++) {
+		sprintf(path, "%s/%s/%02x/", root, dfiles, i);
+		ret = create_dir(path);
+		if (ret != 0)
+			goto out;
+	}
 
 	/* create 'stranded-files' sub-directory */
 	memset(path, 0, MAXNAMELEN);

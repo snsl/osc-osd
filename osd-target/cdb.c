@@ -162,7 +162,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint8_t list_type;
 	uint8_t listfmt = RTRVD_SET_ATTR_LIST;
 	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]); 
-	uint32_t list_len = 0;
+	uint32_t list_in_len, list_len = 0;
 	uint64_t list_off = ntohoffset(&cmd->cdb[56]);
 	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
@@ -179,7 +179,9 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if (getattr_list_len != 0 && getattr_list_len < LIST_HDR_LEN)
 		goto out_param_list_err;
 
-	if (list_off + list_alloc_len > cmd->outlen)
+	/* available bytes in getattr list, need at least a header */
+	list_in_len = cmd->inlen - list_off;
+	if (list_in_len < 8)
 		goto out_param_list_err;
 
 	if ((list_off & 0x7) || (list_alloc_len & 0x7))
@@ -193,6 +195,8 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	if ((list_len + 8) != getattr_list_len)
 		goto out_param_list_err;
 	if (list_len & 0x7) /* multiple of 8 */
+		goto out_param_list_err;
+	if (list_len + 8 < list_in_len)
 		goto out_param_list_err;
 
 	if (numoid > 1)

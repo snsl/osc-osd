@@ -29,6 +29,128 @@ static int verify_enough_input_data(uint64_t datalen, uint64_t cdblen,
 	return ret;
 }
 
+uint16_t get_list_item(uint8_t list, int num)
+{
+	return ( ntohl( &list[3+(num*2)] ) );
+}
+
+int get_attributes(struct osd_device *osd, uint8_t *cdb,
+                   uint8_t *data_in, uint64_t data_in_len,
+		   uint8_t **data_out, uint64_t *data_out_len,
+		   uint8_t **sense_out, uint8_t *senselen_out, uint8_t cdbfmt)
+{	
+	int ret = 0;
+	uint64_t pid = ntohll(&cdb[16]);
+	uint64_t oid = ntohll(&cdb[24]);
+		
+	/* if =2, get an attribute page and set an attribute value */
+	if( cdbfmt==2 )
+	{
+		uint32_t page = ntohl(&cdb[52]);
+		
+		/* if page = 0, no attributes are to be gotten */
+		if( page != 0)
+		{
+
+			uint32_t get_alloc_len = ntohl(&cdb[56]);
+			uint32_t retrived_attr_offset = ntohl(&cdb[60]);
+			uint16_t foo_out_len = 0;
+
+			ret =  osd_get_attributes(osd, pid, oid, page, 0, data_out, 
+		       		foo_out_len, 1, sense);
+			/*XXX: Check for errors/sense */
+
+			&data_out_len = foo_out_len;
+		}
+	}
+	/* else if =3, get attributes using lists */
+	else if( cdbfmt==3 )
+	{
+		uint32_t get_list_len = ntohl(&cdb[52]);
+
+		if( get_list_len != 0 )
+		{
+			uint32_t get_list_offset = ntohl(&cdb[56]);
+			uint32_t get_allocation_len = ntohl(&cdb[60]);
+			uint32_t retrieved_attr_offset = ntohl(&cdb[64]);
+
+			int tmp = 0;
+			uint16_t list_item;
+	
+			for( tmp=0; tmp<get_list_len; tmp++ )
+			{
+				list_item = get_list_item(data_in, tmp);
+				/*XXX: get list item attr */
+				/*XXX: Check for errors/sense */
+			}
+		}
+						
+	}
+	else
+	{  /* shouldn't happen, 0&1 are reserved, 
+		   generate debug and sense          */
+		debug("%s: GET/SET CDBFMT code error, value is: %d", 
+					__func__, cdbfmt);
+		ret = osd_error_bad_cdb(sense);
+	}
+	return ret;
+}
+
+int set_attributes(struct osd_device *osd, uint8_t *cdb,
+                   uint8_t *data_in, uint64_t data_in_len,
+		   uint8_t **data_out, uint64_t *data_out_len,
+		   uint8_t **sense_out, uint8_t *senselen_out)
+{
+	int ret = 0;
+	uint64_t pid = ntohll(&cdb[16]);
+	uint64_t oid = ntohll(&cdb[24]);
+	
+	/* if =2, set an attribute value */
+	if( cdbfmt==2 )
+	{
+		uint32_t set_page = ntohl(&cdb[64]);
+		
+		if( set_page != 0 ){
+			uint32_t set_num = ntohl(&cdb[68]);
+			uint32_t set_len = ntohl(&cdb[72]);
+			uint32_t set_offset = ntohl(&cdb[76]);
+			
+			ret = osd_set_attributes(osd, pid, oid,
+                      	 	set_page, set_num, &dataout[set_offset],
+		       		set_len, sense)
+			/*XXX: Check for errors/sense */
+		}
+	}
+	/* else if =3, set attributes using lists */
+	else if( cdbfmt==3 )
+	{		
+		uint32_t set_list_len = ntohl(&cdb[68]);
+		
+		if( set_list_len != 0 )
+		{
+
+			uint32_t set_list_offset = ntohl(&cdb[72]);
+			
+			int tmp = 0;
+			uint16_t list_item;
+	
+			for( tmp=0; tmp<get_list_len; tmp++ )
+			{
+				list_item = get_list_item(data_in, tmp);
+				/*XXX - set list item attr */
+				/*XXX: Check for errors/sense */
+			}
+		}
+
+	}
+	else /* shouldn't happen, 0&1 are reserved, generate debug and sense*/
+	{   
+		debug("%s: GET/SET CDBFMT code error, value is: %d", 
+			__func__, cdbfmt);
+		ret = osd_error_bad_cdb(sense);
+	}
+} 
+
 /*
  * uaddr: either input or output, depending on the command
  * uaddrlen: output var with number of valid bytes put in uaddr after a read
@@ -43,13 +165,35 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	uint8_t sense[MAX_SENSE_LEN];  /* for output sense data */
 
 	/* Figure out if get/set attribute is using page or list mode */
-	uint8_t get_set_page_or_list = (cdb[11] & 0x30) >> 4;
+	uint8_t cdbfmt = (cdb[11] & 0x30) >> 4;
 
 	memset(sense, 0, MAX_SENSE_LEN);
 
 	switch (action) {
 	case OSD_APPEND: {
-		uint64_t pid = ntohll(&cdb[16]);
+		uint64_t pid = ntohll(&c		uint64_t pid = ntohll(&cdb[16]);
+		uint64_t oid = ntohll(&cdb[24]);
+		
+		/* if =2, get an attribute page and set an attribute value */
+		if( cdbfmt==2 ){
+			
+			uint32_t page = ntohl(&cdb[52]);
+		
+			/* if page = 0, no attributes are to be gotten */
+			if( page != 0){
+				/* XXX: what are these?
+				uint32_t number = 0;
+				void *outbuf = NULL;
+				uint16_t len = 0;
+				int getpage = 0;*/
+
+				uint32_t get_alloc_len = ntohl(&cdb[56]);
+				uint32_t retrived_attr_offset = ntohl(&cdb[60]);
+
+				/*ret = osd_get_attributes(osd, pid, oid, page, 
+					number, outbuf, len, getpage, sense); */
+			    /* XXX: need to get attributes page*/
+			}db[16]);
 		uint64_t oid = ntohll(&cdb[24]);
 		uint64_t len = ntohll(&cdb[36]);
 		ret = verify_enough_input_data(data_in_len, len, sense);
@@ -121,64 +265,14 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	case OSD_GET_ATTRIBUTES: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
+
+		// ret = get_attributes();
+		// Check for errors, return debug/sense
+		// ret = set_attributes();
+		// Check for errors, return debug/sense
 		
-		/* if =2, get an attribute page and set an attribute value */
-		if( get_set_page_or_list==2 ){
-			
-			uint32_t page = ntohl(&cdb[52]);
 		
-			/* if page = 0, no attributes are to be gotten */
-			if( page != 0){
-				/* XXX: what are these?
-				uint32_t number = 0;
-				void *outbuf = NULL;
-				uint16_t len = 0;
-				int getpage = 0;*/
-
-				uint32_t get_alloc_len = ntohl(&cdb[56]);
-				uint32_t retrived_attr_offset = ntohl(&cdb[60]);
-
-				/*ret = osd_get_attributes(osd, pid, oid, page, 
-					number, outbuf, len, getpage, sense); */
-			    /* XXX: need to get attributes page*/
-			}
-			
-			/* set attributes section */
-			uint32_t set_page = ntohl(&cdb[64]);
-			
-			if( set_page != 0 ){
-				uint32_t set_num = ntohl(&cdb[68]);
-				uint32_t set_len = ntohl(&cdb[72]);
-				uint32_t set_offset = ntohl(&cdb[76]);
-
-				/*XXX - need to set  an attribute */
-			}
-		}
-		/* else if =3, get and set attributes using lists */
-		else if( get_set_page_or_list==3 ){
-			uint32_t get_list_len = ntohl(&cdb[52]);
-
-			if( get_list_len != 0 ){
-
-				uint32_t get_list_offset = ntohl(&cdb[56]);
-				uint32_t get_allocation_len = ntohl(&cdb[60]);
-				uint32_t retrieved_attr_offset = ntohl(&cdb[64]);
-				/* XXX: need to get attributes */
-			}
-						
-			uint32_t set_list_len = ntohl(&cdb[68]);
-			
-			if( set_list_len != 0 ){
-				uint32_t set_list_offset = ntohl(&cdb[72]);
-				/* XXX: need to set attributes */
-			}
-
-		}
-		else{  /* shouldn't happen, 0&1 are reserved */
-			debug("%s: GET/SET CDBFMT code error, value is: %d", 
-					__func__, get_set_page_or_list);
-			/* XXX: generate sense and return that */
-		}
+		
 		break;
 			
 	}
@@ -252,67 +346,12 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		break;
 	}
 	case OSD_SET_ATTRIBUTES: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint64_t oid = ntohll(&cdb[24]);
-
-		/* if =2, set an attribute value, and get an attribute page */
-		if( get_set_page_or_list==2 ){
 			
-			uint32_t set_page = ntohl(&cdb[64]);
-			
-			if( set_page != 0 ){
-				uint32_t set_num = ntohl(&cdb[68]);
-				uint32_t set_len = ntohl(&cdb[72]);
-				uint32_t set_offset = ntohl(&cdb[76]);
+		// ret = set_attributes();
+		// Check for errors, return debug/sense
+		// ret = get_attributes();
+		// Check for errors, return debug/sense
 
-				/*XXX - need to set an attribute */
-			}
-		
-
-			uint32_t page = ntohl(&cdb[52]);
-			if( page != 0){
-				
-				uint32_t get_alloc_len = ntohl(&cdb[56]);
-				uint32_t retrived_attr_offset = ntohl(&cdb[60]);
-
-				/*ret = osd_get_attributes(osd, pid, oid, page, 
-					number, outbuf, len, getpage, sense); */
-			    /* XXX: need to get attributes page*/
-			}
-			
-		}
-		/* else if =3, get and set attributes using lists */
-		else if( get_set_page_or_list==3 ){
-			
-			uint32_t set_list_len = ntohl(&cdb[68]);
-			if( set_list_len != 0 ){
-				uint32_t set_list_offset = ntohl(&cdb[72]);
-				/* XXX: need to set attributes */
-			}		
-			
-			uint32_t get_list_len = ntohl(&cdb[52]);
-			if( get_list_len != 0 ){
-
-				uint32_t get_list_offset = ntohl(&cdb[56]);
-				uint32_t get_allocation_len = ntohl(&cdb[60]);
-				uint32_t retrieved_attr_offset = ntohl(&cdb[64]);
-				/* XXX: need to get attributes */
-			}
-
-		}
-		else{  /* shouldn't happen, 0&1 are reserved */
-			debug("%s: GET/SET CDBFMT code error, value is: %d", 
-					__func__, get_set_page_or_list);
-			/* XXX: generate sense and return that */
-		}
-
-		/* keep old stuff just in case
-		uint32_t page = ntohl(&cdb[64]);
-		uint32_t number = ntohl(&cdb[68]);
-		void *val = NULL; 
-		uint16_t len = ntohs(&cdb[76]); */
-		/* ret = osd_set_attributes(osd, pid, oid, page, number, val,
-					 len, sense); */
 		break;
 	}
 	case OSD_SET_KEY: {
@@ -371,4 +410,6 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	/* return a SAM_STAT upwards */
 	return ret;
 }
+
+
 

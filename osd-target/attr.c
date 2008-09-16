@@ -239,7 +239,7 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		goto out_finalize;
 	} else if (found == 0) {
 		osd_debug("%s: attr (%llu %llu %u %u) not found", __func__,
-		          llu(pid), llu(oid), page, number);
+			  llu(pid), llu(oid), page, number);
 		ret = -ENOENT;
 		goto out_finalize;
 	}
@@ -257,7 +257,7 @@ out_finalize:
 		ret = -EIO;
 		error_sql(db, "%s: finalize", __func__);
 	}
-	
+
 out:
 	return ret;
 }
@@ -327,7 +327,7 @@ int attr_get_page_as_list(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		goto out_finalize;
 	} else if (found == 0) {
 		osd_error("%s: attr (%llu %llu %u ) not found", __func__,
-		      llu(pid), llu(oid), page);
+			  llu(pid), llu(oid), page);
 		ret = -ENOENT;
 		goto out_finalize;
 	}
@@ -410,7 +410,7 @@ int attr_get_for_all_pages(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		goto out_finalize;
 	} else if (found == 0) {
 		osd_error("%s: attr (%llu %llu %u ) not found", __func__,
-		      llu(pid), llu(oid), number);
+			  llu(pid), llu(oid), number);
 		ret = -ENOENT;
 		goto out_finalize;
 	}
@@ -487,7 +487,7 @@ int attr_get_all_attrs(sqlite3 *db, uint64_t pid, uint64_t  oid, void *outbuf,
 		goto out_finalize;
 	} else if (found == 0) {
 		osd_error("%s: attr (%llu %llu) not found", __func__,
-		      llu(pid), llu(oid));
+			  llu(pid), llu(oid));
 		ret = -ENOENT;
 		goto out_finalize;
 	}
@@ -666,7 +666,7 @@ int attr_get_dir_page(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		goto out_finalize;
 	} else if (found == 0) {
 		osd_error("%s: attr no page set for (%llu %llu)", __func__,
-		      llu(pid), llu(oid));
+			  llu(pid), llu(oid));
 		ret = -ENOENT;
 		goto out_finalize;
 	}
@@ -697,8 +697,9 @@ out:
  * -EINVAL: invalid argument
  * 0: success
  */
-int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc, 
-		   void *outdata, uint32_t alloc_len, uint64_t *used_outlen)
+int attr_run_query(sqlite3 *db, uint64_t pid, uint64_t cid, 
+		   struct query_criteria *qc, void *outdata, 
+		   uint32_t alloc_len, uint64_t *used_outlen)
 {
 	int ret = 0;
 	int pos = 0;
@@ -709,7 +710,7 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 	uint8_t *p = NULL;
 	uint32_t i = 0;
 	uint32_t sqlen = 0;
-	uint32_t factor = 1;
+	uint32_t factor = 2; /* this query fills space quickly */
 	uint64_t len = 0;
 	sqlite3_stmt *stmt = NULL;
 
@@ -727,7 +728,7 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 		goto out;
 	}
 
-	SQL = Malloc(MAXSQLEN);
+	SQL = Malloc(MAXSQLEN*factor);
 	if (SQL == NULL) {
 		ret = -ENOMEM;
 		goto out;
@@ -735,30 +736,34 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 	cp = SQL;
 	sqlen = 0;
 
-	/* 
-	 * Build the query with place holders. SQLite does not support
-	 * sub-query grouping using parenthesis. Therefore membership of
-	 * collection is tested at last with INTERSECT operation.
-	 *
+	/*
 	 * XXX:SD the spec does not mention whether min or max values have to
-	 * in tested with '<' or '<='. We assume the test are inclusive.
+	 * in tested with '<' or '<='. We assume the tests are inclusive of
+	 * boundaries, i.e. use '<=' for comparison.
 	 */
-	cp = SQL;
-	sqlen = 0;
+
+	/* build the SQL statment */
+	sprintf(select_stmt, "SELECT attr.oid FROM object_collection AS oc, "
+		" attr WHERE oc.pid = attr.pid AND oc.oid = attr.oid AND "
+		" oc.pid = %llu AND oc.cid = %llu ", llu(pid), llu(cid));
+	sprintf(cp, select_stmt);
+	sqlen += strlen(cp);
+	cp += sqlen;
 	for (i = 0; i < qc->qc_cnt; i++) {
-		sprintf(cp, "SELECT oid FROM attr WHERE page = ? AND "
-			" number = ? ");
+		sprintf(cp, " AND attr.page = %u AND attr.number = %u ",
+			qc->page[i], qc->number[i]);
 		if (qc->min_len[i] > 0)
-			cp = strcat(cp, "AND ? <= value ");
+			cp = strcat(cp, " AND ? <= attr.value ");
 		if (qc->max_len[i] > 0)
-			cp = strcat(cp, "AND value <= ? ");
+			cp = strcat(cp, " AND attr.value <= ? ");
 
-		/* if this is not the last one qce, append op */
-		if ((i+1) < qc->qc_cnt) 
+		if ((i+1) < qc->qc_cnt) {
 			cp = strcat(cp, op);
-
+			cp = strcat(cp, select_stmt);
+		}
 		sqlen += strlen(cp);
-		if (sqlen >= (MAXSQLEN*factor - 100)) {
+
+		if (sqlen >= (MAXSQLEN*factor - 400)) {
 			factor *= 2;
 			SQL = realloc(SQL, MAXSQLEN*factor);
 			if (!SQL) {
@@ -768,17 +773,7 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 		}
 		cp = SQL + sqlen;
 	}
-	if (qc->qc_cnt > 0) {
-		sprintf(cp, " INTERSECT ");
-		cp += strlen(cp);
-	}
-	/*
-	 * XXX:SD, we assume that if no min or max exist, then the entire
-	 * membership of the collection is returned. min and max constraints
-	 * are used to reduce the size of result set. The spec does not
-	 * define the result when there are no query criteria.
-	 */
-	sprintf(cp, "SELECT oid FROM object_collection WHERE cid = ? ;");
+	cp = strcat(cp, " GROUP BY attr.oid ORDER BY attr.oid;");
 
 	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
@@ -787,49 +782,31 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 		goto out;
 	}
 
-	/* bind the place holders with values */
+	/* bind the values */
 	pos = 1;
 	for (i = 0; i < qc->qc_cnt; i++) {
-		ret = sqlite3_bind_int(stmt, pos, qc->page[i]);
-		if (ret != SQLITE_OK) {
-			error_sql(db, "%s: bind page @ %d", __func__, pos);
-			goto out_finalize;
-		}
-		pos++;
-		ret = sqlite3_bind_int(stmt, pos, qc->number[i]);
-		if (ret != SQLITE_OK) {
-			error_sql(db, "%s: bind number @ %d", __func__, pos);
-			goto out_finalize;
-		}
-		pos++;
-
 		if (qc->min_len[i] > 0) {
-			ret = sqlite3_bind_blob(stmt, pos, qc->min_val[i], 
-						qc->min_len[i], 
+			ret = sqlite3_bind_blob(stmt, pos, qc->min_val[i],
+						qc->min_len[i],
 						SQLITE_TRANSIENT);
 			if (ret != SQLITE_OK) {
-				error_sql(db, "%s: bind min_val @ %d", 
+				error_sql(db, "%s: bind min_val @ %d",
 					  __func__, pos);
 				goto out_finalize;
 			}
 			pos++;
 		}
 		if (qc->max_len[i] > 0) {
-			ret = sqlite3_bind_blob(stmt, pos, qc->max_val[i], 
-						qc->max_len[i], 
+			ret = sqlite3_bind_blob(stmt, pos, qc->max_val[i],
+						qc->max_len[i],
 						SQLITE_TRANSIENT);
 			if (ret != SQLITE_OK) {
-				error_sql(db, "%s: bind max_val @ %d", 
+				error_sql(db, "%s: bind max_val @ %d",
 					  __func__, pos);
 				goto out_finalize;
 			}
 			pos++;
 		}
-	}
-	ret = sqlite3_bind_int64(stmt, pos, cid);
-	if (ret != SQLITE_OK) {
-		error_sql(db, "%s: bind cid", __func__);
-		goto out_finalize;
 	}
 
 	/* execute the query */
@@ -884,7 +861,7 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 	uint64_t oid = 0;
 	uint8_t *head = NULL, *tail = NULL;
 	uint32_t i = 0;
-	uint32_t factor = 1;
+	uint32_t factor = 2; /* this query uses space fast */
 	uint32_t attr_list_len = 0; /*XXX:SD see below */
 	uint32_t sqlen = 0;
 	sqlite3_stmt *stmt = NULL;
@@ -899,16 +876,16 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		goto out;
 	}
 
-	SQL = Malloc(MAXSQLEN);
+	SQL = Malloc(MAXSQLEN*factor);
 	if (!SQL) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	/* 
-	 * for each attribute requested, create a select statement,
+	 * For each attribute requested, create a select statement,
 	 * which will try to index into the attr table with a full key rather
-	 * than just (pid, oid). Analogous to loop unrolling.
+	 * than just (pid, oid) prefix key. Analogous to loop unrolling.
 	 */
 	cp = SQL;
 	sqlen = 0;
@@ -924,12 +901,13 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 
 	for (i = 0; i < get_attr->sz; i++) {
 		sprintf(cp, "SELECT obj.oid as myoid, attr.page, attr.number, "
-		" attr.value FROM obj, attr "
-		" WHERE obj.pid = attr.pid AND obj.oid = attr.oid AND "
-		" obj.pid = %llu AND obj.type = %u AND "
-		" attr.page = %u AND attr.number = %u AND obj.oid >= %llu ",
-		llu(pid), USEROBJECT, get_attr->le[i].page, 
-		get_attr->le[i].number, llu(initial_oid));
+			" attr.value FROM obj, attr "
+			" WHERE obj.pid = attr.pid AND obj.oid = attr.oid AND "
+			" obj.pid = %llu AND obj.type = %u AND "
+			" attr.page = %u AND attr.number = %u AND "
+			" obj.oid >= %llu ",
+			llu(pid), USEROBJECT, get_attr->le[i].page, 
+			get_attr->le[i].number, llu(initial_oid));
 		if (i < (get_attr->sz - 1))
 			strcat(cp, " UNION ALL ");
 
@@ -1009,7 +987,7 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 			}
 			memcpy(attr_blob.buf, sqlite3_column_blob(stmt, 3), 
 			       len);
-/* 			osd_debug("%s: oid %llu, page %u, number %u, len %u", 
+			/* osd_debug("%s: oid %llu, page %u, number %u, len %u",
 				  __func__, llu(oid), page, number, len); */
 			ret = le_pack_attr(tail, alloc_len, page, number, len, 
 					   attr_blob.buf);
@@ -1098,7 +1076,7 @@ int attr_set_member_attrs(sqlite3 *db, uint64_t pid, uint64_t cid,
 	sprintf(SQL, "INSERT OR REPLACE INTO attr ");
 	sqlen += strlen(SQL);
 	cp += sqlen;
-	
+
 	for (i = 0; i < set_attr->sz; i++) {
 		sprintf(cp, " SELECT %llu, oid, %u, %u, ? FROM "
 			" object_collection WHERE cid = %llu ", llu(pid), 
@@ -1213,7 +1191,7 @@ int attr_get_attr_value(sqlite3 *db, uint64_t pid, uint64_t oid,
 		goto out_finalize;
 	} else if (found == 0) {
 		osd_debug("%s: attr (%llu %llu %u %u) not found", __func__,
-		          llu(pid), llu(oid), page, number);
+			  llu(pid), llu(oid), page, number);
 		ret = -ENOENT;
 		goto out_finalize;
 	}
@@ -1226,7 +1204,7 @@ out_finalize:
 		ret = -EIO;
 		error_sql(db, "%s: finalize", __func__);
 	}
-	
+
 out:
 	return ret;
 }

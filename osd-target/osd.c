@@ -1756,7 +1756,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 
 	memset(cp+8, 0, 4);  /* reserved area */
 	cp[12] = (0x21 << 2);
-	ret = attr_run_query(osd->db, cid, &qc, outdata, alloc_len,
+	ret = attr_run_query(osd->db, pid, cid, &qc, outdata, alloc_len,
 			     used_outlen);
 	if (ret != OSD_OK)
 		goto out_hw_err;

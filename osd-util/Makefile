@@ -44,7 +44,7 @@ FORCE:;
 
 # distribution tarball
 .PHONY: dist
-MV := osd-util-$(shell date +%Y%m%d)
+MV := osd-util
 dist:
 	rm -rf $(MV)
 	mkdir $(MV)

@@ -86,7 +86,7 @@ FORCE:;
 
 # distribution tarball
 .PHONY: dist
-MV := osd-target-$(shell date +%Y%m%d)
+MV := osd-target
 dist:
 	rm -rf $(MV)
 	mkdir $(MV)

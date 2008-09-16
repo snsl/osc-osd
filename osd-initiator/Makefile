@@ -46,7 +46,7 @@ FORCE:;
 
 # distribution tarball
 .PHONY: dist
-MV := osd-initiator-$(shell date +%Y%m%d)
+MV := osd-initiator
 dist:
 	rm -rf $(MV)
 	mkdir $(MV)

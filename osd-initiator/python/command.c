@@ -860,6 +860,37 @@ static PyObject *pyosd_command_set_write(PyObject *self, PyObject *args)
 }
 
 /*
+ * Input:  two values, compare and swap; output: original value.
+ */
+static PyObject *pyosd_command_set_cas(PyObject *self, PyObject *args)
+{
+	struct pyosd_command *py_command = (struct pyosd_command *) self;
+	struct osd_command *command = &py_command->command;
+	uint64_t pid, oid, len = 8, offset = 0;
+
+	if (!PyArg_ParseTuple(args, "KKs#s#|KK:set_cas", &pid, &oid,
+			      inbuf, inlen, outbuf, outlen, &len, &offset))
+		return NULL;
+	if (py_command->set) {
+		PyErr_SetString(PyExc_RuntimeError, "command already set");
+		return NULL;
+	}
+
+	/*
+	 * Various asserts.  inlen = 2 * len; outlen = len;
+	 */
+	py_command->set = 1
+	osd_command_set_cas(command, pid, oid, len, offset);
+	command->indata = PyMem_Malloc(len);
+	if (!command->indata)
+		return PyErr_NoMemory();
+	memcpy((void *)(uintptr_t) command->outdata, buf, len);
+	command->outlen = len;
+	Py_IncRef(self);
+	return self;
+}
+
+/*
  * OSDCommand instance methods, members, and type.
  */
 struct PyMethodDef pyosd_command_methods[] = {
@@ -922,6 +953,17 @@ struct PyMethodDef pyosd_command_methods[] = {
 		METH_VARARGS, "Build the SET_MEMBER_ATTRIBUTES command." },
 	{ "set_write", pyosd_command_set_write, METH_VARARGS,
 		"Build the WRITE command." },
+	/*
+	 * Local extensions.
+	 */
+	{ "set_cas", pyosd_command_set_cas, METH_VARARGS,
+		"Build the CAS (compare and swap) command." },
+	{ "set_fa", pyosd_command_set_fa, METH_VARARGS,
+		"Build the FA (fetch and add) command." },
+
+	/*
+	 * Attribute manipulation.
+	 */
 	{ "attr_build", pyosd_command_attr_build, METH_VARARGS,
 		"Modify a command to get or set attributes." },
 	{ "attr_resolve", pyosd_command_attr_resolve, METH_VARARGS,

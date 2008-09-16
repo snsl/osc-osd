@@ -23,15 +23,14 @@ from pyosd import *
 
 # magic constants from pvfs/src/client/sysint/osd.h
 
-# Pages for object and directory attributes
-PVFS_USEROBJECT_DIR_PG  = LUN_PG_LB + 100
-PVFS_USEROBJECT_ATTR_PG = LUN_PG_LB + 101
 # The partitions; one for datafiles, another for metafiles and dir objects
-PVFS_OSD_DATA_PID = 0x10003
-PVFS_OSD_META_PID = 0x10004
-# Attribute location of the fs.conf text, on root handle only
-PVFS_USEROBJECT_FSCONF_PAGE   = LUN_PG_LB + 200
-PVFS_USEROBJECT_FSCONF_NUMBER =   1
+PVFS_OSD_DATA_PID = 0x10000
+PVFS_OSD_META_PID = 0x20000
+# Pages for object and directory attributes
+PVFS_USEROBJECT_DIR_PG  = 0x30000
+PVFS_USEROBJECT_ATTR_PG = 0x40000
+# Attribute location of the fs.conf text, a magic object in meta pid space
+PVFS_OSD_FSCONF_OID = 0x10000
 # PVFS code for uid | gid | perm | ...
 PVFS_ATTR_COMMON_ALL = 0x7f
 # PVFS code for directory object type
@@ -105,14 +104,8 @@ if metalb != root_handle:
 	run(OSDCommand().set_create(PVFS_OSD_META_PID, metalb))
 
 # create root handle, the top level directory
-# add fs.conf text as an attribute on the root handle
 if root_handle:
-	fh = open(fsconf, "r")
-	buf = fh.read()
-	fh.close()
-	pid = PVFS_OSD_META_PID
-	oid = root_handle
-	command = OSDCommand().set_create(pid, oid)
+	command = OSDCommand().set_create(PVFS_OSD_META_PID, root_handle)
 	command.attr_build([ \
 		OSDAttr(ATTR_SET, PVFS_USEROBJECT_ATTR_PG, 0, 0), \
 		OSDAttr(ATTR_SET, PVFS_USEROBJECT_ATTR_PG, 1, 0), \
@@ -121,8 +114,13 @@ if root_handle:
 			PVFS_ATTR_COMMON_ALL), \
 		OSDAttr(ATTR_SET, PVFS_USEROBJECT_ATTR_PG, 4, \
 			PVFS_TYPE_DIRECTORY), \
-		OSDAttr(ATTR_SET, PVFS_USEROBJECT_FSCONF_PAGE, \
-			PVFS_USEROBJECT_FSCONF_NUMBER, buf), \
 	])
 	run(command)
+
+	# store fs.conf text in a magic object
+	fh = open(fsconf, "r")
+	buf = fh.read()
+	fh.close()
+	run(OSDCommand().set_create_and_write(PVFS_OSD_META_PID,
+					      PVFS_OSD_FSCONF_OID, buf))
 

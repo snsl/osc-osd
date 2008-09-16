@@ -101,12 +101,12 @@ static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
 	int ret = 0;
 	uint8_t *cdb = cmd->cdb;
 	uint32_t page = ntohl(&cmd->cdb[52]);
-	uint32_t alloc_len = ntohl(&cdb[56]); 
+	uint32_t alloc_len = ntohl(&cdb[56]);
 	void *outbuf = NULL;
-	
+
 
 	if (page == 0 || alloc_len == 0)/* nothing to be retrieved. osd2r00 */
-		return 0;	   	/* Sec 5.2.2.2 */ 
+		return 0;	   	/* Sec 5.2.2.2 */
 
 	if (numoid > 1 && page != CUR_CMD_ATTR_PG)
 		goto out_param_list_err;
@@ -151,11 +151,11 @@ static int set_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 }
 
 /*
- * TODO: proper return codes 
+ * TODO: proper return codes
  * returns:
  * ==0: success
  *  >0: failure, senselen is returned.
- */ 
+ */
 static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 			 uint8_t isembedded, uint16_t numoid)
 {
@@ -163,7 +163,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint64_t i = 0;
 	uint8_t list_type;
 	uint8_t listfmt = RTRVD_SET_ATTR_LIST;
-	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]); 
+	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]);
 	uint32_t list_in_len, list_len = 0;
 	uint64_t list_off = ntohoffset(&cmd->cdb[56]);
 	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
@@ -248,11 +248,11 @@ out_invalid_param_list:
 }
 
 /*
- * TODO: proper return codes 
+ * TODO: proper return codes
  * returns:
  * ==0: success
  *  >0: failure, senselen is returned.
- */ 
+ */
 static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 			 uint8_t isembedded, uint16_t numoid)
 {
@@ -290,8 +290,8 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 
 		/* set attr on multiple objects if that is the case */
 		for (i = oid; i < oid+numoid; i++) {
-			ret = osd_set_attributes(cmd->osd, pid, i, page, 
-						 number, &list_hdr[10], len, 
+			ret = osd_set_attributes(cmd->osd, pid, i, page,
+						 number, &list_hdr[10], len,
 						 isembedded, cmd->sense);
 			if (ret != 0) {
 				cmd->senselen = ret;
@@ -331,7 +331,7 @@ static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 		return get_attr_page(cmd, pid, oid, isembedded, numoid);
-	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {		
+	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
 		return get_attr_list(cmd, pid, oid, isembedded, numoid);
 	} else {
 		goto out_cdb_err;
@@ -361,7 +361,7 @@ static int set_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 		return set_attr_value(cmd, pid, oid, isembedded, numoid);
-	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {		
+	} else if (cmd->getset_cdbfmt == GETLIST_SETLIST) {
 		return set_attr_list(cmd, pid, oid, isembedded, numoid);
 	} else {
 		goto out_cdb_err;
@@ -370,7 +370,7 @@ static int set_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 out_cdb_err:
 	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
-} 
+}
 
 /*
  * returns:
@@ -417,13 +417,13 @@ static int cdb_create(struct command *cmd)
 
 out_remove_obj:
 	for (i = oid; i < oid+numoid; i++)
-		osd_remove(cmd->osd, pid, i, local_sense); 
+		osd_remove(cmd->osd, pid, i, local_sense);
 	return ret; /* preserve ret */
 
 out_cdb_err:
 	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				OSD_ASC_INVALID_FIELD_IN_CDB, pid,
-				requested_oid); 
+				requested_oid);
 	return ret;
 }
 
@@ -531,11 +531,11 @@ static int cdb_read(struct command *cmd)
 	return rec_err_sense; /* return 0 or recoved error sense length */
 }
 
-static inline int std_get_set_attr(struct command *cmd, uint64_t pid, 
+static inline int std_get_set_attr(struct command *cmd, uint64_t pid,
 				   uint64_t oid)
 {
 	int ret = set_attributes(cmd, pid, oid, 1);
-	if (ret) 
+	if (ret)
 		return ret;
 
 	return get_attributes(cmd, pid, oid, 1);
@@ -695,7 +695,7 @@ static void exec_service_action(struct command *cmd)
 	case OSD_REMOVE_COLLECTION: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
-		int force_removal = (ntohll(%cdb[11]) | 0x1);
+		int force_removal = (ntohll(&cdb[11]) | 0x1);
 		ret = osd_remove_collection(osd, pid, cid, force_removal, sense);
 		break;
 	}
@@ -849,13 +849,13 @@ out_opcode_err:
 out_cdb_err:
 	cmd.senselen = sense_header_build(cmd.sense, sizeof(cmd.sense),
 					  OSD_SSK_ILLEGAL_REQUEST,
-					  OSD_ASC_INVALID_FIELD_IN_CDB, 0); 
+					  OSD_ASC_INVALID_FIELD_IN_CDB, 0);
 	goto out_free_resource;
 
 out_hw_err:
 	cmd.senselen = sense_header_build(cmd.sense, sizeof(cmd.sense),
 					  OSD_SSK_HARDWARE_ERROR,
-					  OSD_ASC_SYSTEM_RESOURCE_FAILURE, 0); 
+					  OSD_ASC_SYSTEM_RESOURCE_FAILURE, 0);
 	goto out_free_resource;
 
 out_free_resource:

@@ -119,6 +119,21 @@ static PyObject *pyosd_htonl(PyObject *self __attribute__((unused)),
 	return Py_BuildValue("I", u.x);
 }
 
+static PyObject *pyosd_htonll(PyObject *self __attribute__((unused)),
+			      PyObject *args)
+{
+	uint64_t w;
+	union {
+	    uint8_t s[4];
+	    uint64_t x;
+	} u;
+
+	if (!PyArg_ParseTuple(args, "K:htonll", &w))
+		return NULL;
+	set_htonll(u.s, w);
+	return Py_BuildValue("K", u.x);
+}
+
 /*
  * Class (not instance) methods.
  */
@@ -135,6 +150,8 @@ static PyMethodDef methods[] = {
 		"Convert 64-bit word from network to host byte order." },
 	{ "htonl", pyosd_htonl, METH_VARARGS,
 		"Convert 32-bit word from host to network byte order." },
+	{ "htonll", pyosd_htonll, METH_VARARGS,
+		"Convert 64-bit word from host to network byte order." },
 	{ NULL }
 };
 

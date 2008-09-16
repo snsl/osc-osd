@@ -19,10 +19,7 @@
 #define __OSD_H
 
 #include "osd-types.h"
-
-/* module interface */
-int osd_open(const char *root, struct osd_device *osd);
-int osd_close(struct osd_device *osd);
+#include "cdb.h"
 
 /* to make sense data for some higher error */
 int osd_error_unimplemented(uint16_t action, uint8_t *sense);

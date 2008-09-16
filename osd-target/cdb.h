@@ -18,6 +18,11 @@
 #ifndef __CDB_H
 #define __CDB_H
 
+/* module interface */
+struct osd_device *osd_device_alloc(void);
+void osd_device_free(struct osd_device *osd);
+int osd_open(const char *root, struct osd_device *osd);
+int osd_close(struct osd_device *osd);
 int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
                       const uint8_t *data_in, uint64_t data_in_len,
 		      uint8_t **data_out, uint64_t *data_out_len,

@@ -767,6 +767,19 @@ out:
 	return ret;
 }
 
+struct osd_device *osd_device_alloc(void)
+{
+	struct osd_device *osd;
+
+	osd = malloc(sizeof(*osd));
+	return osd;
+}
+
+void osd_device_free(struct osd_device *osd)
+{
+	free(osd);
+}
+
 int osd_open(const char *root, struct osd_device *osd)
 {
 	int i = 0;

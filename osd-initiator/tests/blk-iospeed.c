@@ -46,7 +46,25 @@
  * Be sure to pick the disk correctly.  Write test will destroy it.
  */
 #define BLOCK_DEV "/dev/sdb"
-#define BSG_DEV "/dev/bsg/sdb"
+
+/*
+ * Figure out /dev/bsg/... name from block device using sysfs.
+ */
+static const char *bsg_dev(const char *block_dev)
+{
+	const char *sd = block_dev + strlen("/dev/");
+	char s[1024], t[1024], *cp;
+	static char *u = NULL;
+
+	if (u == NULL) {
+		sprintf(s, "/sys/block/%s/queue/bsg", sd);
+		readlink(s, t, sizeof(t));
+		cp = strrchr(t, '/') + 1;
+		u = malloc(strlen("/dev/bsg/") + strlen(cp) + 1);
+		sprintf(u, "/dev/bsg/%s", cp);
+	}
+	return u;
+}
 
 static double *b;
 static void *buf;
@@ -212,10 +230,11 @@ static void bsg_write_bw(int iters, int bursts __attribute__((unused)), int sz)
 	uint8_t cdb[10];
 	uint16_t blocks;
 	struct sg_io_v4 bsg;
+	const char *s = bsg_dev(BLOCK_DEV);
 
-	fd = open(BSG_DEV, O_RDWR);
+	fd = open(s, O_RDWR);
 	if (fd < 0)
-		osd_error_fatal("%s: cannot open %s", __func__, BSG_DEV);
+		osd_error_fatal("%s: cannot open %s", __func__, s);
 
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0] = 0x2a;  /* WRITE_10 */
@@ -259,10 +278,11 @@ static void bsg_read_bw(int iters, int bursts __attribute__((unused)), int sz)
 	uint8_t cdb[10];
 	uint16_t blocks;
 	struct sg_io_v4 bsg;
+	const char *s = bsg_dev(BLOCK_DEV);
 
-	fd = open(BSG_DEV, O_RDWR);
+	fd = open(s, O_RDWR);
 	if (fd < 0)
-		osd_error_fatal("%s: cannot open %s", __func__, BSG_DEV);
+		osd_error_fatal("%s: cannot open %s", __func__, s);
 
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0] = 0x28;  /* READ_10 */
@@ -306,10 +326,11 @@ static void pbsg_write_bw(int iters, int bursts, int sz)
 	uint8_t cdb[10];
 	uint16_t blocks;
 	struct sg_io_v4 bsg, bsgo;
+	const char *s = bsg_dev(BLOCK_DEV);
 
-	fd = open(BSG_DEV, O_RDWR);
+	fd = open(s, O_RDWR);
 	if (fd < 0)
-		osd_error_fatal("%s: cannot open %s", __func__, BSG_DEV);
+		osd_error_fatal("%s: cannot open %s", __func__, s);
 
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0] = 0x2a;  /* WRITE_10 */
@@ -375,10 +396,11 @@ static void pbsg_read_bw(int iters, int bursts, int sz)
 	uint8_t cdb[10];
 	uint16_t blocks;
 	struct sg_io_v4 bsg, bsgo;
+	const char *s = bsg_dev(BLOCK_DEV);
 
-	fd = open(BSG_DEV, O_RDWR);
+	fd = open(s, O_RDWR);
 	if (fd < 0)
-		osd_error_fatal("%s: cannot open %s", __func__, BSG_DEV);
+		osd_error_fatal("%s: cannot open %s", __func__, s);
 
 	memset(cdb, 0, sizeof(cdb));
 	cdb[0] = 0x28;  /* READ_10 */
@@ -530,7 +552,7 @@ int main(int argc, char *const *argv)
 		iters = 1000;
 	} else {
 		maxsize = 512 * 1024;
-		iters = 1000;
+		iters = 100;  /*** XXX: bigger is better for reporting */
 	}
 
 	bursts = iters;

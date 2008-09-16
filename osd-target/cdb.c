@@ -695,7 +695,7 @@ static void exec_service_action(struct command *cmd)
 	case OSD_REMOVE_COLLECTION: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
-		int force_removal = (ntohll(&cdb[11]) | 0x1);
+		int force_removal = (ntohll(&cdb[11]) & 0x1);
 		ret = osd_remove_collection(osd, pid, cid, force_removal, sense);
 		break;
 	}

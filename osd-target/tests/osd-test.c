@@ -430,6 +430,15 @@ void test_osd_create_collection(struct osd_device *osd)
 				    sense);
 	assert(ret == 0);
 
+	/* empty collection, remove will succeed even if fcr == 0 */
+	ret = osd_remove_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB,
+				    0, sense);
+	assert(ret == 0);
+
+	ret = osd_create_collection(osd, COLLECTION_PID_LB, COLLECTION_OID_LB, 
+				    sense);
+	assert(ret == 0);
+
 	ret = osd_create_collection(osd, COLLECTION_PID_LB, 0, sense);
 	assert(ret == 0);
 	assert(osd->ccap.oid == COLLECTION_OID_LB + 1);
@@ -604,7 +613,7 @@ void test_osd_query(struct osd_device *osd)
 	set_attr_int(osd, oid+7, page, 1, cid, sense);
 	set_attr_int(osd, oid+9, page, 1, cid, sense);
 
-	/* run without query criteria */
+	/* 1: run without query criteria */
 	qll = MINQLISTLEN;
 	memset(buf, 0, 1024);
 
@@ -622,7 +631,7 @@ void test_osd_query(struct osd_device *osd)
 	idlist[7] = oid+9;
 	check_results(matcheslist, idlist, 8, usedlen);
 
-	/* run one query without min/max constraints */
+	/* 2: run one query without min/max constraints */
 	qll = 0;
 	memset(buf, 0, 1024);
 	cp = buf;
@@ -640,7 +649,7 @@ void test_osd_query(struct osd_device *osd)
 	idlist[2] = oid+9;
 	check_results(matcheslist, idlist, 3, usedlen);
 
-	/* run one query with criteria */
+	/* 3: run one query with criteria */
 	qll = 0;
 	min = 40, max= 80;
 	set_htonll((uint8_t *)&min, min);
@@ -662,7 +671,7 @@ void test_osd_query(struct osd_device *osd)
 	idlist[3] = oid+7;
 	check_results(matcheslist, idlist, 4, usedlen);
 
-	/* run union of two query criteria */
+	/* 4: run union of two query criteria */
 	qll = 0;
 
 	/* first query */
@@ -692,7 +701,7 @@ void test_osd_query(struct osd_device *osd)
 	idlist[1] = oid+6; 
 	check_results(matcheslist, idlist, 2, usedlen);
 
-	/* run intersection of 2 query criteria */
+	/* 5: run intersection of 2 query criteria */
 	qll = 0;
 
 	/* first query */
@@ -723,7 +732,7 @@ void test_osd_query(struct osd_device *osd)
 	idlist[1] = oid+4; 
 	check_results(matcheslist, idlist, 2, usedlen);
 
-	/* run union of 3 query criteria, with missing min/max */
+	/* 6: run union of 3 query criteria, with missing min/max */
 	qll = 0;
 
 	/* first query */
@@ -779,7 +788,7 @@ void test_osd_query(struct osd_device *osd)
 	set_attr_int(osd, oid+9, page, 1, 1, sense);
 	set_attr_val(osd, oid+9, page, 2, "hotelling", 10, sense);
 
-	/* run queries on different datatypes, with diff min max lengths */
+	/* 7: run queries on different datatypes, with diff min max lengths */
 	qll = 0;
 
 	/* first query */
@@ -810,7 +819,7 @@ void test_osd_query(struct osd_device *osd)
 	idlist[2] = oid+7;
 	check_results(matcheslist, idlist, 6, usedlen);
 
-	/* run intersection of 3 query criteria, with missing min/max */
+	/* 8: run intersection of 3 query criteria, with missing min/max */
 	qll = 0;
 
 	/* first query */
@@ -840,7 +849,7 @@ void test_osd_query(struct osd_device *osd)
 	idlist[0] = oid+1;
 	check_results(matcheslist, idlist, 1, usedlen);
 
-	/* run intersection of 2 query criteria with empty result */
+	/* 9: run intersection of 2 query criteria with empty result */
 	qll = 0;
 
 	/* first query */
@@ -896,9 +905,9 @@ int main()
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
 
+	test_osd_format(&osd);
 	test_osd_create(&osd);
 	test_osd_set_attributes(&osd);
-	test_osd_format(&osd);
 	test_osd_read_write(&osd);
 	test_osd_create_partition(&osd);
 	test_osd_get_attributes(&osd);

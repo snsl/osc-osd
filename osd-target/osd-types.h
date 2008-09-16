@@ -69,6 +69,16 @@ struct init_attr {
 	const char *s;
 };
 
+struct getattr_list {
+	uint32_t sz;
+	struct getattr_list_entry *le;
+};
+
+struct setattr_list {
+	uint32_t sz;
+	struct list_entry *le;
+};
+
 #define MAXSQLEN (2048UL)
 #define MAXNAMELEN (256UL)
 #define MAXROOTLEN (200UL)
@@ -114,9 +124,15 @@ struct id_cache {
 	uint64_t next_id;  /* next free oid/cid within partition (cur_pid) */
 };
 
-struct blob {
-	void *buf;
+struct buffer {
 	size_t sz;
+	void *buf;
+};
+
+struct id_list {
+	uint64_t cnt;
+	uint64_t limit;
+	uint64_t *ids;
 };
 
 /* 
@@ -125,7 +141,7 @@ struct blob {
  */
 struct db_context {
 	sqlite3 *db;
-	struct blob attr_blob;
+	struct buffer attr_blob;
 };
 
 /*
@@ -137,6 +153,7 @@ struct osd_context {
 	struct cur_cmd_attr_pg ccap;
 	struct id_cache ic;
 	struct db_context dbc;
+	struct id_list idl;
 };
 
 struct osd_device {
@@ -144,6 +161,7 @@ struct osd_device {
 	sqlite3 *db;
 	struct cur_cmd_attr_pg ccap;
 	struct id_cache ic;
+	struct id_list idl;
 };
 
 #endif /* __OSD_TYPES_H */

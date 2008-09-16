@@ -723,6 +723,7 @@ static int osd_initialize_db(struct osd_device *osd)
 
 	memset(&osd->ccap, 0, sizeof(osd->ccap));
 	memset(&osd->ic, 0, sizeof(osd->ic));
+	memset(&osd->idl, 0, sizeof(osd->idl));
 
 	/* build tables from schema file */
 	ret = sqlite3_exec(osd->db, osd_schema, NULL, NULL, &err);
@@ -1475,9 +1476,76 @@ int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
  * ==0: success, used_outlen is set
  * > 0: error, sense is set
  */
+int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid, 
+	     uint64_t alloc_len, uint64_t initial_oid, 
+	     struct getattr_list *get_attr, uint32_t list_id, 
+	     uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
+{
+	int ret = 0;
+	uint8_t *cp = outdata;
+	uint64_t add_len = 0;
+	uint64_t cont_id = 0;
+
+	if (alloc_len == 0)
+		return 0;
+
+	if (alloc_len < 24) /* XXX: currently need atleast the header */
+		goto out_cdb_err;
+
+	memset(outdata, 0, 24);
+
+	if (pid == 0)
+		goto out_cdb_err; /* XXX: unimplemented */
+	if (list_attr == 0 && get_attr->sz != 0)
+		goto out_cdb_err; /* XXX: unimplemented */
+	if (list_attr == 1 && get_attr->sz == 0)
+		goto out_cdb_err; /* XXX: this seems like error? */
+
+	if (list_attr == 0 && get_attr->sz == 0 && pid != 0) {
+		outdata[23] = (0x21 << 2);
+		alloc_len -= 24;
+		ret = obj_get_oids_in_pid(osd->db, pid, initial_oid,
+					  alloc_len, &outdata[24], 
+					  used_outlen, &add_len, &cont_id);
+		if (ret)
+			goto out_hw_err;
+		*used_outlen += 24;
+		add_len += 16;
+		set_htonll(outdata, add_len);
+		set_htonll(&outdata[8], cont_id);
+	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
+		outdata[23] = (0x22 << 2);
+		alloc_len -= 24;
+		ret = attr_list_oids_attr(osd->db, pid, initial_oid,
+					  get_attr, alloc_len, &outdata[24], 
+					  used_outlen, &add_len, &cont_id);
+		if (ret)
+			goto out_hw_err;
+		*used_outlen += 24;
+		add_len += 16;
+		set_htonll(outdata, add_len);
+		set_htonll(&outdata[8], cont_id);
+	}
+
+	/* XXX: is this correct */
+	fill_ccap(&osd->ccap, NULL, PARTITION, pid, PARTITION_OID, 0);
+	return OSD_OK; /* success */
+
+out_cdb_err:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, initial_oid);
+	return ret;
+
+out_hw_err:
+	ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
+			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, initial_oid);
+	return ret;
+}
+
+#if 0
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,
 	     uint64_t alloc_len, uint64_t initial_oid, int list_attr,
-	     uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
+             uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
 {
 	int ret = 0;
 	uint64_t addl_length, obj_descriptor, continuation_id, len = 24;
@@ -1559,7 +1627,7 @@ out_hw_err:
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, initial_oid);
 	return ret;
 }
-
+#endif
 
 int osd_list_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 			uint32_t list_id, uint64_t alloc_len,

@@ -426,7 +426,7 @@ can be implemented as a sql view on page numbers 0
 	case of create and other commands
 +	set_attribute must check for obj_type along with page. for eg.
 	collections don't have user 
--	create 128 directories under dfiles to prevent fanout
++	create 256 directories under dfiles to prevent fanout
 -	collect and summarize all todos in one place 
 ?	how to handle endian correction when attr value is integer?
 		store the values in big endian format. SQLite uses memcmp to compare
@@ -440,3 +440,39 @@ can be implemented as a sql view on page numbers 0
 	function being called from outside a set of predetermined functions.
 -	python interface for writing unit tests
 -	function to run different tests
+-	A tech paper about all the complex attribute operations and their
+	translations into efficient SQL statements.
+-	copy sqlite source into the project directory, compile with Multithreaded
+	and other options.
+!	SQLite does not allow sub-query grouping using parenthesis
+?	How should one deal with > 1 attributes, when one of the latter ones has
+	an error. Should the state that has changed be reverted or should it be
+	left as it is.
+?	what is object descriptor format 00h?
+
+# Mon Apr 30 11:16:06 EDT 2007
+-	get/set attr functions in cdb.c assume that for each object all
+	attributes are derieved.
+-	in list command the get/set attrs apply to the oid in the CDB and also
+	the oids generated from executing the CDB.
+-	test set/get attr on collections
+-	change COLLECTIONS_PG to USER_COLL_PG
+-	todo:
+	set member attributes
+	query
+?	does get/set attr of a query apply to the results of the command or only
+to the cid
+?	when list is sent back with continuation id does it mention pid?
+-	change name of getattr_list_entry to something smaller. 
+-	how does gcc treat branches? which one is predicted to be true, if or the
+	else part? how does gcc treat condition part of for loop, do the
+	constituents evaluated every time?
+-	reduce the number of args passed to osd functions, using some generic
+	struct
+-	test query with alloc_len < than result size to see if sqlite3_step is
+	progressing
+-	the spec again made mistake. in osd2r01 attr_list_len is 16 bits, which
+	is not sufficient to store worst case one 
+
+# Tue May  1 13:23:10 EDT 2007
+-	design attr_list_oids_attr with proper loop invariant and clean code

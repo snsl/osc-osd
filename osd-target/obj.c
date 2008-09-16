@@ -312,6 +312,53 @@ out:
 
 }
 
+int obj_get_oids_in_pid(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
+			uint64_t alloc_len, uint8_t *outdata, 
+			uint64_t *used_outlen, uint64_t *add_len, 
+			uint64_t *cont_id)
+{
+	int ret = 0;
+	uint64_t len = 0;
+	char SQL[MAXSQLEN];
+	sqlite3_stmt *stmt = NULL;
+
+	if (db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "SELECT oid FROM obj WHERE pid = %llu AND oid >= %llu "
+		" AND type = %u", llu(pid), llu(initial_oid), USEROBJECT);
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret) {
+		error_sql(db, "%s: prepare", __func__);
+		goto out;
+	}
+
+	len = *used_outlen = 0;
+	*add_len = 0;
+	*cont_id = 0;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		if ((alloc_len - len) >= 8) {
+			set_htonll(outdata, sqlite3_column_int64(stmt, 0));
+			outdata += 8;
+			len += 8;
+		} else if (*cont_id == 0) {
+			*cont_id = sqlite3_column_int64(stmt, 0);
+		}
+		*add_len += 8;
+	}
+	*used_outlen = len;
+
+	if (ret != SQLITE_DONE)
+		error_sql(db, "%s: query %s failed", __func__, SQL);
+
+	ret = sqlite3_finalize(stmt);
+	if (ret != SQLITE_OK) 
+		error_sql(db, "%s: finalize", __func__);
+
+out:
+	return ret;
+}
+
 #if 0
 int obj_get_all_pids(sqlite3 *db)
 {
@@ -322,7 +369,4 @@ int obj_get_cids_in_pid(sqlite3 *db, uint64_t pid)
 {
 }
 
-int obj_get_oids_in_pid(sqlite3 *db, uint64_t pid)
-{
-}
 #endif

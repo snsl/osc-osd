@@ -14,7 +14,7 @@ CMD_OBJ := $(CMD:.c=.o)
 CMD_SRC := ../../osd_initiator/$(CMD)
 CMD_INC := $(CMD_SRC:.c=.h)
 
-LIBOSD := ../libosdtgt.a ../../util/libosdutil.a
+LIBOSD := ../libosdtgt.a ../../util/libosdutil.a 
 
 include ../../Makedefs
 OPT := $(filter-out -DNDEBUG,$(OPT)) # don't turn off asserts!
@@ -33,7 +33,7 @@ CFLAGS := $(COPTS) $(CWARN) -I. -I.. -I../../
 all :: $(EXE)
 
 $(EXE): %: %.o $(CMD_OBJ) $(LIBOSD) 
-	$(CC) -o $@ $^ -lsqlite3 -lm
+	$(CC) -o $@ $^ -lsqlite3 -lm -lefence
 
 %.o : %.c
 	$(CC) $(CFLAGS) -c $< -o $@

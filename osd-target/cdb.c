@@ -25,6 +25,8 @@ struct command {
 	uint16_t action;
 	uint8_t getset_cdbfmt;
 	uint64_t retrieved_attr_off;
+	struct getattr_list get_attr;
+	struct setattr_list set_attr;
 	const uint8_t *indata;
 	uint64_t inlen;
 	uint8_t *outdata;
@@ -341,7 +343,6 @@ static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 out_cdb_err:
 	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
-
 }
 
 /*
@@ -528,6 +529,144 @@ static int cdb_read(struct command *cmd)
 	return rec_err_sense; /* return 0 or recoved error sense length */
 }
 
+static int parse_getattr_list(struct command *cmd, uint64_t pid, uint64_t oid)
+{
+	int ret = 0;
+	uint64_t i = 0;
+	uint8_t list_type;
+	uint32_t getattr_list_len = ntohl(&cmd->cdb[52]);
+	uint32_t list_in_len, list_len = 0;
+	uint64_t list_off = ntohoffset(&cmd->cdb[56]);
+	uint32_t list_alloc_len = ntohl(&cmd->cdb[60]);
+	const uint8_t *list_hdr = &cmd->indata[list_off];
+	uint8_t *cp = NULL;
+
+	if (getattr_list_len == 0)
+		return 0; /* nothing to retrieve, osd2r00 Sec 5.2.2.3 */
+
+	if (getattr_list_len != 0 && getattr_list_len < LIST_HDR_LEN)
+		goto out_param_list_err;
+
+	/* available bytes in getattr list, need at least a header */
+	list_in_len = cmd->inlen - list_off;
+	if (list_in_len < 8)
+		goto out_param_list_err;
+
+	if ((list_off & 0x7) || (list_alloc_len & 0x7))
+		goto out_param_list_err;
+
+	list_type = list_hdr[0] & 0xF;
+	if (list_type != RTRV_ATTR_LIST)
+		goto out_invalid_param_list;
+
+	list_len = ntohl(&list_hdr[4]);
+	if ((list_len + 8) != getattr_list_len)
+		goto out_param_list_err;
+	if (list_len & 0x7) /* multiple of 8 */
+		goto out_param_list_err;
+	if (list_len + 8 < list_in_len)
+		goto out_param_list_err;
+
+	if (list_len > 0) {
+		cmd->get_attr.sz = list_len/8;
+		cmd->get_attr.le = Malloc(cmd->get_attr.sz *
+					  sizeof(*(cmd->get_attr.le)));
+		if (!cmd->get_attr.le)
+			goto out_hw_err;
+	}
+
+	i = 0;
+	list_hdr += 8;
+	for (i = 0; i < list_len/8; i++) {
+		cmd->get_attr.le[i].page = ntohl(&list_hdr[0]);
+		cmd->get_attr.le[i].number = ntohl(&list_hdr[4]);
+		list_hdr += 8;
+	}
+
+	return 0; /* success */
+
+out_param_list_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
+				 oid);
+
+out_invalid_param_list:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_PARAM_LIST, pid,
+				 oid);
+out_hw_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_HARDWARE_ERROR,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+}
+
+/*
+ *  actions for various (pid, list_attr) combinations:
+ *
+ *  0, 0: get pids within root, no attrs returned. results in param. data
+ *  0, 1: get pids within root. results are returned as described below:
+ *  	- all root object (since pid = 0) pages described in get attr segment
+ *  	  of CDB are returned in retrieved attr segment.
+ *  	- for each pid computed by the LIST command all paritition pages
+ *  	  described in get attr segment of CDB shall be returned in
+ *  	  command parameter data
+ *  	- if there is any page associated with userobject or collection error
+ *  	  is flagged.
+ * !0, 0: get oids within the pid, no attr returned. results in param. data
+ * !0, 1: get oids within the pid. results are returned as described below:
+ * 	- all parition object (since pid != 0) pages described in get attr
+ * 	  segment are returned in retrieved attr segment.
+ * 	- for each oid computed by the LIST command all user object pages
+ * 	  described in get attr segment of CDB shall be returned in
+ * 	  command parition data
+ * 	- if there is any page associated with root or collection objects
+ * 	  then error is flagged.
+ */
+static int cdb_list(struct command *cmd)
+{
+	int ret = 0;
+	uint8_t *cdb = cmd->cdb;
+	uint8_t list_attr = (cdb[11] & 0x40) >> 6;
+	uint8_t sort_order = (cdb[11] & 0x0F);
+	uint64_t pid = ntohll(&cdb[16]);
+	uint32_t list_id = ntohl(&cdb[48]);
+	uint64_t alloc_len = ntohll(&cdb[32]);
+	uint64_t initial_oid = ntohll(&cdb[40]);
+
+	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE)
+		goto out_cdb_err; /* TODO: implement this */
+
+	if (list_attr == 1 && cmd->getset_cdbfmt == GETPAGE_SETVALUE)
+		goto out_cdb_err;
+
+	if (sort_order != 0)
+		goto out_cdb_err;
+
+	ret = parse_getattr_list(cmd, pid, initial_oid);
+	if (ret)
+		goto out_cdb_err;
+
+	/* 
+	 * TODO: not implementing the following:
+	 * get pids within root
+	 * get pids within root + their attrs
+	 * get/set attributes along with list for that 
+	 * setvalue not implemented
+	 */
+	return osd_list(cmd->osd, list_attr, pid, alloc_len, initial_oid,
+			&cmd->get_attr, list_id, cmd->outdata,
+			&cmd->used_outlen, cmd->sense);
+
+	/* id list in cmd->osd->idl */
+	
+	/* get/set attr not implemented */
+
+out_cdb_err:
+	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				OSD_ASC_INVALID_FIELD_IN_CDB, pid,
+				initial_oid);
+	return ret;
+}
+
 static inline int std_get_set_attr(struct command *cmd, uint64_t pid,
 				   uint64_t oid)
 {
@@ -642,14 +781,7 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_LIST: {
-		uint64_t pid = ntohll(&cdb[16]);
-		uint32_t list_id = ntohl(&cdb[48]);
-		uint64_t alloc_len = ntohll(&cdb[32]);
-		uint64_t initial_oid = ntohll(&cdb[40]);
-		int list_attr = (ntohll(&cdb[11]) & 0x40);
-		ret = osd_list(osd, pid, list_id, alloc_len, initial_oid,
-			       list_attr, cmd->outdata, &cmd->used_outlen,
-			       sense);
+		ret = cdb_list(cmd);
 		break;
 	}
 	case OSD_LIST_COLLECTION: {
@@ -661,6 +793,10 @@ static void exec_service_action(struct command *cmd)
 		ret = osd_list_collection(osd, pid, cid, list_id, alloc_len,
 					  initial_oid, cmd->outdata,
 					  &cmd->used_outlen, sense);
+		if (ret)
+			break;
+
+		ret = std_get_set_attr(cmd, pid, cid);
 		break;
 	}
 	case OSD_PERFORM_SCSI_COMMAND:
@@ -681,6 +817,10 @@ static void exec_service_action(struct command *cmd)
 		ret = osd_query(osd, pid, cid, query_list_len, alloc_len, 
 				cmd->indata, cmd->outdata, &cmd->used_outlen,
 				sense);
+		if (ret)
+			break;
+
+		ret = std_get_set_attr(cmd, pid, cid);
 		break;
 	}
 	case OSD_READ: {
@@ -692,9 +832,9 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_REMOVE_COLLECTION: {
+		uint8_t fcr = (cdb[11] & 0x1);
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t cid = ntohll(&cdb[24]);
-		uint8_t fcr = (cdb[11] & 0x1);
 		ret = osd_remove_collection(osd, pid, cid, fcr, sense);
 		break;
 	}
@@ -787,6 +927,14 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		.cdb = cdb,
 		.action = (cdb[8] << 8) | cdb[9],
 		.getset_cdbfmt = (cdb[11] & 0x30) >> 4,
+		.get_attr = {
+			.sz = 0,
+			.le = 0,
+		},
+		.set_attr = {
+			.sz = 0,
+			.le = 0,
+		},
 		.indata = data_in,
 		.inlen = data_in_len,
 		.outdata = NULL,

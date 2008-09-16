@@ -12,6 +12,7 @@
 #include "attr.h"
 #include "util/util.h"
 #include "list-entry.h"
+#include "target-defs.h"
 
 /*
  * XXX: to avoid repeated mallocs, create this hack. a cleaner/clever
@@ -840,7 +841,11 @@ int attr_run_query(sqlite3 *db, uint64_t cid, struct query_criteria *qc,
 			set_htonll(p, sqlite3_column_int64(stmt, 0));
 			*used_outlen += 8;
 		}
-		p += 8, len += 8;
+		p += 8; 
+		if (len + 8 < len)
+			len = 0xFFFFFFFFFFFFFFFF; /* osd2r01 Sec 6.18.3 */
+		else
+			len += 8;
 	}
 	if (ret != SQLITE_DONE) {
 		error_sql(db, "%s: sqlite3_step", __func__);
@@ -854,6 +859,189 @@ out_finalize:
 	ret = sqlite3_finalize(stmt); 
 	if (ret != SQLITE_OK)
 		error_sql(db, "%s: finalize", __func__);
+
+out:
+	free(SQL);
+	return ret;
+}
+
+int attr_list_oids_attr(sqlite3 *db,  uint64_t pid, uint64_t initial_oid, 
+			struct getattr_list *get_attr, uint64_t alloc_len,
+			void *outdata, uint64_t *used_outlen, 
+			uint64_t *add_len, uint64_t *cont_id)
+{
+	int ret = 0;
+	char *cp = NULL;
+	char *SQL = NULL;
+	uint64_t len = 0;
+	uint64_t oid = 0;
+	uint8_t *head = NULL, *tail = NULL;
+	uint32_t i = 0;
+	uint32_t factor = 1;
+	uint32_t attr_list_len = 0; /*XXX:SD see below */
+	uint32_t sqlen = 0;
+	uint8_t buf_full = FALSE;
+	sqlite3_stmt *stmt = NULL;
+
+	if (!db || !get_attr || !outdata || !used_outlen || !add_len) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	if (get_attr->sz == 0) {
+		ret = -EINVAL;
+		goto out;
+	}
+
+	SQL = Malloc(MAXSQLEN);
+	if (!SQL) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	cp = SQL;
+	sqlen = 0;
+	sprintf(SQL, "SELECT obj.oid, attr.page, attr.number, attr.value "
+		" FROM obj, attr WHERE attr.pid = %llu AND obj.oid >= %llu "
+		" AND obj.type = %u AND obj.pid = attr.pid AND "
+		" obj.oid = attr.oid AND ( (page = %u AND number = %u) OR ", 
+		llu(pid), llu(initial_oid), USEROBJECT, USER_TMSTMP_PG, 0);
+	sqlen += strlen(SQL);
+	cp += sqlen;
+
+	for (i = 0; i < get_attr->sz; i++) {
+		sprintf(cp, " (attr.page = %u AND attr.number = %u) ",
+			get_attr->le[i].page, get_attr->le[i].number);
+		if (i < (get_attr->sz - 1))
+			strcat(cp, " OR ");
+		sqlen += strlen(cp);
+		if (sqlen > MAXSQLEN*factor - 100) {
+			factor *= 2;
+			SQL = realloc(SQL, MAXSQLEN*factor);
+			if (!SQL) {
+				ret = -ENOMEM;
+				goto out;
+			}
+		}
+
+		cp = SQL + sqlen;
+	}
+	sprintf(cp, " ) ORDER BY attr.oid; ");
+
+	ret = sqlite3_prepare(db, SQL, strlen(SQL)+1, &stmt, NULL);
+	if (ret != SQLITE_OK) {
+		error_sql(db, "%s: sqlite3_prepare", __func__);
+		goto out;
+	}
+
+	/* execute the statement */
+	head = tail = outdata;
+	attr_list_len = 0;
+	buf_full = FALSE;
+	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
+		uint64_t oid = sqlite3_column_int64(stmt, 0);
+		uint32_t page = sqlite3_column_int64(stmt, 1);
+		uint32_t number = sqlite3_column_int64(stmt, 2);
+		uint16_t len = sqlite3_column_bytes(stmt, 3);
+
+		if (page == USER_TMSTMP_PG && number == 0) {
+			/*
+			 * XXX:SD The spec is inconsistent in applying
+			 * padding and alignment rules. Here we make changes
+			 * to the spec. In our case object descriptor format
+			 * header is 16B instead of 12B, and attributes list
+			 * length field is 4B instead of 2B as defined in
+			 * spec. ODE is object descriptor entry.
+			 */
+
+			/* if alloc_len < 16 no space to even put header */
+			if (!buf_full && alloc_len < 16) {
+				buf_full = TRUE;
+				if (*cont_id == 0)
+					*cont_id = oid;
+			}
+			if (!buf_full) {
+				/* start attr of next oid */
+				set_htonll(tail, oid); 
+				if (head != outdata) {
+					/* fill attr_list_len of prev ODE */
+					set_htonl(head, attr_list_len);
+					osd_debug("%u", attr_list_len);
+					/* bring head to start of next ODE */
+					head = tail;
+					attr_list_len = 0;
+				}
+				alloc_len -= 16;
+				tail += 16;
+				head += 12;
+				*used_outlen += 16;
+			}
+			*add_len += 16;
+			continue;
+		}
+		
+		if (attr_blob.sz < len) {
+			free(attr_blob.buf);
+			attr_blob.sz = roundup8(len);
+			attr_blob.buf = Malloc(attr_blob.sz);
+			if (!attr_blob.buf)
+				return -ENOMEM;
+		}
+
+		if (!buf_full) {
+			memcpy(attr_blob.buf, sqlite3_column_blob(stmt, 3), 
+			       len);
+			osd_debug("%s: oid %llu, page %u, number %u, len %u", 
+				  __func__, llu(oid), page, number, len);
+			ret = le_pack_attr(tail, alloc_len, page, number, len, 
+					   attr_blob.buf);
+			if (ret == -EINVAL) {
+				goto out_finalize;
+			} else if (ret == -EOVERFLOW) {
+				buf_full = TRUE;
+				/* fill attr_list_len of 'this' oid */
+				set_htonl(head, attr_list_len);
+				osd_debug("%u", attr_list_len);
+				head = tail;
+				attr_list_len = 0;
+			} else {
+				alloc_len -= ret;
+				tail += ret;
+				/* *add_len += ret; */
+				attr_list_len += ret;
+				*used_outlen += ret;
+				if (alloc_len < 16) {
+					buf_full = TRUE;
+					/* fill attr_list_len of 'this' oid */
+					set_htonl(head, attr_list_len);
+					osd_debug("%u", attr_list_len);
+					head = tail;
+					attr_list_len = 0;
+				}
+			}
+		} 
+		*add_len += roundup8(4+4+2+len);
+	}
+	if (ret != SQLITE_DONE) {
+		error_sql(db, "%s: query execution failed. SQL %s, add_len "
+			  " %llu attr_list_len %u", __func__, SQL, 
+			  llu(*add_len), attr_list_len);
+		goto out_finalize;
+	}
+	if (!buf_full) {
+		set_htonl(head, attr_list_len);
+		osd_debug("%u", attr_list_len);
+		head += (4 + attr_list_len);
+		assert(head == tail);
+	}
+
+	ret = 0;
+
+out_finalize:
+	if (sqlite3_finalize(stmt) != SQLITE_OK) {
+		ret = -EIO;
+		error_sql(db, "%s: finalize", __func__);
+	}
 
 out:
 	free(SQL);
@@ -935,4 +1123,5 @@ out_finalize:
 out:
 	return ret;
 }
+
 

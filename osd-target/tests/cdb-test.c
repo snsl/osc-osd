@@ -20,6 +20,7 @@
 
 void test_partition(struct osd_device *osd);
 void test_create(struct osd_device *osd);
+void test_list(struct osd_device *osd);
 
 void test_partition(struct osd_device *osd) 
 {
@@ -328,9 +329,8 @@ static void test_query(struct osd_device *osd)
 	uint64_t pid = PARTITION_PID_LB;
 	uint64_t cid = COLLECTION_OID_LB;
 	uint64_t oid = USEROBJECT_OID_LB + 1;  /* leave room for cid */
-	const void *data_in;
 	uint8_t *data_out;
-	uint64_t data_in_len, data_out_len;
+	uint64_t data_out_len;
 	uint8_t sense_out[OSD_MAX_SENSE];
 	int senselen_out;
 	int i, ret;
@@ -694,6 +694,392 @@ static void test_query(struct osd_device *osd)
 	assert(ret == 0);
 }
 
+struct test_attr {
+	uint8_t type;
+	uint64_t oid;
+	uint32_t page;
+	uint32_t number;
+	uint64_t intval;
+	uint16_t valen;
+	const void *val;
+}; 
+
+static void ismember_attr(struct test_attr *attr, size_t sz, uint64_t oid,
+			  uint32_t page, uint32_t number, uint64_t valen,
+			  const void *val)
+{
+	size_t i = 0;
+	for (i = 0; i < sz; i++) {
+		if (attr[i].oid == oid && attr[i].page == page &&
+		    attr[i].number == number) {
+			assert(valen <= attr[i].valen);
+			if (attr[i].type == 1) {
+				if (valen == attr[i].valen)
+					assert(attr[i].intval == ntohll(val));
+			} else {
+				assert(memcmp(attr[i].val, val, valen) == 0);
+			}
+			return;
+		}
+	}
+	fprintf(stderr, "unknown attr: oid: %llu, page %u, number %u",
+		llu(oid), page, number);
+	assert(0); /* unknown attr */
+}
+
+void test_list(struct osd_device *osd)
+{
+	struct osd_command cmd;
+	uint64_t pid = PARTITION_PID_LB;
+	uint64_t cid = 0;
+	uint64_t oid = 0; 
+	const void *data_in;
+	uint8_t *data_out;
+	uint8_t *cp;
+	uint32_t page = 0, number = 0;
+	uint64_t data_in_len, data_out_len;
+	uint64_t idlist[64];
+	uint8_t sense_out[OSD_MAX_SENSE];
+	uint32_t attr_list_len = 0;
+	uint16_t len = 0;
+	int senselen_out;
+	int i, ret;
+
+	/* create partition */
+	ret = osd_command_set_create_partition(&cmd, pid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* create collection */
+	ret = osd_command_set_create_collection(&cmd, pid, cid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* create 6 objects */
+	ret = osd_command_set_create(&cmd, pid, 0, 6);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* create another collection */
+	ret = osd_command_set_create_collection(&cmd, pid, cid);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* create 4 objects */
+	ret = osd_command_set_create(&cmd, pid, 0, 4);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	/* set attributes on userobjects */
+	page = USEROBJECT_PG + LUN_PG_LB;
+	number = 1;
+	oid = COLLECTION_OID_LB + 1;
+	struct test_attr attrs[] = {
+		{1, oid, page, number, 1, 8, NULL},
+		{1, oid, page+1, number+1, 768, 8, NULL},
+		{2, oid, page+2, number+2, 0, 5, "sudo"}, 
+		{1, oid+1, page+1, number+1, 56, 8, NULL},
+		{1, oid+1, page+2, number+2, 68, 8, NULL},
+		{2, oid+2, page+2, number+2, 0, 9, "deadbeef"}, 
+		{1, oid+3, page+3, number+3, 1, 8, NULL},
+		{1, oid+3, page+1, number+1, 111, 8, NULL},
+		{2, oid+3, page+4, number+4, 0, 5, "sudo"}, 
+		{1, oid+3, page+2, number+2, 11, 8, NULL},
+		{1, oid+3, page+5, number+5, 111111, 8, NULL},
+		{2, oid+4, page+4, number+4, 0, 6, "milli"}, 
+		{2, oid+4, page+5, number+5, 0, 10, "kilometer"},
+		{2, oid+4, page+3, number+3, 0, 11, "hectameter"},
+		{2, oid+5, page+1, number+1, 0, 12, "zzzzzzhhhhh"}, 
+		{2, oid+5, page+2, number+2, 0, 2, "b"},
+		{1, oid+5, page+3, number+3, 6, 8, NULL},
+		{1, oid+7, page+1, number+1, 486, 8, NULL}, 
+		{1, oid+7, page+4, number+4, 586, 8, NULL},
+		{1, oid+7, page+2, number+2, 686, 8, NULL},
+		{1, oid+8, page, number, 4, 8, NULL},
+		{2, oid+9, page+1, number+1, 0, 14, "setting these"}, 
+		{2, oid+9, page+2, number+2, 0, 11, "attributes"},
+		{2, oid+9, page+3, number+3, 0, 8, "made me"},
+		{2, oid+9, page+4, number+4, 0, 12, "mad! really"}, 
+		{1, oid+10, page+1, number+1, 1234567890, 8, NULL},
+		{2, oid+10, page, number, 0, 6, "DelTa"},
+	};
+	for (i = 0; i < ARRAY_SIZE(attrs); i++) {
+		if (attrs[i].type == 1) {
+			set_attr_int(osd, pid, attrs[i].oid, attrs[i].page,
+				     attrs[i].number, attrs[i].intval);
+		} else {
+			set_attr_val(osd, pid, attrs[i].oid, attrs[i].page,
+				     attrs[i].number, attrs[i].val,
+				     attrs[i].valen);
+		}
+	}
+
+	/* set some attributes on collections */
+	page = COLLECTION_PG + LUN_PG_LB;
+	cid = COLLECTION_OID_LB;
+	set_attr_int(osd, pid, cid,   page, 1, 1);
+	set_attr_int(osd, pid, cid+7, page, 2, 2);
+
+	/* execute list command. get only oids first */
+	ret = osd_command_set_list(&cmd, pid, 0, 4096, 0, 0);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	cp = data_out;
+	assert(ntohll(cp) == 10*8+16);
+	assert(data_out_len == 10*8+24);
+	cp += 8;
+	assert(ntohll(cp) == 0);
+	cp += 8;
+	assert(ntohl(cp) == 0);
+	cp += 7;
+	assert(cp[0] == (0x21 << 2));
+	cp += 1;
+	data_out_len -= 24;
+	oid = COLLECTION_OID_LB + 1;
+	for (i = 0; i < 6; i++)
+		idlist[i] = oid + i;
+	oid = COLLECTION_OID_LB + 1 + i + 1;
+	for (i = 0; i < 4; i++)
+		idlist[6+i] = oid + i;
+	while (data_out_len > 0) {
+		assert(ismember(ntohll(cp), idlist, 10));
+		cp += 8;
+		data_out_len -= 8;
+	}
+	free(data_out);
+	osd_command_attr_free(&cmd);
+
+	/* execute list command with less space */
+	ret = osd_command_set_list(&cmd, pid, 0, 72, 0, 0);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	cp = data_out;
+	assert(ntohll(cp) == 10*8+16);
+	assert(data_out_len == 72);
+	cp += 8;
+	assert(ntohll(cp) == COLLECTION_OID_LB + 8);
+	cp += 8;
+	assert(ntohl(cp) == 0);
+	cp += 7;
+	assert(cp[0] == (0x21 << 2));
+	cp += 1;
+	data_out_len -= 24;
+	oid = COLLECTION_OID_LB + 1;
+	for (i = 0; i < 6; i++)
+		idlist[i] = oid + i;
+	for (i = 0; i < 4; i++)
+		idlist[6+i] = 0;
+	while (data_out_len > 0) {
+		assert(ismember(ntohll(cp), idlist, 10));
+		cp += 8;
+		data_out_len -= 8;
+	}
+	free(data_out);
+	osd_command_attr_free(&cmd);
+				
+	/* execute list with attr */
+	ret = osd_command_set_list(&cmd, pid, 0, 4096, 0, 1);
+	assert(ret == 0);
+	page = USEROBJECT_PG + LUN_PG_LB;
+	number = 1;
+	struct attribute_list getattr[] = {
+		{ATTR_GET, page, number, NULL, 0, 0},
+		{ATTR_GET, page+1, number+1, NULL, 0, 0},
+		{ATTR_GET, page+2, number+2, NULL, 0, 0},
+		{ATTR_GET, page+3, number+3, NULL, 0, 0},
+		{ATTR_GET, page+4, number+4, NULL, 0, 0},
+		{ATTR_GET, page+5, number+5, NULL, 0, 0},
+	};
+	ret = osd_command_attr_build(&cmd, getattr, 6);
+	assert(ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	cp = data_out;
+	assert(data_out_len == 792);
+	assert(ntohll(cp) == 784);
+	cp += 8;
+	assert(ntohll(cp) == 0);
+	cp += 8;
+	assert(ntohl(cp) == 0);
+	cp += 7;
+	assert(cp[0] == (0x22 << 2));
+	cp += 1;
+	oid = 0;
+	attr_list_len = 0;
+	len = 0;
+	data_out_len -= 24;
+	while (data_out_len > 0) {
+		oid = ntohll(cp);
+		cp += 12;
+		attr_list_len = ntohl(cp);
+		cp += 4;
+		data_out_len -= 16;
+		while (attr_list_len > 0) {
+			page = ntohl(cp);
+			cp += 4;
+			number = ntohl(cp);
+			cp += 4;
+			len = ntohs(cp);
+			cp += 2;
+			ismember_attr(attrs, ARRAY_SIZE(attrs), oid, page, 
+				      number, len, cp);
+			cp += len;
+			cp += roundup8(2+len) - (2+len);
+			data_out_len -= roundup8(4+4+2+len);
+			attr_list_len -= roundup8(4+4+2+len); 
+		}
+	}
+	free(data_out);
+	osd_command_attr_free(&cmd);
+
+	/* execute list with attr, alloc length less than required */
+	ret = osd_command_set_list(&cmd, pid, 0, 200, 0, 1);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, getattr, 6);
+	assert(ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	cp = data_out;
+	assert(data_out_len == data_out_len);
+	assert(data_out_len == 200);
+	assert(ntohll(cp) == 784);
+	cp += 8;
+	assert(ntohll(cp) == 65539);
+	cp += 8;
+	assert(ntohl(cp) == 0);
+	cp += 7;
+	assert(cp[0] == (0x22 << 2));
+	cp += 1;
+	oid = 0;
+	attr_list_len = 0;
+	len = 0;
+	data_out_len -= 24;
+	while (data_out_len > 0) {
+		oid = ntohll(cp);
+		cp += 12;
+		attr_list_len = ntohl(cp);
+		cp += 4;
+		data_out_len -= 16;
+		while (attr_list_len > 0) {
+			page = ntohl(cp);
+			cp += 4;
+			number = ntohl(cp);
+			cp += 4;
+			len = ntohs(cp);
+			cp += 2;
+			ismember_attr(attrs, ARRAY_SIZE(attrs), oid, page, 
+				      number, len, cp);
+			cp += len;
+			cp += roundup8(2+len) - (2+len);
+			data_out_len -= roundup8(4+4+2+len);
+			attr_list_len -= roundup8(4+4+2+len); 
+		}
+	}
+	free(data_out);
+	osd_command_attr_free(&cmd);
+
+#if 0
+	/* execute list with attr, alloc length less than required */
+	ret = osd_command_set_list(&cmd, pid, 0, 208, 0, 1);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, getattr, 6);
+	assert(ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	cp = data_out;
+	assert(data_out_len == data_out_len);
+	assert(ntohll(cp) == 792);
+	cp += 8;
+	assert(ntohll(cp) == 0);
+	cp += 8;
+	assert(ntohl(cp) == 0);
+	cp += 7;
+	assert(cp[0] == (0x22 << 2));
+	cp += 1;
+	oid = 0;
+	attr_list_len = 0;
+	len = 0;
+	data_out_len -= 24;
+	while (data_out_len > 0) {
+		oid = ntohll(cp);
+		cp += 12;
+		attr_list_len = ntohl(cp);
+		cp += 4;
+		data_out_len -= 16;
+		while (attr_list_len > 0) {
+			page = ntohl(cp);
+			cp += 4;
+			number = ntohl(cp);
+			cp += 4;
+			len = ntohs(cp);
+			cp += 2;
+			ismember_attr(attrs, ARRAY_SIZE(attrs), oid, page, 
+				      number, len, cp);
+			cp += len;
+			cp += roundup8(2+len) - (2+len);
+			data_out_len -= roundup8(4+4+2+len);
+			attr_list_len -= roundup8(4+4+2+len); 
+		}
+	}
+	free(data_out);
+	osd_command_attr_free(&cmd);
+
+	struct test_attr complexattrs[] = {
+		{1, oid, page, number, 1, 0, NULL},
+		{1, oid, page+1, number+3, 768, 0, NULL},
+		{2, oid, page+12, number+20, 0, 5, "sudo"}, 
+		{1, oid+1, page+40, number, 56, 0, NULL},
+		{1, oid+1, page+1, number+30, 68, 0, NULL},
+		{2, oid+2, page+2, number+21, 0, 9, "deadbeef"}, 
+		{1, oid+3, page+3, number+3, 1, 0, NULL},
+		{1, oid+3, page+5, number+1, 111, 0, NULL},
+		{1, oid+3, page+7, number, 0, 1111, "sudo"}, 
+		{1, oid+3, page+2, number+45, 11, 0, NULL},
+		{1, oid+3, page+11, number+6, 111111, 0, NULL},
+		{2, oid+4, page+4, number+11, 0, 6, "milli"}, 
+		{2, oid+4, page+5, number+13, 0, 10, "kilometer"},
+		{2, oid+4, page+6, number+17, 0, 11, "hectameter"},
+		{2, oid+5, page+1, number+3, 0, 12, "zzzzzzhhhhh"}, 
+		{2, oid+5, page+2, number+2, 0, 2, "b"},
+		{1, oid+5, page+3, number+1, 6, 0, NULL},
+		{1, oid+7, page+38, number+2, 486, 0, NULL}, 
+		{1, oid+7, page+39, number+4, 586, 0, NULL},
+		{1, oid+7, page+40, number+8, 686, 0, NULL},
+		{1, oid+8, page, number, 4, 0, NULL},
+		{2, oid+9, page+12, number+2000, 0, 14, "setting these"}, 
+		{2, oid+9, page+32, number+4000, 0, 11, "attributes"},
+		{2, oid+9, page+43, number+6001, 0, 8, "made me"},
+		{2, oid+9, page+54, number+7293, 0, 12, "mad! really"}, 
+		{1, oid+10, page+1, number+3, 1234567890, 0, NULL},
+		{2, oid+10, page, number+40, 0, 6, "DelTa"},
+	};
+#endif 
+}
+
+
 int main()
 {
 	int ret = 0;
@@ -706,7 +1092,8 @@ int main()
 
 	/* test_partition(&osd); */
 	/* test_create(&osd); */
-	test_query(&osd);
+	/* test_query(&osd); */
+	test_list(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

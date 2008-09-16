@@ -6,7 +6,8 @@ Optimizations:
 Potential Bugs:
 - 	put sqlite_step statemnts in infinite loop.
 -	inconsistent return codes in osd.c
--	loosing return value due to finalize
++	loosing return value due to finalize
+	sqlite3_finalize grabs error code in case of failure
 
 Misc todos:
 -	rename osd_device to osd_hndl

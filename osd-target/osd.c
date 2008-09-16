@@ -327,20 +327,20 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense)
 	int ret;
 	char *root;
 	char path[MAXNAMELEN];
-	struct stat *buf;
+	struct stat sb;
 	
 	debug("%s: capacity %llu MB", __func__, llu(capacity >> 20));
 
 	root = strdup(osd->root); 
 	
 	sprintf(path, "%s/%s", root, dbname);
-	if(stat(path, buf) != 0){
-		debug("%s: DB does not exist, creating it", __func__);
+	if(stat(path, &sb) != 0) {
+		error_errno("%s: DB does not exist, creating it", __func__);
 		goto create;
 	}
 	
-	ret = db_close(osd);  /*don't need to call if DB is not open*/
-	if (ret){
+	ret = db_close(osd); 
+	if (ret) {
 		error("%s: DB close failed, ret %d", __func__, ret);
 		goto out_sense;
 	}

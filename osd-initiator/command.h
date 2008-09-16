@@ -135,18 +135,23 @@ int osd_command_set_write(struct osd_command *command, uint64_t pid,
  */
 int osd_command_set_cas(struct osd_command *command, uint64_t pid,
 			uint64_t oid, uint64_t len, uint64_t offset);
-
 int osd_command_set_fa(struct osd_command *command, uint64_t pid,
 		       uint64_t oid, uint64_t len, uint64_t offset);
-
 int osd_command_set_gen_cas(struct osd_command *command, uint64_t pid,
 			    uint64_t oid);
+int osd_command_set_cond_setattr(struct osd_command *command, uint64_t pid,
+				 uint64_t oid);
 
 /* Attributes */
 int osd_command_attr_build(struct osd_command *command,
 			   const struct attribute_list *const attrs, int num);
 int osd_command_attr_resolve(struct osd_command *command);
 void osd_command_attr_free(struct osd_command *command);
+
+/* Get all attributes */
+int osd_command_attr_all_build(struct osd_command *command, uint32_t page);
+int osd_command_attr_all_resolve(struct osd_command *command);
+void osd_command_attr_all_free(struct osd_command *command);
 
 /* Lists */
 int osd_command_list_resolve(struct osd_command *command);

@@ -128,7 +128,7 @@ Before the data or the GET attributes can be accessed, a call to
 resolve the attributes must be made to locate the output values.  This
 is only required if there are any ATTR_GET* attributes to process:
 
-	osd_command_attr_resolve(command)
+	osd_command_attr_resolve(command);
 
 Now to look at a particular value, you can use the pointers that
 were placed into the attribute structure.  Do not expect to use the
@@ -159,6 +159,51 @@ request returned attributes.  The attr->val you get back, then, is not
 just a single value, but a pointer to a struct attribute_get_multi_results
 that contains lists of val, outlen, and the owning oid.  That is, there
 is one returned value for each new object created.
+
+
+Command attributes, get all
+---------------------------
+Specifying a number of 0xffffffff in a attribute request tells the
+device to return all user-defined attributes in the specified page.
+If the page is also 0xffffffff, return all user-defined attributes in
+all pages.
+
+This is messy, because we may not know how many attributes there are
+in advance, hence the normal attribute code described above will not
+work cleanly.  While it is possible to mix non-all and all attribute
+get requests, this interface does not allow that, hoping that it is
+not a common thing to do.  The tradeoff is avoiding much complexity
+in the normal attribute code.
+
+This new interface, just to get all attributes of a specified page,
+looks like:
+
+	osd_command_attr_all_build(command, page);
+
+It can be applied to any command, and builds a request for the largest
+possible attribute return size (64 kB), with number 0xffffffff.  Note
+that the user does not pass in an attribute structure.
+
+Resolving the results after the command finishes happens similarly with:
+
+	osd_command_attr_all_resolve(command);
+
+Then you can see how many actually were returned by looking at
+command->numattr, and loop through the attrs as follows:
+
+	for (j=0; j<command->numattrs; j++) {
+		printf("attr %d page %lx number %lx len %x\n", j,
+		       command->attr[j].page, command->attr[j].number,
+		       command->attr[j].outlen);
+		/* look at val in command->attr[j].val */
+	}
+
+And to clean up, a special call must be used:
+
+	osd_command_attr_all_free(command);
+
+but be sure to complete accessing all the returned attribute values
+first, because they will disappear at free time.
 
 
 Sense

@@ -1088,6 +1088,178 @@ void osd_command_attr_free(struct osd_command *command)
 	free(command->attr_malloc);
 }
 
+/*
+ * All attributes can be retrieved if asking for number 0xffffffff
+ * of any page.  Further, if the page is 0xffffffff, a list of all user-defined
+ * attributes on all pages will be returned.
+ *
+ * Could try to integrate this with the rest of the attr handlers, but it
+ * would be very messy.  The number of returned entries is not known a priori.
+ * Signaling that there are more items available than for which space was
+ * requested is difficult too.  Instead we just have a specialized set of
+ * all-attribute handlers, hoping that the need to combine this sort of
+ * attribute request with others will not happen.
+ */
+int osd_command_attr_all_build(struct osd_command *command, uint32_t page)
+{
+	struct attribute_list attr = {
+		.type = ATTR_GET,
+		.page = page,
+		.number = ATTRNUM_GETALL,
+	};
+
+	/*
+	 * Always allocate max possible space for a returned list, i.e.
+	 * 16 bits worth plus an 8 byte header, but since individual entries
+	 * are padded to 8 bytes, round it down here to exactly 64kB.
+	 */
+	int len = ((1<<16) - 1 + 8) & ~7;
+
+	/*
+	 * Subtract 10 so we can borrow the ATTR_GET code from the normal
+	 * attr build function.
+	 */
+	attr.len = len - 10;
+
+	return osd_command_attr_build(command, &attr, 1);
+}
+
+/*
+ * Should have a bunch of "9 format" retrieved values.  Allocate room
+ * for a new attr structure, return that.
+ */
+int osd_command_attr_all_resolve(struct osd_command *command)
+{
+	struct attr_malloc_header *header = command->attr_malloc;
+	uint8_t *p;
+	uint64_t len;
+	uint32_t list_len;
+	int ret = -EINVAL;
+
+	if (command->inlen < header->start_retrieved)
+		goto unwind;
+
+	p = header->retrieved_buf;
+	len = command->inlen - header->start_retrieved;
+	VALGRIND_MAKE_MEM_DEFINED(p, len);
+
+	/*
+	 * Read off the header first.
+	 */
+	if (len < 8)
+		goto unwind;
+
+	if ((p[0] & 0xf) != 0x9) {
+		osd_error("%s: expecting list type 9, got 0x%x",
+			  __func__, p[0] & 0xf);
+		goto unwind;
+	}
+
+	list_len = get_ntohl(&p[4]) + 8;
+	if (list_len > len) {
+		osd_error("%s: target says it returned %u, but really %llu",
+			  __func__, list_len, llu(len));
+		goto unwind;
+	}
+	len = list_len;
+	p += 8;
+	len -= 8;
+
+	/*
+	 * First figure out how many entries were returned.
+	 */
+	command->numattr = 0;
+	for (;;) {
+		uint16_t item_len, pad;
+
+		if (len < 16u)  /* 10 header plus val plus roundup */
+			break;
+		item_len = get_ntohs(&p[8]);
+		p += 10;
+		len -= 10;
+
+		if (item_len == 0xffff)
+			osd_error("%s: target returned item_len -1", __func__);
+
+		++command->numattr;
+
+		pad = roundup8(10 + item_len) - (10 + item_len);
+		if (item_len + pad >= len)
+			break;
+
+		p += item_len + pad;
+		len -= item_len + pad;
+	}
+
+	/*
+	 * Allocate space for them.
+	 */
+	if (command->numattr == 0)
+		goto unwind;
+
+	command->attr = Malloc(command->numattr * sizeof(*command->attr));
+
+	/*
+	 * Now read it all, pointing their vals into the one big buf.
+	 */
+	p = header->retrieved_buf + 8;
+	len = list_len - 8;
+	command->numattr = 0;
+	for (;;) {
+		uint32_t page, number;
+		uint16_t item_len, pad;
+		uint16_t avail_len;
+
+		if (len < 16u)
+			break;
+		page = get_ntohl(&p[0]);
+		number = get_ntohl(&p[4]);
+		item_len = get_ntohs(&p[8]);
+		p += 10;
+		len -= 10;
+		avail_len = item_len;
+
+		/*
+		 * Ran off the end of the allocated buffer?
+		 */
+		if (avail_len > len)
+			avail_len = len;
+
+		command->attr[command->numattr].val = p;
+		command->attr[command->numattr].page = page;
+		command->attr[command->numattr].number = number;
+		command->attr[command->numattr].outlen = avail_len;
+		++command->numattr;
+
+		pad = roundup8(10 + item_len) - (10 + item_len);
+		if (item_len + pad >= len)
+			break;
+
+		p += item_len + pad;
+		len -= item_len + pad;
+	}
+	ret = 0;
+
+unwind:
+	command->outdata = header->orig_outdata;
+	command->outlen = header->orig_outlen;
+	command->iov_outlen = header->orig_iov_outlen;
+	command->indata = header->orig_indata;
+	command->inlen_alloc = header->orig_inlen_alloc;
+	command->iov_inlen = header->orig_iov_inlen;
+	if (command->inlen > command->inlen_alloc)
+		command->inlen = command->inlen_alloc;
+	return ret;
+}
+
+void osd_command_attr_all_free(struct osd_command *command)
+{
+	/* we hid the command->attr that points into attr_malloc,
+	 * instead building our own at resolve time */
+	free(command->attr);
+	osd_command_attr_free(command);
+}
+
 int osd_command_list_resolve(struct osd_command *command)
 {
 	uint8_t *p = command->indata;

@@ -258,9 +258,9 @@ static inline void get_dfile_name(char *path, const char *root,
 {
 #ifdef PVFS_OSD_INTEGRATED
 	/* go look in PVFS bstreams for file data (eventually) */
-	sprintf(path, "%s/%08x/bstream/%.8llu/%08llx.bstream", root, pid, 
-		(oid % 64), oid);
-	printf ("root = %s: collid = %d...", root, pid);
+	sprintf(path, "%s/%08llx/bstream/%.8llu/%08llx.bstream", root,
+	        llu(pid), llu(oid % 64), llu(oid));
+	printf("root = %s collid = 0x%llx\n", root, llu(pid));
 #else
 	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles,
 		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
@@ -1674,7 +1674,7 @@ static int lazy_init_attr(struct osd_device *osd, uint64_t pid, uint64_t oid,
 {
 	int ret;
 	char val[40];
-	int used_outlen;
+	uint32_t used_outlen;
 
 	if ((page != GETALLATTR_PG && number != ATTRNUM_GETALL) ||
 	    (page <= USER_ATOMICS_PG && number > 0) ||

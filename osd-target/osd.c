@@ -2367,15 +2367,14 @@ out_cdb_err:
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	      uint64_t offset, const uint8_t *dinbuf, uint8_t *sense)
 {
-	int ret = 0;
-	int fd = 0;
+	int ret;
+	int fd;
 	char path[MAXNAMELEN];
 
 	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p",
 		  __func__, llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
 
-	if (!osd || !osd->root || !osd->dbc || !dinbuf || !sense)
-		goto out_cdb_err;
+	assert(osd && osd->root && osd->dbc && dinbuf && sense);
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
@@ -2416,14 +2415,13 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,
 	    uint8_t *sense) 
 {
-	int ret = 0;
-	int present = 0;
-	uint8_t obj_type = 0;
-	uint64_t val = 0;
-	uint32_t usedlen = 0;
+	int ret;
+	int present;
+	uint8_t obj_type;
+	uint64_t val;
+	uint32_t usedlen;
 
-	if (!osd || !osd->dbc || !doutbuf || !sense)
-		goto out_cdb_err;
+	assert(osd && osd->dbc && doutbuf && sense);
 
 	ret = obj_ispresent(osd->dbc, pid, oid, &present);
 	if (ret != OSD_OK || !present) /* object not present! */
@@ -2470,14 +2468,13 @@ out_cdb_err:
 int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t add,
 	   uint8_t *doutbuf, uint64_t *used_outlen, uint8_t *sense) 
 {
-	int ret = 0;
-	int present = 0;
-	uint8_t obj_type = 0;
-	uint64_t val = 0;
-	uint32_t usedlen = 0;
+	int ret;
+	int present;
+	uint8_t obj_type;
+	uint64_t val;
+	uint32_t usedlen;
 
-	if (!osd || !osd->dbc || !doutbuf || !sense)
-		goto out_cdb_err;
+	assert(osd && osd->dbc && doutbuf && sense);
 
 	ret = obj_ispresent(osd->dbc, pid, oid, &present);
 	if (ret != OSD_OK || !present) /* object not present! */
@@ -2520,19 +2517,18 @@ out_cdb_err:
  *
  */
 int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, 
-		uint32_t page, uint32_t number, uint8_t *cmp,
-		uint16_t cmp_len, uint8_t *swap, uint16_t swap_len, 
-		void **orig_val, uint16_t *orig_len, uint8_t *sense) 
+		uint32_t page, uint32_t number, const uint8_t *cmp,
+		uint16_t cmp_len, const uint8_t *swap, uint16_t swap_len, 
+		uint8_t **orig_val, uint16_t *orig_len, uint8_t *sense) 
 {
-	int ret = 0;
-	int present = 0;
-	uint8_t obj_type = 0;
-	uint8_t *val = NULL;
-	uint32_t usedlen = 0;
+	int ret;
+	int present;
+	uint8_t obj_type;
+	uint8_t *val;
+	uint32_t usedlen;
 
-	if (!osd || !osd->dbc || !cmp || !swap || !outbuf || !used_outlen ||
-	    !sense)
-		goto out_cdb_err;
+	assert(osd && osd->dbc && cmp && swap && orig_val && orig_len &&
+	       sense);
 
 	val = malloc(ATTR_LEN_UB);
 	if (!val)
@@ -2548,7 +2544,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	ret = attr_get_val(osd->dbc, pid, oid, page, number, ATTR_LEN_UB,
 			   val, &usedlen);
-	if (ret != OSD_OK || ret != -ENOENT)
+	if (ret != OSD_OK && ret != -ENOENT)
 		goto out_hw_err;
 
 	if (ret == -ENOENT || 
@@ -2568,7 +2564,7 @@ int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		*orig_len = 0;
 	} else {
 		*orig_val = val;
-		*orig_len = usedlen
+		*orig_len = usedlen;
 	}
 	return OSD_OK;
 

@@ -15,6 +15,7 @@
 #include "target-sense.h"
 #include "cdb.h"
 #include "util/osd-util.h"
+#include "list-entry.h"
 
 /*
  * Aggregate parameters for function calls in this file.
@@ -779,14 +780,14 @@ static int cdb_cas(struct command *cmd)
 	uint8_t *cdb = cmd->cdb;
 	uint64_t pid = get_ntohll(&cdb[16]);
 	uint64_t oid = get_ntohll(&cdb[24]);
-	uint64_t len = get_ntohll(&cdb[32]); /* datain len */
+	uint64_t len = get_ntohll(&cdb[32]); /* len of cmp/swap */
 	uint64_t off = get_ntohll(&cdb[40]); /* offset in dataout */
 	uint64_t cmp, swap;
 
 	if (cmd->outdata == NULL || cmd->indata == NULL)
 		goto out_cdb_err;
 
-	if (len < 2*sizeof(swap))
+	if (len < sizeof(swap))
 		goto out_cdb_err;
 
 	/* 
@@ -857,22 +858,27 @@ out_cdb_err:
  */
 static int cdb_gen_cas(struct command *cmd)
 {
-	int ret = 0;
+	int ret;
 	uint8_t *cdb = cmd->cdb;
 	uint64_t pid = get_ntohll(&cdb[16]);
 	uint64_t oid = get_ntohll(&cdb[24]);
 	uint8_t list_type;
 	uint32_t setattr_list_len = get_ntohl(&cdb[68]);
-	uint32_t list_len = 0;
+	uint32_t list_len;
 	uint32_t list_off = get_ntohoffset(&cmd->cdb[72]);
 	const uint8_t *list_hdr = &cmd->indata[list_off];
-	uint8_t *cmp, *swap, *orig;
+	const uint8_t *cmp, *swap;
+	uint8_t *orig;
 	uint16_t cmp_len, swap_len, orig_len;
 	uint8_t pad;
 	uint8_t *outbuf = &cmd->outdata[cmd->retrieved_attr_off];
 	uint32_t page, number;
 	uint32_t alloc_len = get_ntohl(&cdb[60]);
-	uint32_t used_outlen, orig_retr_attr_off;
+	uint32_t used_outlen;
+	uint16_t len;
+	uint8_t *cp, *sp;
+	uint64_t old_retr_attr_off;
+	uint32_t orig_le_len;
 
 	if (cmd->getset_cdbfmt != GETLIST_SETLIST) 
 		goto out_cdb_err;
@@ -909,6 +915,7 @@ static int cdb_gen_cas(struct command *cmd)
 	list_hdr += LE_VAL_OFF + swap_len + pad;
 	list_len -= LE_VAL_OFF + swap_len + pad;
 
+	orig = NULL;
 	ret = osd_gen_cas(cmd->osd, pid, oid, page, number, cmp, cmp_len,
 			  swap, swap_len, &orig, &orig_len, cmd->sense);
 	if (ret != OSD_OK) {
@@ -956,8 +963,8 @@ get_attr:
 	 * list header making it the first entry.
 	 */
 
-	/* modify retrieved_attr_off and then get attr */
-	orig_retr_attr_off = cmd->retrieved_attr_off;
+	/* modify retrieved_attr_off, ignore 1st and then get attr */
+	old_retr_attr_off = cmd->retrieved_attr_off;
 	orig_le_len = roundup8(LE_VAL_OFF + orig_len);
 	cmd->retrieved_attr_off += orig_le_len;
 	cp = &cmd->outdata[cmd->retrieved_attr_off];
@@ -966,22 +973,24 @@ get_attr:
 		goto out_cdb_err;
 	set_htonl(&cdb[60], alloc_len - orig_le_len);
 	ret = get_attributes(cmd, pid, oid, 1);
+	cmd->retrieved_attr_off = old_retr_attr_off;
 	if (ret != OSD_OK)
 		goto out_err;
 	if (cp[0] != RTRVD_SET_ATTR_LIST) /* getattr list was empty */
 		cp[0] = RTRVD_SET_ATTR_LIST;
 
 	/* move header to the start of the buffer */
-	cp = &cmd->outdata[orig_retr_attr_off];
-	sp = &cmd->outdata[orig_retr_attr_off + orig_le_len];
+	cp = &cmd->outdata[old_retr_attr_off];
+	sp = &cmd->outdata[old_retr_attr_off + orig_le_len];
 	memcpy(cp, sp, LIST_HDR_LEN);
 	cp += LIST_HDR_LEN;
 
 	/* stuff original value from CAS operation */
 	if (orig != NULL && orig_len > 0) {
 		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, page, number, 
-				   orig, orig_len);
+				   orig_len, orig);
 		free(orig);
+		orig = NULL;
 	} else {
 		ret = le_pack_attr(cp, alloc_len - LIST_HDR_LEN, page, number, 
 				   NULL_ATTR_LEN, NULL);
@@ -990,22 +999,33 @@ get_attr:
 		goto out_cdb_err;
 	} else {
 		if (orig_le_len <= alloc_len - LIST_HDR_LEN)
-			assert(ret == orig_le_len);
+			assert((uint32_t)ret == orig_le_len);
 		else
-			assert(ret == alloc_len - LIST_HDR_LEN);
+			assert((uint32_t)ret == alloc_len - LIST_HDR_LEN);
 	}
 
 	/* modify list len to reflect new entry */
 	cp -= LIST_HDR_LEN;
-	len = get_ntohl(&cp[4]) + roundup8(LE_VAL_OFF + orig_len);
-	set_htonl(&cp[4], len);
+	list_len = get_ntohl(&cp[4]) + roundup8(LE_VAL_OFF + orig_len);
+	set_htonl(&cp[4], list_len);
+	cmd->get_used_outlen += list_len + 8;
 	return OSD_OK;
 
 out_cdb_err:
+	if (orig)
+		free(orig);
 	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 
+out_param_list_err:
+	if (orig)
+		free(orig);
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_PARAMETER_LIST_LENGTH_ERROR, pid,
+				 oid);
 out_err:
+	if (orig)
+		free(orig);
 	return ret;
 }
 
@@ -1291,6 +1311,7 @@ static int calc_max_out_len(struct command *cmd)
 	case OSD_QUERY:
 	case OSD_CAS:
 	case OSD_FA:
+	case OSD_GEN_CAS:
 		cmd->outlen = get_ntohll(&cmd->cdb[32]);
 		break;
 	case OSD_SET_MASTER_KEY:

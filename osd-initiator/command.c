@@ -362,6 +362,15 @@ int osd_command_set_fa(struct osd_command *command, uint64_t pid,
         return 0;
 }
 
+int osd_command_set_gen_cas(struct osd_command *command, uint64_t pid,
+			    uint64_t oid)
+{
+        varlen_cdb_init(command, OSD_GEN_CAS);
+        set_htonll(&command->cdb[16], pid);
+        set_htonll(&command->cdb[24], oid);
+	return 0;
+}
+
 /*
  * Header for internal use across attr_build to attr_resolve.  Keeps
  * the original iov structures.
@@ -394,8 +403,8 @@ int osd_command_attr_build(struct osd_command *command,
                            const struct attribute_list *attr, int numattr)
 {
 	int use_getpage;
-	int numget, numgetpage, numgetmulti, numset;
-	uint32_t getsize, getpagesize, getmultisize, setsize;
+	int numget, numgetpage, numgetmulti, numset, numresult;
+	uint32_t getsize, getpagesize, getmultisize, setsize, resultsize;
 	uint32_t getmulti_num_objects = 0;
 	struct attr_malloc_header *header;
 	uint8_t *p, *extra_out_buf, *extra_in_buf;
@@ -447,8 +456,8 @@ int osd_command_attr_build(struct osd_command *command,
 	 * Figure out what operations to do.  That will lead to constraints
 	 * on the choice of getpage/setone versus getlist/setlist format.
 	 */
-	numget = numgetpage = numgetmulti = numset = 0;
-	getsize = getpagesize = getmultisize = setsize = 0;
+	numget = numgetpage = numgetmulti = numset = numresult = 0;
+	getsize = getpagesize = getmultisize = setsize = resultsize = 0;
 	setattr_index = -1;
 	for (i=0; i<numattr; i++) {
 		if (attr[i].type == ATTR_GET) {
@@ -464,6 +473,9 @@ int osd_command_attr_build(struct osd_command *command,
 			++numset;
 			setattr_index = i;
 			setsize += roundup8(10 + attr[i].len);
+		} else if (attr[i].type == ATTR_RESULT) {
+			++numresult;
+			resultsize += roundup8(10 + attr[i].len);
 		} else {
 			osd_error("%s: invalid attribute type %d", __func__,
 			          attr[i].type);
@@ -491,6 +503,12 @@ int osd_command_attr_build(struct osd_command *command,
 		if (numset > 1) {
 			osd_error("%s: ATTR_GET_PAGE limits ATTR_SET to one",
 				  __func__);
+			return -EINVAL;
+		}
+		if (numresult) {
+			/* Only CAS uses ATTR_RESULT, which needs list fmt */
+			osd_error("%s: ATTR_RESULT not allowed with "
+				  "ATTR_GET_PAGE", __func__);
 			return -EINVAL;
 		}
 		use_getpage = 1;
@@ -583,7 +601,7 @@ int osd_command_attr_build(struct osd_command *command,
 	size_pad_indata = 0;
 	size_pad_indata_alloc = 0;
 	size_retrieved = 0;
-	if (numget || numgetpage || numgetmulti) {
+	if (numget || numgetpage || numgetmulti || numresult) {
 		start_retrieved = next_offset(end_indata);
 		size_pad_indata = start_retrieved - end_indata;
 		size_pad_indata_alloc = roundup8(size_pad_indata);
@@ -594,6 +612,11 @@ int osd_command_attr_build(struct osd_command *command,
 		if (numgetmulti)
 			size_retrieved = 8 + getmultisize * 
 					 getmulti_num_objects;
+		if (numresult) {
+			if (!size_retrieved)
+				size_retrieved += 8;
+			size_retrieved += resultsize;
+		}
 	}
 
 	extra_in = size_pad_indata + size_retrieved;

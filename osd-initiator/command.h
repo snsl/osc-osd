@@ -7,7 +7,13 @@
 /* Data Structure Definition */
 
 struct attribute_list {
-	enum { ATTR_GET, ATTR_GET_PAGE, ATTR_GET_MULTI, ATTR_SET } type;
+	enum {
+		ATTR_GET, 
+		ATTR_GET_PAGE, 
+		ATTR_GET_MULTI, 
+		ATTR_SET, 
+		ATTR_RESULT,
+	} type;
 	uint32_t page;
 	uint32_t number;
 	void *val;
@@ -132,6 +138,9 @@ int osd_command_set_cas(struct osd_command *command, uint64_t pid,
 
 int osd_command_set_fa(struct osd_command *command, uint64_t pid,
 		       uint64_t oid, uint64_t len, uint64_t offset);
+
+int osd_command_set_gen_cas(struct osd_command *command, uint64_t pid,
+			    uint64_t oid);
 
 /* Attributes */
 int osd_command_attr_build(struct osd_command *command,

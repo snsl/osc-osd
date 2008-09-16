@@ -363,7 +363,8 @@ static PyObject *pyosd_command_set_create_and_write(PyObject *self,
 	struct pyosd_command *py_command = (struct pyosd_command *) self;
 	struct osd_command *command = &py_command->command;
 	uint8_t *buf;
-	uint64_t pid, oid, len, offset = 0;
+	int len;
+	uint64_t pid, oid, offset = 0;
 
 	if (!PyArg_ParseTuple(args, "KKs#|K:set_create_and_write", &pid, &oid,
 			      &buf, &len, &offset))

@@ -1,42 +1,47 @@
 #ifndef __OBFS_H
 #define __OBFS_H
 
-#include <obfs-types.h>
+#include "obfs-types.h"
 
+/* module interface */
 int osd_open(const char *root, osd_t *osd);
-
 int osd_close(osd_t *osd);
 
-int osd_format(uint64_t cap);
-
-int osd_create(partition_id_t pid, usrobject_id_t uid, 
-	       num_of_usr_object_t num);
-
-int osd_create_partition(partition_id_t pid);
-
-int osd_create_collection(partition_id_t pid, collection_id_t cid);
-
-int osd_remove(partition_id_t pid, usrobject_id_t uid);
-
-int osd_remove_partition(partition_id_t pid);
-
-int osd_remove_collection(partition_id_t pid, collection_id_t cid);
-
-int osd_get_attr_pg(uint32_t pg, attr_len_t alloc_len, 
-		    attr_off_t ret_attr_off, void *dout_buf);
-
-int osd_set_attr(uint32_t pg, uint32_t attr_num, attr_len_t attr_len,
-		 attr_off_t off, const void *din_buf);
-
-int osd_get_attr_list(list_len_t len, list_off_t off, 
-		      list_alloc_len_t alloc_len, void *dout_buf);
-
-int osd_set_attr_list(list_off_t ret_off, list_len_t len, list_off_t off);
-
-int osd_read(partition_id_t pid, usrobject_id_t uid, object_len_t len,
-	     object_off_t start);
-
-int osd_write(partition_id_t pid, usrobject_id_t uid, object_len_t len,
-	      object_off_t start);
+/* commands */
+int osd_append(osd_t *osd, uint64_t pid, uint64_t oid, uint64_t len);
+int osd_create(osd_t *osd, uint64_t pid, uint64_t requested_oid, uint16_t num);
+int osd_create_and_write(osd_t *osd, uint64_t pid, uint64_t requested_oid,
+                         uint64_t len, uint64_t offset);
+int osd_create_collection(osd_t *osd, uint64_t pid, uint64_t requested_cid);
+int osd_create_partition(osd_t *osd, uint64_t requested_pid);
+int osd_flush(osd_t *osd, uint64_t pid, uint64_t oid, int flush_scope);
+int osd_flush_collection(osd_t *osd, uint64_t pid, uint64_t cid,
+                         int flush_scope);
+int osd_flush_osd(osd_t *osd, int flush_scope);
+int osd_flush_partition(osd_t *osd, uint64_t pid, int flush_scope);
+int osd_format(osd_t *osd, uint64_t capacity);
+int osd_get_attributes(osd_t *osd, uint64_t pid, uint64_t oid);
+int osd_get_member_attributes(osd_t *osd, uint64_t pid, uint64_t cid);
+int osd_list(osd_t *osd, uint64_t pid, uint32_t list_id, uint64_t alloc_len,
+             uint64_t initial_oid);
+int osd_list_collection(osd_t *osd, uint64_t pid, uint64_t cid,
+                        uint32_t list_id, uint64_t alloc_len,
+			uint64_t initial_oid);
+int osd_query(osd_t *osd, uint64_t pid, uint64_t cid, uint32_t query_len,
+              uint64_t alloc_len);
+int osd_read(osd_t *osd, uint64_t pid, uint64_t uid, uint64_t len,
+	     uint64_t offset);
+int osd_remove(osd_t *osd, uint64_t pid, uint64_t uid);
+int osd_remove_collection(osd_t *osd, uint64_t pid, uint64_t cid);
+int osd_remove_member_objects(osd_t *osd, uint64_t pid, uint64_t cid);
+int osd_remove_partition(osd_t *osd, uint64_t pid);
+int osd_set_attributes(osd_t *osd, uint64_t pid, uint64_t oid);
+int osd_set_key(osd_t *osd, int key_to_set, uint64_t pid, uint64_t key,
+                uint8_t seed[20]);
+int osd_set_master_key(osd_t *osd, int dh_step, uint64_t key,
+                       uint32_t param_len, uint32_t alloc_len);
+int osd_set_member_attributes(osd_t *osd, uint64_t pid, uint64_t cid);
+int osd_write(osd_t *osd, uint64_t pid, uint64_t uid, uint64_t len,
+	      uint64_t offset);
 
 #endif /* __OBFS_H */

@@ -26,12 +26,16 @@ typedef enum {
 	USEROBJECT
 } object_t;
 
+/*
+ * See osd2r00 pg 22
+ */
 typedef enum {
-	USER_PG = 0,
-	PARTITION_PG = 0x30000000,
+	USER_PG       = 0,
+	PARTITION_PG  = 0x30000000,
 	COLLECTION_PG = 0x60000000,
-	ROOT_PG = 0x90000000,
-	RESERVED_PG = 0xC0000000
+	ROOT_PG       = 0x90000000,
+	RESERVED_PG   = 0xC0000000,
+	ANY_PG        = 0xF0000000,
 } attrpg_range_t;
 
 typedef struct attr {

@@ -1,0 +1,22 @@
+--
+-- schema for OSD using sqlite3
+--
+
+-- 4.6.2: The combination of partition ID and user object ID uniquely
+-- identifies the root obect, each partition, each collection, and each
+-- user object.  Thus we store everything in this one table.
+CREATE TABLE obj (
+	pid INTEGER,
+	oid INTEGER,
+	PRIMARY KEY (pid, oid)
+);
+
+CREATE TABLE attr (
+	pid INTEGER,
+	oid INTEGER,
+	page INTEGER,
+	number INTEGER,
+	value BLOB,
+	PRIMARY KEY (pid, oid, page, number)
+);
+

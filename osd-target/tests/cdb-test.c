@@ -313,6 +313,37 @@ void test_create(struct osd_device *osd)
 
 
 /* only to be used by test_set_one_attr */
+
+static void set_one_attr_int(struct osd_device *osd, uint64_t pid, uint64_t oid, 
+			 uint32_t page, uint32_t number, uint64_t val)
+{
+	struct osd_command cmd;
+	uint8_t sense_out[OSD_MAX_SENSE];
+	int senselen_out;
+	uint8_t *data_out = NULL;
+	uint64_t data_out_len;
+	uint64_t attrval;
+	int ret;
+	struct attribute_list attr = {
+		.type = ATTR_SET,
+		.page = page,
+		.number = number,
+		.len = 8,
+		.val = &attrval,
+	};
+
+	set_htonll((uint8_t *) &attrval, val);
+	ret = osd_command_set_set_attributes(&cmd, pid, oid);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, &attr, 1);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen,
+				&data_out, &data_out_len,
+				sense_out, &senselen_out);
+	assert(ret == 0);
+	osd_command_attr_free(&cmd);
+}
+
 static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			 uint32_t page, uint32_t number, const void *val,
 			 uint16_t len)
@@ -334,12 +365,12 @@ static void set_one_attr_val(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	ret = osd_command_set_set_attributes(&cmd, pid, oid);
 	assert(ret == 0);
 	ret = osd_command_attr_build(&cmd, &attr, 1);
+
+	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen,
+				&data_out, &data_out_len,
+				sense_out, &senselen_out);
 	assert(ret == 0);
-/* 	ret = osdemu_cmd_submit(osd, cmd.cdb, cmd.outdata, cmd.outlen, */
-/* 				&data_out, &data_out_len, */
-/* 				sense_out, &senselen_out); */
-/* 	assert(ret == 0); */
-/* 	osd_command_attr_free(&cmd); */
+	osd_command_attr_free(&cmd);
 }
 
 static void test_set_one_attr (struct osd_device *osd)
@@ -362,13 +393,14 @@ static void test_set_one_attr (struct osd_device *osd)
 	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
 				&data_out_len, sense_out, &senselen_out);
 	assert(ret == 0);
-
-	set_one_attr_val(osd, pid, oid, page, 1, "88", 8);
-
-     	printf("%x \n",cmd.cdb[11] );
-
-	/* More Test To Be Done */
 	
+/* 	set_one_attr_val(osd, pid, oid, page, 1, "test", 5); */
+
+	set_one_attr_int(osd, pid, oid, page, 1, 30);
+	
+/* 	printf("cdbfmt is %x \n", cmd.cdb[11]); */
+/* 	printf("length is %x \n", cmd.cdb[60]); */
+/* 	printf("value is %x \n", cmd.cdb[62]); */
 }
 
 

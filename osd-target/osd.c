@@ -114,7 +114,8 @@ static int issettable_page(uint8_t obj_type, uint32_t page)
 {
 	int rel_page = get_rel_page(obj_type, page);
 
-	if (LUN_PG_LB <= rel_page && rel_page <= LUN_PG_UB)
+	if ((LUN_PG_LB <= rel_page && rel_page <= LUN_PG_UB) ||
+	    (rel_page == USER_INFO_PG)) /* XXX hack fix for truncate */
 		return TRUE;
 	else
 		return FALSE;
@@ -1677,7 +1678,19 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			goto out_cdb_err;
 	}
 
-	/*
+	/* XXX: dirty hack for truncate */
+	if (page == USER_INFO_PG && number == UIAP_LOGICAL_LEN) {
+		char path[MAXNAMELEN];
+		uint64_t len = ntohll_le((const uint8_t *)val);
+		get_dfile_name(path, osd->root, pid, oid);
+		ret = truncate(path, len);
+		if (ret != 0)
+			goto out_cdb_err;
+		else
+			goto out_success;
+	}
+
+	/* 
 	 * XXX:SD len == 0 is equivalent to deleting the attr. osd2r00 4.7.4
 	 * second last paragraph. only attributes with non zero length are
 	 * retrieveable

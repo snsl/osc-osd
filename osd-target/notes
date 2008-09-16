@@ -308,4 +308,15 @@ can be implemented as a sql view on page numbers 0
 
 # Fri Apr  6 11:20:06 EDT 2007
 -	profiling infrastrcture for target
--	
+
+# Sat Apr  7 17:04:08 EDT 2007
+-	configure separate placement of db and storage components
+
+# Tue Apr 10 15:11:36 EDT 2007
+-	optimize sqlite
+-	multithreading sqlite: locking transactions
+-	iSER/SRP target
+-	a new db backend?
+-	make common case fast, assume correct, recover from error. for eg. assume
+	attr and object exist, if not recover from error.
+-	use triggers

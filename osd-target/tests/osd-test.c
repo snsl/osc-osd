@@ -316,6 +316,24 @@ void test_osd_get_attributes(struct osd_device *osd)
 	test_osd_get_ccap(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB); 
 	test_osd_get_utsap(osd);
 
+	/* write to the file and then truncate using setting logical len */
+	sprintf(val, "Hello World! Get life\n");
+	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 
+			strlen(val)+1, 0, val, sense);
+	assert(ret == 0);
+
+	set_htonll_le(val, 0);
+	ret = osd_set_attributes(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 USER_INFO_PG, UIAP_LOGICAL_LEN, val, 8, TRUE,
+				 sense);
+	assert(ret == 0);
+/*
+	len = 1024;
+	ret = osd_getattr_list(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+			       USER_INFO_PG, UIAP_LOGICAL_LEN, val, len, TRUE,
+			       RTRVD_SET_ATTR_LIST, &used_len, sense);
+*/
+
 	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, sense);
 	assert(ret == 0);
 

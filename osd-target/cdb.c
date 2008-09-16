@@ -1008,11 +1008,11 @@ static int exec_getattr(struct command *cmd, uint64_t pid, uint64_t oid,
 	/* modify retrieved_attr_off, ignore 1st and then get attr */
 	old_retr_attr_off = cmd->retrieved_attr_off;
 	orig_le_len = roundup8(LE_VAL_OFF + orig_len);
+	if (alloc_len - 8 < orig_le_len) /* need space for atleast le+hdr */
+		goto out_cdb_err;
 	cmd->retrieved_attr_off += orig_le_len;
 	cp = &cmd->outdata[cmd->retrieved_attr_off];
 	memset(cp, 0, LIST_HDR_LEN);
-	if (alloc_len < orig_le_len) /* need space for atleast 1 le */
-		goto out_cdb_err;
 	set_htonl(&cdb[60], alloc_len - orig_le_len);
 	ret = get_attributes(cmd, pid, oid, 1);
 	cmd->retrieved_attr_off = old_retr_attr_off;
@@ -1048,9 +1048,10 @@ static int exec_getattr(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	/* modify list len to reflect new entry */
 	cp -= LIST_HDR_LEN;
-	list_len = get_ntohl(&cp[4]) + roundup8(LE_VAL_OFF + orig_len);
+	list_len = get_ntohl(&cp[4]) + orig_le_len;
 	set_htonl(&cp[4], list_len);
 	cmd->get_used_outlen += list_len + 8;
+	assert(cmd->get_used_outlen <= alloc_len);
 	return OSD_OK;
 
 out_cdb_err:

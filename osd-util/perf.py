@@ -464,7 +464,7 @@ def readfiles():
     if numion == -1:
 	numion = len(ionodes)
     if nummeta == -1:
-	nummeta = len(metaodes)
+	nummeta = len(metanodes)
 
 
 def allify(n):

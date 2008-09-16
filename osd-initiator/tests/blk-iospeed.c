@@ -445,7 +445,7 @@ static void *pagealign(void *b)
 
 static void usage(void)
 {
-	fprintf(stderr, "Usage: %s [--type={block|sg|bsg|pbsg}] [--parallel=N]\n",
+	fprintf(stderr, "Usage: %s [--type={block|sg|bsg|pbsg}] [--parallel=N] [--latency]\n",
 		osd_get_progname());
 	exit(1);
 }
@@ -470,17 +470,20 @@ int main(int argc, char *const *argv)
 	    .has_arg = 1,
 	    .val = 'p',
 	},
+	{
+	    .name = "latency",
+	    .val = 'l',
+	},
 	{ .name = NULL }
 	};
 
-	const int iters = 1000;
-	const int maxsize = 512 * 1024;
-	int bursts = iters;
+	int maxsize, iters, bursts;
+	int latency = 0;
 
 	osd_set_progname(argc, argv);
 
 	for (;;) {
-		i = getopt_long(argc, argv, "t:p:", opt, NULL);
+		i = getopt_long(argc, argv, "t:p:l", opt, NULL);
 		switch (i) {
 		case -1:
 			break;
@@ -492,6 +495,9 @@ int main(int argc, char *const *argv)
 			break;
 		case 'p':
 			pbsg_parallelism = atoi(optarg);
+			break;
+		case 'l':
+			latency = 1;
 			break;
 		}
 		if (i == -1)
@@ -510,7 +516,6 @@ int main(int argc, char *const *argv)
 	} else if (!strcmp(type, "pbsg")) {
 		write_bw = pbsg_write_bw;
 		read_bw = pbsg_read_bw;
-		bursts = 10;
 	} else
 		usage();
 
@@ -518,6 +523,18 @@ int main(int argc, char *const *argv)
 	    printf("# %s type %s %d\n", osd_get_progname(), type, pbsg_parallelism);
 	else
 	    printf("# %s type %s\n", osd_get_progname(), type);
+
+	if (latency) {
+		maxsize = 10 * 1024;
+		iters = 1000;
+	} else {
+		maxsize = 512 * 1024;
+		iters = 1000;
+	}
+
+	bursts = iters;
+	if (!strcmp(type, "pbsg"))
+		bursts = 10;
 
 	b = malloc(iters * sizeof(*b));
 	x = malloc(maxsize + getpagesize());
@@ -531,24 +548,55 @@ int main(int argc, char *const *argv)
 	if (pbsg_parallelism > bursts)
 		pbsg_parallelism = bursts;
 
-	for (sz = 4096; sz <= maxsize; sz += 4096) {
-		write_bw(iters, bursts, sz);
-		for (i = 0; i < bursts; i++)
-			b[i] = sz / (b[i] / mhz);
-		mu = mean(b, bursts);
-		sd = stddev(b, mu, bursts);
-		printf("write\t %3d %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
-	}
+	if (latency) {
+		int step = 16;
+		for (sz = 0; sz <= maxsize; sz += step) {
+			if (!strcmp(type, "block"))  /* O_DIRECT */
+				if (sz == 0 || (sz % 512) != 0)
+					continue;
+			write_bw(iters, bursts, sz);
+			for (i = 0; i < bursts; i++)
+				b[i] /= mhz;  /* time in us */
+			mu = mean(b, bursts);
+			sd = stddev(b, mu, bursts);
+			printf("write\t %3d %7.3lf +- %7.3lf\n", sz, mu, sd);
+		}
 
-	printf("\n\n");
+		printf("\n\n");
 
-	for (sz = 4096; sz <= maxsize; sz += 4096) {
-		read_bw(iters, bursts, sz);
-		for (i = 0; i < bursts; i++)
-			b[i] = sz / (b[i] / mhz);
-		mu = mean(b, bursts);
-		sd = stddev(b, mu, bursts);
-		printf("read\t %3d %7.3lf +- %7.3lf\n", sz>>10, mu, sd);
+		for (sz = 0; sz <= maxsize; sz += step) {
+			if (!strcmp(type, "block"))  /* O_DIRECT */
+				if (sz == 0 || (sz % 512) != 0)
+					continue;
+			read_bw(iters, bursts, sz);
+			for (i = 0; i < bursts; i++)
+				b[i] /= mhz;
+			mu = mean(b, bursts);
+			sd = stddev(b, mu, bursts);
+			printf("read\t %3d %7.3lf +- %7.3lf\n", sz, mu, sd);
+		}
+	} else {
+		for (sz = 4096; sz <= maxsize; sz += 4096) {
+			write_bw(iters, bursts, sz);
+			for (i = 0; i < bursts; i++)
+				b[i] = sz / (b[i] / mhz);  /* bw in MB/s */
+			mu = mean(b, bursts);
+			sd = stddev(b, mu, bursts);
+			printf("write\t %3d %7.3lf +- %7.3lf\n", sz>>10,
+			       mu, sd);
+		}
+
+		printf("\n\n");
+
+		for (sz = 4096; sz <= maxsize; sz += 4096) {
+			read_bw(iters, bursts, sz);
+			for (i = 0; i < bursts; i++)
+				b[i] = sz / (b[i] / mhz);
+			mu = mean(b, bursts);
+			sd = stddev(b, mu, bursts);
+			printf("read\t %3d %7.3lf +- %7.3lf\n",
+			       sz>>10, mu, sd);
+		}
 	}
 
 	free(b);

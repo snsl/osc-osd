@@ -1,9 +1,14 @@
+#define _GNU_SOURCE  /* O_DIRECTORY */
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
+#include "obfs.h"
 #include "attr-mgmt-sqlite.h"
 
 int osd_open(const char *root, osd_t *osd)
@@ -30,10 +35,14 @@ int osd_open(const char *root, osd_t *osd)
 
 int osd_close(osd_t *osd)
 {
-	return osd_close(osd);
+	int ret;
+	
+	ret = attrdb_close(osd);
 	free(osd->root);
+	return ret;
 }
 
 int osd_format(osd_size_t cap)
 {
+	return 0;
 }

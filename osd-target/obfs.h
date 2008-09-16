@@ -3,11 +3,11 @@
 
 #include <obfs-types.h>
 
+int osd_open(const char *root, osd_t *osd);
+
+int osd_close(osd_t *osd);
+
 int osd_format(osd_size_t cap);
-
-int osd_open();
-
-int osd_close();
 
 int osd_create(partition_id_t pid, usrobject_id_t uid, 
 	       num_of_usr_object_t num);
@@ -26,7 +26,7 @@ int osd_get_attr_pg(attr_pgnum_t pg, attr_len_t alloc_len,
 		    attr_off_t ret_attr_off, void *dout_buf);
 
 int osd_set_attr(attr_pgnum_t pg, attr_num_t attr_num, attr_len_t attr_len,
-		 attr_off_t off, void *din_buf);
+		 attr_off_t off, const void *din_buf);
 
 int osd_get_attr_list(list_len_t len, list_off_t off, 
 		      list_alloc_len_t alloc_len, void *dout_buf);

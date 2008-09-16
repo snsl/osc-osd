@@ -135,7 +135,7 @@ int attrdb_drop_object_attr_tab(void *dbh, object_id_t id)
 }
 
 int attrdb_set_attr(void *dbh, object_id_t id, attr_pgnum_t pg, 
-		    attr_num_t num, attr_val_len_t len, void *val)
+		    attr_num_t num, attr_val_len_t len, const void *val)
 {
 	int ret = 0;
 	char SQL[MAXSQLEN];
@@ -253,7 +253,8 @@ int attrdb_get_attr_page(void *dbh, object_id_t id, attr_pgnum_t pg,
 		}
 		/* retrieve attr in list entry format; tab 129 Sec 7.1.3.3 */
 		it_len = ((list_entry_t *)outbuf)->len + ATTR_T_DSZ;
-		len -= it_len, outbuf += it_len;
+		len -= it_len;
+		outbuf = (char *) outbuf + it_len;
 	}
 	if (ret != SQLITE_DONE)
 		return attrdb_errstmt(sqlite3_errmsg(dbp), stmt, -1);

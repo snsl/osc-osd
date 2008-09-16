@@ -20,7 +20,7 @@ int main()
 	if (ret != 0)
 		return ret;
 
-	char *attr = "This is first attr";
+	const char *attr = "This is first attr";
 	ret = attrdb_set_attr(dbh, 1, 1, 2, strlen(attr), attr);
 	if (ret != 0)
 		return ret;

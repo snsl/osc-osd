@@ -40,7 +40,9 @@ int osd_flush_osd(struct osd_device *osd, int flush_scope, uint8_t *sense);
 int osd_flush_partition(struct osd_device *osd, uint64_t pid, int flush_scope,
                         uint8_t *sense);
 int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint8_t *sense);
-int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,                             uint8_t *sense);
+int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
+                       uint32_t page, uint32_t number, void *outbuf, 
+		       uint16_t len, int getpage, uint8_t *sense);
 int osd_get_member_attributes(struct osd_device *osd, uint64_t pid,
 			      uint64_t cid, uint8_t *sense);
 int osd_list(struct osd_device *osd, uint64_t pid, uint32_t list_id,

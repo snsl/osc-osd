@@ -372,14 +372,30 @@ out:
 
 
 int osd_get_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
-                       uint32_t page, uint32_t number, void *outbuf,
-		       uint8_t *sense)
+                       uint32_t page, uint32_t number, void *outbuf, 
+		       uint16_t len, int getpage, uint8_t *sense)
 {
 	int ret = 0;
 
 	debug("%s: get attr for (%llu, %llu)", __func__, llu(pid), llu(oid));
 	
-	return 0;
+	if (getpage == 1) {
+		ret = attr_get_attr_page(osd->db, pid, oid, page, outbuf, len);
+		if (ret != 0) 
+			goto out_build_sense;
+	} else {
+		ret = attr_get_attr(osd->db, pid, oid, page, number, 
+				    outbuf, len);
+		if (ret != 0)
+			goto out_build_sense;
+	}
+	return 0; /* success */
+
+out_build_sense:
+	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
+			      OSD_ASC_INVALID_FIELD_IN_PARAMETER_LIST, 
+			      pid, oid);
+	return ret;
 }
 
 
@@ -581,6 +597,18 @@ test_number:
 			goto out_cdb;
 	}
 
+	/* 
+	 * len == 0 is equivalent to deleting the attr. osd2r00 4.7.4 second
+	 * last paragraph. only attributes with non zero length are
+	 * retrieveable 
+	 */
+	if (len == 0) {
+		ret = attr_delete_attr(osd->db, pid, oid, page, number);
+		if (ret != 0)
+			goto out_cdb;
+		return ret; /* success */
+	}
+
 	ret = attr_set_attr(osd->db, pid, oid, page, number, val, len);
 	if (ret != 0) {
 		ret = sense_build_sdd(sense, OSD_SSK_HARDWARE_ERROR,
@@ -599,7 +627,6 @@ out_cdb:
 	ret = sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			      OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 	return ret;
-
 }
 
 

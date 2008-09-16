@@ -119,7 +119,13 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 	case OSD_GET_ATTRIBUTES: {
 		uint64_t pid = ntohll(&cdb[16]);
 		uint64_t oid = ntohll(&cdb[24]);
-		ret = osd_get_attributes(osd, pid, oid, sense);
+		uint32_t page = 0; /* XXX: fillme */
+		uint32_t number = 0; /* XXX: fillme */
+		void *outbuf = NULL; /* XXX: fillme */
+		uint16_t len = 0; /* XXX: fillme */
+		int getpage = 0; /* XXX: fillme */
+		ret = osd_get_attributes(osd, pid, oid, page, number, outbuf,
+					 len, getpage, sense);
 		break;
 	}
 	case OSD_GET_MEMBER_ATTRIBUTES: {

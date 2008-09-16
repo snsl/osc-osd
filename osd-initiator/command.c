@@ -805,9 +805,12 @@ int osd_command_attr_build(struct osd_command *command,
 					++len;
 				}
 			}
+			/*
+			 * osd2r3 7.1.3.1 says client should set list length
+			 * to 0; value in CDB is what matters.
+			 */
+			memset(p, 0, 8);
 			p[0] = 0x9;
-			p[1] = p[2] = p[3] = 0;
-			set_htonl(&p[4], setsize);
 		}
 		p += size_setlist;
 	}
@@ -827,9 +830,8 @@ int osd_command_attr_build(struct osd_command *command,
 			set_htonl(&q[4], attr[i].number);
 			q += 8;
 		}
+		memset(p, 0, 8);
 		p[0] = 0x1;
-		p[1] = p[2] = p[3] = 0;
-		set_htonl(&p[4], (numget + numgetmulti) * 8);
 		p += size_getlist;
 	}
 	/* no padding at the end of the getlist */

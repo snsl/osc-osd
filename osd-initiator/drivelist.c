@@ -37,7 +37,7 @@
 static char *osd_get_drive_serial(int fd)
 {
 	struct osd_command command;
-	char *s, buf[80];
+	char *s, *p, buf[80];
 	int ret;
 	unsigned int len;
 
@@ -60,10 +60,22 @@ static char *osd_get_drive_serial(int fd)
 		return NULL;
 	if (len < command.inlen - 4)
 		len = command.inlen - 4;
+	/* trim spaces left and right */
+	p = &buf[4];
+	while (len > 0 && *p == ' ') {
+		++p;
+		--len;
+	}
+	if (len == 0)
+		return NULL;
+	while (len > 0 && p[len-1] == ' ')
+		--len;
+	if (len == 0)
+		return NULL;
 	s = malloc(len + 1);
 	if (!s)
 		return NULL;
-	memcpy(s, &buf[4], len);
+	memcpy(s, p, len);
 	s[len] = '\0';
 
 	return s;

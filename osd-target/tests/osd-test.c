@@ -16,6 +16,7 @@
 #include "obj.h"
 #include "util/util.h"
 #include "util/osd-sense.h"
+#include "target-sense.h"
 
 void test_osd_create(struct osd_device *osd);
 void test_osd_set_attributes(struct osd_device *osd);

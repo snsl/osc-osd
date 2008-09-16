@@ -237,8 +237,8 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 		ret = -EIO;
 		goto out_finalize;
 	} else if (found == 0) {
-		osd_error("%s: attr (%llu %llu %u %u) not found", __func__,
-		      llu(pid), llu(oid), page, number);
+		osd_debug("%s: attr (%llu %llu %u %u) not found", __func__,
+		          llu(pid), llu(oid), page, number);
 		ret = -ENOENT;
 		goto out_finalize;
 	}

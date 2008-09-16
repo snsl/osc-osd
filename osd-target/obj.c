@@ -16,6 +16,7 @@ int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t type)
 	int ret = 0;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
+	int exists = 0;
 
 	if (db == NULL)
 		return -EINVAL;
@@ -44,8 +45,9 @@ int obj_insert(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t type)
 
 	ret = sqlite3_step(stmt);
 	if (ret != SQLITE_DONE) {
-		error_sql(db, "%s: object %llu %llu exists!", __func__,
+		osd_debug("%s: object %llu %llu exists", __func__,
 			  llu(pid), llu(oid));
+		exists = 1;
 		goto out_finalize;
 	} 
 
@@ -57,9 +59,9 @@ out_finalize:
 	 */
 	ret = sqlite3_finalize(stmt); 
 	if (ret != SQLITE_OK) {
-		if (ret == SQLITE_CONSTRAINT)
-			ret = -EEXIST;
-		error_sql(db, "%s: finalize", __func__);
+		if (!(ret == SQLITE_CONSTRAINT || exists))
+			error_sql(db, "%s: finalize", __func__);
+		ret = -EEXIST;
 	}
 	
 out:

@@ -371,6 +371,15 @@ int osd_command_set_gen_cas(struct osd_command *command, uint64_t pid,
 	return 0;
 }
 
+int osd_command_set_cond_setattr(struct osd_command *command, uint64_t pid,
+				 uint64_t oid)
+{
+        varlen_cdb_init(command, OSD_COND_SETATTR);
+        set_htonll(&command->cdb[16], pid);
+        set_htonll(&command->cdb[24], oid);
+	return 0;
+}
+
 /*
  * Header for internal use across attr_build to attr_resolve.  Keeps
  * the original iov structures.

@@ -700,7 +700,7 @@ static void exec_service_action(struct command *cmd)
 int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		      uint8_t *data_in, uint64_t data_in_len,
 		      uint8_t **data_out, uint64_t *data_out_len,
-		      uint8_t **sense_out, uint8_t *senselen_out)
+		      uint8_t *sense_out, int *senselen_out)
 {
 	int ret = 0;
 	struct command cmd = {
@@ -779,11 +779,8 @@ out:
 		return SAM_STAT_GOOD;
 	} else {
 		/* valid sense data, length is ret, maybe good data too */
-		*sense_out = Malloc(cmd.senselen);
-		if (*sense_out) {
-			*senselen_out = cmd.senselen;
-			memcpy(*sense_out, cmd.sense, cmd.senselen);
-		}
+		*senselen_out = cmd.senselen;
+		memcpy(sense_out, cmd.sense, cmd.senselen);
 		return SAM_STAT_CHECK_CONDITION;
 	}
 }

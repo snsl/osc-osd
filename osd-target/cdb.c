@@ -135,6 +135,12 @@ static void get_attributes(struct command *command)
 				pid, oid);
 			return;
 		}
+
+		/* start with the response list header */
+		outdata[0] = 0x9;
+		outdata[1] = 0;
+		command->get_used_outlen = 4;
+
 		for (i=0; i<num_list_items; i++) {
 			uint32_t page = ntohl(&list_header[4 + i*8 + 0]);
 			uint32_t number = ntohl(&list_header[4 + i*8 + 4]);
@@ -160,6 +166,9 @@ static void get_attributes(struct command *command)
 			       &attr_val, attr_len);
 			command->get_used_outlen += need_len;
 		}
+
+		/* update actual length generated */
+		set_htons(&outdata[2], command->get_used_outlen - 4);
 	}
 }
 

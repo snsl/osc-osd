@@ -10,6 +10,22 @@
 #include "db.h"
 #include "attr.h"
 #include "util/util.h"
+#include "list-entry.h"
+
+/*
+ * XXX: to avoid repeated mallocs, create this hack. a cleaner/clever
+ * interface with list-entry will avoid this
+ */
+struct blob_holder {
+	void *buf;
+	size_t sz;
+};
+
+static struct blob_holder attr_blob = {
+	.buf = NULL,
+	.sz = 0,
+};
+
 
 int attr_set_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page, 
 		  uint32_t number, const void *val, uint16_t len)
@@ -112,37 +128,40 @@ int attr_delete_all(sqlite3 *db, uint64_t pid, uint64_t oid)
 
 	return ret;
 }
-
 /* 
  * Gather the results into list_entry format. Each row has page, number, len,
  * value. Look at queries in attr_get_attr attr_get_attr_page.  See page 163.
- * Returns: 
- * -EOVERFLOW : if not enough room to even start the entry
- * > 0: for number of bytes copied into outbuf.
+ *
+ * -EINVAL: error
+ * -EOVERFLOW: error, if not enough room to even start the entry
+ * >0: success. returns number of bytes copied into outbuf.
  */
-static int32_t attr_gather_attr(sqlite3_stmt *stmt, void *buf, uint32_t len)
+static int attr_gather_attr(sqlite3_stmt *stmt, void *buf, uint32_t buflen,
+			    uint64_t oid, uint8_t listfmt)
 {
-	int32_t valen;
-	list_entry_t *ent = buf;
+	int ret = 0;
+	uint8_t *cp = buf;
+	uint32_t page = sqlite3_column_int(stmt, 0);
+	uint32_t number = sqlite3_column_int(stmt, 1);
+	uint16_t len = sqlite3_column_bytes(stmt, 2);
 
-	/* need at least 10 bytes for the page, number, value len fields */
-	if (len < ATTR_VAL_OFFSET)
-		return -EOVERFLOW;
+	if (attr_blob.sz < len) {
+		free(attr_blob.buf);
+		attr_blob.sz = len + ((0x8 - (len & 0x7)) & 0x7);
+		attr_blob.buf = Malloc(attr_blob.sz);
+		if (!attr_blob.buf)
+			return -ENOMEM;
+	}
+	memcpy(attr_blob.buf, sqlite3_column_blob(stmt, 2), len);
 
-	set_htonl_le((uint8_t *)&(ent->page), sqlite3_column_int(stmt, 0));
-	set_htonl_le((uint8_t *)&(ent->number), sqlite3_column_int(stmt, 1));
-
-	/* length field is not modified to reflect truncation */
-	valen = sqlite3_column_bytes(stmt, 2);
-	set_htons_le((uint8_t *)&(ent->len), valen);
-
-	len -= ATTR_VAL_OFFSET;
-	if ((uint32_t)valen > len)
-		valen = len;
-	memcpy((uint8_t *)ent + ATTR_VAL_OFFSET, sqlite3_column_blob(stmt, 2),
-	       valen);
-
-	return valen + ATTR_VAL_OFFSET; 
+	if (listfmt == RTRVD_SET_ATTR_LIST)
+		return le_pack_attr(buf, buflen, page, number, len, 
+				    attr_blob.buf);
+	else if (listfmt == RTRVD_CREATE_ATTR_LIST)
+		return le_multiobj_pack_attr(buf, buflen, oid, page, number, 
+					     len, attr_blob.buf);
+	else
+		return -EINVAL;
 }
 
 /* 40 bytes including terminating NUL */
@@ -151,18 +170,22 @@ static const char unidentified_page_identification[40]
 
 /*
  * get one attribute in list format.
- * < 0: error, used_outlen not modified, 
+ *
+ * -EINVAL, -EIO: error, used_outlen = 0.
+ * -ENOENT: error, attribute not found
  * ==0: success, used_outlen modified
  */
 int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page, 
 		  uint32_t number, void *outbuf, uint64_t outlen, 
-		  uint32_t *used_outlen)
+		  uint8_t listfmt, uint32_t *used_outlen)
 {
-	int ret = -EINVAL, found;
+	int ret = -EINVAL, found = 0;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
-	if (db == NULL || outbuf == NULL)
+	*used_outlen = 0;
+
+	if (!db || !outbuf || !used_outlen)
 		return -EINVAL;
 
 	sprintf(SQL, "SELECT page, number, value FROM attr WHERE"
@@ -196,15 +219,17 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 
 	found = 0;
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		/* 
-		 * not testing for duplicate rows, since duplicate rows
-		 * violate unique constraint of db
-		 */
+		/* duplicate rows violate unique constraint of db */
+		assert(found == 0);
+
 		found = 1;
-		ret = attr_gather_attr(stmt, outbuf, outlen);
-		if (ret < 0)
+		ret = attr_gather_attr(stmt, outbuf, outlen, oid, listfmt);
+		if (ret == -EOVERFLOW)
+			*used_outlen = 0; /* the list-entry is not filled */
+		else if (ret > 0)
+			*used_outlen = ret;
+		else
 			goto out_finalize;
-		*used_outlen = ret;
 	}
 
 	if (ret != SQLITE_DONE) {
@@ -214,7 +239,7 @@ int attr_get_attr(sqlite3 *db, uint64_t pid, uint64_t oid, uint32_t page,
 	} else if (found == 0) {
 		osd_error("%s: attr (%llu %llu %u %u) not found", __func__,
 		      llu(pid), llu(oid), page, number);
-		ret = -EEXIST;
+		ret = -ENOENT;
 		goto out_finalize;
 	}
 
@@ -236,29 +261,23 @@ out:
 	return ret;
 }
 
-/*
- * This function can only be used for pages that have a defined
- * format.  Those appear to be only:
- *    quotas:          root,partition,userobj
- *    timestamps:      root,partition,collection,userobj
- *    policy/security: root,partition,collection,userobj
- *    collection attributes: userobj (shows membership)
- *    current command
- *    null
+/* 
+ * get one page in list format
  *
  * returns: 
- * < 0: error, used_outlen not modified, 
+ * -EINVAL, -EIO: error, used_outlen not modified
+ * -ENOENT: error, page not found
  * ==0: success, used_outlen modified
  */
-int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
-		       uint32_t page, void *outbuf, uint64_t outlen,
-		       uint32_t *used_outlen)
+int attr_get_page_as_list(sqlite3 *db, uint64_t pid, uint64_t  oid,
+			  uint32_t page, void *outbuf, uint64_t outlen,
+			  uint8_t listfmt, uint32_t *used_outlen)
 {
 	int ret = -EINVAL, found = 0;
 	char SQL[MAXSQLEN];
 	sqlite3_stmt *stmt = NULL;
 
-	if (db == NULL || outbuf == NULL)
+	if (!db || !outbuf || !used_outlen)
 		return -EINVAL;
 
 	sprintf(SQL, "SELECT * FROM attr"
@@ -285,15 +304,16 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 		goto out_finalize;
 	}
 
+	found = 0;
+	*used_outlen = 0;
 	while ((ret = sqlite3_step(stmt)) == SQLITE_ROW) {
-		ret = attr_gather_attr(stmt, outbuf, outlen);
-		if (ret < 0 && found == 0) {
+		ret = attr_gather_attr(stmt, outbuf, outlen, oid, listfmt);
+		if (ret == -EINVAL)
 			goto out_finalize;
-		} else if (ret < 0 && found != 0) {
-			goto report_success;
-		}
+		else if (ret == -EOVERFLOW) 
+			goto out_success; /* osd2r00 Sec 5.2.2.2 */
 
-		/* retrieve attr in list entry format; tab 129 Sec 7.1.3.3 */
+		assert(ret > 0);
 		outlen -= ret;
 		*used_outlen += ret;
 		outbuf = (char *) outbuf + ret;
@@ -306,11 +326,11 @@ int attr_get_attr_page(sqlite3 *db, uint64_t pid, uint64_t  oid,
 	} else if (found == 0) {
 		osd_error("%s: attr (%llu %llu %u ) not found", __func__,
 		      llu(pid), llu(oid), page);
-		ret = -EEXIST;
+		ret = -ENOENT;
 		goto out_finalize;
 	}
 
-report_success:
+out_success:
 	ret = 0; /* success */
 
 out_finalize:
@@ -322,4 +342,27 @@ out_finalize:
 
 out:
 	return ret;
+}
+
+/*
+ * get all attributes in a list format
+ *
+ * returns: 
+ * -EINVAL, -EIO: error, used_outlen not modified
+ * ==0: success, used_outlen modified
+ */
+int attr_get_all_attrs(sqlite3 *db, uint64_t pid, uint64_t  oid, void *outbuf,
+		       uint64_t outlen, uint8_t listfmt, 
+		       uint32_t *used_outlen)
+{
+	/* TODO: */
+	return 0;
+}
+
+int attr_get_for_all_pages(sqlite3 *db, uint64_t pid, uint64_t  oid, 
+			   uint32_t number, void *outbuf, uint64_t outlen,
+			   uint8_t listfmt, uint32_t *used_outlen)
+{
+	/* TODO: */
+	return 0;
 }

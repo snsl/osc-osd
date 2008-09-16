@@ -94,6 +94,7 @@ What is the meaning of the following (p21):
 With the exception of attributes pages in the attributes page number range
 assigned to any OSD object types, the same attributes page shall not be
 associated with more than one OSD object type.
+
 Two object types cannot share same page number but two objects can.
 
 #if 0 /* > 3.8.8 of sqlite */
@@ -140,11 +141,11 @@ EBUSY. in future keep sqlite3_step in a infinite loop
 # Fri Jan 26 11:03:52 EST 2007
 - 	put sqlite_step statemnts in infinite loop.
 -	consistent return codes
--	single makefile for tests and libosd
++	single makefile for tests and libosd
 -	make rules for dependencies
--	defines for ROOT_OBJECT, ROOT_PARTITION
++	defines for ROOT_OBJECT, ROOT_PARTITION
 -	osd_device to osd_hndl
--	change obj tab, include type of object being created
++	change obj tab, include type of object being created
 
 # Mon Jan 29 12:39:02 EST 2007
 -	prepare frequently used statements and store them. Make a list of
@@ -161,9 +162,9 @@ writable flags to prevent certain directory pages to be modified. directories
 can be implemented as a sql view on page numbers 0
 
 # Wed Jan 31 14:26:19 EST 2007
-need sense.c which builds sense, since both cdb and osd want to construct
-sense.
++	need sense.c which builds sense, since both cdb and osd want to construct
+	sense.
 
 # Thu Feb  1 14:53:38 EST 2007
-implement error_fatal as a separate function.
++	implement error_fatal as a separate function.
 

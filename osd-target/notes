@@ -103,3 +103,22 @@ Two object types cannot share same page number but two objects can.
 		return -1;
 	}
 #endif
+
+# Mon Jan 22 12:15:56 EST 2007
+prepare functions for most used sql stmt. look at reset, since bound var
+still retain their values.
+get_all_attr in a page
+move create partition to obfs.c
+remove delete object code from attr
+rename attr-* to attr.c
+change uint64_t to use typedefs
+mv db code to db.c
+mv tab code to obj.c and attr.c
+mv obfs to osd
+rm init_attr, use attr_t with len = 0;
+clean finalize code
+
+-	p23, attr number FFFFFFFFh gets all attr for a page
+-	p23, p87, p112: No explicit call to delete an object's attribute. only
+	thing possible is to set an attribute's length to 0. Since only
+	attributes with non-zero length can be retrieved.

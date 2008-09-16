@@ -1,10 +1,10 @@
+#ifndef __OBJ_H
+#define __OBJ_H
 
+#include "osd-types.h"
 
-struct object {
-	uint64_t pid;
-	uint64_t oid;
-};
+obj_id_t *obj_lookup(osd_t *osd, uint64_t pid, uint64_t oid);
+int obj_insert(osd_t *osd, uint64_t pid, uint64_t oid);
+int obj_delete(osd_t *osd, uint64_t pid, uint64_t oid);
 
-struct object *obj_lookup(struct osd *osd, uint64_t pid, uint64_t oid);
-int obj_insert(struct osd *osd, uint64_t pid, uint64_t oid);
-void obj_free(struct object *obj);
+#endif /* __OBJ_H */

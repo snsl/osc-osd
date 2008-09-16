@@ -1,5 +1,5 @@
-#ifndef __OBFS_TYPES_H
-#define __OBFS_TYPES_H
+#ifndef __OSD_TYPES_H
+#define __OSD_TYPES_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -24,7 +24,7 @@ typedef enum {
 	PARTITION,
 	COLLECTION,
 	USEROBJECT
-} object_t;
+} typeof_obj_t;
 
 /*
  * See osd2r00 pg 22
@@ -38,14 +38,31 @@ typedef enum {
 	ANY_PG        = 0xF0000000,
 } attrpg_range_t;
 
+typedef struct object {
+	uint64_t pid;
+	uint64_t oid;
+} obj_id_t;
+
 typedef struct attr {
-	uint32_t pgnum;
-	uint32_t num;
+	uint32_t page;
+	uint32_t number;
 	uint16_t len;
 	void *val;
 } attr_t;
 typedef  attr_t list_entry_t;
 #define ATTR_T_DSZ (offsetof(attr_t , val))
+
+/*
+ * Things that go as attributes on the root page.
+ * XXX: on second thought, don't stick these in the db, just return
+ * them as needed programatically.  There's plenty of other variable
+ * ones that can't live in the db (clock, #objects, capacity used).
+ */
+struct init_attr {
+	uint32_t page;
+	uint32_t number;
+	const char *s;
+};
 
 #define MAXSQLEN (2048UL)
 #define MAXNAMELEN (256UL)
@@ -56,4 +73,4 @@ typedef struct osd {
 	void *db;
 } osd_t;
 
-#endif /* __OBFS_TYPES_H */
+#endif /* __OSD_TYPES_H */

@@ -7,10 +7,13 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-#include "obfs.h"
-#include "attr-mgmt-sqlite.h"
+#include "osd.h"
+#include "db.h"
+#include "attr.h"
 #include "util.h"
 #include "obj.h"
+
+const char *dbname = "osd.db";
 
 /*
  * Module interface
@@ -18,16 +21,15 @@
 int osd_open(const char *root, osd_t *osd)
 {
 	int ret;
-	char dbname[MAXNAMELEN];
+	char path[MAXNAMELEN];
 	struct stat sb;
-	struct object *obj;
 
 	if (strlen(root) > MAXROOTLEN) {
 		ret = -ENAMETOOLONG;
 		goto out;
 	}
 
-	/* test if it exists and is a directory */
+	/* test if root exists and is a directory */
 	ret = stat(root, &sb);
 	if (ret == 0) {
 		if (!S_ISDIR(sb.st_mode)) {
@@ -37,7 +39,6 @@ int osd_open(const char *root, osd_t *osd)
 			goto out;
 		}
 	} else {
-
 		if (errno != ENOENT) {
 			fprintf(stderr, "%s: stat root %s: %m\n",
 			        __func__, root);
@@ -56,21 +57,14 @@ int osd_open(const char *root, osd_t *osd)
 
 	/* auto-creates db if necessary, and sets osd->db */
 	osd->root = strdup(root);
-	sprintf(dbname, "%s/attr.db", root);
-	ret = attrdb_open(dbname, osd);
+	sprintf(path, "%s/%s", root, dbname);
+	ret = db_open(path, osd);
 	if (ret < 0)
 		goto out;
 
-	/* if it was initially empty, create root object and partition zero */
-	obj = obj_lookup(osd, 0, 0);
-	if (!obj) {
-		ret = obj_insert(osd, 0, 0);
-		if (ret)
-			goto out;
-	}
-
-	if (obj)
-		obj_free(obj);
+	ret = obj_insert(osd, 0, 0);
+	if (ret == EEXIST)
+		ret = 0;
 out:
 	return ret;
 }
@@ -79,7 +73,7 @@ int osd_close(osd_t *osd)
 {
 	int ret;
 	
-	ret = attrdb_close(osd);
+	ret = db_close(osd);
 	free(osd->root);
 	return ret;
 }
@@ -115,11 +109,42 @@ int osd_create_collection(osd_t *osd, uint64_t pid, uint64_t requested_cid)
 	return 0;
 }
 
+static struct init_attr partition_info[] = {
+	{ PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory" },
+	{ PARTITION_PG + 0, PARTITION_PG + 1,
+		"INCITS  T10 Partition Information" },
+	{ PARTITION_PG + 1, 0, "INCITS  T10 Partition Information" },
+};
 
 int osd_create_partition(osd_t *osd, uint64_t requested_pid)
 {
-	debug(__func__);
-	return 0;
+	int i, ret;
+
+	if (requested_pid != 0) {
+		/*
+		 * Partition zero does not have an entry in the obj db; those
+		 * are only for user-created partitions.
+		 */
+		ret = obj_insert(osd, requested_pid, 0);
+		if (ret)
+			goto out;
+	}
+	for (i=0; i<ARRAY_SIZE(partition_info); i++) {
+		struct init_attr *ia = &partition_info[i];
+		ret = attr_set_attr(osd->db, requested_pid, 0, ia->page, 
+				    ia->number, ia->s, strlen(ia->s)+1);
+		if (ret)
+			goto out;
+	}
+
+	/* the pid goes here */
+	ret = attr_set_attr(osd->db, requested_pid, 0, PARTITION_PG + 1, 
+			    1, &requested_pid, 8);
+	if (ret)
+		goto out;
+
+out:
+	return ret;
 }
 
 
@@ -158,18 +183,18 @@ int osd_format(osd_t *osd, uint64_t capacity)
 {
 	int ret;
 	char *root;
-	char dbname[MAXNAMELEN];
+	char path[MAXNAMELEN];
 	
 	debug(__func__);
 
 	root = strdup(osd->root);
-	ret = attrdb_close(osd);
+	ret = db_close(osd);
 	if (ret)
 		goto out;
-	sprintf(dbname, "%s/attr.db", root);
-	ret = unlink(dbname);
+	sprintf(path, "%s/%s", root, dbname);
+	ret = unlink(path);
 	if (ret) {
-		error_errno("%s: unlink db %s", __func__, dbname);
+		error_errno("%s: unlink db %s", __func__, path);
 		goto out;
 	}
 	ret = osd_open(root, osd);

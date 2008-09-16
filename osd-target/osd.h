@@ -1,7 +1,7 @@
-#ifndef __OBFS_H
-#define __OBFS_H
+#ifndef __OSD_H
+#define __OSD_H
 
-#include "obfs-types.h"
+#include "osd-types.h"
 
 /* module interface */
 int osd_open(const char *root, osd_t *osd);
@@ -44,4 +44,4 @@ int osd_set_member_attributes(osd_t *osd, uint64_t pid, uint64_t cid);
 int osd_write(osd_t *osd, uint64_t pid, uint64_t uid, uint64_t len,
 	      uint64_t offset);
 
-#endif /* __OBFS_H */
+#endif /* __OSD_H */

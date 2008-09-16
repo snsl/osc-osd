@@ -87,6 +87,9 @@ void test_create(struct osd_device *osd)
 	uint8_t *data_out = NULL;
 	const void *data_in;
 	uint64_t data_out_len, data_in_len;
+	uint8_t *cp = NULL;
+	uint8_t pad = 0;
+	uint32_t len = 0;
 
 	/* create partition + empty getpage_setlist */
 	ret = osd_command_set_create_partition(&cmd, PARTITION_PID_LB);
@@ -179,10 +182,6 @@ void test_create(struct osd_device *osd)
 		} 
 	};
 	for (i = USEROBJECT_OID_LB; i < (USEROBJECT_OID_LB + 5); i++) {
-		uint8_t *cp = NULL;
-		uint8_t pad = 0;
-		uint32_t len = 0;
-
 		ret = osd_command_set_remove(&cmd, USEROBJECT_PID_LB, i);
 		assert(ret == 0);
 		ret = osd_command_attr_build(&cmd, getattr, 2);
@@ -220,6 +219,70 @@ void test_create(struct osd_device *osd)
 	free(data_out);
 	data_out = NULL;
 	data_out_len = 0;
+
+	/* get all attributes in a page for an object */
+	ret = osd_command_set_create(&cmd, USEROBJECT_PID_LB, 
+				     USEROBJECT_OID_LB, 1);
+	assert(ret == 0);
+	setattr[0].page = USEROBJECT_PG+LUN_PG_LB+11;
+	setattr[1].page = USEROBJECT_PG+LUN_PG_LB+11;
+	ret = osd_command_attr_build(&cmd, setattr, 2);
+	assert(ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	struct attribute_list getallattr[] = {
+		{ ATTR_GET, USEROBJECT_PG+LUN_PG_LB+11, ATTRNUM_GETALL, NULL, 
+			1024, 0,
+		},
+	};
+	ret = osd_command_set_get_attributes(&cmd, USEROBJECT_PID_LB, 
+					     USEROBJECT_OID_LB);
+	assert(ret == 0);
+	ret = osd_command_attr_build(&cmd, getallattr, 1);
+	assert(ret == 0);
+	data_in = cmd.outdata;
+	data_in_len = cmd.outlen;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+
+	assert(data_out[0] == RTRVD_SET_ATTR_LIST);
+	len = get_ntohl(&data_out[4]);
+	assert(len > 0);
+	cp = &data_out[8];
+	assert(get_ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB+11);
+	assert(get_ntohl(&cp[LE_NUMBER_OFF]) == 111);
+	len = get_ntohs(&cp[LE_LEN_OFF]);
+	assert((uint32_t)len == (strlen(str1)+1));
+	assert(memcmp(&cp[LE_VAL_OFF], str1, len) == 0);
+	cp += len + LE_VAL_OFF;
+	pad = (0x8 - ((uintptr_t)cp & 0x7)) & 0x7;
+	while (pad--)
+		assert(*cp == 0), cp++;
+	assert(get_ntohl(&cp[LE_PAGE_OFF]) == USEROBJECT_PG+LUN_PG_LB+11);
+	assert(get_ntohl(&cp[LE_NUMBER_OFF]) == 321);
+	len = get_ntohs(&cp[LE_LEN_OFF]);
+	assert((uint32_t)len == (strlen(str2)+1));
+	assert(memcmp(&cp[LE_VAL_OFF], str2, len) == 0);
+	cp += len + LE_VAL_OFF;
+	pad = (0x8 - ((uintptr_t)cp & 0x7)) & 0x7;
+	while (pad--)
+		assert(*cp == 0), cp++;
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
+	ret = osd_command_set_remove(&cmd, USEROBJECT_PID_LB, 
+				     USEROBJECT_OID_LB);
+	assert(ret == 0);
+	ret = osdemu_cmd_submit(osd, cmd.cdb, NULL, 0, &data_out,
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
 
 	/* remove partition */
 	ret = osd_command_set_remove_partition(&cmd, PARTITION_PID_LB);
@@ -1358,6 +1421,38 @@ void test_atomics(struct osd_device *osd)
 	data_out = NULL;
 	data_out_len = 0;
 
+	ret = osd_command_set_fa(&cmd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 8UL, 0);
+	assert(ret == 0);
+	cp = data_in;
+	set_htonll(&cp[0], -20L);
+	data_in_len = 8;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	assert(get_ntohll(&data_out[0]) == 20UL);
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
+	ret = osd_command_set_fa(&cmd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
+				 8UL, 0);
+	assert(ret == 0);
+	cp = data_in;
+	set_htonll(&cp[0], 1L);
+	data_in_len = 8;
+	ret = osdemu_cmd_submit(osd, cmd.cdb, data_in, data_in_len, &data_out, 
+				&data_out_len, sense_out, &senselen_out);
+	assert(ret == 0);
+	assert(data_out != NULL);
+	assert(get_ntohll(&data_out[0]) == 0UL);
+
+	free(data_out);
+	data_out = NULL;
+	data_out_len = 0;
+
 	free(data_in);
 
 	/* gen_cas */
@@ -1492,11 +1587,11 @@ int main()
 	assert(ret == 0);
 
 	/* test_partition(&osd); */
-	/* test_create(&osd); */
+	test_create(&osd);
 	/* test_query(&osd); */
 	/* test_list(&osd); */
 	/* test_set_member_attributes(&osd); */
-	test_atomics(&osd);
+	/* test_atomics(&osd); */
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

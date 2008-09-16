@@ -94,7 +94,7 @@ int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,
 	    uint8_t *sense);
 
-int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t add,
+int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, int64_t add,
 	   uint8_t *doutbuf, uint64_t *used_outlen, uint8_t *sense);
 
 int osd_gen_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, 

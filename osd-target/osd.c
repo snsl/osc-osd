@@ -2462,10 +2462,10 @@ out_cdb_err:
 /*
  * OSD FA: Available only for USEROBJECTs. 
  * TODO: No explicit software locks used. If multithreaded OSD emulator is
- * used behavior is undefined.
+ * used, behavior is undefined.
  *
  */
-int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t add,
+int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, int64_t add,
 	   uint8_t *doutbuf, uint64_t *used_outlen, uint8_t *sense) 
 {
 	int ret;
@@ -2484,13 +2484,13 @@ int osd_fa(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t add,
 	if (obj_type != USEROBJECT)
 		goto out_cdb_err;
 
-	ret = attr_get_val(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_CAS,
+	ret = attr_get_val(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_FA,
 			   sizeof(val), &val, &usedlen);
 	if (ret != OSD_OK)
 		goto out_hw_err;
 
 	add += val;
-	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_CAS,
+	ret = attr_set_attr(osd->dbc, pid, oid, USER_ATOMICS_PG, UAP_FA,
 			    &add, sizeof(add));
 	if (ret != OSD_OK)
 		goto out_hw_err;

@@ -729,3 +729,12 @@ time_insert numiter 10 numobj 512 testone 0 avg 54567.097491 +- 179.033921 us
 -	list writer object
 -	gen_cas modifies: osd command execution sequence, type of list, OSD
 	command section
+
+# Tue Oct 16 13:38:58 EDT 2007
+-   new commands: Punch, clear
+
+# Fri Oct 19 14:58:32 EDT 2007
+-   make file path names in def file
+
+# Thu Nov  1 16:45:05 EDT 2007
+- change arguments tests in functions to assertions

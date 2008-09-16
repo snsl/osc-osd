@@ -539,6 +539,7 @@ static int cdb_create(struct command *cmd)
 	uint16_t numoid = get_ntohs(&cdb[32]);
 	uint8_t local_sense[OSD_MAX_SENSE];
 
+	TICK_TRACE(cdb_create);
 	if (numoid > 1 && cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 		page = get_ntohl(&cmd->cdb[52]);
 		if (page != CUR_CMD_ATTR_PG)
@@ -559,13 +560,16 @@ static int cdb_create(struct command *cmd)
 	numoid = (numoid == 0) ? 1 : numoid;
 	oid = osd_get_created_oid(cmd->osd, numoid);
 
+	TICK_TRACE(cdb_create_setattr);
 	ret = set_attributes(cmd, pid, oid, numoid);
 	if (ret != 0)
 		goto out_remove_obj;
+	TICK_TRACE(cdb_create_getattr);
 	ret = get_attributes(cmd, pid, oid, numoid);
 	if (ret != 0)
 		goto out_remove_obj;
 
+	TICK_TRACE(cdb_create);
 	return ret; /* success */
 
 out_remove_obj:
@@ -1115,6 +1119,7 @@ static int cdb_gen_cas(struct command *cmd, int osd_cmd)
 	uint32_t orig_page = 0, orig_number = 0;
 	uint8_t cas_res = 0;
 
+	TICK_TRACE(cdb_gen_cas);
 	if (cmd->getset_cdbfmt != GETLIST_SETLIST)
 		goto out_cdb_err;
 
@@ -1136,6 +1141,7 @@ static int cdb_gen_cas(struct command *cmd, int osd_cmd)
 get_attr:
 	ret = exec_getattr(cmd, pid, oid, orig_page, orig_number, orig,
 			   orig_len);
+	TICK_TRACE(cdb_gen_cas);
 	if (ret == OSD_OK)
 		return ret;
 
@@ -1345,10 +1351,12 @@ static void exec_service_action(struct command *cmd)
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t oid = get_ntohll(&cdb[24]);
 
+		TICK_TRACE(cdb_set_attributes);
 		ret = set_attributes(cmd, pid, oid, 1);
 		if (ret)
 			break;
 		ret = get_attributes(cmd, pid, oid, 1);
+		TICK_TRACE(cdb_set_attributes);
 		break;
 	}
 	case OSD_SET_KEY: {

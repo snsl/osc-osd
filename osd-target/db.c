@@ -243,6 +243,7 @@ int db_end_txn(struct db_context *dbc)
 	int ret = 0;
 	char *err = NULL;
 
+	TICK_TRACE(db_end_txn);
 	assert(dbc && dbc->db);
 
 	ret = sqlite3_exec(dbc->db, "END TRANSACTION;", NULL, NULL, &err);
@@ -251,6 +252,7 @@ int db_end_txn(struct db_context *dbc)
 		return OSD_ERROR;
 	}
 
+	TICK_TRACE(db_end_txn);
 	return OSD_OK;
 }
 
@@ -342,16 +344,24 @@ error_sql(sqlite3 *db, const char *fmt, ...)
 int db_exec_dms(struct db_context *dbc, sqlite3_stmt *stmt, int ret, 
 		const char *func)
 {
-	int bound = (ret == SQLITE_OK);
+	int bound;
+	
+	TICK_TRACE(db_exec_dms);
+	bound = (ret == SQLITE_OK);
 	if (!bound) {
 		error_sql(dbc->db, "%s: bind failed", func);
 		goto out_reset;
 	}
 
-	while ((ret = sqlite3_step(stmt)) == SQLITE_BUSY);
+	do {
+	    TICK_TRACE(sqlite3_step);
+	    ret = sqlite3_step(stmt);
+	} while (ret == SQLITE_BUSY);
 
 out_reset:
-	return db_reset_stmt(dbc, stmt, bound, func);
+	ret = db_reset_stmt(dbc, stmt, bound, func);
+	TICK_TRACE(db_exec_dms);
+	return ret;
 }
 
 

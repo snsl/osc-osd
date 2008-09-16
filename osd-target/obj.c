@@ -235,6 +235,7 @@ int obj_insert(struct db_context *dbc, uint64_t pid, uint64_t oid,
 {
 	int ret = 0;
 
+	TICK_TRACE(obj_insert);
 	assert(dbc && dbc->db && dbc->obj && dbc->obj->insert);
 
 repeat:
@@ -246,6 +247,7 @@ repeat:
 	if (ret == OSD_REPEAT)
 		goto repeat;
 
+	TICK_TRACE(obj_insert);
 	return ret;
 }
 

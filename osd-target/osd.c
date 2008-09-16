@@ -1203,6 +1203,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	uint64_t i = 0;
 	uint64_t oid = 0;
 
+	TICK_TRACE(osd_create);
 	osd_debug("%s: pid %llu requested oid %llu numoid %hu", __func__,
 		  llu(pid), llu(requested_oid), numoid);
 
@@ -1261,6 +1262,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 			goto out_hw_err;
 		}
 
+		TICK_TRACE(osd_create_datafile);
 		ret = osd_create_datafile(osd, pid, i);
 		if (ret != 0) {
 			obj_delete(osd->dbc, pid, i);
@@ -1284,6 +1286,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 
 	/* fill CCAP with highest oid, osd2r00 Sec 6.3, 3rd last para */
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, (oid+numoid-1), 0);
+	TICK_TRACE(osd_create);
 	return OSD_OK; /* success */
 
 out_illegal_req:

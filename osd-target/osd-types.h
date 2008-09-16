@@ -212,4 +212,12 @@ enum {
 	OSD_REPEAT = 1
 };
 
+/*
+ * For TICK_TRACE annotations, default off, unless Makefile includes
+ * an external header that defines this first.
+ */
+#ifndef TICK_TRACE
+#define TICK_TRACE(x)
+#endif
+
 #endif /* __OSD_TYPES_H */

@@ -60,7 +60,7 @@ static void obj_remove(int fd, uint64_t pid, uint64_t oid)
 }
 
 
-static void test_sgl(int fd, uint64_t pid, uint64_t oid)
+static void basic_test_sgl(int fd, uint64_t pid, uint64_t oid)
 {
 
 	/* format of the data buff is:
@@ -114,7 +114,7 @@ static void test_sgl(int fd, uint64_t pid, uint64_t oid)
 	/* ------------------------------------------------------- */
 	memset(xbuf, 'Z', 100);
 	read_osd(fd, pid, oid, xbuf, 100, 0);
-	printf("%s\n", (char *)xbuf);
+	//~ printf("%s\n", (char *)xbuf);
 
 	/* ---------------------------------------------- */
 	/*  Now try to gather the Ds we wrote previously  */
@@ -138,11 +138,52 @@ static void test_sgl(int fd, uint64_t pid, uint64_t oid)
 	}
 	dbuf = malloc(50);  /* return buffer */
 	ret = read_sgl_osd(fd, pid, oid, buf, size, dbuf, 50, 0);
-	printf("%s\n", (char *)buf);
 
+	/* ---------------------------- */
+	/* Test Append command with SGL */
+	/* ---------------------------- */
 
+	/* 50 bytes of data plus 5 (offset,len) pairs plus the length value */
+	size = 50 + (2*sizeof(uint64_t) * 5) + sizeof(uint64_t);
 
+	free(dbuf);
+	dbuf = malloc(size);
+	memset(dbuf, 'A', size);
 
+	set_htonll(dbuf, 5);
+	hdr_offset = sizeof(uint64_t);
+
+	offset = 0;
+	length = 10;
+	for (i=0; i<5; i++ ) {
+		osd_debug("Offset= %llu  Length= %llu", llu(offset), llu(length));
+		set_htonll((uint8_t *)dbuf + hdr_offset, offset);
+		offset += length*2;
+		hdr_offset += sizeof(uint64_t);
+		set_htonll((uint8_t *)dbuf + hdr_offset, length);
+		hdr_offset += sizeof(uint64_t);
+	}
+
+	ret = append_sgl_osd(fd, pid, oid, dbuf, size);
+	assert(ret == 0);
+
+	/* ------------------------------------------------------- */
+	/* Now check what we just wrote with existing read command */
+	/* ------------------------------------------------------- */
+	free(xbuf);
+	xbuf = malloc(200);
+	memset(xbuf, 'Z', 200);
+	read_osd(fd, pid, oid, xbuf, 190, 0);  /*10 less b/c way we scatter*/
+
+	for (i=0; i<190; i++) {
+		char ch;
+		memcpy(&ch, (char *)xbuf+i, 1);
+		if(ch == '\0')
+			printf("~");
+		else
+			printf("%c", ch);
+	}
+	printf("\n");
 
 
 }
@@ -182,7 +223,7 @@ int main(int argc, char *argv[])
 	oid = obj_create_any(fd, PARTITION_PID_LB);
 
 	/*run tests*/
-	test_sgl(fd, PARTITION_PID_LB, oid);
+	basic_test_sgl(fd, PARTITION_PID_LB, oid);
 
 	obj_remove(fd, PARTITION_PID_LB, oid);
 

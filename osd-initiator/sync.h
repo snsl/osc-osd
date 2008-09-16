@@ -26,6 +26,8 @@ int read_sgl_osd(int fd, uint64_t pid, uint64_t oid, uint8_t *ddt_buf,
 		uint64_t ddt_len, uint8_t *buf, uint64_t len, uint64_t offset);
 int append_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
 	       uint64_t len);
+int append_sgl_osd(int fd, uint64_t pid, uint64_t oid, const uint8_t *buf,
+	       uint64_t len);
 
 /* Remove */
 int remove_osd(int fd, uint64_t pid, uint64_t requested_oid);

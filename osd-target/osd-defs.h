@@ -102,7 +102,8 @@ enum {
 	ATTRNUM_LB = 0x0,
 	ATTRNUM_UB = 0xFFFFFFFE,
 	ATTRNUM_INFO = ATTRNUM_LB,
-	ATTRNUM_UNMODIFIABLE = 0xFFFFFFFF
+	ATTRNUM_UNMODIFIABLE = 0xFFFFFFFF,
+	ATTRNUM_GETALL = ATTRNUM_UNMODIFIABLE
 };
 
 /* osd2r00, Table 5 Section 4.7.5 */
@@ -118,25 +119,60 @@ enum {
 	USER_DIR_PG = 0x0,
 	USER_INFO_PG,
 	USER_QUOTA_PG,
-	USER_TS_PG
+	USER_TMSTMP_PG
 };
 
 /* Current command attributes page constants, osd2r00 Sec 7.1.2.24 tab 124 */
 enum {
+	/* attributes */
+	CCAP_PAGEID_ATTR = 0x0,
+	CCAP_RICV_ATTR,
+	CCAP_OBJT_ATTR,
+	CCAP_PID_ATTR,
+	CCAP_OID_ATTR,
+	CCAP_APPADDR_ATTR,
+
+	/* length */
+	CCAP_PAGEID_LEN = 40,
+	CCAP_RICV_LEN = 20,
+	CCAP_OBJT_LEN = 1,
+	CCAP_PID_LEN = 8,
+	CCAP_OID_LEN = 8,
+	CCAP_APPADDR_LEN = 8,
+	CCAP_LEN = 48, /* 0x30 */
+	CCAP_TOTAL_LEN = 56,
+
+	/* offsets for in attribute page */
 	CCAP_PAGEID_OFF = 0,
 	CCAP_LEN_OFF = 4,
 	CCAP_RICV_OFF = 8,
 	CCAP_OBJT_OFF = 28,
 	CCAP_PID_OFF = 32,
 	CCAP_OID_OFF = 40,
-	CCAP_APPADDR_OFF = 48,
-	CCAP_RICV_LEN = 20,
-	CCAP_LEN = 48, /* 0x30 */
-	CCAP_TOTAL_LEN = 56
+	CCAP_APPADDR_OFF = 48
 };
 
 /* userobject timestamp attribute page osd2r00 sec 7.1.2.18 tab 109 */
 enum {
+	/* attributes */
+	UTSAP_PAGE_ATTR = 0x0,
+	UTSAP_CTIME_ATTR,
+	UTSAP_ATTR_ATIME_ATTR,
+	UTSAP_ATTR_MTIME_ATTR,
+	UTSAP_DATA_ATIME_ATTR,
+	UTSAP_DATA_MTIME_ATTR,
+
+	/* length of attributes */
+	UTSAP_PAGE_LEN = 40,
+	UTSAP_CTIME_LEN = 6,
+	UTSAP_ATTR_ATIME_LEN = 6,
+	UTSAP_ATTR_MTIME_LEN = 6,
+	UTSAP_DATA_ATIME_LEN = 6,
+	UTSAP_DATA_MTIME_LEN = 6,
+	UTSAP_LEN = 30,
+	UTSAP_TOTAL_LEN = 38,
+
+	/* offsets */
 	UTSAP_PAGE_OFF = 0,
 	UTSAP_LEN_OFF = 4,
 	UTSAP_CTIME_OFF = 8,
@@ -144,8 +180,6 @@ enum {
 	UTSAP_ATTR_MTIME_OFF = 20,
 	UTSAP_DATA_ATIME_OFF = 26,
 	UTSAP_DATA_MTIME_OFF = 32,
-	UTSAP_LEN = 30,
-	UTSAP_TOTAL_LEN = 38
 };
 
 /* userobject information attribute page osd2r00 sec 7.1.2.11 tab 94 */
@@ -164,6 +198,11 @@ enum {
 };
 
 enum {
+	GETPAGE_SETVALUE = 0x10,
+	GETLIST_SETLIST = 0x11
+};
+
+enum {
 	FALSE = 0,
 	TRUE = 1
 };
@@ -171,11 +210,6 @@ enum {
 enum {
 	OSD_ERROR = -1,
 	OSD_OK = 0
-};
-
-enum {
-	EMBEDDED = 1,
-	STANDALONE = 2
 };
 
 #endif /* __OSD_DEFS_H */

@@ -10,14 +10,46 @@ struct object {
 	uint64_t oid;
 }; 
 
-typedef struct attr {
+struct list_entry {
 	uint32_t page;
 	uint32_t number;
 	uint16_t len;
 	void *val;
-} attr_t;
-typedef  attr_t list_entry_t;
-#define ATTR_VAL_OFFSET (offsetof(attr_t , val))
+};
+
+enum {
+	LE_PAGE_OFF = offsetof(struct list_entry, page),
+	LE_NUMBER_OFF = offsetof(struct list_entry, number),
+	LE_LEN_OFF = offsetof(struct list_entry, len),
+	LE_VAL_OFF = offsetof(struct list_entry, val)
+};
+
+struct multiobj_list_entry {
+	uint64_t oid;
+	uint32_t page;
+	uint32_t number;
+	uint16_t len;
+	void *val;
+};
+
+enum {
+	MLE_OID_OFF = offsetof(struct multiobj_list_entry, oid),
+	MLE_PAGE_OFF = offsetof(struct multiobj_list_entry, page),
+	MLE_NUMBER_OFF = offsetof(struct multiobj_list_entry, number),
+	MLE_LEN_OFF = offsetof(struct multiobj_list_entry, len),
+	MLE_VAL_OFF = offsetof(struct multiobj_list_entry, val)
+};
+
+#define MIN_LIST_LEN (8) /* XXX: osd-errata */
+#define NULL_ATTR_LEN (0xFFFFU) /* osd2r00 Sec 7.1.1 */
+#define NULL_PAGE_LEN (0x00) /* osd2r00 Sec 7.1.2.25 */
+
+/* osd2r00 Section 7.1.3.1 tab 127 */
+enum {
+	RTRV_ATTR_LIST = 0x1,
+	RTRVD_SET_ATTR_LIST = 0x9,
+	RTRVD_CREATE_ATTR_LIST = 0xF
+};
 
 /*
  * Things that go as attributes on the root page.

@@ -20,6 +20,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <assert.h>
 
 #include "osd-util/osd-util.h"
 #include "command.h"
@@ -266,6 +267,82 @@ static void attr_test(int fd, uint64_t pid, uint64_t oid)
 	osd_command_attr_free(&command);
 }
 
+static void all_attr_test(int fd, uint64_t pid, uint64_t oid)
+{
+	int i, ret;
+	uint64_t len;
+	uint8_t *ts;  /* odd 6-byte timestamp */
+	const uint8_t data[] = "Some data.";
+	const char attr_data[] = "An attribute.\n";
+	struct osd_command command;
+	uint32_t page = 0x30000;
+
+	struct attribute_list *attr, attr_proto[] = {
+		{
+			.type = ATTR_SET,
+			.page = page,
+			.number = 0x4,
+			.val = attr_data,
+			.len = sizeof(attr_data),
+		},
+		{
+			.type = ATTR_SET,
+			.page = page,
+			.number = 0x5,
+			.val = attr_data,
+			.len = sizeof(attr_data),
+		},
+	};
+
+	/* so length will be interesting */
+	write_osd(fd, pid, oid, data, sizeof(data), 0);
+
+	/* get attributes of an empty page */
+	ret = osd_command_set_get_attributes(&command, pid, oid);
+	if (ret) {
+		osd_error("%s: set_get_attributes failed", __func__);
+		printf("\n");
+		return;
+	}
+	ret = osd_command_attr_all_build(&command, page);
+	if (ret) {
+		osd_error("%s: attr_all_build failed", __func__);
+		printf("\n");
+		return;
+	}
+	ret = osd_submit_and_wait(fd, &command);
+	if (ret) {
+		osd_error("%s: submit_and_wait failed", __func__);
+		printf("\n");
+		return;
+	}
+	/* if it comes back as 65544, then bidi residual handling is broken */
+	assert(command.inlen == 8);
+	ret = osd_command_attr_all_resolve(&command);
+	if (ret) {
+		osd_error("%s: attr_all_resolve failed", __func__);
+		printf("\n");
+		return;
+	}
+	assert(command.numattr == 0);
+	osd_command_attr_all_free(&command);
+
+	/* now toss on some attributes */
+	assert(osd_command_set_set_attributes(&command, pid, oid) == 0);
+	assert(osd_command_attr_build(&command, attr_proto, 2) == 0);
+	assert(osd_submit_and_wait(fd, &command) == 0);
+	osd_command_attr_free(&command);
+
+	/* and test again */
+	assert(osd_command_set_set_attributes(&command, pid, oid) == 0);
+	assert(osd_command_attr_all_build(&command, page) == 0);
+	assert(osd_submit_and_wait(fd, &command) == 0);
+	assert(command.inlen == 8 + 2 * roundup8(10 + sizeof(attr_data)));
+	assert(osd_command_attr_all_resolve(&command) == 0);
+	assert(command.numattr == 2);
+	osd_command_attr_free(&command);
+}
+
 int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
@@ -351,8 +428,14 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+6);
 #endif
 
+#if 1           /* Testing all-attribute API (listing attributes in a page */
+		create_osd(fd, PID, OID+6, 1);
+		all_attr_test(fd, PID, OID+6);
+		remove_osd(fd, PID, OID+6);
+#endif
 
-#if 1		/* Testing stuff */
+
+#if 0		/* Testing stuff */
 		create_osd(fd, PID, OID, NUM_USER_OBJ);
 		create_osd(fd, PID, OID+1, NUM_USER_OBJ);
 		write_osd(fd, PID, OID, WRITEDATA, sizeof(WRITEDATA), OFFSET);

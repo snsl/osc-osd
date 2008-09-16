@@ -939,9 +939,10 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 		/*
 		 * XXX:SD The spec is inconsistent in applying padding and
 		 * alignment rules. Here we make changes to the spec. In our
-		 * case object descriptor format header is 16B instead of
-		 * 12B, and attributes list length field is 4B instead of 2B
-		 * as defined in spec. ODE is object descriptor entry.
+		 * case object descriptor format header (table 79) is 16B
+		 * instead of 12B, and attributes list length field is 4B
+		 * instead of 2B as defined in spec, and starts at byte 12
+		 * in the header (not 10).  ODE is object descriptor entry.
 		 */
 		uint64_t oid = sqlite3_column_int64(stmt, 0);
 		uint32_t page = sqlite3_column_int64(stmt, 1);
@@ -953,7 +954,7 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 			if (alloc_len >= 16) {
 				/* start attr list of 'this' ODE */
 				set_htonll(tail, oid);
-				tail[8] = tail[9] = 0;  /* reserved */
+				memset(tail + 8, 0, 4);  /* reserved */
 				if (head != tail) {
 					/* fill attr_list_len of prev ODE */
 					set_htonl(head, attr_list_len);
@@ -962,7 +963,7 @@ int attr_list_oids_attr(sqlite3 *db, uint64_t pid, uint64_t initial_oid,
 				}
 				alloc_len -= 16;
 				tail += 16;
-				head += 12;
+				head += 12;  /* points to attr-list-len */
 				*used_outlen += 16;
 			} else {
 				if (head != tail) {

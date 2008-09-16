@@ -13,6 +13,8 @@
 #include "util/util.h"
 #include "attr.h"
 
+static int db_print_pragma(struct osd_device *osd);
+
 /*
  * < 0: error
  * = 0: success
@@ -64,18 +66,68 @@ out:
 int db_close(struct osd_device *osd)
 {
 	int ret = 0;
-	sqlite3 *db = osd->db;
 
-	if (db == NULL)
+	if (osd->db == NULL)
 		return -EINVAL;
 
-	ret = sqlite3_close(db);
+	ret = sqlite3_close(osd->db);
 	if (ret != SQLITE_OK) {
-		printf("Failed to close db %s\n", sqlite3_errmsg(db));
+		osd_error("Failed to close db %s", sqlite3_errmsg(osd->db));
 		return ret;
 	}
 
 	return SQLITE_OK;
+}
+
+int db_exec_pragma(struct osd_device *osd)
+{
+	int ret = 0;
+	char *err = NULL;
+	char SQL[MAXSQLEN];
+
+	if (osd->db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "PRAGMA synchronous = OFF;"); /* sync off */
+	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
+	if (ret != SQLITE_OK)
+		goto spit_err;
+
+	sprintf(SQL, "PRAGMA auto_vacuum = 1;"); /* reduce db size on delete */
+	ret = sqlite3_exec(osd->db, SQL, NULL, NULL, &err);
+	if (ret != SQLITE_OK)
+		goto spit_err;
+
+	goto out;
+
+spit_err:
+	osd_error("pragma failed: %s", err);
+	sqlite3_free(err);
+
+out:
+	return ret;
+}
+
+static int callback(void *ignore, int count, char **val, char **colname)
+{
+	printf("%s: PRAGMA %s = %s\n", __func__, colname[0], val[0]);
+	return 0;
+}
+
+static int db_print_pragma(struct osd_device *osd)
+{
+	int ret = 0;
+	char *err = NULL;
+	char SQL[MAXSQLEN];
+
+	if (osd->db == NULL)
+		return -EINVAL;
+
+	sprintf(SQL, "PRAGMA synchronous;"); 
+	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
+	sprintf(SQL, "PRAGMA auto_vacuum;"); 
+	ret = sqlite3_exec(osd->db, SQL, callback, NULL, &err);
+	return ret;
 }
 
 /*

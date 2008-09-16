@@ -664,8 +664,12 @@ int osd_open(const char *root, struct osd_device *osd)
 	osd->root = strdup(root);
 	sprintf(path, "%s/%s", root, dbname);
 	ret = db_open(path, osd);
-	if (ret == 1)
+	if (ret == 1) {
 		ret = osd_initialize_db(osd);
+		if (ret != 0)
+			goto out;
+	}
+	ret = db_exec_pragma(osd);
 
 out:
 	return ret;

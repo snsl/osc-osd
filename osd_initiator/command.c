@@ -1036,13 +1036,13 @@ int osd_command_list_resolve(struct osd_command *command)
 	uint64_t list[num_results];
 	int i, listoid, list_attr;
 
-	listoid = (p[23] | 0x100);
+	listoid = (p[23] & 0x100);
 	char title[3];
 	(listoid ? strcpy(title, "OID") : strcpy(title, "PID"));
 
-	if (p[23] | 0x08)
+	if (p[23] & 0x08)
 		list_attr = 1;
-	else if (p[23] | 0x04)
+	else if (p[23] & 0x04)
 		list_attr = 0;
 
 	/*

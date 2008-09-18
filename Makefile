@@ -1,66 +1,91 @@
-# build everything
+# Top level Makefile to build everything
 
-util := ./osd-util
-target := ./osd-target
-initiator := ./osd-initiator
-stgt := ./stgt
-benchmarks := ./benchmarks
+MK_PATH ?= .
+util := $(MK_PATH)/osd-util
+tgt := $(MK_PATH)/tgt
+target := $(MK_PATH)/osd-target
+initiator := $(MK_PATH)/osd-initiator
+CHECKPATCH ?= ~/dev/git/pub/linux/scripts/checkpatch.pl
+checkpatch_2_kdev = checkpatch-2-kdev
 
-.PHONY: all initiator target stgt util benchmarks clean bmclean
+.PHONY: all clean
+# comment out any below to remove from compelation
+all: target
+all: stgt
+all: target_test
+all: initiator
+all: initiator_tests
+all: initiator_python
 
-all: initiator target stgt
+clean: stgt_clean initiator_clean target_clean util_clean
 
-initiator: util
-	$(MAKE) -C $(initiator)
-	$(MAKE) -C $(initiator)/tests
-	$(MAKE) -C $(initiator)/python
-
-target: util
-	$(MAKE) -C $(target)
-	$(MAKE) -C $(target)/tests
-
+.PHONY: util util_clean
 util:
 	$(MAKE) -C $(util)
 
-clean: bmclean stgtclean
-	$(MAKE) -C $(initiator) $@
-	$(MAKE) -C $(initiator)/tests $@
-	$(MAKE) -C $(initiator)/python $@
-	$(MAKE) -C $(target) $@
-	$(MAKE) -C $(target)/tests $@
-	$(MAKE) -C $(util) $@
+util_clean:
+	$(MAKE) -C $(util) clean
 
-ifneq (,$(wildcard $(stgt)))
+.PHONY: target target_test target_clean
+target: util
+	$(MAKE) -C $(target)
+
+target_test: target
+	$(MAKE) -C $(target)/tests
+
+target_clean:
+	$(MAKE) -C $(target) clean
+	$(MAKE) -C $(target)/tests clean
+
+.PHONY: initiator initiator_tests initiator_python initiator_clean
+initiator: util
+	$(MAKE) -C $(initiator)
+
+initiator_tests: initiator
+	$(MAKE) -C $(initiator)/tests
+
+initiator_python: initiator
+	$(MAKE) -C $(initiator)/python
+
+initiator_clean:
+	$(MAKE) -C $(initiator)/python clean
+	$(MAKE) -C $(initiator)/tests clean
+	$(MAKE) -C $(initiator) clean
+
+.PHONY: stgt stgt_checkpatch stgt_tgt_only stgt_clean
 stgt: target
-	$(MAKE) -C $(stgt)
+	$(MAKE) ISCSI=1 -C $(tgt)/usr
 
-stgtclean:
-	$(MAKE) -C $(stgt) clean
-else
-stgt:
-stgtclean:
-endif
+stgt_checkpatch:
+	cd $(tgt);git-show | $(CHECKPATCH) - |  $(checkpatch_2_kdev) $(PWD)/$(tgt)
 
-ifneq (,$(wildcard $(benchmarks)))
-benchmarks:
-	$(MAKE) -C $(benchmarks)/osd-target
-	$(MAKE) -C $(benchmarks)/pvfs/bonnie
-	$(MAKE) -C $(benchmarks)/pvfs/metadata
-	$(MAKE) -C $(benchmarks)/pvfs/perf
+stgt_tgt_only:
+	$(MAKE) ISCSI=1 IBMVIO=1 ISCSI_RDMA=1 FCP=1 FCOE=1 OSDEMU=1 -C $(tgt)/usr
 
-bmclean:
-	$(MAKE) -C $(benchmarks)/osd-target clean
-	$(MAKE) -C $(benchmarks)/pvfs/bonnie clean
-	$(MAKE) -C $(benchmarks)/pvfs/metadata clean
-	$(MAKE) -C $(benchmarks)/pvfs/perf clean
-else
-benchmarks:
-bmclean:
-endif
+stgt_clean:
+	$(MAKE) -C $(tgt)/usr clean
 
 # distribution tarball, just makefile lumps
-.PHONY: dist
+.PHONY: dist osd_checkpatch
 MVD := osd-toplevel-$(shell date +%Y%m%d)
 dist:
 	tar cf - Makefile Makedefs | bzip2 -9c > $(MVD).tar.bz2
 
+# ctags generation for all projects
+ctags:
+	ctags -R $(util) $(target) $(initiator) $(tgt) /usr/include
+
+osd_checkpatch:
+	git-show | $(CHECKPATCH) - | $(checkpatch_2_kdev) $(PWD)
+
+# ==== Remote compelation ================================================
+# make R=remote_machine R_PATH=source_path_on_remote remote
+R ?= "perf-x4"
+R_PATH ?= "/fs/home/bharrosh/osc-osd"
+
+.PHONY: remote remote_clean
+remote:
+	ssh $(R) "cd $(R_PATH);gmake MK_PATH=$(R_PATH) -C $(R_PATH)"
+
+remote_clean:
+	ssh $(R) "cd $(R_PATH);gmake MK_PATH=$(R_PATH) -C $(R_PATH) clean"

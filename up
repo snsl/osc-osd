@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# TODO:
+#   currently this is dependent on Pete's patch to tgt:
+#   [PATCH] local auto config (6b47263d)
+#   This dependency should be removed and this script should include
+#   all the necessary steps needed for a default OSD target
+
+# -f - forgraound
+# -d - debug level
+# DEBUG="-d 9"
+DEBUG=""
+
+./tgt/usr/tgtd $DEBUG -f

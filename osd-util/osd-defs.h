@@ -188,6 +188,7 @@ enum {
 enum {
 	USER_DIR_PG = 0x0,
 	USER_INFO_PG = 0x1,
+	ROOT_INFO_PG = (ROOT_PG + 0x1),
 	USER_QUOTA_PG = 0x2,
 	USER_TMSTMP_PG = 0x3,
 	USER_COLL_PG = 0x4,
@@ -263,6 +264,35 @@ enum {
 	UIAP_OID_LEN = 8,
 	UIAP_USED_CAPACITY_LEN = 8,
 	UIAP_LOGICAL_LEN_LEN = 8,
+};
+
+/* Root information attribute page osd2r01 sec 7.1.2.8 */
+enum {
+	/* attributes */
+	RIAP_OSD_SYSTEM_ID            = 0x3,   /* 20       */
+	RIAP_VENDOR_IDENTIFICATION    = 0x4,   /* 8        */
+	RIAP_PRODUCT_IDENTIFICATION   = 0x5,   /* 16       */
+	RIAP_PRODUCT_MODEL            = 0x6,   /* 32       */
+	RIAP_PRODUCT_REVISION_LEVEL   = 0x7,   /* 4        */
+	RIAP_PRODUCT_SERIAL_NUMBER    = 0x8,   /* variable */
+	RIAP_OSD_NAME                 = 0x9,   /* variable */
+	RIAP_TOTAL_CAPACITY           = 0x80,  /* 8        */
+	RIAP_USED_CAPACITY            = 0x81,  /* 8        */
+	RIAP_NUMBER_OF_PARTITIONS     = 0xC0,  /* 8        */
+	RIAP_CLOCK                    = 0x100, /* 6        */
+
+	/* lengths */
+	RIAP_OSD_SYSTEM_ID_LEN            = 20,
+	RIAP_VENDOR_IDENTIFICATION_LEN    = 8,
+	RIAP_PRODUCT_IDENTIFICATION_LEN   = 16,
+	RIAP_PRODUCT_MODEL_LEN            = 32,
+	RIAP_PRODUCT_REVISION_LEVEL_LEN   = 4,
+	RIAP_PRODUCT_SERIAL_NUMBER_LEN    = 0, //variable
+	RIAP_OSD_NAME_LEN                 = 0, //variable
+	RIAP_TOTAL_CAPACITY_LEN           = 8,
+	RIAP_USED_CAPACITY_LEN            = 8,
+	RIAP_NUMBER_OF_PARTITIONS_LEN     = 8,
+	RIAP_CLOCK_LEN                    = 6,
 };
 
 /* userobject collections attribute page osd2r01 Sec 7.1.2.19 */

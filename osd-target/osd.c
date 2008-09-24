@@ -71,36 +71,10 @@ static const struct incits_page_id incits = {
 	.user_atomic_page = 	"INCITS  T10 User Atomics               ",
 };
 
-static struct init_attr root_info[] = {
-	{ROOT_PG + 0, 0, "INCITS  T10 Root Directory             "},
-	{ROOT_PG + 0, ROOT_PG + 1, "INCITS  T10 Root Information           "},
-	{ROOT_PG + 1, 0, "INCITS  T10 Root Information"},
-	{ROOT_PG + 1, 3, "\xf1\x81\x00\x0eOSC     OSDEMU"},
-	{ROOT_PG + 1, 4, "OSC"},
-	{ROOT_PG + 1, 5, "OSDEMU"},
-	{ROOT_PG + 1, 6, "9001"},
-	{ROOT_PG + 1, 7, "0"},
-	{ROOT_PG + 1, 8, "1"},
-	{ROOT_PG + 1, 9, "hostname"},
-	{ROOT_PG + 0, ROOT_PG + 2, "INCITS  T10 Root Quotas                "},
-	{ROOT_PG + 2, 0, "INCITS  T10 Root Quotas                "},
-	{ROOT_PG + 0, ROOT_PG + 3, "INCITS  T10 Root Timestamps            "},
-	{ROOT_PG + 3, 0, "INCITS  T10 Root Timestamps            "},
-	{ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Policy/Security       "},
-	{ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security       "}
-};
-
 static const char *md = "md";
 static const char *dbname = "osd.db";
 static const char *dfiles = "dfiles";
 static const char *stranded = "stranded";
-
-static struct init_attr partition_info[] = {
-	{PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory"},
-	{PARTITION_PG + 0, PARTITION_PG + 1,
-	       "INCITS  T10 Partition Information"},
-	{PARTITION_PG + 1, 0, "INCITS  T10 Partition Information"},
-};
 
 static inline uint8_t get_obj_type(struct osd_device *osd,
 				   uint64_t pid, uint64_t oid)
@@ -616,6 +590,10 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		set_htonll(ll, sb.st_size);
 		val = ll;
 		break;
+	case UIAP_USERNAME:
+		return attr_get_attr(osd->dbc, pid, oid, USER_INFO_PG,
+					UIAP_USERNAME, outlen, outbuf, listfmt,
+					used_outlen);
 	default:
 		return OSD_ERROR;
 	}
@@ -645,14 +623,14 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
  * OSD_OK: on success
  */
 static int set_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
-		    uint32_t number, const void *val)
+		    uint32_t number, const void *val, uint16_t len)
 {
 	int ret = 0;
 
 	switch (number) {
-	case UIAP_USERNAME: {
-		return OSD_ERROR; /* TODO: to be implemented */
-	}
+	case UIAP_USERNAME:
+		return attr_set_attr(osd->dbc, pid, oid, USER_INFO_PG,
+					UIAP_USERNAME, val, len);
 	case UIAP_LOGICAL_LEN: {
 		char path[MAXNAMELEN];
 		uint64_t len = get_ntohll((const uint8_t *)val);
@@ -666,6 +644,148 @@ static int set_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 	default:
 		return OSD_ERROR;
+	}
+}
+
+static struct init_attr root_info[] = {
+	{ROOT_PG + 0, 0, "INCITS  T10 Root Directory             "},
+	{ROOT_PG + 0, ROOT_PG + 1, "INCITS  T10 Root Information           "},
+	{ROOT_PG + 0, ROOT_PG + 2, "INCITS  T10 Root Quotas                "},
+	{ROOT_PG + 2, 0, "INCITS  T10 Root Quotas                "},
+	{ROOT_PG + 0, ROOT_PG + 3, "INCITS  T10 Root Timestamps            "},
+	{ROOT_PG + 3, 0, "INCITS  T10 Root Timestamps            "},
+	{ROOT_PG + 0, ROOT_PG + 5, "INCITS  T10 Root Policy/Security       "},
+	{ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security       "}
+};
+
+static struct init_attr partition_info[] = {
+	{PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory"},
+	{PARTITION_PG + 0, PARTITION_PG + 1,
+	       "INCITS  T10 Partition Information"},
+	{PARTITION_PG + 1, 0, "INCITS  T10 Partition Information"},
+};
+
+static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		    uint32_t page, uint32_t number, void *outbuf,
+		    uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen)
+{
+	int ret = 0;
+	const void *val = NULL;
+	uint16_t len = 0;
+	char name[ATTR_PAGE_ID_LEN];
+	char path[MAXNAMELEN];
+	struct stat sb;
+	uint8_t ll[8];
+	off_t sz = 0;
+
+	switch (number) {
+	case 0:
+		/*{ROOT_PG + 1, 0, "INCITS  T10 Root Information"},*/
+		len = ATTR_PAGE_ID_LEN;
+		sprintf(name, "INCITS  T10 User Object Information");
+		val = name;
+		break;
+	case RIAP_OSD_SYSTEM_ID:
+		len = RIAP_OSD_SYSTEM_ID_LEN;
+		val = "\xf1\x81\x00\x0eOSC     OSDEMU\x00\x00";
+		break;
+	case RIAP_VENDOR_IDENTIFICATION:
+		len = 4;
+		val = "OSC";
+		break;
+	case RIAP_PRODUCT_IDENTIFICATION:
+		len = 8;
+		val = "OSDEMU ";
+		break;
+	case RIAP_PRODUCT_MODEL:
+		len = 5;
+		val = "9002";
+		break;
+	case RIAP_PRODUCT_REVISION_LEVEL:
+		len = RIAP_PRODUCT_REVISION_LEVEL_LEN;
+		set_htonl(ll, 117);
+		val = ll;
+		break;
+	case RIAP_PRODUCT_SERIAL_NUMBER:
+		len = 2;
+		val = "1";
+		break;
+	case RIAP_TOTAL_CAPACITY:
+		/*FIXME: return capacity of osd->root device*/
+		len = RIAP_TOTAL_CAPACITY_LEN;
+		set_htonll(ll, -1);
+		val = ll;
+		break;
+	case RIAP_USED_CAPACITY:
+		/*FIXME: return used capacity of osd->root device*/
+		len = RIAP_USED_CAPACITY_LEN;
+		set_htonll(ll, -1);
+		val = ll;
+		break;
+	case RIAP_NUMBER_OF_PARTITIONS:
+		/*FIXME: How to find this information*/
+		len = RIAP_NUMBER_OF_PARTITIONS_LEN;
+		set_htonll(ll, 17);
+		val = ll;
+		break;
+	case RIAP_CLOCK:
+		/*FIXME: gettime + saved offset*/
+		len = RIAP_CLOCK_LEN;
+		set_htonl(ll, 0);
+		val = ll;
+		break;
+	case RIAP_OSD_NAME:
+		return attr_get_attr(osd->dbc, pid, oid, ROOT_INFO_PG,
+					RIAP_OSD_NAME, outlen, outbuf, listfmt,
+					used_outlen);
+	default:
+		return OSD_ERROR;
+	}
+
+	if (listfmt == RTRVD_SET_ATTR_LIST)
+		ret = le_pack_attr(outbuf, outlen, page, number, len, val);
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		ret = le_multiobj_pack_attr(outbuf, outlen, oid, page, number,
+					    len, val);
+	else
+		return OSD_ERROR;
+
+	assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
+	if (ret == -EOVERFLOW)
+		*used_outlen = 0;
+	else if (ret > 0)
+		*used_outlen = ret;
+	else
+		return ret;
+
+	return OSD_OK;
+}
+
+static int set_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
+		    uint32_t number, const void *val, uint16_t len)
+{
+	switch (number) {
+	/* read only */
+	case RIAP_OSD_SYSTEM_ID:
+	case RIAP_VENDOR_IDENTIFICATION:
+	case RIAP_PRODUCT_IDENTIFICATION:
+	case RIAP_PRODUCT_MODEL:
+	case RIAP_PRODUCT_REVISION_LEVEL:
+	case RIAP_PRODUCT_SERIAL_NUMBER:
+	case RIAP_TOTAL_CAPACITY:
+	case RIAP_USED_CAPACITY:
+	case RIAP_NUMBER_OF_PARTITIONS:
+	default:
+		return OSD_ERROR;
+
+	case RIAP_OSD_NAME:
+		return attr_set_attr(osd->dbc, pid, oid, ROOT_INFO_PG,
+					RIAP_OSD_NAME, val, len);
+
+	case RIAP_CLOCK:
+		/* FIXME: Save an offset from current time.
+			 return time + offset */
+		return OSD_OK;
 	}
 }
 
@@ -2052,6 +2172,10 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = get_uiap(osd, pid, oid, page, number, outbuf,
 			       outlen, listfmt, used_outlen);
 		break;
+	case ROOT_INFO_PG:
+		ret = get_riap(osd, pid, oid, page, number, outbuf,
+			       outlen, listfmt, used_outlen);
+		break;
 	default:
 		ret = mutiplex_getattr_list(osd, pid, oid, page,
 					    number, outbuf, outlen,
@@ -3213,7 +3337,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 #ifdef PVFS_OSD_INTEGRATED
 	if (page == USER_INFO_PG && number == UIAP_LOGICAL_LEN) {
-		ret = set_uiap(osd, pid, oid, number, val);
+		ret = set_uiap(osd, pid, oid, number, val, len);
 		if (ret == OSD_OK)
 			goto out_success;
 		else
@@ -3263,7 +3387,13 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	switch (page) {
 	case USER_INFO_PG:
-		ret = set_uiap(osd, pid, oid, number, val);
+		ret = set_uiap(osd, pid, oid, number, val, len);
+		if (ret == OSD_OK)
+			goto out_success;
+		else
+			goto out_cdb_err;
+	case ROOT_INFO_PG:
+		ret = set_riap(osd, pid, oid, number, val, len);
 		if (ret == OSD_OK)
 			goto out_success;
 		else

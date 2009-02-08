@@ -1280,7 +1280,7 @@ static void exec_service_action(struct command *cmd)
 	uint64_t oid = get_ntohll(&cdb[24]);
 	int ret;
 	
-	osd_debug("%s: start 0x%04x", __func__, cmd->action);
+//	osd_debug("%s: start 0x%04x", __func__, cmd->action);
 
 	if (cdb_cont_len != 0) {
 	        if (((cdb_cont_len % 8) != 0) || (cdb_cont_len > 48)) {
@@ -1581,7 +1581,9 @@ static void exec_service_action(struct command *cmd)
 	default:
 		ret = osd_error_unimplemented(cmd->action, sense);
 	}
-	osd_debug("%s: done  0x%04x", __func__, cmd->action);
+
+	if (ret)
+		osd_debug("%s: done  0x%04x => %d", __func__, cmd->action, ret);
 
 	/*
 	 * All the above return bytes of sense data put into sense[]

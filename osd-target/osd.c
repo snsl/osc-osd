@@ -917,6 +917,7 @@ int osd_open(const char *root, struct osd_device *osd)
 	mhz = get_mhz(); /* XXX: find a better way of profiling */
 
 	if (strlen(root) > MAXROOTLEN) {
+		osd_error("strlen(%s) > MAXROOTLEN", root);
 		ret = -ENAMETOOLONG;
 		goto out;
 	}
@@ -925,37 +926,48 @@ int osd_open(const char *root, struct osd_device *osd)
 
 	/* test if root exists and is a directory */
 	ret = create_dir(root);
-	if (ret != 0)
+	if (ret != 0) {
+		osd_error("!create_dir_root(%s)", root);
 		goto out;
+	}
 
 	/* test create 'data/dfiles' sub-directory */
 	sprintf(path, "%s/%s/", root, dfiles);
 	ret = create_dir(path);
-	if (ret != 0)
+	if (ret != 0) {
+		osd_error("!create_dir_data/dfiles(%s)", path);
 		goto out;
+	}
 
 	/* to prevent fan-out create 256 subdirs under dfiles */
 	for (i = 0; i < 256; i++) {
 		sprintf(path, "%s/%s/%02x/", root, dfiles, i);
 		ret = create_dir(path);
-		if (ret != 0)
+		if (ret != 0) {
+			osd_error("!create_dir_256(%s)", path);
 			goto out;
+		}
 	}
 
 	/* create 'stranded-files' sub-directory */
 	sprintf(path, "%s/%s/", root, stranded);
 	ret = create_dir(path);
-	if (ret != 0)
+	if (ret != 0) {
+		osd_error("!create_dir_stranded-files(%s)", path);
 		goto out;
+	}
 
 	/* create 'md' sub-directory */
 	sprintf(path, "%s/%s/", root, md);
 	ret = create_dir(path);
-	if (ret != 0)
+	if (ret != 0) {
+		osd_error("!create_dir_md(%s)", path);
 		goto out;
+	}
 
 	osd->root = strdup(root);
 	if (!osd->root) {
+		osd_error("!strdup_root(%s)", root);
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -963,16 +975,22 @@ int osd_open(const char *root, struct osd_device *osd)
 
 	/* auto-creates db if necessary, and sets osd->dbc */
 	ret = osd_db_open(path, osd);
-	if (ret != 0 && ret != 1)
+	if (ret != 0 && ret != 1) {
+		osd_error("!osd_db_open(%s)", path);
 		goto out;
+	}
 	if (ret == 1) {
 		ret = osd_initialize_db(osd);
-		if (ret != 0)
+		if (ret != 0) {
+			osd_error("!osd_initialize_db");
 			goto out;
+		}
 	}
 	ret = db_exec_pragma(osd->dbc);
-
 out:
+	if (ret != 0)
+		osd_error("!db_exec_pragma => %d", ret);
+
 	return ret;
 }
 

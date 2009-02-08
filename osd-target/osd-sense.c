@@ -37,6 +37,9 @@ int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
 	data[2] = ASC(code);
 	data[3] = ASCQ(code);
 	data[7] = additional_len;  /* additional length, beyond these 8 bytes */
+	osd_warning("sense_header_build key=%d code=%x additional_len=%d",
+		 key, code, additional_len);
+
 	return 8;
 }
 
@@ -56,6 +59,7 @@ int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 	set_htonl(&data[12], completed_funcs);
 	set_htonll(&data[16], pid);
 	set_htonll(&data[24], oid);
+	osd_warning("  identification pid=%lx oid=%lx",pid, oid);
 	return 32;
 }
 
@@ -69,6 +73,7 @@ int sense_csi_build(uint8_t *data, int len, uint64_t csi)
 	data[0] = 0x1;
 	data[1] = 0xa;
 	set_htonll(&data[4], csi);
+	osd_warning("  command-specific information=%lx",csi);
 	return 12;
 }
 

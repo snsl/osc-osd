@@ -27,6 +27,8 @@
 #include <dirent.h>
 #include <assert.h>
 
+#include <linux/fs.h>
+
 #include "osd.h"
 #include "osd-util/osd-defs.h"
 #include "target-sense.h"
@@ -38,6 +40,14 @@
 #include "mtq.h"
 #include "osd-util/osd-sense.h"
 #include "list-entry.h"
+
+#ifdef __MAKE_BSD_BUILD__
+static int os_sync_file_range(int fd, __off64_t offset, __off64_t bytes,
+			unsigned int flags)
+{
+	return fsync(fd);
+}
+#endif
 
 struct incits_page_id {
 	const char root_dir_page[40];

@@ -10,7 +10,7 @@ DEP := .depend
 OBJ := $(SRC:.c=.o)
 TESTDIR := ./tests/
 UTILDIR := ../osd-util/
-STGTDIR := ../stgt/
+STGTDIR := ../tgt/
 INITDIR := ../osd-initiator/
 OSDTARGETLIB := libosdtgt.a
 
@@ -19,7 +19,14 @@ UTILLIB := ../osd-util/libosdutil.a
 
 IB_HW_OF_LIBS= -L/usr/local/openib-iser/lib
 
-LIBS := -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common \
+UNAME= $(shell uname)
+ifeq (FreeBSD,$(UNAME))
+LIBS += -L/usr/local/lib/
+CFLAGS += -I/usr/local/include -I$(STGTDIR)/usr/bsd -I$(STGTDIR)/usr
+CFLAGS += -D__MAKE_BSD_BUILD__
+endif
+
+LIBS += -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common \
 	$(IB_HW_OF_LIBS) -libverbs -lrdmacm
 
 -include ../Makedefs
@@ -32,7 +39,7 @@ COPTS += -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
 	-Wmissing-declarations -Wnested-externs
-CFLAGS := $(COPTS) $(CWARN) -I.. -Wno-unused -I../osd-util
+CFLAGS += $(COPTS) $(CWARN) -I.. -Wno-unused -I../osd-util
 
 ifeq ($(PVFS_OSD_INTEGRATED),1)
 CFLAGS += -DPVFS_OSD_INTEGRATED
@@ -69,7 +76,7 @@ $(STGTLIB): STGT
 $(UTILLIB): UTIL
 	make -C $(UTILDIR)
 
-%.o: %.c
+%.o: %.c Makefile
 	$(CC) $(CFLAGS) -c $< -o $@
 
 osd-schema.c: osd.schema

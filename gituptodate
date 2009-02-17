@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+#del all tags
+git-tag -d `git-tag -l`
+# update
+git-remote update
+git-remote prune origin
+
+# *(no branch)
+git-checkout origin/master
+
+git-branch -f master            origin/master
+git-branch -f osc               origin/osc

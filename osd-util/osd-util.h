@@ -73,11 +73,7 @@ uint32_t jenkins_one_at_a_time_hash(uint8_t *key, size_t key_len);
 #endif
 
 #ifndef llu
-#if __WORDSIZE == 64
 #define llu(x) ((unsigned long long) (x))
-#else
-#define llu(x) (x)
-#endif
 #endif
 
 /* endian covertors */

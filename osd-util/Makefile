@@ -18,6 +18,11 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wmissing-declarations -Wnested-externs
 CFLAGS := $(COPTS) $(CWARN) -I.
 
+UNAME= $(shell uname)
+ifeq (FreeBSD,$(UNAME))
+CFLAGS += -I../tgt/usr/bsd ../tgt/usr
+endif
+
 all:: $(LIB) $(OBJ)
 
 $(LIB): $(OBJ)

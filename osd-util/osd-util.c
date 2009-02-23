@@ -72,9 +72,9 @@ osd_info(const char *fmt, ...)
 
 	fprintf(stderr, "%s: [%s] ", progname, buffer);
 	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
+	vfprintf(stdout, fmt, ap);
 	va_end(ap);
-	fprintf(stderr, ".\n");
+	fprintf(stdout, ".\n");
 }
 
 /*
@@ -85,11 +85,11 @@ osd_warning(const char *fmt, ...)
 {
 	va_list ap;
 
-	fprintf(stderr, "%s: Warning: ", progname);
+	fprintf(stdout, "%s: Warning: ", progname);
 	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
+	vfprintf(stdout, fmt, ap);
 	va_end(ap);
-	fprintf(stderr, ".\n");
+	fprintf(stdout, ".\n");
 }
 
 /*

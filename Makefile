@@ -12,10 +12,14 @@ checkpatch_2_kdev = checkpatch-2-kdev
 # comment out any below to remove from compelation
 all: target
 all: stgt
+# FreeBSD does not build these yet
+UNAME=$(shell uname)
+ifneq (FreeBSD,$(UNAME))
 all: target_test
 all: initiator
 all: initiator_tests
 all: initiator_python
+endif
 
 clean: stgt_clean initiator_clean target_clean util_clean
 

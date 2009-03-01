@@ -11,3 +11,22 @@ git-checkout origin/master
 
 git-branch -f master            origin/master
 git-branch -f osc               origin/osc
+echo ===========================================================================
+git branch -a -v
+echo ===========================================================================
+
+# Update tgt submodule also
+git-submodule update
+cd tgt
+
+#delete old branches
+git-remote prune origin
+
+git-branch -f from-tomo         origin/from-tomo
+git-branch -f osd               origin/osd
+git-branch -f osd-old           origin/osd-old
+echo ===========================================================================
+git branch -a -v
+echo ===========================================================================
+
+cd ..

@@ -184,19 +184,19 @@ static void test_osd_clear(struct osd_device *osd)
 	/* Clear all */
 	ret = osd_clear(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
 			strlen(wrbuf), 0, cdb_cont_len, sense);
-	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+1);
    	
 	/* Clear none */
 	ret = osd_clear(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
 		        0, 0, cdb_cont_len, sense);
-	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+1);
 
 	/* Clear len or offset > userlength */
 	ret = osd_clear(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
 		        5, strlen(wrbuf)+1, cdb_cont_len, sense);
 	assert(ret == 0);
 	ret=stat(path, &sb);
-	assert(ret == 0 && sb.st_size == strlen(wrbuf)+6);
+	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+6);
 
 	free(sense);
 	free(wrbuf);
@@ -244,7 +244,7 @@ static void test_osd_punch(struct osd_device *osd)
 			1, 28, cdb_cont_len, sense);
 	assert(ret != 0);
 	ret = stat(path, &sb);
-	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+1);
 
 
 	/* Punch with len=0 */
@@ -253,7 +253,7 @@ static void test_osd_punch(struct osd_device *osd)
 			0, 0, cdb_cont_len, sense);
 	assert(ret == 0);
 	ret = stat(path, &sb);
-	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1);
+	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+1);
 
 
 	/* Special Case */
@@ -268,7 +268,7 @@ static void test_osd_punch(struct osd_device *osd)
 	assert(ret == 0);
 	
 	ret = stat(path, &sb);
-	assert(ret == 0 && sb.st_size == strlen(wrbuf)-5);
+	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)-5);
 
 
 	/* Punch Regular */
@@ -281,7 +281,7 @@ static void test_osd_punch(struct osd_device *osd)
 			8, 0, cdb_cont_len, sense);
 	assert(ret == 0);
 	ret = stat(path, &sb);
-	assert(ret == 0 && sb.st_size == strlen(wrbuf)+1-8);
+	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+1-8);
 
 	free(sense);
 	free(wrbuf);
@@ -708,13 +708,7 @@ static void test_osd_get_attributes(struct osd_device *osd)
 
 static void test_osd_create_user_tracking_collection(struct osd_device *osd)
 {
-        struct getattr_list {
-                uint32_t sz;
-	        struct list_entry *le;
-      	};
-  
         int ret = 0;
-	int i;
 	char buffer [50];
 	uint8_t list_attr;
 	uint64_t cid = 0;
@@ -815,26 +809,27 @@ static void test_osd_create_user_tracking_collection(struct osd_device *osd)
 	/* verify collection contents */
 	alloc_len = 100;
 	
-	osd_list_collection(osd, list_attr, PARTITION_PID_LB, COLLECTION_OID_LB+5, alloc_len, 0, &get_attr, 0,
+	osd_list_collection(osd, list_attr, PARTITION_PID_LB,
+			    COLLECTION_OID_LB+5, alloc_len, 0, &get_attr, 0,
 			    outdata, &used_outlen, sense);
 
 	sprintf(buffer, "%i \n", *(outdata+7));
 	printf("addtional len is: %i \n", atoi(buffer));
 	assert(atoi(buffer) == 40);
 
-	printf("used len is: %i \n", used_outlen);
+	printf("used len is: %lli \n", llu(used_outlen));
 	assert(used_outlen == (3*8) + 24);
 	
 	oid = get_ntohll(outdata+24);
-	printf("1st object id =: %d \n", oid);
+	printf("1st object id =: %llx \n", llu(oid));
 	assert(oid == USEROBJECT_OID_LB + 1);
 
 	oid = get_ntohll(outdata+32);
-	printf("2nd object id =: %d \n", oid);
+	printf("2nd object id =: %llx \n", llu(oid));
 	assert(oid == USEROBJECT_OID_LB + 2);
 
 	oid = get_ntohll(outdata+40);
-	printf("3rd object id =: %d \n", oid);
+	printf("3rd object id =: %llx \n", llu(oid));
 	assert(oid == USEROBJECT_OID_LB + 3);
 
 	/* remove objects */
@@ -1439,26 +1434,26 @@ int main()
 	int ret = 0;
 	const char *root = "/tmp/osd/";
 	struct osd_device osd;
-  
+
         system("rm -rf /tmp/osd");
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
 	
-/* 	test_osd_clear(&osd); */
-/*	test_osd_punch(&osd); */
-/* 	test_osd_flush(&osd);  */
-/* 	test_osd_format(&osd); */
-/* 	test_osd_create(&osd); */
-/* 	test_osd_set_attributes(&osd); */
-/* 	test_osd_io(&osd); */
-/* 	test_osd_create_partition(&osd); */
-/* 	test_osd_get_attributes(&osd); */
-/* 	test_osd_get_ccap(&osd); */
-/* 	test_osd_get_utsap(&osd); */
-/* 	test_osd_create_collection(&osd); */
- 	test_osd_create_user_tracking_collection(&osd);  
-/* 	test_osd_query(&osd); */
-/*      test_osd_read_map(&osd); */
+	test_osd_clear(&osd);
+	test_osd_punch(&osd);
+	test_osd_flush(&osd);
+	test_osd_format(&osd);
+	test_osd_create(&osd);
+	test_osd_set_attributes(&osd);
+	test_osd_io(&osd);
+	test_osd_create_partition(&osd);
+	test_osd_get_attributes(&osd);
+	test_osd_get_ccap(&osd);
+	test_osd_get_utsap(&osd);
+	test_osd_create_collection(&osd);
+	test_osd_create_user_tracking_collection(&osd);
+	test_osd_query(&osd);
+	test_osd_read_map(&osd);
 
 	ret = osd_close(&osd);
 	assert(ret == 0);

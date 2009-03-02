@@ -349,7 +349,6 @@ static void test_copy_coll(struct osd_device *osd)
 	int ret = 0;
 	uint64_t usedlen;
 	uint64_t addlen;
-	int isempty = 0;
 	uint64_t oids[64] = {0};
 	uint64_t cont_id = 0xFUL;
 
@@ -397,14 +396,14 @@ int main()
  	ret = db_exec_pragma(osd.dbc);
 	assert(ret == 0); 
 
-/*      	test_obj(&osd);
+      	test_obj(&osd);
 	test_dup_obj(&osd);
 	test_obj_manip(&osd);
 	test_pid_isempty(&osd);
 	test_get_obj_type(&osd);
 	test_attr(&osd);  
  	test_dir_page(&osd); 
-	test_coll(&osd); */
+	test_coll(&osd); 
 	test_copy_coll(&osd);
 
 	ret = db_print_pragma(osd.dbc);

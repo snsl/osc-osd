@@ -121,5 +121,23 @@ You can redirect debug output to a file too.
 Now, point an iSCSI initiator at this machine, port 3260, and
 issue OSD commands.
 
+If you want to add an osd-target by hand or add a second osd
+logical unit issue the following commands:
 
-# vim: set tw=72 :
+[]$ ./tgtadm --lld iscsi --mode target --op new --tid 1 --targetname $(hostname)
+
+[]$ ./tgtadm --lld iscsi --mode target --op bind --tid 1 --initiator-address ALL
+
+[]$ ./tgtadm --lld iscsi --mode logicalunit --op new --tid 1 --lun 1 \
+	--backing-store /tmp/tgt-$(id -nu) --device-type osd
+
+[]$ ./tgtadm --lld iscsi --mode logicalunit --op update --tid 1 --lun 1 \
+	--name=scsi_sn --value=$(hostname)
+
+And optionaly these for preformance:
+
+[]$ ./tgtadm --lld iscsi --mode target --op update --tid 1 \
+	--name MaxRecvDataSegmentLength --value 262144
+
+[]$ ./tgtadm --lld iscsi --mode target --op update --tid 1 \
+	--name FirstBurstLength --value 262144

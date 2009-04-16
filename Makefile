@@ -58,7 +58,7 @@ initiator_clean:
 
 .PHONY: stgt stgt_checkpatch stgt_tgt_only stgt_clean
 stgt: target
-	$(MAKE) ISCSI=1 -C $(tgt)/usr
+	$(MAKE) OSDEMU=1 ISCSI=1 -C $(tgt)/usr
 
 stgt_checkpatch:
 	cd $(tgt);git-show | $(CHECKPATCH) - |  $(checkpatch_2_kdev) $(PWD)/$(tgt)

@@ -20,7 +20,6 @@
 #include <assert.h>
 #include <string.h>
 
-#include "osd-util/osd-defs.h"
 #include "osd.h"
 #include "list-entry.h"
 #include "osd-util/osd-util.h"

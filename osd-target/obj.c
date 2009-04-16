@@ -22,8 +22,6 @@
 #include <sqlite3.h>
 #include <assert.h>
 
-#include "osd-types.h"
-#include "osd-util/osd-defs.h"
 #include "osd.h"
 #include "osd-util/osd-util.h"
 #include "obj.h"

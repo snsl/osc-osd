@@ -25,7 +25,6 @@
 
 #include "osd.h"
 #include "osd-util/osd-sense.h"
-#include "osd-util/osd-defs.h"
 #include "target-sense.h"
 #include "cdb.h"
 #include "osd-util/osd-util.h"
@@ -312,15 +311,15 @@ static int set_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 
 	list_hdr = &list_hdr[8]; /* XXX: osd errata */
 	while (list_len > 0) {
-		uint32_t page = get_ntohl(&list_hdr[0]);
-		uint32_t number = get_ntohl(&list_hdr[4]);
-		uint32_t len = get_ntohs(&list_hdr[8]);
+		uint32_t page = get_ntohl(&list_hdr[LE_PAGE_OFF]);
+		uint32_t number = get_ntohl(&list_hdr[LE_NUMBER_OFF]);
+		uint32_t len = get_ntohs(&list_hdr[LE_LEN_OFF]);
 		uint32_t pad = 0;
 
 		/* set attr on multiple objects if that is the case */
 		for (i = oid; i < oid+numoid; i++) {
 			ret = osd_set_attributes(cmd->osd, pid, i, page,
-						 number, &list_hdr[10], len,
+						 number, &list_hdr[LE_VAL_OFF], len,
 						 isembedded, cdb_cont_len, cmd->sense);
 			if (ret != 0) {
 				cmd->senselen = ret;

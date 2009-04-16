@@ -30,7 +30,6 @@
 #include <linux/fs.h>
 
 #include "osd.h"
-#include "osd-util/osd-defs.h"
 #include "target-sense.h"
 #include "db.h"
 #include "attr.h"
@@ -700,16 +699,16 @@ static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		val = "\xf1\x81\x00\x0eOSC     OSDEMU\x00\x00";
 		break;
 	case RIAP_VENDOR_IDENTIFICATION:
-		len = 4;
+		len = sizeof("OSC");
 		val = "OSC";
 		break;
 	case RIAP_PRODUCT_IDENTIFICATION:
-		len = 8;
-		val = "OSDEMU ";
+		len = sizeof("OSDEMU");
+		val = "OSDEMU";
 		break;
 	case RIAP_PRODUCT_MODEL:
-		len = 5;
-		val = "9002";
+		len = sizeof("OSD2r05");
+		val = "OSD2r05";
 		break;
 	case RIAP_PRODUCT_REVISION_LEVEL:
 		len = RIAP_PRODUCT_REVISION_LEVEL_LEN;
@@ -717,8 +716,8 @@ static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		val = ll;
 		break;
 	case RIAP_PRODUCT_SERIAL_NUMBER:
-		len = 2;
-		val = "1";
+		len = sizeof("2");
+		val = "2";
 		break;
 	case RIAP_TOTAL_CAPACITY:
 		/*FIXME: return capacity of osd->root device*/

@@ -21,8 +21,10 @@
  * Shared defitions for OSD target and initiator.
  */
 #define VARLEN_CDB 0x7f
-#define OSD_CDB_SIZE 200
+#define OSD_CDB_SIZE 236
 #define OSD_MAX_SENSE 252
+#define OSD_CRYPTO_KEYID_SIZE 32
+#define OSD_SYS_ID_SIZE 20
 
 /* varlen cdb service actions for osd2r01 */
 #define OSD_APPEND		        	0x8887
@@ -210,7 +212,7 @@ enum {
 	CCAP_APPADDR = 0x5,
 
 	/* lengths of the items */
-	CCAP_RICV_LEN = 20,
+	CCAP_RICV_LEN = OSD_CRYPTO_KEYID_SIZE,
 	CCAP_OBJT_LEN = 1,
 	CCAP_PID_LEN = 8,
 	CCAP_OID_LEN = 8,
@@ -218,11 +220,11 @@ enum {
 
 	/* offsets when retrieved in page format (page num and len at 0) */
 	CCAP_RICV_OFF = 8,
-	CCAP_OBJT_OFF = 28,
-	CCAP_PID_OFF = 32,
-	CCAP_OID_OFF = 40,
-	CCAP_APPADDR_OFF = 48,
-	CCAP_TOTAL_LEN = 56,
+	CCAP_OBJT_OFF = 28+12,
+	CCAP_PID_OFF = 32+12,
+	CCAP_OID_OFF = 40+12,
+	CCAP_APPADDR_OFF = 48+12,
+	CCAP_TOTAL_LEN = 56+12,
 };
 
 /* userobject timestamp attribute page osd2r01 sec 7.1.2.18 */
@@ -282,7 +284,7 @@ enum {
 	RIAP_CLOCK                    = 0x100, /* 6        */
 
 	/* lengths */
-	RIAP_OSD_SYSTEM_ID_LEN            = 20,
+	RIAP_OSD_SYSTEM_ID_LEN            = OSD_SYS_ID_SIZE,
 	RIAP_VENDOR_IDENTIFICATION_LEN    = 8,
 	RIAP_PRODUCT_IDENTIFICATION_LEN   = 16,
 	RIAP_PRODUCT_MODEL_LEN            = 32,

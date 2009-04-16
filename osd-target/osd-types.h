@@ -22,6 +22,8 @@
 #include <stddef.h>
 #include <sqlite3.h>
 
+#include "osd-util/osd-defs.h"
+
 struct getattr_list_entry {
 	uint32_t page;
 	uint32_t number;
@@ -36,6 +38,7 @@ struct getattr_list_entry {
 struct list_entry {
 	uint32_t page;
 	uint32_t number;
+	uint8_t reserved[6];
 	uint16_t len;
 	union {
 		void *val;
@@ -48,7 +51,7 @@ enum {
 	LE_NUMBER_OFF = offsetof(struct list_entry, number),
 	LE_LEN_OFF = offsetof(struct list_entry, len),
 	LE_VAL_OFF = offsetof(struct list_entry, val),
-	LE_MIN_ITEM_LEN = (LE_VAL_OFF + 0x7) & ~0x7
+	LE_MIN_ITEM_LEN = LE_VAL_OFF,
 };
 
 struct multiobj_list_entry {
@@ -105,7 +108,7 @@ struct setattr_list {
 
 struct __attribute__((packed)) cur_cmd_attr_pg {
 	uint16_t cdb_srvc_act; 	/* current cmd  */
-	uint8_t ricv[20]; 	/* response integrity check value */
+	uint8_t ricv[OSD_CRYPTO_KEYID_SIZE]; 	/* response integrity check value */
 	uint8_t obj_type;
 	uint8_t reserved[3];
 	uint64_t pid;

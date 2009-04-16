@@ -24,7 +24,6 @@
 #include <sys/stat.h>
 
 #include "osd-types.h"
-#include "osd-util/osd-defs.h"
 #include "db.h"
 #include "attr.h"
 #include "osd-util/osd-util.h"

@@ -5,6 +5,12 @@
 # from svn into current git HEAD. Note that this will always succeed and no
 # merge conflicts will ever exist since git-checkout files are over written by
 # new svn files
+#
+# For clean merge-less pull start with: (No additional open-osd code)
+#   []$ git checkout osc
+#   []$ git cherry-pick FOR_SVN_FETCH3 
+#   (Above is for missing .gitignore, without it will not work)
+# osc branch now holds the new patches, cherry-rebase over master
 
 commit_txt=`pwd`/commit.txt
 start_rev=695

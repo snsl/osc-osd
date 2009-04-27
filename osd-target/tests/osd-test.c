@@ -547,7 +547,7 @@ static void test_osd_get_ccap(struct osd_device *osd)
 
 static inline time_t ntoh_time(void *buf)
 {
-	time_t t = get_ntohll((uint8_t *)buf) & ~0xFFFFULL;
+	time_t t = get_ntohll(buf) & ~0xFFFFULL;
 	return (t >> 16);
 }
 
@@ -645,9 +645,9 @@ static void test_osd_get_attributes(struct osd_device *osd)
 			       RTRVD_SET_ATTR_LIST, &used_len, cdb_cont_len, sense);
 	assert(ret == 0);
 	le = val;
-	assert(get_ntohl((uint8_t *)&le->page) == USEROBJECT_PG + LUN_PG_LB);
-	assert(get_ntohl((uint8_t *)&le->number) == 1);
-	assert(get_ntohs((uint8_t *)&le->len) == strlen("Madhuri Dixit")+1);
+	assert(get_ntohl(&le->page) == USEROBJECT_PG + LUN_PG_LB);
+	assert(get_ntohl(&le->number) == 1);
+	assert(get_ntohs(&le->len) == strlen("Madhuri Dixit")+1);
 	assert(strcmp((char *)le +  LE_VAL_OFF, "Madhuri Dixit") == 0);
 	len = LE_VAL_OFF + strlen("Madhuri Dixit")+1;
 	len += (0x8 - (len & 0x7)) & 0x7;
@@ -665,10 +665,10 @@ static void test_osd_get_attributes(struct osd_device *osd)
 			       TRUE, RTRVD_SET_ATTR_LIST, &used_len, cdb_cont_len, sense);
 	assert(ret == 0);
 	le = getval;
-	assert(get_ntohl((uint8_t *)&le->page) == USER_INFO_PG);
-	assert(get_ntohl((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
-	assert(get_ntohs((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
-	assert(get_ntohll((uint8_t *)le + LE_VAL_OFF) == strlen(val)+1);
+	assert(get_ntohl(&le->page) == USER_INFO_PG);
+	assert(get_ntohl(&le->number) == UIAP_LOGICAL_LEN);
+	assert(get_ntohs(&le->len) == UIAP_LOGICAL_LEN_LEN);
+	assert(get_ntohll(le + LE_VAL_OFF) == strlen(val)+1);
 	len = LE_VAL_OFF + UIAP_LOGICAL_LEN_LEN;
 	len += (0x8 - (len & 0x7)) & 0x7;
 	assert(used_len == len);
@@ -685,10 +685,10 @@ static void test_osd_get_attributes(struct osd_device *osd)
 			       TRUE, RTRVD_SET_ATTR_LIST, &used_len, cdb_cont_len, sense);
 	assert(ret == 0);
 	le = getval;
-	assert(get_ntohl((uint8_t *)&le->page) == USER_INFO_PG);
-	assert(get_ntohl((uint8_t *)&le->number) == UIAP_LOGICAL_LEN);
-	assert(get_ntohs((uint8_t *)&le->len) == UIAP_LOGICAL_LEN_LEN);
-	assert(get_ntohll((uint8_t *)le + LE_VAL_OFF) == 0);
+	assert(get_ntohl(&le->page) == USER_INFO_PG);
+	assert(get_ntohl(&le->number) == UIAP_LOGICAL_LEN);
+	assert(get_ntohs(&le->len) == UIAP_LOGICAL_LEN_LEN);
+	assert(get_ntohll(le + LE_VAL_OFF) == 0);
 	len = LE_VAL_OFF + UIAP_LOGICAL_LEN_LEN;
 	len += (0x8 - (len & 0x7)) & 0x7;
 	assert(used_len == len);
@@ -1016,11 +1016,10 @@ static inline void set_attr_int(struct osd_device *osd, uint64_t oid,
 				uint8_t *sense)
 {
 	int ret = 0;
-	uint8_t *cp = (uint8_t *)&val;
 	uint64_t pid = PARTITION_PID_LB;
 	uint32_t cdb_cont_len = 0;
 
-	set_htonll(cp, val);
+	set_htonll(&val, val);
 	ret = osd_set_attributes(osd, pid, oid, page, number, &val,
 				 sizeof(val), 1, cdb_cont_len, sense);
 	assert(ret == 0);
@@ -1183,8 +1182,8 @@ static void test_osd_query(struct osd_device *osd)
 	/* 3: run one query with criteria */
 	qll = 0;
 	min = 40, max= 80;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x0;
@@ -1208,8 +1207,8 @@ static void test_osd_query(struct osd_device *osd)
 	/* first query */
 	page = USEROBJECT_PG+LUN_PG_LB;
 	min = 100, max = 180;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x0; /* UNION */
@@ -1219,8 +1218,8 @@ static void test_osd_query(struct osd_device *osd)
 
 	/* second query */
 	min = 200, max = 323;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	set_qce(cp, page, 1, sizeof(min), &min, sizeof(max), &max);
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
@@ -1238,8 +1237,8 @@ static void test_osd_query(struct osd_device *osd)
 	/* first query */
 	page = USEROBJECT_PG+LUN_PG_LB;
 	min = 4, max = 100;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x1; /* INTERSECTION */
@@ -1249,8 +1248,8 @@ static void test_osd_query(struct osd_device *osd)
 
 	/* second query */
 	min = 10, max = 400;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	set_qce(cp, page, 2, sizeof(min), &min, sizeof(max), &max);
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
@@ -1268,8 +1267,8 @@ static void test_osd_query(struct osd_device *osd)
 
 	/* first query */
 	min = 130, max = 130;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x0; /* UNION */
@@ -1280,14 +1279,14 @@ static void test_osd_query(struct osd_device *osd)
 
 	/* second query */
 	min = 150;
-	set_htonll((uint8_t *)&min, min);
+	set_htonll(&min, min);
 	set_qce(cp, page, 1, sizeof(min), &min, 0, NULL);
 	qll += (4+4+4+2+sizeof(min)+2+0);
 	cp += (4+4+4+2+sizeof(min)+2+0);
 
 	/* third query */
 	max = 10;
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&max, max);
 	set_qce(cp, page, 1, 0, NULL, sizeof(max), &max);
 	qll += (4+4+4+2+0+2+sizeof(max));
 	cp += (4+4+4+2+0+2+sizeof(max));
@@ -1324,8 +1323,8 @@ static void test_osd_query(struct osd_device *osd)
 
 	/* first query */
 	min = 41, max = 169;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	memset(buf, 0, 1024);
 	cp = buf;
 	cp[0] = 0x0; /* UNION */
@@ -1364,7 +1363,7 @@ static void test_osd_query(struct osd_device *osd)
 
 	/* second query */
 	min = 140;
-	set_htonll((uint8_t *)&min, min);
+	set_htonll(&min, min);
 	set_qce(cp, page, 1, sizeof(min), &min, 0, NULL);
 	qll += (4+4+4+2+sizeof(min)+2+0);
 	cp += (4+4+4+2+sizeof(min)+2+0);
@@ -1395,8 +1394,8 @@ static void test_osd_query(struct osd_device *osd)
 	/* second query */
 	min = 50;
 	max = 80;
-	set_htonll((uint8_t *)&min, min);
-	set_htonll((uint8_t *)&max, max);
+	set_htonll(&min, min);
+	set_htonll(&max, max);
 	set_qce(cp, page, 1, sizeof(min), &min, sizeof(max), &max);
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));

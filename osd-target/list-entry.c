@@ -36,6 +36,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 		 uint16_t valen, const void *val)
 {
 	uint8_t pad = 0;
+	struct list_entry *list_entry = buf;
 	uint8_t *cp = buf;
 	uint32_t len = buflen;
 
@@ -50,11 +51,12 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	if (buflen < LE_MIN_ITEM_LEN)
 		return -EOVERFLOW;
 
-	set_htonl_le(&cp[LE_PAGE_OFF], page);
-	set_htonl_le(&cp[LE_NUMBER_OFF], number);
+	set_htonl(&list_entry->page, page);
+	set_htonl(&list_entry->number, number);
 
 	/* length field is not modified to reflect truncation, sec 5.2.2.2 */
-	set_htons_le(&cp[LE_LEN_OFF], valen);
+	set_htons(&list_entry->len, valen);
+	memset(list_entry->reserved, 0, sizeof(list_entry->reserved));
 
 	if (val != NULL) {
 		buflen -= LE_VAL_OFF;
@@ -70,8 +72,8 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 	pad = roundup8(len) - len;
 	cp += len; 
 	len += pad;
-	while (pad--)
-		*cp = 0, cp++;
+	if (pad)
+		memset(cp, 0, pad);
 	return len;
 }
 
@@ -93,7 +95,7 @@ int le_multiobj_pack_attr(void *buf, uint32_t buflen, uint64_t oid,
 	if (buflen < MLE_MIN_ITEM_LEN)
 		return -EOVERFLOW;
 
-	set_htonll_le(cp, oid);
+	set_htonll(cp, oid);
 
 	/* 
 	 * test if layout of struct multiobj_list_entry is similar to 

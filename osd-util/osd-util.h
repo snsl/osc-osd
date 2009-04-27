@@ -77,25 +77,25 @@ uint32_t jenkins_one_at_a_time_hash(uint8_t *key, size_t key_len);
 #endif
 
 /* endian covertors */
-uint16_t get_ntohs_le(const uint8_t *d);
-uint16_t get_ntohs_be(const uint8_t *d);
-uint32_t get_ntohl_le(const uint8_t *d);
-uint32_t get_ntohl_be(const uint8_t *d);
-uint64_t get_ntohll_le(const uint8_t *d);
-uint64_t get_ntohll_be(const uint8_t *d);
-uint64_t get_ntohtime_le(const uint8_t *d);
-uint64_t get_ntohtime_be(const uint8_t *d);
-void set_htons_le(uint8_t *x, uint16_t val);
-void set_htons_be(uint8_t *x, uint16_t val);
-void set_htonl_le(uint8_t *x, uint32_t val);
-void set_htonl_be(uint8_t *x, uint32_t val);
-void set_htonll_le(uint8_t *x, uint64_t val);
-void set_htonll_be(uint8_t *x, uint64_t val);
-void set_htontime_le(uint8_t *x, uint64_t val);
-void set_htontime_be(uint8_t *x, uint64_t val);
+uint16_t get_ntohs_le(const void *d);
+uint16_t get_ntohs_be(const void *d);
+uint32_t get_ntohl_le(const void *d);
+uint32_t get_ntohl_be(const void *d);
+uint64_t get_ntohll_le(const void *d);
+uint64_t get_ntohll_be(const void *d);
+uint64_t get_ntohtime_le(const void *d);
+uint64_t get_ntohtime_be(const void *d);
+void set_htons_le(void *x, uint16_t val);
+void set_htons_be(void *x, uint16_t val);
+void set_htonl_le(void *x, uint32_t val);
+void set_htonl_be(void *x, uint32_t val);
+void set_htonll_le(void *x, uint64_t val);
+void set_htonll_be(void *x, uint64_t val);
+void set_htontime_le(void *x, uint64_t val);
+void set_htontime_be(void *x, uint64_t val);
 
-uint64_t get_ntohoffset(const uint8_t *d);
-void set_htonoffset(uint8_t *x, uint64_t val);
+uint64_t get_ntohoffset(const void *d);
+void set_htonoffset(void *x, uint64_t val);
 uint64_t next_offset(uint64_t start);
 
 /* remove netdb.h declarations */

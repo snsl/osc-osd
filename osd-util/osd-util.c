@@ -274,10 +274,10 @@ static uint32_t swab32(uint32_t d)
  * Things are not aligned in the current osd2r00, but they probably
  * will be soon.  Assume 4-byte alignment though.
  */
-uint64_t get_ntohll_le(const uint8_t *d)
+uint64_t get_ntohll_le(const void *d)
 {
 	uint32_t d0 = swab32(*(const uint32_t *) d);
-	uint32_t d1 = swab32(*(const uint32_t *) (d+4));
+	uint32_t d1 = swab32(*(const uint32_t *) ((long)d + 4));
 
 	return (uint64_t) d0 << 32 | d1;
 }
@@ -286,22 +286,22 @@ uint64_t get_ntohll_le(const uint8_t *d)
  * Doing these without memcpy for alignment now.  If anyone actually runs
  * on a BE machine, perhaps they'll tell us if alignment is needed.
  */
-uint64_t get_ntohll_be(const uint8_t *d)
+uint64_t get_ntohll_be(const void *d)
 {
 	return *(const uint64_t *) d;
 }
 
-uint32_t get_ntohl_le(const uint8_t *d)
+uint32_t get_ntohl_le(const void *d)
 {
 	return swab32(*(const uint32_t *) d);
 }
 
-uint32_t get_ntohl_be(const uint8_t *d)
+uint32_t get_ntohl_be(const void *d)
 {
 	return *(const uint32_t *) d;
 }
 
-uint16_t get_ntohs_le(const uint8_t *d)
+uint16_t get_ntohs_le(const void *d)
 {
 	uint16_t x = *(const uint16_t *) d;
 
@@ -309,12 +309,12 @@ uint16_t get_ntohs_le(const uint8_t *d)
 		(x & (uint16_t) 0xff00U) >> 8;
 }
 
-uint16_t get_ntohs_be(const uint8_t *d)
+uint16_t get_ntohs_be(const void *d)
 {
 	return *(const uint16_t *) d;
 }
 
-void set_htonll_le(uint8_t *x, uint64_t val)
+void set_htonll_le(void *x, uint64_t val)
 {
 	uint32_t *xw = (uint32_t *) x;
 
@@ -322,24 +322,24 @@ void set_htonll_le(uint8_t *x, uint64_t val)
 	xw[1] = swab32((val & (uint64_t) 0x00000000ffffffffULL));
 }
 
-void set_htonll_be(uint8_t *x, uint64_t val)
+void set_htonll_be(void *x, uint64_t val)
 {
 	*(uint64_t *) x = val;
 }
 
-void set_htonl_le(uint8_t *x, uint32_t val)
+void set_htonl_le(void *x, uint32_t val)
 {
 	uint32_t *xw = (uint32_t *) x;
 
 	*xw = swab32(val);
 }
 
-void set_htonl_be(uint8_t *x, uint32_t val)
+void set_htonl_be(void *x, uint32_t val)
 {
 	*(uint32_t *) x = val;
 }
 
-void set_htons_le(uint8_t *x, uint16_t val)
+void set_htons_le(void *x, uint16_t val)
 {
 	uint16_t *xh = (uint16_t *) x;
 
@@ -347,7 +347,7 @@ void set_htons_le(uint8_t *x, uint16_t val)
 		(val & (uint16_t) 0xff00U) >> 8;
 }
 
-void set_htons_be(uint8_t *x, uint16_t val)
+void set_htons_be(void *x, uint16_t val)
 {
 	*(uint16_t *) x = val;
 }
@@ -360,7 +360,7 @@ void set_htons_be(uint8_t *x, uint16_t val)
  *	int	 exponent : 04;
  * d points to 32bit __be32 osd_offset value
  */
-uint64_t get_ntohoffset(const uint8_t *d)
+uint64_t get_ntohoffset(const void *d)
 {
 	const uint32_t mask = 0xf0000000UL;
 	uint32_t base;
@@ -383,7 +383,7 @@ uint64_t get_ntohoffset(const uint8_t *d)
  * it converts, effectively truncating.  These generally try to use
  * the smallest possible exponent to accommodate the value.
  */
-void set_htonoffset(uint8_t *x, uint64_t val)
+void set_htonoffset(void *x, uint64_t val)
 {
 	const uint64_t max_mantissa = 0x0fffffffULL;
 	uint64_t start = val;
@@ -483,7 +483,7 @@ int main(void)
  * Return time in ms since 1970, given a six-byte big-endian as encoded
  * in OSD.
  */
-uint64_t get_ntohtime_le(const uint8_t *d)
+uint64_t get_ntohtime_le(const void *d)
 {
 	uint8_t s[8];
 
@@ -493,7 +493,7 @@ uint64_t get_ntohtime_le(const uint8_t *d)
 	return get_ntohll_le(s);
 }
 
-uint64_t get_ntohtime_be(const uint8_t *d)
+uint64_t get_ntohtime_be(const void *d)
 {
 	union {
 		uint8_t s[8];
@@ -509,7 +509,7 @@ uint64_t get_ntohtime_be(const uint8_t *d)
 /*
  * Ignore biggest two bytes, encode other six as big endian.
  */
-void set_htontime_le(uint8_t *x, uint64_t val)
+void set_htontime_le(void *x, uint64_t val)
 {
 	uint8_t s[8];
 
@@ -517,7 +517,7 @@ void set_htontime_le(uint8_t *x, uint64_t val)
 	memcpy(x, s+2, 6);
 }
 
-void set_htontime_be(uint8_t *x, uint64_t val)
+void set_htontime_be(void *x, uint64_t val)
 {
 	union {
 		uint8_t s[8];

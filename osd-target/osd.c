@@ -295,13 +295,13 @@ static int get_ccap(struct osd_device *osd, void *outbuf, uint64_t outlen,
 	}
 
 	memset(cp, 0, CCAP_TOTAL_LEN);
-	set_htonl_le(&cp[0], CUR_CMD_ATTR_PG);
-	set_htonl_le(&cp[4], CCAP_TOTAL_LEN - 8);
+	set_htonl(&cp[0], CUR_CMD_ATTR_PG);
+	set_htonl(&cp[4], CCAP_TOTAL_LEN - 8);
 	memcpy(&cp[CCAP_RICV_OFF], osd->ccap.ricv, sizeof(osd->ccap.ricv));
 	cp[CCAP_OBJT_OFF] = osd->ccap.obj_type;
-	set_htonll_le(&cp[CCAP_PID_OFF], osd->ccap.pid);
-	set_htonll_le(&cp[CCAP_OID_OFF], osd->ccap.oid);
-	set_htonll_le(&cp[CCAP_APPADDR_OFF], osd->ccap.append_off);
+	set_htonll(&cp[CCAP_PID_OFF], osd->ccap.pid);
+	set_htonll(&cp[CCAP_OID_OFF], osd->ccap.oid);
+	set_htonll(&cp[CCAP_APPADDR_OFF], osd->ccap.append_off);
 	*used_outlen = CCAP_TOTAL_LEN;
 
 out:
@@ -418,8 +418,8 @@ static int get_utsap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 
 	memset(cp, 0, UTSAP_TOTAL_LEN);
-	set_htonl_le(&cp[0], USER_TMSTMP_PG);
-	set_htonl_le(&cp[4], UTSAP_TOTAL_LEN - 8);
+	set_htonl(&cp[0], USER_TMSTMP_PG);
+	set_htonl(&cp[4], UTSAP_TOTAL_LEN - 8);
 
 	get_dfile_name(path, osd->root, pid, oid);
 	memset(&dsb, 0, sizeof(dsb));

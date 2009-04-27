@@ -77,9 +77,9 @@ static void test_attr(struct osd_device *osd)
 #ifndef NDEBUG
 	/* ifdef to avoid unused warning */
 	struct list_entry *ent = (struct list_entry *)val;
-	assert(get_ntohl((uint8_t *)&ent->page) == 2);
-	assert(get_ntohl((uint8_t *)&ent->number) == 12);
-	assert(get_ntohs((uint8_t *)&ent->len) == strlen(attr)+1);
+	assert(get_ntohl(&ent->page) == 2);
+	assert(get_ntohl(&ent->number) == 12);
+	assert(get_ntohs(&ent->len) == strlen(attr)+1);
 	assert(strcmp((char *)ent + LE_VAL_OFF, attr) == 0); 
 #endif
 
@@ -307,16 +307,16 @@ static void test_coll(struct osd_device *osd)
 	assert(usedlen == 4*8);
 	assert(addlen == 4*8);
 	assert(cont_id == 0);
-	assert(get_ntohll((uint8_t *)&oids[0]) == 0x2222);
-	assert(get_ntohll((uint8_t *)&oids[1]) == 0x3333333333333333);
-	assert(get_ntohll((uint8_t *)&oids[2]) == 0x7888888888888888);
-	assert(get_ntohll((uint8_t *)&oids[3]) == 0x7AAAAAAAAAAAAAAA);
+	assert(get_ntohll(&oids[0]) == 0x2222);
+	assert(get_ntohll(&oids[1]) == 0x3333333333333333);
+	assert(get_ntohll(&oids[2]) == 0x7888888888888888);
+	assert(get_ntohll(&oids[3]) == 0x7AAAAAAAAAAAAAAA);
 
 	/* 
 	 * XXX: following is sqlite bug. sqlite converts uint64_t to double
 	 * and looses precision 
 	 */
-	assert(get_ntohll((uint8_t *)&oids[4]) != 0xFFFFFFFFFFFFFFFF); 
+	assert(get_ntohll(&oids[4]) != 0xFFFFFFFFFFFFFFFF); 
 
 	/* test empty cid */
 	ret = coll_isempty_cid(osd->dbc, 0x20, 0x1, &isempty);
@@ -377,8 +377,8 @@ static void test_copy_coll(struct osd_device *osd)
 	assert(usedlen == 2*8);
 	assert(addlen == 2*8);
 	assert(cont_id == 0);
-	assert(get_ntohll((uint8_t *)&oids[0]) == 0x111);
-	assert(get_ntohll((uint8_t *)&oids[1]) == 0x1111111111111111);
+	assert(get_ntohll(&oids[0]) == 0x111);
+	assert(get_ntohll(&oids[1]) == 0x1111111111111111);
 }
 
 int main()

@@ -331,7 +331,7 @@ static void test_osd_read_map(struct osd_device *osd)
 {
   int ret = 0;
 	uint8_t *sense = Calloc(1, 1024);
-	uint32_t cdb_cont_len;
+	uint32_t cdb_cont_len = 0;
 	void *wrbuf = Calloc(1, 256);
 	uint8_t *outdata = Calloc(1, 1024);
        	uint64_t used_outlen = 0;
@@ -708,7 +708,7 @@ static void test_osd_create_user_tracking_collection(struct osd_device *osd)
 {
         int ret = 0;
 	char buffer [50];
-	uint8_t list_attr;
+	uint8_t list_attr = 0;
 	uint64_t cid = 0;
 	uint64_t oid = 0;
 	uint64_t alloc_len;

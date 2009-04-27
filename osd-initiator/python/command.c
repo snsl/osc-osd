@@ -912,7 +912,7 @@ static PyObject *pyosd_command_set_cas(PyObject *self, PyObject *args)
 	int inlen, outlen;
 
 	if (!PyArg_ParseTuple(args, "KKs#s#|KK:set_cas", &pid, &oid,
-			      inbuf, inlen, outbuf, outlen, &len, &offset))
+			      &inbuf, &inlen, &outbuf, &outlen, &len, &offset))
 		return NULL;
 	if (py_command->set) {
 		PyErr_SetString(PyExc_RuntimeError, "command already set");
@@ -945,7 +945,7 @@ static PyObject *pyosd_command_set_fa(PyObject *self, PyObject *args)
 	int inlen, outlen;
 
 	if (!PyArg_ParseTuple(args, "KKs#s#|KK:set_fa", &pid, &oid,
-			      inbuf, inlen, outbuf, outlen, &len, &offset))
+			      &inbuf, &inlen, &outbuf, &outlen, &len, &offset))
 		return NULL;
 	if (py_command->set) {
 		PyErr_SetString(PyExc_RuntimeError, "command already set");

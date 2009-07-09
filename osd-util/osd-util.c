@@ -636,9 +636,29 @@ double median(double *v, int N)
 double get_mhz(void)
 {
 	FILE *fp;
-	char s[1024], *cp;
-	int found = 0;
+	char s[1024];
 	double mhz;
+#if defined(__FreeBSD__) || defined(__APPLE__)
+#ifdef __APPLE__
+	#define hw_cpufrequency "hw.cpufrequency"
+	const long div_by = 1000000L;
+#else
+	#define hw_cpufrequency "dev.cpu.0.freq"
+	const long div_by = 1L;
+#endif
+
+	if (!(fp = popen("sysctl -n " hw_cpufrequency, "r")))
+		osd_error_fatal("Cannot call sysctl");
+
+	if (fgets(s, sizeof(s), fp) == NULL ||
+	    sscanf(s, "%lf", &mhz) != 1) {
+		osd_error_fatal("got no hw.cpufrequency sysctl value");
+	}
+	mhz /= div_by;
+	pclose(fp);
+#else /* defined(__FreeBSD__) || defined(__APPLE__) .e.g Linux */
+	char *cp;
+	int found = 0;
 
 	if (!(fp = fopen("/proc/cpuinfo", "r")))
 		osd_error_fatal("Cannot open /proc/cpuinfo");
@@ -658,6 +678,7 @@ double get_mhz(void)
 		osd_error_fatal("\"cpu MHz\" line not found\n");
 
 	fclose(fp); 
+#endif /*  else defined(__FreeBSD__) || defined(__APPLE__) */
 
 	return mhz;
 }

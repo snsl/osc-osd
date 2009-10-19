@@ -11,4 +11,12 @@
 # DEBUG="-d 9"
 DEBUG=""
 
-./tgt/usr/tgtd $DEBUG -f
+./tgt/usr/tgtd $DEBUG -f &
+
+sleep 2
+./tgt/usr/tgtadm --lld iscsi --mode logicalunit \
+	--op new --tid 1 --lun 2 --bstype=osdemu --device-type osd \
+	--backing-store /tmp/tgt-bharrosh-2/
+
+tgt/usr/tgtadm --lld iscsi --mode target --op show
+wait

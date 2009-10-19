@@ -40,6 +40,12 @@
 #include "osd-util/osd-sense.h"
 #include "list-entry.h"
 
+#define min(x,y) ({ \
+	typeof(x) _x = (x);	\
+	typeof(y) _y = (y);	\
+	(void) (&_x == &_y);		\
+	_x < _y ? _x : _y; })
+
 #ifdef __MAKE_BSD_BUILD__
 static int os_sync_file_range(int fd, __off64_t offset, __off64_t bytes,
 			unsigned int flags)
@@ -691,7 +697,7 @@ static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	case 0:
 		/*{ROOT_PG + 1, 0, "INCITS  T10 Root Information"},*/
 		len = ATTR_PAGE_ID_LEN;
-		sprintf(name, "INCITS  T10 User Object Information");
+		sprintf(name, "INCITS  T10 Root Information");
 		val = name;
 		break;
 	case RIAP_OSD_SYSTEM_ID:
@@ -787,10 +793,17 @@ static int set_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	default:
 		return OSD_ERROR;
 
-	case RIAP_OSD_NAME:
-		return attr_set_attr(osd->dbc, pid, oid, ROOT_INFO_PG,
-					RIAP_OSD_NAME, val, len);
 
+	case RIAP_OSD_NAME: {
+		char osdname[64];
+
+		snprintf(osdname, min((uint16_t)64U, len), "%s",
+			 (const char *)val);
+		osd_info("RIAP_OSD_NAME [%s]\n", osdname);
+
+		return attr_set_attr(osd->dbc, 0, 0, ROOT_INFO_PG,
+					RIAP_OSD_NAME, val, len);
+	}
 	case RIAP_CLOCK:
 		/* FIXME: Save an offset from current time.
 			 return time + offset */

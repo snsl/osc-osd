@@ -1397,7 +1397,10 @@ static void exec_service_action(struct command *cmd)
 	case OSD_FORMAT_OSD: {
 		uint64_t capacity = get_ntohll(&cdb[32]);
 		ret = osd_format_osd(osd, capacity, cdb_cont_len, sense);
-		/* TODO: what is corresponding get/set attr? */
+
+		if (ret == OSD_OK)
+			ret = std_get_set_attr(cmd, 0, 0, cdb_cont_len);
+
 		break;
 	}
 	case OSD_GET_ATTRIBUTES: {

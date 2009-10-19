@@ -701,8 +701,15 @@ static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		val = name;
 		break;
 	case RIAP_OSD_SYSTEM_ID:
-		len = RIAP_OSD_SYSTEM_ID_LEN;
-		val = "\xf1\x81\x00\x0eOSC     OSDEMU\x00\x00";
+		ret = attr_get_attr(osd->dbc, pid, oid, ROOT_INFO_PG,
+					RIAP_OSD_SYSTEM_ID_LEN, outlen, outbuf,
+					listfmt, used_outlen);
+		if (ret == -ENOENT) {
+			len = RIAP_OSD_SYSTEM_ID_LEN;
+			val = "\xf1\x81\x00\x0eOSC     OSDEMU\x00\x00";
+		} else {
+			return ret;
+		}
 		break;
 	case RIAP_VENDOR_IDENTIFICATION:
 		len = sizeof("OSC");
@@ -781,7 +788,6 @@ static int set_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 {
 	switch (number) {
 	/* read only */
-	case RIAP_OSD_SYSTEM_ID:
 	case RIAP_VENDOR_IDENTIFICATION:
 	case RIAP_PRODUCT_IDENTIFICATION:
 	case RIAP_PRODUCT_MODEL:
@@ -793,6 +799,27 @@ static int set_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	default:
 		return OSD_ERROR;
 
+	/* osd-target extension: We let in a system_ID set on LUN
+	 * format command.
+	 */
+	case RIAP_OSD_SYSTEM_ID:
+		if (osd->ccap.cdb_srvc_act == OSD_FORMAT_OSD) {
+			char system_id[RIAP_OSD_SYSTEM_ID_LEN];
+
+			if (len > RIAP_OSD_SYSTEM_ID_LEN)
+				return -EINVAL;
+
+			if (len < RIAP_OSD_SYSTEM_ID_LEN) {
+				memcpy(system_id, val, len);
+				memset(system_id + len, 0,
+				       RIAP_OSD_SYSTEM_ID_LEN - len);
+				val = system_id;
+			}
+			return attr_set_attr(osd->dbc, 0, 0, ROOT_INFO_PG,
+					     RIAP_OSD_SYSTEM_ID, val,
+					     RIAP_OSD_SYSTEM_ID_LEN);
+		} else
+			return OSD_ERROR;
 
 	case RIAP_OSD_NAME: {
 		char osdname[64];

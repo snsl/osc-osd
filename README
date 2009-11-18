@@ -23,8 +23,7 @@ The tgt submodule can also be accessed at:
   http://git.open-osd.org/gitweb.cgi?p=osc-osd/tgt/.git;a=summary
 
   But please don't clone directly. Use the git-submodule command
-  from osc-osd project to sync everything automatically. (See README
-  for how)
+  from osc-osd project to sync everything automatically. (See below)
 
 GIT Structure
 ~~~~~~~~~~~~~~
@@ -72,57 +71,66 @@ of a working set. Needless to say that osc-old-git is frozen.
 exact commits from svn it will contain updates to the svn_fetch*
 script if needed.
 
-"master" will rebase, with open-osd pending patches flouting above
+"master" will rebase, with open-osd pending patches floating above
 "osc" branch. When/if some of the patches get accepted by Ananth
 or are fixed in some other way, they will get dropped. So for
 users, they should "git-remote update" plus "git-checkout -b ..."
 and not just "git-pull" from "master"
 
+update: 2009/11/18:
+It looks like the OSC project is by now dead. All above branches
+are now frozen. Development will only continue on the *master*
+branch.
 
 [README]
 ~~~~~~~~~
 
+prerequisites:
+needed is the sqlite-devel package. For example:
+[]$ yum install sqlite-devel
+
 all a user need is to follow these steps:
 - at some parent folder do
-  $ git clone git://git.open-osd.org/osc-osd 
+[]$ git clone git://git.open-osd.org/osc-osd 
     (Please use relatively new git version)
-  $ cd osc-osd/
+[]$ cd osc-osd/
+
 - At this point we need one additional step
-  $ git submodule init
-  $ git submodule update
+[]$ git submodule init
+[]$ git submodule update
   This last command will auto clone the tgt git tree and will
   checkout the exact point of the tree needed at that point of
   the osc-osd tree.
+
 - That's it we are ready you should now do
-  $ make
-  And it should all compile. See the osd-initiator/README and
-  osd-target/README for additional *-devel packages you might
-  need, but I don't remember any.
+[]$ make
+  And it should all compile. See the osd-target/README for
+  additional information.
 
 - For running the target also read osd-target/README and
   tgt/doc/. But basically you should run ./up for a debug
   load of an OSD2 target. The backing store of the target
   will be at the default /tmp/...
 
-- For farther instructions on how to run the Initiator please
-  read osd-initiator/README and so on. You might need Kernel
-  patches or new Linux versions, for proper bsg support.
-
 From time to time if you want to update on osc-osd progress
 you might do:
 
 - Save a working merge point:
-  $ git tag WORKS_FOR_ME master
+[]$ git tag WORKS_FOR_ME
   This can later be removed if you're happy with the new stuff. I might keep
   these tagged as well.
+
 - Update with new version
-  $ git remote update
-  if you are on your own branch then
-  $ git branch -f master origin/master
-  this will not work if you're on master. In that case do:
-  $ git-reset --hard origin/master
-  and one extra step
-  $ git-submodule update
+[]$ git remote update
+
+[]$ git checkout -b my-osd origin/master
+  Where my-osd is the name of the new branch you want to call it.
+
+  Alternatively you might just do:
+[]$ git checkout origin/master
+
+  And one more important step:
+[]$ git submodule update
   This will sync tgt to the proper point
 
   That's it make and test

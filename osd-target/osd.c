@@ -23,6 +23,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <sys/statfs.h>
 #include <sys/types.h>
 #include <dirent.h>
 #include <assert.h>
@@ -251,8 +252,12 @@ static inline void get_dfile_name(char *path, const char *root,
 	        llu(pid), llu(oid % 64), llu(oid));
 	printf("root = %s collid = 0x%llx\n", root, llu(pid));
 #else
-	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles,
-		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
+	if (!oid)
+		sprintf(path, "%s/%s/%02x", root, dfiles,
+			(uint8_t)(oid & 0xFFUL));
+	else
+		sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles,
+			(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
 #endif
 }
 
@@ -567,6 +572,7 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	char name[ATTR_PAGE_ID_LEN];
 	char path[MAXNAMELEN];
 	struct stat sb;
+	struct statfs sfs;
 	uint8_t ll[8];
 	off_t sz = 0;
 
@@ -589,10 +595,19 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	case UIAP_USED_CAPACITY:
 		len = UIAP_USED_CAPACITY_LEN;
 		get_dfile_name(path, osd->root, pid, oid);
-		ret = stat(path, &sb);
-		if (ret != 0)
-			return OSD_ERROR;
-		sz = sb.st_blocks*BLOCK_SZ;
+		if (!oid) {
+			ret = statfs(path, &sfs);
+			if (ret != 0)
+				return OSD_ERROR;
+
+			sz = (sfs.f_blocks - sfs.f_bfree) * BLOCK_SZ;
+		} else {
+			ret = stat(path, &sb);
+			if (ret != 0)
+				return OSD_ERROR;
+
+			sz = sb.st_blocks*BLOCK_SZ;
+		}
 		set_htonll(ll, sz);
 		val = ll;
 		break;
@@ -603,6 +618,18 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		if (ret != 0)
 			return OSD_ERROR;
 		set_htonll(ll, sb.st_size);
+		val = ll;
+		break;
+	case PARTITION_CAPACITY_QUOTA:
+		len = UIAP_USED_CAPACITY_LEN;
+		get_dfile_name(path, osd->root, pid, oid);
+		ret = statfs(path, &sfs);
+		printf("PARTITION_CAPACITY_QUOTA statfs(%s)=>%d size=%ld\n",
+			path, ret, sfs.f_blocks);
+		if (ret != 0)
+			return OSD_ERROR;
+		sz = sfs.f_blocks * BLOCK_SZ;
+		set_htonll(ll, sz);
 		val = ll;
 		break;
 	case UIAP_USERNAME:
@@ -2231,10 +2258,13 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = get_ccap_aslist(osd, number, outbuf, outlen,
 				      used_outlen);
 		break;
+	case PARTITION_DIR_PG + USER_TMSTMP_PG:
 	case USER_TMSTMP_PG:
 		ret = get_utsap_aslist(osd, pid, oid, number, outbuf,
 				       outlen, listfmt, used_outlen);
 		break;
+	case PARTITION_DIR_PG + USER_QUOTA_PG:
+	case PARTITION_DIR_PG + USER_INFO_PG:
 	case USER_INFO_PG:
 		ret = get_uiap(osd, pid, oid, page, number, outbuf,
 			       outlen, listfmt, used_outlen);

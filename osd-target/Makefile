@@ -2,6 +2,8 @@
 # OSD target makefile
 #
 
+-include ../Makedefs
+
 SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c list-entry.c
 SRC += osd-schema.c coll.c mtq.c
 INC := attr.h db.h obj.h osd-types.h osd.h cdb.h list-entry.h target-sense.h
@@ -19,8 +21,7 @@ UTILLIB := ../osd-util/libosdutil.a
 
 IB_HW_OF_LIBS= -L/usr/local/openib-iser/lib
 
-UNAME= $(shell uname)
-ifeq (FreeBSD,$(UNAME))
+ifeq ($(FreeBSD_Make),1)
 LIBS += -L/usr/local/lib/
 CFLAGS += -I/usr/local/include -I$(STGTDIR)/usr/bsd -I$(STGTDIR)/usr
 CFLAGS += -D__MAKE_BSD_BUILD__
@@ -28,8 +29,6 @@ endif
 
 LIBS += -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common \
 	$(IB_HW_OF_LIBS) -libverbs -lrdmacm
-
--include ../Makedefs
 
 CC := gcc
 CPP_M := -MM

@@ -12,3 +12,10 @@ OPT := -O3 -DNDEBUG
 
 # vim: ft=make
 
+UNAME= $(shell uname)
+ifeq (FreeBSD,$(UNAME))
+FreeBSD_Make=1
+endif
+ifeq (Darwin,$(UNAME))
+FreeBSD_Make=1
+endif

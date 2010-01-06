@@ -4,7 +4,7 @@ MK_PATH ?= .
 util := $(MK_PATH)/osd-util
 tgt := $(MK_PATH)/tgt
 target := $(MK_PATH)/osd-target
-CHECKPATCH ?= ~/dev/git/pub/linux/scripts/checkpatch.pl
+CHECKPATCH ?= ~/dev/git/pub/scsi-misc/scripts/checkpatch.pl
 checkpatch_2_kdev = checkpatch-2-kdev
 
 .PHONY: all clean
@@ -33,7 +33,7 @@ stgt: target
 	$(MAKE) OSDEMU=1 ISCSI=1 -C $(tgt)/usr
 
 stgt_checkpatch:
-	cd $(tgt);git-show | $(CHECKPATCH) - |  $(checkpatch_2_kdev) $(PWD)/$(tgt)
+	cd $(tgt);git show | $(CHECKPATCH) - |  $(checkpatch_2_kdev) $(PWD)/$(tgt)
 
 stgt_tgt_only:
 	$(MAKE) ISCSI=1 IBMVIO=1 ISCSI_RDMA=1 FCP=1 FCOE=1 OSDEMU=1 -C $(tgt)/usr
@@ -52,7 +52,7 @@ ctags:
 	ctags -R $(util) $(target) $(tgt) /usr/include
 
 osd_checkpatch:
-	git-show | $(CHECKPATCH) - | $(checkpatch_2_kdev) $(PWD)
+	git show | $(CHECKPATCH) - | $(checkpatch_2_kdev) $(PWD)
 
 # ==== Remote compelation ================================================
 # make R=remote_machine R_PATH=source_path_on_remote remote

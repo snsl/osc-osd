@@ -60,7 +60,7 @@
 #define OSD_REMOVE_COLLECTION	        	0x8896
 #define OSD_REMOVE_MEMBER_OBJECTS       	0x88a1
 #define OSD_REMOVE_PARTITION	         	0x888c
-#define OSD_RESTORE_PARTITION_FROM_SNAPSHOT     ox88ac
+#define OSD_RESTORE_PARTITION_FROM_SNAPSHOT     0x88ac
 #define OSD_SET_ATTRIBUTES	        	0x888f
 #define OSD_SET_KEY		        	0x8898
 #define OSD_SET_MASTER_KEY	        	0x8899
@@ -68,7 +68,7 @@
 #define OSD_WRITE		        	0x8886
 
 /* custom definitions */
-#define OSD_CAS				0x8880
+#define OSD_CAS				0x888d
 #define OSD_FA				0x8890
 #define OSD_COND_SETATTR		0x8891
 #define OSD_GEN_CAS			0x88a5               
@@ -119,7 +119,7 @@
 #define NO_MORE_DESCRIPTORS 0x0000
 #define SCATTER_GATHER_LIST 0x0001
 #define QUERY_LIST 0x0002
-#define USER_OBJECT 0x0001
+#define USER_OBJECT 0x0100
 #define COPY_USER_OBJECT_SOURCE 0x0101
 #define EXTENSION_CAPABILITIES 0xFFEE
 

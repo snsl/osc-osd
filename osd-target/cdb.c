@@ -1446,6 +1446,11 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 			break;
 		}
 
+		case USER_OBJECT: {
+			/* not supported yet */
+			goto out_cdb_err;
+		}
+
 		case COPY_USER_OBJECT_SOURCE: {
 			desc->desc_specific_hdr = (const uint8_t *)(desc_hdr+1);
 			goto out_cdb_err;
@@ -1592,12 +1597,22 @@ static void exec_service_action(struct command *cmd)
 					   sense, ddt);
 		break;
 	}
+	case OSD_CREATE_CLONE: {
+		/* new command added in osd2r04 */
+		ret = osd_error_unimplemented(cmd->action, sense);
+		break;
+	}
 	case OSD_CREATE_COLLECTION: {
 	        ret = cdb_create_collection(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_CREATE_PARTITION: {
 	        ret = cdb_create_partition(cmd, cdb_cont_len);
+		break;
+	}
+	case OSD_CREATE_SNAPSHOT: {
+		/* new command added in osd2r04 */
+		ret = osd_error_unimplemented(cmd->action, sense);
 		break;
 	}
 	case OSD_CREATE_USER_TRACKING_COLLECTION: {
@@ -1607,6 +1622,11 @@ static void exec_service_action(struct command *cmd)
 		
 		ret = osd_create_user_tracking_collection(osd, pid, requested_cid, 
 							  cdb_cont_len, source_cid, sense);
+		break;
+	}
+	case OSD_DETACH_CLONE: {
+		/* new command added in osd2r04 */
+		ret = osd_error_unimplemented(cmd->action, sense);
 		break;
 	}
 	case OSD_FLUSH: {
@@ -1726,9 +1746,19 @@ static void exec_service_action(struct command *cmd)
 	        ret = cdb_read_map(cmd, cdb_cont_len);	       
 	        break;
 	}
+	case OSD_READ_MAPS_AND_COMPARE: {
+		/* new command added in osd2r04 */
+		ret = osd_error_unimplemented(cmd->action, sense);
+		break;
+	}
 
 	case OSD_READ: {
 	        ret = cdb_read(cmd, cdb_cont_len);
+		break;
+	}
+	case OSD_REFRESH_SNAPSHOT_OR_CLONE: {
+		/* new command added in osd2r04 */
+		ret = osd_error_unimplemented(cmd->action, sense);
 		break;
 	}
 	case OSD_REMOVE: {
@@ -1750,6 +1780,11 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_REMOVE_PARTITION: {
 	        ret = cdb_remove_partition(cmd, cdb_cont_len);
+		break;
+	}
+	case OSD_RESTORE_PARTITION_FROM_SNAPSHOT: {
+		/* new command added in osd2r04 */
+		ret = osd_error_unimplemented(cmd->action, sense);
 		break;
 	}
 	case OSD_SET_ATTRIBUTES: {

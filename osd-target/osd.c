@@ -1332,12 +1332,12 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	switch(ddt) {
 		case DDT_CONTIG: {
-			return contig_append(osd, pid, oid, len, appenddata, 
-					     sense);
+			return contig_append(osd, pid, oid, len,
+					     appenddata+cdb_cont_len, sense);
 		}
 		case DDT_SGL: {
-			return sgl_append(osd, pid, oid, len, appenddata, 
-					  sense);
+			return sgl_append(osd, pid, oid, len,
+					  appenddata+cdb_cont_len, sense);
 		}
 		case DDT_VEC: {
 			return vec_append(osd, pid, oid, len, appenddata, 
@@ -1674,7 +1674,9 @@ out_hw_err:
 
 int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 			 uint64_t oid, uint64_t len, uint64_t offset,
-			 const uint8_t *data, uint32_t cdb_cont_len, uint8_t *sense, uint8_t ddt)
+			 const uint8_t *data, uint32_t cdb_cont_len,
+			 const struct sg_list *sglist,
+			 uint8_t *sense, uint8_t ddt)
 {
 	int ret;
 
@@ -1683,7 +1685,7 @@ int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 		return ret;
 	}
 
-	ret = osd_write(osd, pid, oid, len, offset, data, cdb_cont_len, sense, ddt);
+	ret = osd_write(osd, pid, oid, len, offset, data, sglist, sense, ddt);
 	if (ret) {
 	        osd_remove(osd, pid, oid, cdb_cont_len, sense);
 		return ret;
@@ -2919,13 +2921,13 @@ out_cdb_err:
 }
 
 static int sgl_read(struct osd_device *osd, uint64_t pid, uint64_t oid, 
-		    uint64_t len, uint64_t offset, const uint8_t *indata, 
+		    uint64_t len, uint64_t offset, const struct sg_list *sglist,
 		    uint8_t *outdata, uint64_t *used_outlen, uint8_t *sense)
 {
 	ssize_t readlen;
 	int ret, fd;
 	char path[MAXNAMELEN];
-	uint64_t inlen, pairs, hdr_offset, offset_val, data_offset, length;
+	uint64_t inlen, pairs, offset_val, data_offset, length;
 	unsigned int i;
 
 	osd_debug("%s: pid %llu oid %llu len %llu offset %llu", __func__,
@@ -2934,7 +2936,7 @@ static int sgl_read(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert(osd && osd->root && osd->dbc && outdata && used_outlen 
 	       && sense);
 
-	pairs = get_ntohll(indata);
+	pairs = sglist->num_entries;
 	inlen = (pairs * sizeof(uint64_t) * 2) + sizeof(uint64_t);
 	assert(pairs * sizeof(uint64_t) * 2 == inlen - sizeof(uint64_t));
 
@@ -2951,16 +2953,13 @@ static int sgl_read(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_cdb_err;
 
 
-	hdr_offset = sizeof(uint64_t);
 	data_offset = 0;
 	readlen = 0;
-                
-	for (i=0; i<pairs; i++) {
-		offset_val = get_ntohll(indata + hdr_offset); /* offset into dest */
-		hdr_offset += sizeof(uint64_t);
 
-		length = get_ntohll(indata + hdr_offset);   /* length */
-		hdr_offset += sizeof(uint64_t);
+	for (i = 0; i < pairs; i++) {
+		/* offset into dest */
+		offset_val = get_ntohll(&sglist->entries[i].offset);
+		length = get_ntohll(&sglist->entries[i].bytes_to_transfer);
 
 		osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val + offset),
 			llu(length));
@@ -3089,7 +3088,8 @@ out_cdb_err:
 
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	     uint64_t offset, const uint8_t *indata, uint8_t *outdata,
-	     uint64_t *used_outlen, uint32_t cdb_cont_len, uint8_t *sense, uint8_t ddt)
+	     uint64_t *used_outlen, const struct sg_list *sglist,
+	     uint8_t *sense, uint8_t ddt)
 {
 	/*figure out what kind of write it is based on ddt and call appropriate
 	write function*/
@@ -3100,7 +3100,7 @@ int osd_read(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 					used_outlen, sense);
 		}
 		case DDT_SGL: {
-			return sgl_read(osd, pid, oid, len, offset, indata,
+			return sgl_read(osd, pid, oid, len, offset, sglist,
 				outdata, used_outlen, sense);
 		}
 		case DDT_VEC: {
@@ -3688,12 +3688,13 @@ out_cdb_err:
 
 static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid, 
 		     uint64_t len, uint64_t offset, const uint8_t *dinbuf,
+		     const struct sg_list *sglist,
 		     uint8_t *sense) 
 {
 	int ret;
 	int fd;
 	char path[MAXNAMELEN];
-	uint64_t pairs, data_offset, offset_val, hdr_offset, length;
+	uint64_t pairs, data_offset, offset_val, length;
 	unsigned int i;
 
 	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p",
@@ -3701,13 +3702,10 @@ static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	assert(osd && osd->root && osd->dbc && dinbuf && sense);
 
-	pairs = get_ntohll(dinbuf);
-	data_offset = (pairs * sizeof(uint64_t) * 2) + sizeof(uint64_t);
+	pairs = sglist->num_entries;
 	assert(pairs != 0);
 
 	osd_debug("%s: offset,len pairs %llu", __func__, llu(pairs));
-	osd_debug("%s: data offset %llu", __func__, llu(data_offset));
-
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
@@ -3717,20 +3715,18 @@ static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (fd < 0)
 		goto out_cdb_err;
 
-
-	hdr_offset = sizeof(uint64_t); /* skip count of offset/len pairs */
+	data_offset = 0;
 
 	for (i=0; i<pairs; i++) {
-		offset_val = get_ntohll(dinbuf + hdr_offset); /* offset into dest */
-		hdr_offset += sizeof(uint64_t);
+		/* offset into dest */
+		offset_val = get_ntohll(&sglist->entries[i].offset);
+		length = get_ntohll(&sglist->entries[i].bytes_to_transfer);
 
-		length = get_ntohll(dinbuf + hdr_offset);   /* length */
-		hdr_offset += sizeof(uint64_t);
+		osd_debug("%s: Offset: %llu Length: %llu",
+			  __func__, llu(offset_val + offset), llu(length));
 
-		osd_debug("%s: Offset: %llu Length: %llu", __func__, llu(offset_val + offset),
-			llu(length));
-
-		osd_debug("%s: Position in data buffer: %llu", __func__, llu(data_offset));
+		osd_debug("%s: Position in data buffer: %llu",
+			  __func__, llu(data_offset));
 
 		osd_debug("%s: ------------------------------", __func__);
 		ret = pwrite(fd, dinbuf+data_offset, length, offset_val+offset);
@@ -3834,7 +3830,7 @@ out_cdb_err:
 
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, 
 	      uint64_t len, uint64_t offset, const uint8_t *dinbuf, 
-	      uint32_t cdb_cont_len, uint8_t *sense, uint8_t ddt)
+	      const struct sg_list *sglist, uint8_t *sense, uint8_t ddt)
 {
 
 	/*figure out what kind of write it is based on ddt and call appropriate
@@ -3847,7 +3843,7 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		}
 		case DDT_SGL: {
 			return sgl_write(osd, pid, oid, len, offset, dinbuf,
-				           sense);
+					 sglist, sense);
 		}
 		case DDT_VEC: {
 			return vec_write(osd, pid, oid, len, offset, dinbuf,
@@ -3858,8 +3854,6 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			               OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 		}
 	}
-
-
 }
 
 /*

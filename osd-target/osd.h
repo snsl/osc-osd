@@ -51,7 +51,9 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t num, uint32_t cdb_cont_len, uint8_t *sense);
 int osd_create_and_write(struct osd_device *osd, uint64_t pid,
 			 uint64_t requested_oid, uint64_t len, uint64_t offset,
-			 const uint8_t *data, uint32_t cdb_cont_len, uint8_t *sense, uint8_t ddt);
+			 const uint8_t *data, uint32_t cdb_cont_len,
+			 const struct sg_list *sglist, uint8_t *sense,
+			 uint8_t ddt);
 int osd_create_collection(struct osd_device *osd, uint64_t pid,
 			  uint64_t requested_cid, uint32_t cdb_cont_len, uint8_t *sense);
 int osd_create_partition(struct osd_device *osd, uint64_t requested_pid, uint32_t cdb_cont_len,
@@ -93,7 +95,7 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      void *outdata, uint64_t *used_outlen, uint32_t cdb_cont_len, uint8_t *sense);
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
 	     uint64_t offset, const uint8_t *indata, uint8_t *outdata, uint64_t *outlen,
-	     uint32_t cdb_cont_len, uint8_t *sense, uint8_t ddt);
+	     const struct sg_list *sglist, uint8_t *sense, uint8_t ddt);
 int osd_read_map(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t alloc_len,
 		 uint64_t offset, uint16_t map_type, uint8_t *outdata, uint64_t *used_outlen, 
 		 uint32_t cdb_cont_len, uint8_t *sense);
@@ -119,7 +121,7 @@ int osd_set_member_attributes(struct osd_device *osd, uint64_t pid,
 
 int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid, 
 	      uint64_t len, uint64_t offset, const uint8_t *data, 
-	      uint32_t cdb_cont_len, uint8_t *sense, uint8_t ddt);
+	      const struct sg_list *sglist, uint8_t *sense, uint8_t ddt);
 
 int osd_cas(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t cmp,
 	    uint64_t swap, uint8_t *doutbuf, uint64_t *used_outlen,

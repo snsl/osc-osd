@@ -221,6 +221,16 @@ enum {
 
 /* CDB continuation descriptors */
 
+struct sg_list_entry {
+	uint64_t	offset;
+	uint64_t	bytes_to_transfer;
+};
+
+struct sg_list {
+	uint64_t			num_entries;
+	const struct sg_list_entry	*entries;
+};
+
 struct cdb_continuation_descriptor_header {
 	uint16_t	type;
 	uint8_t		reserved;

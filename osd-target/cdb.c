@@ -39,6 +39,7 @@ struct cdb_continuation_descriptor {
 	uint16_t type;
 	uint32_t length;
 	union {
+		struct sg_list	sglist;
 		const void	*desc_specific_hdr;
 	};
 };
@@ -793,8 +794,30 @@ static int cdb_read(struct command *cmd, uint32_t cdb_cont_len)
 	uint64_t len = get_ntohll(&cmd->cdb[32]);
 	uint64_t offset = get_ntohll(&cmd->cdb[40]);
 
-	ret = osd_read(cmd->osd, pid, oid, len, offset, cmd->indata, cmd->outdata,
-		       &cmd->used_outlen, cdb_cont_len, cmd->sense, ddt);
+	struct sg_list sgl, *sglist;
+	const uint8_t *indata;
+
+	/* osd2r04 6.27 - at most one sg list descriptor
+			  and no other descriptors */
+	if (cmd->cont.num_descriptors > 1 ||
+	    (cmd->cont.num_descriptors == 1 &&
+	     cmd->cont.descriptors[0].type != SCATTER_GATHER_LIST)) {
+		return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	}
+
+	if (cmd->cont.num_descriptors == 1) {
+		sglist = &cmd->cont.descriptors[0].sglist;
+		indata = cmd->indata + cdb_cont_len;
+		ddt = DDT_SGL;
+	} else {
+		indata = cmd->indata;
+		sglist = NULL;
+		ddt = DDT_CONTIG;
+	}
+
+	ret = osd_read(cmd->osd, pid, oid, len, offset, indata, cmd->outdata,
+		       &cmd->used_outlen, sglist, cmd->sense, ddt);
 	if (ret) {
 		/* only tolerate recovered error, return for others */
 		if (!sense_test_type(cmd->sense, OSD_SSK_RECOVERED_ERROR,
@@ -1269,6 +1292,111 @@ out_err:
 	return ret;
 }
 
+static int parse_cdb_continuation_segment(struct command *cmd,
+					  uint32_t cdb_cont_len,
+					  uint64_t pid, uint64_t oid)
+{
+	const uint8_t *cdb_cont = cmd->indata;
+	uint8_t cont_format = cdb_cont[0];
+	uint16_t cont_action = get_ntohs(&cdb_cont[2]);
+	uint32_t used_bytes = 0;
+
+	if (((cdb_cont_len % 8) != 0) || (cdb_cont_len < 48)) {
+		/* TODO: need to check if cdb_cont_len is greater than the value
+		 * in the maximum CDB continuation length attribute in the root
+		 * information attributes page (7.1.3.8)
+		 */
+		goto out_cdb_err;
+	}
+
+	if (cont_action != cmd->action) {
+		goto out_cdb_err;
+	}
+
+	/* continuation format 1 is the only format defined in OSDr204 */
+	if (cont_format != 1) {
+		goto out_cdb_err;
+	}
+
+	/* XXX need to check continuation integrity check value */
+
+	/* start parsing the descriptors */
+
+	/* skip over continuation header */
+	cdb_cont += 40;
+	while (cdb_cont < cmd->indata + cdb_cont_len) {
+		struct cdb_continuation *cont = &cmd->cont;
+		struct cdb_continuation_descriptor *desc;
+		const struct cdb_continuation_descriptor_header *desc_hdr =
+			(typeof(desc_hdr))cdb_cont;
+		uint16_t type = get_ntohs(&desc_hdr->type);
+		uint32_t length = get_ntohl(&desc_hdr->length);
+		uint8_t pad_length = desc_hdr->pad_length & 0x7;
+
+		uint32_t desc_len = length + pad_length;
+
+		if (cont->num_descriptors % 8 == 0) {
+			size_t newsize = (cont->num_descriptors+8)*
+				sizeof(struct cdb_continuation_descriptor);
+			cont->descriptors = realloc(cont->descriptors, newsize);
+		}
+		desc = &cont->descriptors[cont->num_descriptors++];
+		desc->type = type;
+		desc->length = length;
+
+		if (desc_len%8 != 0) {
+			/* TODO: need to check if descriptor length is greater
+			 * than the value of the supported CDB continuation
+			 * descriptor type information attributes page (7.1.3.8)
+			 */
+			goto out_cdb_err;
+		}
+
+		desc_len += sizeof(*desc_hdr);
+		if ((cdb_cont + desc_len) > (cmd->indata + cdb_cont_len)) {
+			/* XXX The spec doesnt say what to do if the
+			   length of this descriptor goes past the end
+			   of the continuation.  For now, we'll just
+			   return an error. */
+			goto out_cdb_err;
+		}
+
+		switch (type) {
+
+		case NO_MORE_DESCRIPTORS: {
+			/* last descriptor */
+			break;
+		}
+
+		case SCATTER_GATHER_LIST: {
+			if (pad_length != 0) {
+			     /* osd2r05 5.4.2 - pad length must be 0 */
+			     goto out_cdb_err;
+			}
+
+			desc->sglist.num_entries =
+				length/sizeof(struct sg_list_entry);
+			/* entries are at the end of the header */
+			desc->sglist.entries =
+				(const struct sg_list_entry *)(desc_hdr+1);
+			break;
+		}
+
+		default:
+			goto out_cdb_err;
+		}
+
+		/* move pointer to next descriptor */
+		cdb_cont += desc_len;
+	}
+
+	return OSD_OK;
+
+ out_cdb_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+}
+
 /*
  * Compare, and complain if iscsi did not deliver enough bytes to
  * satisfy the WRITE.  It could deliver more for padding, so don't
@@ -1299,18 +1427,15 @@ static void exec_service_action(struct command *cmd)
 //	osd_debug("%s: start 0x%04x", __func__, cmd->action);
 
 	if (cdb_cont_len != 0) {
-	        if (((cdb_cont_len % 8) != 0) || (cdb_cont_len > 48)) {
-		  /* need to check if cdb_cont_len is greater than the value in the 
-		     maximum CDB continuation length attribute in the root information 
-		     attributes page (7.1.3.8)*/
-		ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
-					OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
-		}
+		ret = parse_cdb_continuation_segment(cmd, cdb_cont_len,
+						     pid, oid);
+		if (ret != OSD_OK)
+			goto out_exec;
 	}
 	
 	switch (cmd->action) {
 	case OSD_APPEND: {
-		uint8_t ddt = cdb[10];
+		uint8_t ddt;
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
@@ -1318,6 +1443,11 @@ static void exec_service_action(struct command *cmd)
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
+
+		/* initial version from OSC supported scatter/gather
+		   on APPEND.  However, it is not supported in
+		   official osd2 spec. */
+		ddt = DDT_CONTIG;
 
 		ret = osd_append(osd, pid, oid, len, cmd->indata, cdb_cont_len, sense, ddt);
 		if (ret)
@@ -1351,17 +1481,41 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_CREATE_AND_WRITE: {
-		uint8_t ddt = cdb[10];
+		uint8_t ddt;
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t requested_oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
+		struct sg_list sgl, *sglist;
+		const uint8_t *indata;
 
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
+
+		/* osd2r04 6.6 - at most one sg list descriptor
+				 and no other descriptors */
+		if (cmd->cont.num_descriptors > 1 ||
+		    (cmd->cont.num_descriptors == 1 &&
+		     cmd->cont.descriptors[0].type != SCATTER_GATHER_LIST)) {
+			sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					  OSD_ASC_INVALID_FIELD_IN_CDB, pid,
+					  oid);
+		}
+
+		if (cmd->cont.num_descriptors == 1) {
+			sglist = &cmd->cont.descriptors[0].sglist;
+			indata = cmd->indata + cdb_cont_len;
+			ddt = DDT_SGL;
+		} else {
+			sglist = NULL;
+			indata = cmd->indata;
+			ddt = DDT_CONTIG;
+		}
+
 		ret = osd_create_and_write(osd, pid, requested_oid, len,
-					   offset, cmd->indata, cdb_cont_len, sense, ddt);
+					   offset, indata, cdb_cont_len, sglist,
+					   sense, ddt);
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {
@@ -1569,12 +1723,35 @@ static void exec_service_action(struct command *cmd)
 		uint64_t oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
-		uint8_t ddt = cdb[10];
+		uint8_t ddt;
+		struct sg_list sgl, *sglist;
+		const uint8_t *indata;
 		ret = verify_enough_input_data(cmd, len);
 		if (ret)
 			break;
-		ret = osd_write(osd, pid, oid, len, offset, cmd->indata,
-				cdb_cont_len, sense, ddt);
+
+		/* osd2r04 6.40 - at most one sg list descriptor
+				  and no other descriptors */
+		if (cmd->cont.num_descriptors > 1 ||
+		    (cmd->cont.num_descriptors == 1 &&
+		     cmd->cont.descriptors[0].type != SCATTER_GATHER_LIST)) {
+			sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					  OSD_ASC_INVALID_FIELD_IN_CDB, pid,
+					  oid);
+		}
+
+		if (cmd->cont.num_descriptors == 1) {
+			sglist = &cmd->cont.descriptors[0].sglist;
+			indata = cmd->indata + cdb_cont_len;
+			ddt = DDT_SGL;
+		} else {
+			sglist = NULL;
+			indata = cmd->indata;
+			ddt = DDT_CONTIG;
+		}
+
+		ret = osd_write(osd, pid, oid, len, offset, indata,
+				sglist, sense, ddt);
 		if (ret)
 			break;
 
@@ -1604,6 +1781,7 @@ static void exec_service_action(struct command *cmd)
 	if (ret)
 		osd_debug("%s: done  0x%04x => %d", __func__, cmd->action, ret);
 
+ out_exec:
 	/*
 	 * All the above return bytes of sense data put into sense[]
 	 * in case of an error.  But sometimes they also return good
@@ -1695,6 +1873,10 @@ int osdemu_cmd_submit(struct osd_device *osd, uint8_t *cdb,
 		.get_used_outlen = 0,
 		.sense = { 0 },  /* maybe no need to initialize to zero */
 		.senselen = 0,
+		.cont = {
+			.num_descriptors = 0,
+			.descriptors = NULL,
+		},
 	};
 
 	/* check cdb opcode and length */
@@ -1774,6 +1956,10 @@ out_free_resource:
 	*data_out_len = 0;
 
 out:
+	if (cmd.cont.descriptors != NULL) {
+		free(cmd.cont.descriptors);
+	}
+
 	if (cmd.senselen == 0) {
 		return SAM_STAT_GOOD;
 	} else {

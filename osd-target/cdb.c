@@ -790,6 +790,55 @@ static int cdb_remove(struct command *cmd, uint32_t cdb_cont_len)
  * ==0: success
  *  >0: error; either it is a genuine error or it is OSD_SSK_RECOVERED_ERROR.
  */
+static int cdb_query(struct command *cmd, uint64_t pid, uint64_t cid,
+		     uint32_t cdb_cont_len)
+{
+	uint8_t *cdb = cmd->cdb;
+	uint64_t alloc_len = get_ntohll(&cdb[32]);
+
+	uint64_t matches_cid = get_ntohll(&cdb[40]);
+	struct cdb_continuation_descriptor *query_desc;
+	struct cdb_continuation_descriptor *descriptors = cmd->cont.descriptors;
+
+	if (matches_cid == 0) {
+		/* osd2r04 6.26.1 - if matches_cid is zero,
+		   there should be one query list descriptor */
+		if (cmd->cont.num_descriptors != 1 ||
+		    descriptors[0].type != QUERY_LIST) {
+			goto out_query_cdb_err;
+		}
+		query_desc = &descriptors[0];
+	} else {
+		/* osd2r04 6.26.1 - if matches_cid is nonzero,
+		   there should be one query list descriptor and
+		   one extension capabilities descriptor */
+		if (cmd->cont.num_descriptors != 2) {
+			goto out_query_cdb_err;
+		}
+		if ((descriptors[0].type == QUERY_LIST) &&
+		    (descriptors[1].type == EXTENSION_CAPABILITIES)) {
+			query_desc = &descriptors[0];
+		} else if ((descriptors[1].type == QUERY_LIST) &&
+			 (descriptors[0].type == EXTENSION_CAPABILITIES)) {
+			query_desc = &descriptors[1];
+		} else {
+			goto out_query_cdb_err;
+		}
+	}
+
+	return osd_query(cmd->osd, pid, cid, query_desc->length, alloc_len,
+			 query_desc->desc_specific_hdr, cmd->outdata,
+			 &cmd->used_outlen, cdb_cont_len, cmd->sense);
+out_query_cdb_err:
+	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+}
+
+/*
+ * returns:
+ * ==0: success
+ *  >0: error; either it is a genuine error or it is OSD_SSK_RECOVERED_ERROR.
+ */
 static int cdb_read(struct command *cmd, uint32_t cdb_cont_len)
 {
 	int ret = 0, rec_err_sense = 0;
@@ -1375,7 +1424,7 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 
 		case SCATTER_GATHER_LIST: {
 			if (pad_length != 0) {
-			     /* osd2r05 5.4.2 - pad length must be 0 */
+			     /* osd2r04 5.4.2 - pad length must be 0 */
 			     goto out_cdb_err;
 			}
 
@@ -1387,8 +1436,23 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 			break;
 		}
 
+		case QUERY_LIST: {
+			if (pad_length != 0) {
+			     /* osd2r04 5.4.3 - pad length must be 0 */
+			     goto out_cdb_err;
+			}
+
+			desc->desc_specific_hdr = (const void *)(desc_hdr+1);
+			break;
+		}
+
 		case COPY_USER_OBJECT_SOURCE: {
 			desc->desc_specific_hdr = (const uint8_t *)(desc_hdr+1);
+			goto out_cdb_err;
+		}
+
+		case EXTENSION_CAPABILITIES: {
+			/* not supported yet */
 			goto out_cdb_err;
 		}
 
@@ -1651,14 +1715,9 @@ static void exec_service_action(struct command *cmd)
 	case OSD_QUERY: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t cid = get_ntohll(&cdb[24]);
-		uint32_t query_list_len = get_ntohl(&cdb[48]);
-		uint64_t alloc_len = get_ntohll(&cdb[32]);
-		ret = osd_query(osd, pid, cid, query_list_len, alloc_len,
-				cmd->indata, cmd->outdata, &cmd->used_outlen,
-				cdb_cont_len, sense);
+		ret = cdb_query(cmd, pid, cid, cdb_cont_len);
 		if (ret)
 			break;
-
 		ret = std_get_set_attr(cmd, pid, cid, cdb_cont_len);
 		break;
 	}

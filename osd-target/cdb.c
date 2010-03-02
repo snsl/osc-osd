@@ -3,6 +3,7 @@
  * core osd functions in osd.c.
  *
  * Copyright (C) 2007 OSD Team <pvfs-osd@osc.edu>
+ * Copyright (C) 2010 University of Connecticut
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -33,6 +34,20 @@
 /*
  * Aggregate parameters for function calls in this file.
  */
+
+struct cdb_continuation_descriptor {
+	uint16_t type;
+	uint32_t length;
+	union {
+		const void	*desc_specific_hdr;
+	};
+};
+
+struct cdb_continuation {
+	uint32_t num_descriptors;
+	struct cdb_continuation_descriptor *descriptors;
+};
+
 struct command {
 	struct osd_device *osd;
 	uint8_t *cdb;
@@ -42,6 +57,7 @@ struct command {
 	struct getattr_list get_attr;
 	struct setattr_list set_attr;
 	const uint8_t *indata;
+	struct cdb_continuation cont;
 	uint64_t inlen;
 	uint8_t *outdata;
 	uint64_t outlen;

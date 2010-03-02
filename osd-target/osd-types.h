@@ -219,4 +219,13 @@ enum {
 #define TICK_TRACE(x)
 #endif
 
+/* CDB continuation descriptors */
+
+struct cdb_continuation_descriptor_header {
+	uint16_t	type;
+	uint8_t		reserved;
+	uint8_t		pad_length;
+	uint32_t	length;
+};
+
 #endif /* __OSD_TYPES_H */

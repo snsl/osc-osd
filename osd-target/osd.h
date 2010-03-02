@@ -44,9 +44,10 @@ int osd_append(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	       uint32_t cdb_cont_len, uint8_t *sense, uint8_t ddt);
 int osd_clear(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	      uint64_t len, uint64_t offset ,uint32_t cdb_cont_len, uint8_t *sense);
-int osd_copy_user_objects(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
-			  uint64_t source_pid, uint64_t source_oid, int cpy_atr, uint8_t dupl_method,
-			  uint32_t cdb_cont_len, uint8_t *sense);
+int osd_copy_user_objects(struct osd_device *osd, uint64_t pid,
+			  uint64_t requested_oid,
+			  const struct copy_user_object_source *cuos,
+			  uint8_t dupl_method, uint8_t *sense);
 int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 	       uint16_t num, uint32_t cdb_cont_len, uint8_t *sense);
 int osd_create_and_write(struct osd_device *osd, uint64_t pid,

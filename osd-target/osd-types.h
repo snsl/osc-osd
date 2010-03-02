@@ -231,6 +231,17 @@ struct sg_list {
 	const struct sg_list_entry	*entries;
 };
 
+struct copy_user_object_source {
+	uint64_t			source_pid;
+	uint64_t			source_oid;
+	uint8_t				reserved1:7;
+	uint8_t				cpy_attr:1;
+	uint8_t				freeze:1;
+	uint8_t				reserved2:3;
+	uint8_t				time_of_duplication:4;
+	uint16_t			reserved3;
+};
+
 struct cdb_continuation_descriptor_header {
 	uint16_t	type;
 	uint8_t		reserved;

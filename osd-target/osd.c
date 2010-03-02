@@ -1478,12 +1478,14 @@ out_cdb_err:
  */
 
 int osd_copy_user_objects(struct osd_device *osd, uint64_t pid, uint64_t requested_oid, 
-			  uint64_t source_pid, uint64_t source_oid, int cpy_atr, 
-			  uint8_t dupl_method, uint32_t cdb_cont_len, uint8_t *sense)
+			  const struct copy_user_object_source *cuos,
+			  uint8_t dupl_method, uint8_t *sense)
 {
         int ret = 0;
 	uint64_t oid = 0;
 	int present = 0;
+	uint64_t source_pid;
+	uint64_t source_oid;
 
 	osd_debug("%s: pid: %llu cid %llu", __func__, llu(pid),
 		  llu(requested_oid));
@@ -1494,8 +1496,8 @@ int osd_copy_user_objects(struct osd_device *osd, uint64_t pid, uint64_t request
 	if (requested_oid != 0 && requested_oid < USEROBJECT_OID_LB)
 	          goto out_cdb_err;
 	
-	if (cdb_cont_len == 0)
-	          goto out_cdb_err;
+	source_pid = get_ntohll(&cuos->source_pid);
+	source_oid = get_ntohll(&cuos->source_oid);
 
 	/* verify that source_pid & source_oid exist */
 	ret = obj_ispresent(osd->dbc, source_pid, PARTITION_OID, &present);
@@ -1536,11 +1538,11 @@ int osd_copy_user_objects(struct osd_device *osd, uint64_t pid, uint64_t request
 		osd->ic.cur_pid = osd->ic.next_id = 0;
 	}
  
-	if (dupl_method == DEFAULT){
+	if (dupl_method == DEFAULT) {
 	        /* call function to copy userobject data from source object in source partition 
 		   to destination object in destination partition */
 	}
-	if (cpy_atr == 1){
+	if (cuos->cpy_attr == 1) {
 	        /* call function to copy attribute data from source object in source partition 
 		   to destination object in destination partition */
 	}

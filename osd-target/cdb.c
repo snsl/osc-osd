@@ -577,35 +577,40 @@ out_cdb_err:
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 }
 
-static int cdb_copy_user_objects(struct command*cmd, uint32_t cdb_cont_len)
+static int cdb_copy_user_objects(struct command *cmd)
 {
         int ret = 0;							
-	int cpy_atr = 0, pad_len = 0;
 	uint16_t descriptor_type = 0;
-	uint32_t cdb_descriptor_len = 0;
-	uint8_t dupl_method = cmd->cdb[16];
+	uint8_t dupl_method = cmd->cdb[14];
 	uint64_t destination_pid = get_ntohll(&cmd->cdb[16]);
 	uint64_t requested_oid = get_ntohll(&cmd->cdb[24]);
-	uint64_t source_pid;
-	uint64_t source_oid;
-	
-	
-	descriptor_type = get_ntohs(&cmd->cdb[48]);
-	pad_len = cmd->cdb[51] & 7;
-	cdb_descriptor_len = get_ntohl(&cmd->cdb[52]);
-	source_pid = get_ntohll(&cmd->cdb[56]);
-	source_oid = get_ntohll(&cmd->cdb[64]);
-	cpy_atr = cmd->cdb[72] & 1;
-	
-	if (descriptor_type != 0x0101)
-	        goto out_cdb_err;
-	if (pad_len != 0)
-	        goto out_cdb_err;
-	if (cdb_descriptor_len != 18)
+	struct cdb_continuation_descriptor *copy_desc;
+	const struct copy_user_object_source *cuos;
+
+	/* osd2r04 6.4 - there should be exactly one copy user object
+	   source descriptor and at most one extension capabilities
+	   descriptor */
+	if (cmd->cont.num_descriptors == 1 &&
+	    cmd->cont.descriptors[0].type != COPY_USER_OBJECT_SOURCE) {
+		copy_desc = &cmd->cont.descriptors[0];
+	} else if (cmd->cont.num_descriptors == 2 &&
+		 cmd->cont.descriptors[0].type == COPY_USER_OBJECT_SOURCE &&
+		 cmd->cont.descriptors[1].type == EXTENSION_CAPABILITIES) {
+		copy_desc = &cmd->cont.descriptors[0];
+	} else if (cmd->cont.num_descriptors == 2 &&
+		 cmd->cont.descriptors[1].type == COPY_USER_OBJECT_SOURCE &&
+		 cmd->cont.descriptors[0].type == EXTENSION_CAPABILITIES) {
+		copy_desc = &cmd->cont.descriptors[1];
+	} else {
+		goto out_cdb_err;
+	}
+
+	cuos = (typeof(cuos))copy_desc->desc_specific_hdr;
+	if (copy_desc->length != 18)
 	        goto out_cdb_err;
 
-	ret = osd_copy_user_objects(cmd->osd, destination_pid, requested_oid, source_pid, source_oid, 
-				    cpy_atr, dupl_method, cdb_cont_len, cmd->sense);
+	ret = osd_copy_user_objects(cmd->osd, destination_pid, requested_oid,
+				    cuos, dupl_method, cmd->sense);
 out_cdb_err:
 	ret = sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				OSD_ASC_INVALID_FIELD_IN_CDB, destination_pid,
@@ -1382,6 +1387,11 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 			break;
 		}
 
+		case COPY_USER_OBJECT_SOURCE: {
+			desc->desc_specific_hdr = (const uint8_t *)(desc_hdr+1);
+			goto out_cdb_err;
+		}
+
 		default:
 			goto out_cdb_err;
 		}
@@ -1472,7 +1482,7 @@ static void exec_service_action(struct command *cmd)
 	}
 
 	case OSD_COPY_USER_OBJECTS: {
-		ret = cdb_copy_user_objects(cmd, cdb_cont_len);
+		ret = cdb_copy_user_objects(cmd);
 		break;
 	}
 

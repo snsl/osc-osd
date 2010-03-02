@@ -1493,6 +1493,20 @@ static int verify_enough_input_data(struct command *cmd, uint64_t cdblen)
 	return ret;
 }
 
+/* in exec_service_action(), most OSD commands do not allow CDB
+   continuations.  The following function is a quick check to make sure
+   there are no continuations. */
+static inline int
+check_no_continuations(struct command *cmd, uint32_t cdb_cont_len,
+		       uint64_t pid, uint64_t oid)
+{
+	if (cdb_cont_len != 0) {
+		return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
+					OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
+	}
+	return 0;
+}
+
 static void exec_service_action(struct command *cmd)
 {
 	struct osd_device *osd = cmd->osd;
@@ -1523,6 +1537,10 @@ static void exec_service_action(struct command *cmd)
 		if (ret)
 			break;
 
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, oid);
+		if (ret)
+			break;
+
 		/* initial version from OSC supported scatter/gather
 		   on APPEND.  However, it is not supported in
 		   official osd2 spec. */
@@ -1542,6 +1560,10 @@ static void exec_service_action(struct command *cmd)
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
 	
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, oid);
+		if (ret)
+			break;
+
 		ret = osd_clear(osd, pid, oid, len, offset, cdb_cont_len, sense);
 		if (ret)
 			break;
@@ -1556,6 +1578,11 @@ static void exec_service_action(struct command *cmd)
 	}
 
 	case OSD_CREATE: {
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     get_ntohll(&cdb[24]));
+		if (ret)
+			break;
 	        ret = cdb_create(cmd, cdb_cont_len);
 		break;
 	}
@@ -1603,10 +1630,20 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_CREATE_COLLECTION: {
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     get_ntohll(&cdb[24]));
+		if (ret)
+			break;
 	        ret = cdb_create_collection(cmd, cdb_cont_len);
 		break;
 	}
 	case OSD_CREATE_PARTITION: {
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     PARTITION_OID);
+		if (ret)
+			break;
 	        ret = cdb_create_partition(cmd, cdb_cont_len);
 		break;
 	}
@@ -1636,6 +1673,10 @@ static void exec_service_action(struct command *cmd)
 		uint64_t offset = get_ntohll(&cdb[40]);
 		int flush_scope = cdb[10] & 0x3;
 
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, oid);
+		if (ret)
+			break;
+
 		ret = osd_flush(osd, pid, oid, len, offset, flush_scope, cdb_cont_len, sense);
 		break;
 	}
@@ -1644,11 +1685,19 @@ static void exec_service_action(struct command *cmd)
 		uint64_t cid = get_ntohll(&cdb[24]);
 		int flush_scope = cdb[10] & 0x3;
 
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, cid);
+		if (ret)
+			break;
+
 		ret = osd_flush_collection(osd, pid, cid, flush_scope, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_FLUSH_OSD: {
 		int flush_scope = cdb[10] & 0x3;
+
+		ret = check_no_continuations(cmd, cdb_cont_len, 0, 0);
+		if (ret)
+			break;
 
 		ret = osd_flush_osd(osd, flush_scope, cdb_cont_len, sense);
 		break;
@@ -1656,11 +1705,20 @@ static void exec_service_action(struct command *cmd)
 	case OSD_FLUSH_PARTITION: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		int flush_scope = cdb[10] & 0x3;
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     pid, PARTITION_OID);
+		if (ret)
+			break;
+
 		ret = osd_flush_partition(osd, pid, flush_scope, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_FORMAT_OSD: {
 		uint64_t capacity = get_ntohll(&cdb[32]);
+		ret = check_no_continuations(cmd, cdb_cont_len, 0, 0);
+		if (ret)
+			break;
+
 		ret = osd_format_osd(osd, capacity, cdb_cont_len, sense);
 
 		if (ret == OSD_OK)
@@ -1671,6 +1729,10 @@ static void exec_service_action(struct command *cmd)
 	case OSD_GET_ATTRIBUTES: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t oid = get_ntohll(&cdb[24]);
+
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, oid);
+		if (ret)
+			break;
 
 		ret = get_attributes(cmd, pid, oid, 1, cdb_cont_len);
 		if (ret)
@@ -1709,6 +1771,12 @@ static void exec_service_action(struct command *cmd)
 	}
 	case OSD_PERFORM_SCSI_COMMAND:
 	case OSD_PERFORM_TASK_MGMT_FUNC:
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     get_ntohll(&cdb[24]));
+		if (ret)
+			break;
+
 		ret = osd_error_unimplemented(cmd->action, sense);
 		// XXX : uncomment get/set attributes block whenever this
 		// gets implemented
@@ -1723,6 +1791,10 @@ static void exec_service_action(struct command *cmd)
 		uint64_t oid = get_ntohll(&cdb[24]);
 		uint64_t len = get_ntohll(&cdb[32]);
 		uint64_t offset = get_ntohll(&cdb[40]);
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, oid);
+		if (ret)
+			break;
+
 		ret = osd_punch(osd, pid, oid, len, offset, cdb_cont_len, sense);
 		if (ret) 
 		        break;
@@ -1743,6 +1815,11 @@ static void exec_service_action(struct command *cmd)
 	}
 
 	case OSD_READ_MAP: {
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     get_ntohll(&cdb[24]));
+		if (ret)
+			break;
 	        ret = cdb_read_map(cmd, cdb_cont_len);	       
 	        break;
 	}
@@ -1762,6 +1839,11 @@ static void exec_service_action(struct command *cmd)
 		break;
 	}
 	case OSD_REMOVE: {
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     get_ntohll(&cdb[24]));
+		if (ret)
+			break;
 	        ret = cdb_remove(cmd, cdb_cont_len);
 		break;
 	}
@@ -1769,16 +1851,30 @@ static void exec_service_action(struct command *cmd)
 		uint8_t fcr = (cdb[11] & 0x1);
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t cid = get_ntohll(&cdb[24]);
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, cid);
+		if (ret)
+			break;
+
 		ret = osd_remove_collection(osd, pid, cid, fcr, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_REMOVE_MEMBER_OBJECTS: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t cid = get_ntohll(&cdb[24]);
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, oid);
+		if (ret)
+			break;
+
 		ret = osd_remove_member_objects(osd, pid, cid, cdb_cont_len,  sense);
 		break;
 	}
 	case OSD_REMOVE_PARTITION: {
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     PARTITION_OID);
+		if (ret)
+			break;
+
 	        ret = cdb_remove_partition(cmd, cdb_cont_len);
 		break;
 	}
@@ -1790,6 +1886,10 @@ static void exec_service_action(struct command *cmd)
 	case OSD_SET_ATTRIBUTES: {
 		uint64_t pid = get_ntohll(&cdb[16]);
 		uint64_t oid = get_ntohll(&cdb[24]);
+
+		ret = check_no_continuations(cmd, cdb_cont_len, pid, oid);
+		if (ret)
+			break;
 
 		TICK_TRACE(cdb_set_attributes);
 		ret = set_attributes(cmd, pid, oid, 1, cdb_cont_len);
@@ -1813,12 +1913,22 @@ static void exec_service_action(struct command *cmd)
 		uint64_t key = get_ntohll(&cdb[24]);
 		uint32_t param_len = get_ntohl(&cdb[32]);
 		uint32_t alloc_len = get_ntohl(&cdb[36]);
+		ret = check_no_continuations(cmd, cdb_cont_len, 0, 0);
+		if (ret)
+			break;
+
 		ret = osd_set_master_key(osd, dh_step, key, param_len,
 					 alloc_len, cmd->outdata,
 					 &cmd->used_outlen, cdb_cont_len, sense);
 		break;
 	}
 	case OSD_SET_MEMBER_ATTRIBUTES: {
+		ret = check_no_continuations(cmd, cdb_cont_len,
+					     get_ntohll(&cdb[16]),
+					     get_ntohll(&cdb[24]));
+		if (ret)
+			break;
+
 	        ret = cdb_set_member_attributes(cmd, cdb_cont_len);
 		break;
 	}

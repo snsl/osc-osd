@@ -2888,22 +2888,19 @@ static int contig_read(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		goto out_cdb_err;
 
 	readlen = pread(fd, outdata, len, offset);
-	if (readlen < 0) {
-		close(fd);
-		goto out_hw_err;
-	}
-                
 	ret = close(fd);
-	if (ret != 0)
+	if ((readlen < 0) || (ret != 0))
 		goto out_hw_err;
-
-	*used_outlen = readlen;
 
 	/* valid, but return a sense code */
-	if ((size_t) readlen < len)
+	if ((size_t) readlen < len) {
+		memset(outdata + readlen, 0, len - readlen);
 		ret = sense_build_sdd_csi(sense, OSD_SSK_RECOVERED_ERROR,
 				      OSD_ASC_READ_PAST_END_OF_USER_OBJECT,
 				      pid, oid, readlen);
+	}
+
+	*used_outlen = len;
 
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return ret;

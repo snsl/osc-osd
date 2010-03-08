@@ -624,8 +624,8 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		len = UIAP_USED_CAPACITY_LEN;
 		get_dfile_name(path, osd->root, pid, oid);
 		ret = statfs(path, &sfs);
-		printf("PARTITION_CAPACITY_QUOTA statfs(%s)=>%d size=%ld\n",
-			path, ret, sfs.f_blocks);
+		osd_debug("PARTITION_CAPACITY_QUOTA statfs(%s)=>%d size=0x%llx\n",
+			path, ret, llu(sfs.f_blocks));
 		if (ret != 0)
 			return OSD_ERROR;
 		sz = sfs.f_blocks * BLOCK_SZ;

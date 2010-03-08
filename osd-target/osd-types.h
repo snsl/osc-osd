@@ -19,6 +19,7 @@
 #define __OSD_TYPES_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <sqlite3.h>
 
@@ -196,11 +197,6 @@ struct osd_device {
 	struct cur_cmd_attr_pg ccap;
 	struct id_cache ic;
 	struct id_list idl;
-};
-
-enum {
-	FALSE = 0,
-	TRUE = 1
 };
 
 enum {

@@ -505,13 +505,13 @@ static int get_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 			  uint16_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
-	uint8_t isembedded = TRUE;
+	uint8_t isembedded = true;
 
 	if (numoid < 1)
 		goto out_cdb_err;
 
 	if (cmd->action == OSD_GET_ATTRIBUTES)
-		isembedded = FALSE;
+		isembedded = true;
 
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 	        return get_attr_page(cmd, pid, oid, isembedded, numoid, cdb_cont_len);
@@ -537,13 +537,13 @@ static int set_attributes(struct command *cmd, uint64_t pid, uint64_t oid,
 			  uint32_t numoid, uint32_t cdb_cont_len)
 {
 	int ret = 0;
-	uint8_t isembedded = TRUE;
+	uint8_t isembedded = true;
 
 	if (numoid < 1)
 		goto out_cdb_err;
 
 	if (cmd->action == OSD_SET_ATTRIBUTES)
-		isembedded = FALSE;
+		isembedded = true;
 
 	if (cmd->getset_cdbfmt == GETPAGE_SETVALUE) {
 	        return set_attr_value(cmd, pid, oid, isembedded, numoid, cdb_cont_len);
@@ -1094,7 +1094,8 @@ static int exec_cas_setattr(struct command *cmd, uint64_t pid, uint64_t oid,
 		pad = 0;
 
 		ret = osd_set_attributes(cmd->osd, pid, oid, page, number,
-					 &list[10], len, TRUE, cdb_cont_len, cmd->sense);
+					 &list[10], len, true, cdb_cont_len,
+					 cmd->sense);
 		if (ret != 0) {
 			cmd->senselen = ret;
 			goto out_err;

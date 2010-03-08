@@ -136,7 +136,7 @@ static inline int check_valid_pg(uint8_t obj_type, uint32_t page)
 	case ROOT:
 		return (ROOT_PG <= page && page < RESERVED_PG);
 	default:
-		return FALSE;
+		return false;
 	}
 }
 
@@ -147,17 +147,17 @@ static int issettable_page(uint8_t obj_type, uint32_t page)
 
 	if (!valid_pg) {
 		if (page >= ANY_PG)
-			return TRUE;
+			return true;
 		else
-			return FALSE;
+			return false;
 	}
 
 	rel_page = get_rel_page(obj_type, page);
 	if ((STD_PG_LB <= rel_page && rel_page <= STD_PG_UB) ||
 	    (LUN_PG_LB <= rel_page && rel_page <= LUN_PG_UB))
-		return TRUE;
+		return true;
 	else
-		return FALSE;
+		return false;
 }
 
 static int isgettable_page(uint8_t obj_type, uint32_t page)
@@ -167,17 +167,17 @@ static int isgettable_page(uint8_t obj_type, uint32_t page)
 
 	if (!valid_pg) {
 		if (page >= ANY_PG)
-			return TRUE;
+			return true;
 		else
-			return FALSE;
+			return false;
 	}
 
 	rel_page = get_rel_page(obj_type, page);
 	if ((RSRV_PG_LB <= rel_page && rel_page <= RSRV_PG_UB) ||
 	    rel_page > VEND_PG_UB)
-		return FALSE;
+		return false;
 	else
-		return TRUE;
+		return true;
 
 }
 
@@ -2246,7 +2246,7 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (obj_type == ILLEGAL_OBJ)
 		goto out_cdb_err;
 
-	if (isgettable_page(obj_type, page) == FALSE)
+	if (isgettable_page(obj_type, page) == false)
 		goto out_param_list;
 
 	ret = lazy_init_attr(osd, pid, oid, page, number);
@@ -2356,7 +2356,7 @@ int osd_getattr_page(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (obj_type == ILLEGAL_OBJ)
 		goto out_cdb_err;
 
-	if (isgettable_page(obj_type, page) == FALSE)
+	if (isgettable_page(obj_type, page) == false)
 		goto out_param_list;
 
 	if (!isembedded)
@@ -3452,7 +3452,7 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (obj_type == ILLEGAL_OBJ)
 		goto out_cdb_err;
 
-	if (issettable_page(obj_type, page) == FALSE)
+	if (issettable_page(obj_type, page) == false)
 		goto out_param_list;
 
 	if (number == ATTRNUM_UNMODIFIABLE)

@@ -1,6 +1,6 @@
 # Top level Makefile to build everything
 
-MK_PATH ?= .
+MK_PATH ?= $(PWD)
 util := $(MK_PATH)/osd-util
 tgt := $(MK_PATH)/tgt
 target := $(MK_PATH)/osd-target
@@ -61,7 +61,22 @@ R_PATH ?= "/fs/home/bharrosh/osc-osd"
 
 .PHONY: remote remote_clean
 remote:
-	ssh $(R) "cd $(R_PATH);gmake MK_PATH=$(R_PATH) -C $(R_PATH)"
+	git diff --ignore-submodules HEAD > diff_upload.patch
+	git push -f ssh://$(R)/$(R_PATH) ;
+	cd tgt; \
+		git diff HEAD > ../tgt_diff_upload.patch; \
+		git push -f ssh://$(R)/$(R_PATH)/tgt ; \
+	cd ..;
+	scp diff_upload.patch tgt_diff_upload.patch $(R):$(R_PATH)/
+	ssh $(R) "cd $(R_PATH); git reset --hard HEAD; git apply diff_upload.patch; gmake at_remote;"
+
+at_remote:
+	git apply diff_upload.patch;
+	cd tgt; \
+		git reset --hard HEAD; \
+		git apply ../tgt_diff_upload.patch; \
+	cd ..;
+	gmake MK_PATH=$(R_PATH) -C $(R_PATH)
 
 remote_clean:
 	ssh $(R) "cd $(R_PATH);gmake MK_PATH=$(R_PATH) -C $(R_PATH) clean"

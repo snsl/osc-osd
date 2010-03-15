@@ -66,6 +66,8 @@ osd-target/tests/setattr
 # files made by make
 osd-target/osd-schema.c
 osd-initiator/python/writefile.py
+diff_upload.patch
+tgt_diff_upload.patch
 
 # kdevelop
 tgt.kdevelop

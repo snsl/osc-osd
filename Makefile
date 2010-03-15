@@ -56,8 +56,15 @@ osd_checkpatch:
 
 # ==== Remote compelation ================================================
 # make R=remote_machine R_PATH=source_path_on_remote remote
-R ?= "perf-x4"
-R_PATH ?= "/fs/home/bharrosh/osc-osd"
+#
+# If you need this to work on panasas machines and inside kdevelop
+# /.automount/nfs.paneast.panasas.com/root/home/bharrosh/osc-osd/
+# should link on local machine to same files (.i.e $R_PATH
+# should point localy and remotely to the same files and $R_PATH better
+# be the real remote path and not through some soft link. Sigh)
+#
+R ?= "compute-6-21"
+R_PATH ?= "/.automount/nfs.paneast.panasas.com/root/home/bharrosh/osc-osd/"
 
 .PHONY: remote remote_clean
 remote:
@@ -68,15 +75,18 @@ remote:
 		git push -f ssh://$(R)/$(R_PATH)/tgt ; \
 	cd ..;
 	scp diff_upload.patch tgt_diff_upload.patch $(R):$(R_PATH)/
-	ssh $(R) "cd $(R_PATH); git reset --hard HEAD; git apply diff_upload.patch; gmake at_remote;"
+	ssh $(R) "cd $(R_PATH); gmake z__at_remote;"
 
-at_remote:
-	git apply diff_upload.patch;
+z__at_remote:
+	git reset --hard HEAD; \
+	apply_no_error(){ git apply diff_upload.patch; return 0; }; \
+	apply_no_error; \
 	cd tgt; \
 		git reset --hard HEAD; \
-		git apply ../tgt_diff_upload.patch; \
+		tgt_apply_no_error(){ git apply ../tgt_diff_upload.patch; return 0; }; \
+		tgt_apply_no_error; \
 	cd ..;
 	gmake MK_PATH=$(R_PATH) -C $(R_PATH)
 
 remote_clean:
-	ssh $(R) "cd $(R_PATH);gmake MK_PATH=$(R_PATH) -C $(R_PATH) clean"
+	ssh $(R) "cd $(R_PATH);gmake -C $(R_PATH) clean"

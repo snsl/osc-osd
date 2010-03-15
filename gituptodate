@@ -1,12 +1,28 @@
 #!/bin/bash
 #
 
+#del all tags
+git tag -d `git tag -l` 	>/dev/null 2>&1
+# update
+git remote update		>/dev/null 2>&1
+git remote prune origin
+
+git checkout  origin/master	>/dev/null 2>&1
+git submodule update
+
+git branch -f osc               origin/osc
+git branch -f master            origin/master
+git checkout  master
+echo ===========================================================================
+git branch -a -v
+echo ===========================================================================
+
 cd tgt
 
 #del all tags
-git tag -d `git tag -l`
+git tag -d `git tag -l` 	>/dev/null 2>&1
 #Update
-git remote update
+git remote update		>/dev/null 2>&1
 git remote prune origin
 
 git branch -f osd-old           origin/osd-old
@@ -18,20 +34,3 @@ git branch -a -v
 echo ===========================================================================
 
 cd ..
-
-#del all tags
-git tag -d `git tag -l`
-# update
-git remote update
-git remote prune origin
-
-# *(no branch)
-git checkout origin/master
-git submodule update
-
-git branch -f osc               origin/osc
-git branch -f master            origin/master
-git branch -f john-sg           origin/john-sg
-echo ===========================================================================
-git branch -a -v
-echo ===========================================================================

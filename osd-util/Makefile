@@ -19,7 +19,7 @@ CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 CFLAGS := $(COPTS) $(CWARN) -I.
 
 ifeq ($(FreeBSD_Make),1)
-CFLAGS += -I../tgt/usr/bsd ../tgt/usr
+CFLAGS += -I../tgt/usr/bsd -I../tgt/usr
 endif
 
 all:: $(LIB) $(OBJ)

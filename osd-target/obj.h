@@ -43,6 +43,8 @@ int obj_ispresent(struct db_context *dbc, uint64_t pid, uint64_t oid,
 
 int obj_isempty_pid(struct db_context *dbc, uint64_t pid, int *isempty);
 
+int obj_pcount(struct db_context *dbc, uint64_t *pcount);
+
 int obj_get_type(struct db_context *dbc, uint64_t pid, uint64_t oid, 
 		 uint8_t *obj_type);
 

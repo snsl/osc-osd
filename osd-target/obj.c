@@ -39,6 +39,7 @@ struct obj_tab {
 	sqlite3_stmt *nextpid;  /* get next pid */
 	sqlite3_stmt *isprsnt;  /* is object present */
 	sqlite3_stmt *emptypid; /* is partition empty */
+	sqlite3_stmt *pcount;   /* count of partitions */
 	sqlite3_stmt *gettype;  /* get type of the object */
 	sqlite3_stmt *getoids;  /* get oids in a pid */
 	sqlite3_stmt *getcids;  /* get cids in pid */
@@ -124,6 +125,12 @@ int obj_initialize(struct db_context *dbc)
 	if (ret != SQLITE_OK)
 		goto out_finalize_emptypid;
 
+	sprintf(SQL, "SELECT COUNT(pid) FROM %s WHERE oid = %llu AND type = %u;",
+		dbc->obj->name, llu(PARTITION_OID), PARTITION);
+	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->obj->pcount, NULL);
+	if (ret != SQLITE_OK)
+		goto out_finalize_pcount;
+
 	sprintf(SQL, "SELECT type FROM %s WHERE pid = ? AND oid = ?;",
 		dbc->obj->name);
 	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->obj->gettype, NULL);
@@ -162,6 +169,9 @@ out_finalize_getoids:
 	SQL[0] = '\0';
 out_finalize_gettype:
 	db_sqfinalize(dbc->db, dbc->obj->gettype, SQL);
+	SQL[0] = '\0';
+out_finalize_pcount:
+	db_sqfinalize(dbc->db, dbc->obj->pcount, SQL);
 	SQL[0] = '\0';
 out_finalize_emptypid:
 	db_sqfinalize(dbc->db, dbc->obj->emptypid, SQL);
@@ -202,6 +212,7 @@ int obj_finalize(struct db_context *dbc)
 	sqlite3_finalize(dbc->obj->nextpid);
 	sqlite3_finalize(dbc->obj->isprsnt);
 	sqlite3_finalize(dbc->obj->emptypid);
+	sqlite3_finalize(dbc->obj->pcount);
 	sqlite3_finalize(dbc->obj->gettype);
 	sqlite3_finalize(dbc->obj->getoids);
 	sqlite3_finalize(dbc->obj->getcids);
@@ -439,6 +450,34 @@ out_reset:
 	ret = db_reset_stmt(dbc, dbc->obj->emptypid, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
+out:
+	return ret;
+}
+
+
+/*
+ * returns number of partitions
+ *
+ * returns:
+ * -EINVAL: invalid arg
+ * OSD_ERROR: in case of other errors, ignore value of *isempty
+ * OSD_OK: success, *isempty set to:
+ * 	==1: if partition is empty or absent or in case of sqlite error
+ * 	==0: if partition is not empty
+ */
+int obj_pcount(struct db_context *dbc, uint64_t *pcount)
+{
+	int ret = 0;
+	int bound = 0;
+	*pcount = 0;
+
+	assert(dbc && dbc->db && dbc->obj && dbc->obj->pcount);
+
+repeat:
+	while ((ret = sqlite3_step(dbc->obj->pcount)) == SQLITE_BUSY);
+	if (ret == SQLITE_ROW)
+		*pcount = sqlite3_column_int64(dbc->obj->pcount, 0);
+
 out:
 	return ret;
 }

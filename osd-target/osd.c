@@ -731,6 +731,7 @@ static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	struct stat sb;
 	uint8_t ll[8];
 	off_t sz = 0;
+	uint64_t pcount;
 
 	switch (number) {
 	case 0:
@@ -784,9 +785,9 @@ static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		val = ll;
 		break;
 	case RIAP_NUMBER_OF_PARTITIONS:
-		/*FIXME: How to find this information*/
+		ret = obj_pcount(osd->dbc, &pcount);
 		len = RIAP_NUMBER_OF_PARTITIONS_LEN;
-		set_htonll(ll, 17);
+		set_htonll(ll, pcount);
 		val = ll;
 		break;
 	case RIAP_CLOCK:

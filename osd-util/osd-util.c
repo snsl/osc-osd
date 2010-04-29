@@ -648,11 +648,12 @@ double get_mhz(void)
 #endif
 
 	if (!(fp = popen("sysctl -n " hw_cpufrequency, "r")))
-		osd_error_fatal("Cannot call sysctl");
+		osd_error("Cannot call sysctl");
 
 	if (fgets(s, sizeof(s), fp) == NULL ||
 	    sscanf(s, "%lf", &mhz) != 1) {
-		osd_error_fatal("got no hw.cpufrequency sysctl value");
+		osd_error("got no hw.cpufrequency sysctl value");
+		mhz = 1800.0;
 	}
 	mhz /= div_by;
 	pclose(fp);

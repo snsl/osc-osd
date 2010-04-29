@@ -251,6 +251,18 @@ static inline void get_dfile_name(char *path, const char *root,
 	sprintf(path, "%s/%08llx/bstreams/%.8llu/%08llx.bstream", root,
 	        llu(pid), llu(oid % 64), llu(oid));
 	printf("root = %s collid = 0x%llx\n", root, llu(pid));
+#elif defined (__PANASAS_OSDSIM__)
+	if (!oid)
+		sprintf(path, "%s/%s/%llu", root, dfiles, llu(pid));
+	else
+		sprintf(path, "%s/%s/%llu/%llu/data", root, dfiles,
+			llu(pid), llu(oid));
+#elif defined (__PANASAS_OSD__)
+	if (!oid)
+		sprintf(path, "%s/%s/%llu", root, dfiles, llu(pid));
+	else
+		sprintf(path, "%s/%s/%llu/%llu", root, dfiles,
+			llu(pid), llu(oid));
 #else
 	if (!oid)
 		sprintf(path, "%s/%s/%02x", root, dfiles,
@@ -1015,6 +1027,7 @@ int osd_open(const char *root, struct osd_device *osd)
 		goto out;
 	}
 
+#ifndef __PANASAS_OSD__
 	/* to prevent fan-out create 256 subdirs under dfiles */
 	for (i = 0; i < 256; i++) {
 		sprintf(path, "%s/%s/%02x/", root, dfiles, i);
@@ -1024,6 +1037,7 @@ int osd_open(const char *root, struct osd_device *osd)
 			goto out;
 		}
 	}
+#endif
 
 	/* create 'stranded-files' sub-directory */
 	sprintf(path, "%s/%s/", root, stranded);
@@ -1363,6 +1377,14 @@ static int osd_create_datafile(struct osd_device *osd, uint64_t pid,
 	if (ret == 0 && S_ISREG(sb.st_mode)) {
 		return -EEXIST;
 	} else if (ret == -1 && errno == ENOENT) {
+#ifdef __PANASAS_OSDSIM__
+		char *smoog;
+		smoog = strrchr(path, '/');
+		*smoog = '\0';
+		create_dir(path);
+		osd_error("%s: panasas create %s directory %m", __func__,path);
+		*smoog = '/';
+#endif
 		ret = creat(path, 0666);
 		if (ret <= 0)
 			return ret;
@@ -1799,6 +1821,12 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 		pid = requested_pid;
 	}
 
+#ifdef __PANASAS_OSD__
+	char path[MAXNAMELEN];
+	get_dfile_name(path, osd->root, pid, 0);
+	create_dir(path);
+	osd_error("%s: panasas create %s directory %m", __func__,path);
+#endif
 	/* if pid already exists, obj_insert will fail */
 	ret = obj_insert(osd->dbc, pid, PARTITION_OID, PARTITION);
 	if (ret)
@@ -2092,12 +2120,14 @@ int osd_format_osd(struct osd_device *osd, uint64_t capacity, uint32_t cdb_cont_
 		goto out_sense;
 	}
 
+#ifndef __PANASAS_OSD__
 	sprintf(path, "%s/%s", root, dfiles);
 	ret = empty_dir(path);
 	if (ret) {
 		osd_error("%s: empty_dir %s failed", __func__, path);
 		goto out_sense;
 	}
+#endif
 
 create:
 	ret = osd_open(root, osd); /* will create files/dirs under root */
@@ -2888,8 +2918,10 @@ static int contig_read(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	get_dfile_name(path, osd->root, pid, oid);
 	fd = open(path, O_RDONLY|O_LARGEFILE); /* fails on non-existent obj */
-	if (fd < 0)
+	if (fd < 0) {
+		osd_error("%s: open faild on [%s]", __func__, path);
 		goto out_cdb_err;
+	}
 
 	readlen = pread(fd, outdata, len, offset);
 	ret = close(fd);

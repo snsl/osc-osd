@@ -2,6 +2,10 @@
 # OSD target makefile
 #
 
+#configuration flags
+PANASAS_OSD=1
+PANASAS_OSDSIM=1
+
 -include ../Makedefs
 
 SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c list-entry.c
@@ -26,6 +30,14 @@ LIBS += -L/usr/local/lib/
 CFLAGS += -I/usr/local/include -I$(STGTDIR)/usr/bsd -I$(STGTDIR)/usr
 CFLAGS += -D__MAKE_BSD_BUILD__
 endif
+
+ifeq ($(PANASAS_OSD),1)
+CFLAGS += -D__PANASAS_OSD__
+ifeq ($(PANASAS_OSDSIM),1)
+CFLAGS += -D__PANASAS_OSDSIM__
+endif
+endif
+
 
 LIBS += -lm -lcrypto -lsqlite3 -laio -lavahi-core -lavahi-common \
 	$(IB_HW_OF_LIBS) -libverbs -lrdmacm

@@ -637,7 +637,8 @@ double get_mhz(void)
 {
 	FILE *fp;
 	char s[1024];
-	double mhz;
+	double mhz = 0;
+	static const double cpufrequency_not_found = 1717.17;
 #if defined(__FreeBSD__) || defined(__APPLE__)
 #ifdef __APPLE__
 	#define hw_cpufrequency "hw.cpufrequency"
@@ -647,41 +648,52 @@ double get_mhz(void)
 	const long div_by = 1L;
 #endif
 
-	if (!(fp = popen("sysctl -n " hw_cpufrequency, "r")))
+	if (!(fp = popen("sysctl -n " hw_cpufrequency, "r"))) {
 		osd_error("Cannot call sysctl");
+		return cpufrequency_not_found;
+	}
 
 	if (fgets(s, sizeof(s), fp) == NULL ||
 	    sscanf(s, "%lf", &mhz) != 1) {
 		osd_error("got no hw.cpufrequency sysctl value");
-		mhz = 1800.0;
+		goto no_cpufrequency;
 	}
 	mhz /= div_by;
+
+no_cpufrequency:
 	pclose(fp);
 #else /* defined(__FreeBSD__) || defined(__APPLE__) .e.g Linux */
 	char *cp;
 	int found = 0;
 
-	if (!(fp = fopen("/proc/cpuinfo", "r")))
-		osd_error_fatal("Cannot open /proc/cpuinfo");
+	if (!(fp = fopen("/proc/cpuinfo", "r"))) {
+		osd_error("Cannot open /proc/cpuinfo");
+		return cpufrequency_not_found;
+	}
 
 	while (fgets(s, sizeof(s), fp)) {
 		if (!strncmp(s, "cpu MHz", 7)) {
 			found = 1;
 			for (cp=s; *cp && *cp != ':'; cp++) ;
-			if (!*cp)
-				osd_error_fatal("no colon found in string");
+			if (!*cp) {
+				osd_error("no colon found in string");
+				goto no_cpufrequency;
+			}
 			++cp;
-			if (sscanf(cp, "%lf", &mhz) != 1)
-				osd_error_fatal("scanf got no value");
+			if (sscanf(cp, "%lf", &mhz) != 1) {
+				osd_error("scanf got no value");
+				goto no_cpufrequency;
+			}
 		}
 	}
 	if (!found)
-		osd_error_fatal("\"cpu MHz\" line not found\n");
+		osd_error("\"cpu MHz\" line not found\n");
 
+no_cpufrequency:
 	fclose(fp); 
 #endif /*  else defined(__FreeBSD__) || defined(__APPLE__) */
 
-	return mhz;
+	return mhz != 0 ?: cpufrequency_not_found ;
 }
 
 /*

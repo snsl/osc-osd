@@ -2,10 +2,6 @@
 # OSD target makefile
 #
 
-#configuration flags
-PANASAS_OSD=1
-PANASAS_OSDSIM=1
-
 -include ../Makedefs
 
 SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c list-entry.c
@@ -87,7 +83,7 @@ $(STGTLIB): STGT
 $(UTILLIB): UTIL
 	make -C $(UTILDIR)
 
-%.o: %.c Makefile
+%.o: %.c Makefile ../Makedefs
 	$(CC) $(CFLAGS) -c $< -o $@
 
 osd-schema.c: osd.schema

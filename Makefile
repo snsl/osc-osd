@@ -1,5 +1,7 @@
 # Top level Makefile to build everything
 
+-include Makedefs
+
 MK_PATH ?= $(PWD)
 util := $(MK_PATH)/osd-util
 tgt := $(MK_PATH)/tgt
@@ -28,15 +30,23 @@ target: util
 target_clean:
 	$(MAKE) -C $(target) clean
 
+OTGTD = otgtd
+ifeq ($(PANASAS_OSD),1)
+	OTGTD = pan_tgtd
+	ifeq ($(PANASAS_OSDSIM),1)
+		OTGTD = pansim_tgtd
+	endif
+endif
+
 .PHONY: stgt stgt_checkpatch stgt_tgt_only stgt_clean
 stgt: target
-	$(MAKE) OSDEMU=1 ISCSI=1 -C $(tgt)/usr
+	$(MAKE) OSDEMU=1 ISCSI=1 TGTD=$(OTGTD) -C $(tgt)/usr
 
 stgt_checkpatch:
 	cd $(tgt);git show | $(CHECKPATCH) - |  $(checkpatch_2_kdev) $(PWD)/$(tgt)
 
 stgt_tgt_only:
-	$(MAKE) ISCSI=1 IBMVIO=1 ISCSI_RDMA=1 FCP=1 FCOE=1 OSDEMU=1 -C $(tgt)/usr
+	$(MAKE) ISCSI=1 IBMVIO=1 ISCSI_RDMA=1 FCP=1 FCOE=1 -C $(tgt)/usr
 
 stgt_clean:
 	$(MAKE) -C $(tgt)/usr clean

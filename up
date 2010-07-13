@@ -8,12 +8,13 @@ BACKSTORE2=/usr0/var/osd-tgt/tgt-2/
 BACKSTORE3=/usr0/var/osd-tgt/tgt-3/
 
 TGTADM=./tgt/usr/tgtadm
+OTGTD=./tgt/usr/otgtd
 # -f - forgraound
 # -d - debug level
 # DEBUG="-d 9"
 DEBUG=""
 
-./tgt/usr/tgtd $DEBUG -f &
+$OTGTD $DEBUG -f &
 
 sleep 2
 $TGTADM --lld iscsi --mode target --op new --tid 1 --targetname $(hostname)

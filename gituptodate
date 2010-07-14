@@ -13,6 +13,7 @@ git submodule update
 git branch -f osc               origin/osc
 git branch -f master            origin/master
 git checkout  master
+git update-server-info
 echo ===========================================================================
 git branch -a -v
 echo ===========================================================================
@@ -29,6 +30,7 @@ git branch -f osd-old           origin/osd-old
 git branch -f from-tomo         origin/from-tomo
 git branch -f osd               origin/osd
 git branch -f osd-next          origin/osd-next
+git update-server-info
 echo ===========================================================================
 git branch -a -v
 echo ===========================================================================

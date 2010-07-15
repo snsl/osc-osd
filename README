@@ -13,7 +13,7 @@ a submodule, so a user that needs an OSD2 target need only
 clone one head and everything will sync automatically.
 
 The git tree is here:
-  git-clone git://git.open-osd.org/osc-osd
+  git-clone --recursive git://git.open-osd.org/osc-osd
   or viewed
   http://git.open-osd.org/gitweb.cgi?p=osc-osd/.git;a=summary
 
@@ -91,26 +91,29 @@ needed is the sqlite-devel package. For example:
 
 all a user need is to follow these steps:
 - at some parent folder do
-[]$ git clone git://git.open-osd.org/osc-osd 
+[]$ git clone --recursive git://git.open-osd.org/osc-osd 
+
+If behind a firewall and in need of "http:" access do:
+[]$ git clone --recursive http://git.open-osd.org/trees/osc-osd/.git
+
     (Please use relatively new git version)
 []$ cd osc-osd/
 
-- At this point we need one additional step
+- The above "--recursive" switch cloned everything for us. If you forgot
+  You'll need one additional step
 []$ git submodule init
 []$ git submodule update
-  This last command will auto clone the tgt git tree and will
-  checkout the exact point of the tree needed at that point of
-  the osc-osd tree.
+  These last commands will auto clone the tgt git tree.
 
-- That's it we are ready you should now do
+- That's it we are ready and should now do:
 []$ make
   And it should all compile. See the osd-target/README for
   additional information.
 
 - For running the target also read osd-target/README and
   tgt/doc/. But basically you should run ./up for a debug
-  load of an OSD2 target. The backing store of the target
-  will be at the default /tmp/...
+  load of an OSD2 target. Edit the ./up script to specify
+  the backing store of the target, default is at /var/osd-tgt/...
 
 From time to time if you want to update on osc-osd progress
 you might do:

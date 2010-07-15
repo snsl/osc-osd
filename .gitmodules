@@ -1,3 +1,3 @@
 [submodule "tgt"]
 	path = tgt
-	url = git://git.open-osd.org/osc-osd/tgt
+	url = ../tgt/.git

@@ -33,21 +33,13 @@
 #include "osd-util/osd-sense.h"
 #include "target-sense.h"
 
-static const char *dfiles = "dfiles";
-
-static inline void get_dfile_name(char *path, const char *root,
-				  uint64_t pid, uint64_t oid)
-{
-#ifdef PVFS_OSD_INTEGRATED
-	/* go look in PVFS bstreams for file data (eventually) */
-	sprintf(path, "%s/%08llx/bstreams/%.8llu/%08llx.bstream", root,
-	        llu(pid), llu(oid % 64), llu(oid));
-	printf("root = %s collid = 0x%llx\n", root, llu(pid));
-#else
-	sprintf(path, "%s/%s/%02x/%llx.%llx", root, dfiles,
-		(uint8_t)(oid & 0xFFUL), llu(pid), llu(oid));
+#ifndef TRUE
+#define TRUE true
 #endif
-}
+
+#ifndef FALSE
+#define FALSE false
+#endif
 
 static void test_osd_create(struct osd_device *osd)
 {
@@ -171,7 +163,7 @@ static void test_osd_clear(struct osd_device *osd)
 
 	sprintf(wrbuf, "Testing osd_clear command\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
     
 	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
@@ -218,7 +210,7 @@ static void test_osd_punch(struct osd_device *osd)
 
 	sprintf(wrbuf, "Testing osd_punch command\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
@@ -235,7 +227,7 @@ static void test_osd_punch(struct osd_device *osd)
 	/* Illegal Punch */
 	sprintf(wrbuf, "Testing osd_punch command\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 	
 	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
@@ -258,7 +250,7 @@ static void test_osd_punch(struct osd_device *osd)
 	sprintf(wrbuf, "Testing osd_punch command\n");
 	
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
@@ -272,7 +264,7 @@ static void test_osd_punch(struct osd_device *osd)
 	/* Punch Regular */
 	sprintf(wrbuf, "Testing osd_punch command\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	ret = osd_punch(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
@@ -302,7 +294,7 @@ static void test_osd_flush(struct osd_device *osd)
 
 	sprintf(wrbuf, "Testing osd_punch command\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
     
 	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
@@ -345,7 +337,7 @@ static void test_osd_read_map(struct osd_device *osd)
 
 	sprintf(wrbuf, "Te\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 	get_dfile_name(path, osd->root, USEROBJECT_PID_LB, USEROBJECT_OID_LB);
 
@@ -373,7 +365,7 @@ static void test_osd_read_map(struct osd_device *osd)
 	/* Two descriptor case */
 	sprintf(wrbuf, "Testin\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 1024, 0, map_type,
 			   outdata, &used_outlen, cdb_cont_len, sense);
@@ -391,7 +383,7 @@ static void test_osd_read_map(struct osd_device *osd)
 	/* Offset > 0 */
 	sprintf(wrbuf, "Testin\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 	ret = osd_read_map(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 1024, 4, map_type,
 			   outdata, &used_outlen, cdb_cont_len, sense);
@@ -431,11 +423,11 @@ static void test_osd_io(struct osd_device *osd)
 
 	sprintf(wrbuf, "Hello World! Get life\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(wrbuf)+1, 0, wrbuf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(wrbuf)+1, 0, wrbuf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-		       256, 0, NULL, rdbuf, &len, cdb_cont_len, sense, DDT_CONTIG);
+		       256, 0, NULL, rdbuf, &len, NULL, sense, DDT_CONTIG);
 	assert(ret >= 0);
 	if (ret > 0) {
 		assert(sense_test_type(sense, OSD_SSK_RECOVERED_ERROR,
@@ -452,7 +444,7 @@ static void test_osd_io(struct osd_device *osd)
 
 	memset(rdbuf, 0, len);
 	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-		       256, 0, NULL, rdbuf, &len, cdb_cont_len, sense, DDT_CONTIG);
+		       256, 0, NULL, rdbuf, &len, NULL, sense, DDT_CONTIG);
 	assert(ret >= 0);
 	if (ret > 0) {
 		assert(sense_test_type(sense, OSD_SSK_RECOVERED_ERROR,
@@ -570,13 +562,13 @@ static void test_osd_get_utsap(struct osd_device *osd)
 
 	sprintf(buf, "Hello World! Get life blah blah blah\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(buf)+1, 0, buf, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(buf)+1, 0, buf, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	sleep(1);
 	used_len = 0;
 	ret = osd_read(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-		       strlen(buf)+1, 0, NULL, buf, &used_len, cdb_cont_len, sense, DDT_CONTIG);
+		       strlen(buf)+1, 0, NULL, buf, &used_len, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 	assert(used_len = strlen(buf)+1);
 
@@ -656,7 +648,7 @@ static void test_osd_get_attributes(struct osd_device *osd)
 	/* write to the file and then truncate using setting logical len */
 	sprintf(val, "Hello World! Get life\n");
 	ret = osd_write(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB,
-			strlen(val)+1, 0, val, cdb_cont_len, sense, DDT_CONTIG);
+			strlen(val)+1, 0, val, NULL, sense, DDT_CONTIG);
 	assert(ret == 0);
 
 	len = 1024;

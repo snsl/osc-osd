@@ -8,7 +8,7 @@
 #include "osd-types.h"
 #include "cdb.h"
 #include "osd.h"
-#include "osd-initiator/command.h"
+#include "command.h"
 #include "osd-util/osd-util.h"
 
 static void run(struct osd_device *osd, struct osd_command *c)

@@ -30,7 +30,7 @@
 #include "cdb.h"
 #include "osd-util/osd-util.h"
 #include "osd-util/osd-sense.h"
-#include "osd-initiator/command.h"
+#include "command.h"
 
 void test_partition(struct osd_device *osd);
 void test_create(struct osd_device *osd);

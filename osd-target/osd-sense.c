@@ -27,8 +27,8 @@
  * Descriptor format sense data.  See spc3 p 31.  Returns length of
  * buffer used so far.
  */
-int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
-		       uint8_t additional_len)
+int _sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
+		       uint8_t additional_len, const char *file, int line)
 {
 	if (len < 8)
 		return 0;
@@ -37,8 +37,8 @@ int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
 	data[2] = ASC(code);
 	data[3] = ASCQ(code);
 	data[7] = additional_len;  /* additional length, beyond these 8 bytes */
-	osd_warning("sense_header_build key=%d code=%x additional_len=%d",
-		 key, code, additional_len);
+	osd_warning("%s:%d: _sense_header_build key=%d code=%x additional_len=%d",
+		 file, line, key, code, additional_len);
 
 	return 8;
 }
@@ -48,7 +48,7 @@ int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
  * of these, then perhaps some others.  This goes just beyond the 8
  * byte sense header above.  The length of this is 32. osd2r01 Sec 4.14.2.1
  */
-int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
+static int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 		     uint32_t completed_funcs, uint64_t pid, uint64_t oid)
 {
 	if (len < 32)
@@ -66,7 +66,7 @@ int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 /*
  * SPC-3 command-specific information sense data descriptor.  p. 33.
  */
-int sense_csi_build(uint8_t *data, int len, uint64_t csi)
+static int sense_csi_build(uint8_t *data, int len, uint64_t csi)
 {
 	if (len < 12)
 		return 0;
@@ -82,14 +82,14 @@ int sense_csi_build(uint8_t *data, int len, uint64_t csi)
  * and just a header and basic info descriptor are required.  Assumes full 252
  * byte sense buffer.
  */
-int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
-		      uint64_t pid, uint64_t oid)
+int _sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
+		      uint64_t pid, uint64_t oid, const char *file, int line)
 {
 	uint8_t off = 0;
 	uint8_t len = OSD_MAX_SENSE;
 	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
 
-	off = sense_header_build(sense+off, len-off, key, code, 32);
+	off = _sense_header_build(sense+off, len-off, key, code, 32, file, line);
 	off += sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
 	return off;
 }
@@ -97,14 +97,14 @@ int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
 /*
  * Same as basic_build?  Delete one.
  */
-int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
-		    uint64_t pid, uint64_t oid)
+int _sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
+		    uint64_t pid, uint64_t oid, const char *file, int line)
 {
 	uint8_t off = 0;
 	uint8_t len = OSD_MAX_SENSE;
 	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
 
-	off = sense_header_build(sense+off, len-off, key, code, 32);
+	off = _sense_header_build(sense+off, len-off, key, code, 32, file, line);
 	off += sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
 	return off;
 }
@@ -113,14 +113,14 @@ int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
  * Sense header, info section with pid and oid, and "info" section
  * with an arbitrary u64.
  */
-int sense_build_sdd_csi(uint8_t *sense, uint8_t key, uint16_t code,
-		        uint64_t pid, uint64_t oid, uint64_t csi)
+int _sense_build_sdd_csi(uint8_t *sense, uint8_t key, uint16_t code,
+		        uint64_t pid, uint64_t oid, uint64_t csi, const char *file, int line)
 {
 	uint8_t off = 0;
 	uint8_t len = OSD_MAX_SENSE;
 	uint32_t nifunc = 0x303010b0;  /* non-reserved bits */
 
-	off = sense_header_build(sense+off, len-off, key, code, 44);
+	off = _sense_header_build(sense+off, len-off, key, code, 44, file, line);
 	off += sense_info_build(sense+off, len-off, nifunc, 0, pid, oid);
 	off += sense_csi_build(sense+off, len-off, csi);
 	return off;

@@ -18,17 +18,34 @@
 #ifndef __TARGET_SENSE_H
 #define __TARGET_SENSE_H
 
-int sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
-		       uint8_t additional_len);
-int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
-		     uint32_t completed_funcs, uint64_t pid, uint64_t oid);
-int sense_csi_build(uint8_t *data, int len, uint64_t csi);
-int sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
-                      uint64_t pid, uint64_t oid);
-int sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
-		    uint64_t pid, uint64_t oid);
-int sense_build_sdd_csi(uint8_t *sense, uint8_t key, uint16_t code,
-		        uint64_t pid, uint64_t oid, uint64_t csi);
+#define sense_header_build(data, len, key, code, additional_len) \
+	_sense_header_build(data, len, key, code, additional_len, __FILE__, __LINE__)
+int _sense_header_build(uint8_t *data, int len, uint8_t key, uint16_t code,
+		       uint8_t additional_len, const char *file, int line);
+
+/*#define sense_info_build(data, len, not_init_funcs, completed_funcs, pid, oid) \
+	_sense_info_build(data, len, not_init_funcs, completed_funcs, pid, oid, __FILE__, __LINE__)
+int _sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
+		     uint32_t completed_funcs, uint64_t pid, uint64_t oid, const char *file, int line);
+*/
+/*#define sense_csi_build(data, len, csi) \
+	_sense_csi_build(data, len, csi, __FILE__, __LINE__)
+int _sense_csi_build(uint8_t *data, int len, uint64_t csi, const char *file, int line);
+*/
+#define sense_basic_build(sense, key, code, pid, oid) \
+	_sense_basic_build(sense, key, code, pid, oid, __FILE__, __LINE__)
+int _sense_basic_build(uint8_t *sense, uint8_t key, uint16_t code,
+                      uint64_t pid, uint64_t oid, const char *file, int line);
+
+#define sense_build_sdd(sense, key, code, pid, oid) \
+	_sense_build_sdd(sense, key, code, pid, oid, __FILE__, __LINE__)
+int _sense_build_sdd(uint8_t *sense, uint8_t key, uint16_t code,
+		    uint64_t pid, uint64_t oid, const char *file, int line);
+
+#define sense_build_sdd_csi(sense, key, code, pid, oid, csi) \
+	_sense_build_sdd_csi(sense, key, code, pid, oid, csi, __FILE__, __LINE__)
+int _sense_build_sdd_csi(uint8_t *sense, uint8_t key, uint16_t code,
+		        uint64_t pid, uint64_t oid, uint64_t csi, const char *file, int line);
 
 #define ASC(x) ((x & 0xFF00) >> 8)
 #define ASCQ(x) (x & 0x00FF)

@@ -4,12 +4,16 @@
 TGTADM=./tgt/usr/tgtadm
 OTGTD=./tgt/usr/otgtd
 
-# must have target1
-BACKSTORE1=/usr0/var/osd-tgt/tgt-0/
+# must have target 1
+BACKSTORE1=/usr0/var/osd-tgt/tgt-1/
 # Optional additional back-stores here
-BACKSTORE2=/usr0/var/osd-tgt/tgt-1/
-# BACKSTORE3=/usr0/var/osd-tgt/tgt-2/
-# BACKSTORE4=/usr0/var/osd-tgt/tgt-3/
+BACKSTORE2=/usr0/var/osd-tgt/tgt-2/
+BACKSTORE3=/usr0/var/osd-tgt/tgt-3/
+BACKSTORE4=/usr0/var/osd-tgt/tgt-4/
+BACKSTORE5=/usr0/var/osd-tgt/tgt-5/
+BACKSTORE6=/usr0/var/osd-tgt/tgt-6/
+BACKSTORE7=/usr0/var/osd-tgt/tgt-7/
+BACKSTORE8=/usr0/var/osd-tgt/tgt-8/
 
 # $1<=BACKSTORE $2<=tid
 load_target()
@@ -36,8 +40,13 @@ sleep 2
 
 load_target $BACKSTORE1 1
 load_target $BACKSTORE2 2
-# load_target $BACKSTORE3 3
-# load_target $BACKSTORE4 4
+load_target $BACKSTORE3 3
+load_target $BACKSTORE4 4
+
+load_target $BACKSTORE5 5
+load_target $BACKSTORE6 6
+load_target $BACKSTORE7 7
+load_target $BACKSTORE8 8
 
 # Last print what we got, then stay in forgraound (ctrl-C to exit)
 $TGTADM --lld iscsi --mode target --op show

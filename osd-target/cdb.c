@@ -1360,15 +1360,19 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 		 * in the maximum CDB continuation length attribute in the root
 		 * information attributes page (7.1.3.8)
 		 */
+osd_warning("%s:%d:", __FILE__, __LINE__);
 		goto out_cdb_err;
 	}
 
 	if (cont_action != cmd->action) {
+osd_warning("%s:%d: cont_action=0x%x cmd->action=0x%x cdb_cont_len=%d cont_format=%d",
+	__FILE__, __LINE__, cont_action, cmd->action, cdb_cont_len, cont_format);
 		goto out_cdb_err;
 	}
 
 	/* continuation format 1 is the only format defined in OSDr204 */
 	if (cont_format != 1) {
+osd_warning("%s:%d:", __FILE__, __LINE__);
 		goto out_cdb_err;
 	}
 
@@ -1403,15 +1407,20 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 			 * than the value of the supported CDB continuation
 			 * descriptor type information attributes page (7.1.3.8)
 			 */
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			goto out_cdb_err;
 		}
 
 		desc_len += sizeof(*desc_hdr);
+
+// osd_warning("%s:%d: desc_len=%d cdb_cont_len=%d uptilnow=%zu", __FILE__, __LINE__, desc_len, cdb_cont_len, cdb_cont-cmd->indata);
+
 		if ((cdb_cont + desc_len) > (cmd->indata + cdb_cont_len)) {
 			/* XXX The spec doesnt say what to do if the
 			   length of this descriptor goes past the end
 			   of the continuation.  For now, we'll just
 			   return an error. */
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			goto out_cdb_err;
 		}
 
@@ -1425,6 +1434,7 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 		case SCATTER_GATHER_LIST: {
 			if (pad_length != 0) {
 			     /* osd2r04 5.4.2 - pad length must be 0 */
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			     goto out_cdb_err;
 			}
 
@@ -1439,6 +1449,7 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 		case QUERY_LIST: {
 			if (pad_length != 0) {
 			     /* osd2r04 5.4.3 - pad length must be 0 */
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			     goto out_cdb_err;
 			}
 
@@ -1448,20 +1459,24 @@ static int parse_cdb_continuation_segment(struct command *cmd,
 
 		case USER_OBJECT: {
 			/* not supported yet */
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			goto out_cdb_err;
 		}
 
 		case COPY_USER_OBJECT_SOURCE: {
 			desc->desc_specific_hdr = (const uint8_t *)(desc_hdr+1);
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			goto out_cdb_err;
 		}
 
 		case EXTENSION_CAPABILITIES: {
 			/* not supported yet */
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			goto out_cdb_err;
 		}
 
 		default:
+osd_warning("%s:%d:", __FILE__, __LINE__);
 			goto out_cdb_err;
 		}
 

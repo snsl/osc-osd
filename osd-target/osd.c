@@ -3731,7 +3731,7 @@ static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	uint64_t pairs, data_offset, offset_val, length;
 	unsigned int i;
 
-	osd_debug("%s: pid %llu oid %llu len %llu offset %llu data %p",
+	osd_info("%s: pid %llu oid %llu len %llu offset %llu data %p",
 		  __func__, llu(pid), llu(oid), llu(len), llu(offset), dinbuf);
 
 	assert(osd && osd->root && osd->dbc && dinbuf && sense);
@@ -3739,7 +3739,7 @@ static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	pairs = sglist->num_entries;
 	assert(pairs != 0);
 
-	osd_debug("%s: offset,len pairs %llu", __func__, llu(pairs));
+	osd_info("%s: offset,len pairs %llu", __func__, llu(pairs));
 
 	if (!(pid >= USEROBJECT_PID_LB && oid >= USEROBJECT_OID_LB))
 		goto out_cdb_err;
@@ -3756,16 +3756,16 @@ static int sgl_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		offset_val = get_ntohll(&sglist->entries[i].offset);
 		length = get_ntohll(&sglist->entries[i].bytes_to_transfer);
 
-		osd_debug("%s: Offset: %llu Length: %llu",
+		osd_info("%s: Offset: %llu Length: %llu",
 			  __func__, llu(offset_val + offset), llu(length));
 
-		osd_debug("%s: Position in data buffer: %llu",
+		osd_info("%s: Position in data buffer: %llu",
 			  __func__, llu(data_offset));
 
-		osd_debug("%s: ------------------------------", __func__);
+		osd_info("%s: ------------------------------", __func__);
 		ret = pwrite(fd, dinbuf+data_offset, length, offset_val+offset);
 		data_offset += length;
-		osd_debug("%s: return value is %d", __func__, ret);
+		osd_info("%s: return value is %d", __func__, ret);
 		if (ret < 0 || (uint64_t)ret != length)
 			goto out_hw_err;
 	}
@@ -3884,6 +3884,8 @@ int osd_write(struct osd_device *osd, uint64_t pid, uint64_t oid,
 				           sense);
 		}
 		default: {
+			osd_info("osd_write!!! ddt=%d\n", ddt);
+
 			return sense_build_sdd(sense, OSD_SSK_ILLEGAL_REQUEST,
 			               OSD_ASC_INVALID_FIELD_IN_CDB, pid, oid);
 		}

@@ -13,7 +13,7 @@ a submodule, so a user that needs an OSD2 target need only
 clone one head and everything will sync automatically.
 
 The git tree is here:
-  git-clone --recursive git://git.open-osd.org/osc-osd
+  git-clone --recursive git://git.open-osd.org/osc-osd/.git
   or viewed
   http://git.open-osd.org/gitweb.cgi?p=osc-osd/.git;a=summary
 
@@ -91,7 +91,7 @@ needed is the sqlite-devel package. For example:
 
 all a user need is to follow these steps:
 - at some parent folder do
-[]$ git clone --recursive git://git.open-osd.org/osc-osd 
+[]$ git clone --recursive git://git.open-osd.org/osc-osd/.git
 
 If behind a firewall and in need of "http:" access do:
 []$ git clone --recursive http://git.open-osd.org/trees/osc-osd/.git

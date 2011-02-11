@@ -3002,11 +3002,16 @@ static int sgl_read(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 		osd_debug("%s: ------------------------------", __func__);
 		ret = pread(fd, outdata+data_offset, length, offset_val+offset);
-		data_offset += length;
 		osd_debug("%s: return value is %d", __func__, ret);
-		if (ret < 0 || (uint64_t)ret != length)
+		if (ret < 0)
 			goto out_hw_err;
-		readlen += ret;
+		if ((size_t) ret < length) {
+			/* valid, fill with zeros */
+			memset(outdata+data_offset+ret, 0, length - ret);
+			length = ret;
+		}
+		data_offset += length;
+		readlen += length;
 	}
 
 	ret = close(fd);
@@ -3479,12 +3484,18 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	assert(osd && osd->root && osd->dbc && sense);
 
 	ret = obj_ispresent(osd->dbc, pid, oid, &present);
-	if (ret != OSD_OK || !present) /* object not present! */
+	if (ret != OSD_OK || !present) {/* object not present! */
+		osd_warning("%s: object not present pid %llu oid %llu", __func__,
+			  llu(pid), llu(oid));
 		goto out_cdb_err;
+	}
 
 	obj_type = get_obj_type(osd, pid, oid);
-	if (obj_type == ILLEGAL_OBJ)
+	if (obj_type == ILLEGAL_OBJ) {
+		osd_warning("%s: !get_obj_type pid %llu oid %llu", __func__,
+			  llu(pid), llu(oid));
 		goto out_cdb_err;
+	}
 
 	if (issettable_page(obj_type, page) == false)
 		goto out_param_list;
@@ -3492,8 +3503,11 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	if (number == ATTRNUM_UNMODIFIABLE)
 		goto out_param_list;
 
-	if ((val == NULL && len != 0) || (val != NULL && len == 0))
+	if ((val == NULL && len != 0) || (val != NULL && len == 0)) {
+		osd_warning("%s: NULLs %llu oid %llu", __func__,
+			  llu(pid), llu(oid));
 		goto out_cdb_err;
+	}
 
 	/* information page, make sure null terminated. osd2r00 7.1.2.2 */
 	if (number == ATTRNUM_INFO) {
@@ -3506,8 +3520,11 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			if (s[i] == 0)
 				break;
 		}
-		if (i == len)
+		if (i == len) {
+			osd_warning("%s: !null terminated %llu oid %llu",
+				  __func__, llu(pid), llu(oid));
 			goto out_cdb_err;
+		}
 	}
 
 	if (len > ATTR_LEN_UB)

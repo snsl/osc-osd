@@ -2529,6 +2529,7 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 			add_len = (uint64_t) -1;
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
+osd_error("%s: add_len=%lu cont_id=0x%lx", __func__, add_len, cont_id);
 	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
 		if (list_id)
 			initial_oid = cont_id;

@@ -63,6 +63,7 @@ osd-target/tests/query
 osd-target/tests/set_member_attributes
 osd-target/tests/setattr
 otgtd.log
+up.conf
 
 # files made by make
 osd-target/osd-schema.c

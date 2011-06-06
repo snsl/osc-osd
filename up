@@ -1,24 +1,84 @@
 #!/bin/sh
 
-# Path to executables, assuming source tree
+up_dir=`dirname $0`
+up_conf=./up.conf
+
+if [ -r $up_conf ]; then
+	source $up_conf;
+else
+	echo -n "
+# up.conf Configuration of the targets to load
+
+# The number of targets to load
+NUM_TARGETS=1
+LOG_FILE=./otgtd.log
+
+# Please edit the path to your osd-target backing store.
+# You can add as many BACKSTORE[1..n] as you need. Each one
+# will have a new target loaded for it.
+BACKSTORE[1]=/var/otgt/otgt-1
+# BACKSTORE[2]=/var/otgt/otgt-2
+# BACKSTORE[3]=/var/otgt/otgt-3
+" 				> $up_conf;
+
+	echo "$up_conf not found I have created a new one for you please
+		edit and re-run ./up
+	"
+	exit
+fi
+
+# Path to pan_tgtd executables, assuming source tree
 TGTADM=./tgt/usr/tgtadm
-OTGTD=./tgt/usr/otgtd
+otgtd_name=otgtd
+OTGTD=./tgt/usr/$otgtd_name
 
-# must have target 1
-BACKSTORE1=/usr0/var/osd-tgt/tgt-1/
-# Optional additional back-stores here
-BACKSTORE2=/usr0/var/osd-tgt/tgt-2/
-BACKSTORE3=/usr0/var/osd-tgt/tgt-3/
-BACKSTORE4=/usr0/var/osd-tgt/tgt-4/
-BACKSTORE5=/usr0/var/osd-tgt/tgt-5/
-BACKSTORE6=/usr0/var/osd-tgt/tgt-6/
-BACKSTORE7=/usr0/var/osd-tgt/tgt-7/
-BACKSTORE8=/usr0/var/osd-tgt/tgt-8/
+# Make target name the hostname
+TARGETNAME="${1//\//\.}$(hostname)"
 
-# $1<=BACKSTORE $2<=tid
+case $1 in
+down)
+	killall -s SIGINT $otgtd_name
+	exit
+	;;
+stat)
+        _ps=`ps ax`
+	stat=`echo $_ps | grep $otgtd_name`
+        if [ "${stat}" == "" ] ; then
+                echo "otgtd: DOWN!!!"
+        else
+                echo "otgtd: UP"
+        fi
+	exit
+	;;
+show)
+	$TGTADM --lld iscsi --mode target --op show
+	exit
+	;;
+
+log)
+	less +F $LOG_FILE
+	exit
+	;;
+
+log-reset)
+	echo > $LOG_FILE
+	exit
+	;;
+
+*)
+	if [ -n "$1" ]; then
+		echo "what is $0 $1?!?"
+		exit
+	fi
+	;;
+esac
+
+# Usage: $1<=BACKSTORE $2<=tid
 load_target()
 {
-$TGTADM --lld iscsi --mode target --op new --tid $2 --targetname ${1//\//\.}$(hostname)
+mkdir -p $1/
+
+$TGTADM --lld iscsi --mode target --op new --tid $2 --targetname="$TARGETNAME"-"$1"
 $TGTADM --lld iscsi --mode target \
 	--op bind --tid $2 --initiator-address ALL
 
@@ -27,27 +87,24 @@ $TGTADM --lld iscsi --mode logicalunit \
 	--backing-store $1
 }
 
+echo "================ `date` =========================" >> $LOG_FILE
+
 # First run the otgtd daemon in forgraound
 # -f - forgraound
 # -d - debug level
 # DEBUG="-d 9"
 DEBUG=""
-$OTGTD $DEBUG -f &
+$OTGTD $DEBUG -f &>> $LOG_FILE  &
 
 sleep 2
 
 # 2nd Load some targets
+for ((t=1; t <= $NUM_TARGETS; t=$t+1)); do
+	echo load_target ${BACKSTORE[$t]} $t
+	load_target ${BACKSTORE[$t]} $t
+done
 
-load_target $BACKSTORE1 1
-load_target $BACKSTORE2 2
-load_target $BACKSTORE3 3
-load_target $BACKSTORE4 4
-
-load_target $BACKSTORE5 5
-load_target $BACKSTORE6 6
-load_target $BACKSTORE7 7
-load_target $BACKSTORE8 8
-
-# Last print what we got, then stay in forgraound (ctrl-C to exit)
+# Last print what we got
 $TGTADM --lld iscsi --mode target --op show
-wait
+
+echo "otgtd started, run \"up down\" to stop"

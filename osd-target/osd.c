@@ -1084,6 +1084,22 @@ out:
 	return ret;
 }
 
+int osd_set_name(struct osd_device *osd, char *osdname)
+{
+        int ret = 0;
+
+        osd_info("Setting osdname => %s",osdname);
+
+        ret = attr_set_attr(osd->dbc, 0, 0, ROOT_INFO_PG,RIAP_OSD_NAME,
+                            osdname, strlen(osdname));
+
+        if ( OSD_OK != ret){
+                osd_error("!attr_set_attr => %d", ret);
+        }
+
+        return ret;
+}
+
 int osd_close(struct osd_device *osd)
 {
 	int ret;

@@ -587,6 +587,7 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	struct statfs sfs;
 	uint8_t ll[8];
 	off_t sz = 0;
+	uint64_t value;
 
 	switch (number) {
 	case 0:
@@ -595,12 +596,12 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		val = name;
 		break;
 	case UIAP_PID:
-		set_htonll(ll, pid);
+		value = pid;
 		len = UIAP_PID_LEN;
 		val = ll;
 		break;
 	case UIAP_OID:
-		set_htonll(ll, pid);
+		value = oid;
 		len = UIAP_OID_LEN;
 		val = ll;
 		break;
@@ -620,7 +621,7 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 			sz = sb.st_blocks*BLOCK_SZ;
 		}
-		set_htonll(ll, sz);
+		value = sz;
 		val = ll;
 		break;
 	case UIAP_LOGICAL_LEN:
@@ -629,7 +630,7 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = stat(path, &sb);
 		if (ret != 0)
 			return OSD_ERROR;
-		set_htonll(ll, sb.st_size);
+		value = sb.st_size;
 		val = ll;
 		break;
 	case PARTITION_CAPACITY_QUOTA:
@@ -640,8 +641,7 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 			path, ret, llu(sfs.f_blocks));
 		if (ret != 0)
 			return OSD_ERROR;
-		sz = sfs.f_blocks * BLOCK_SZ;
-		set_htonll(ll, sz);
+		value = sfs.f_blocks * BLOCK_SZ;
 		val = ll;
 		break;
 	case UIAP_USERNAME:
@@ -652,6 +652,8 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		return OSD_ERROR;
 	}
 
+	if (val == ll)
+		set_htonll(ll, value);
 	if (listfmt == RTRVD_SET_ATTR_LIST)
 		ret = le_pack_attr(outbuf, outlen, page, number, len, val);
 	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
@@ -701,7 +703,7 @@ static int set_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 }
 
-static struct init_attr root_info[] = {
+static const struct init_attr root_info[] = {
 	{ROOT_PG + 0, 0, "INCITS  T10 Root Directory             "},
 	{ROOT_PG + 0, ROOT_PG + 1, "INCITS  T10 Root Information           "},
 	{ROOT_PG + 0, ROOT_PG + 2, "INCITS  T10 Root Quotas                "},
@@ -712,7 +714,7 @@ static struct init_attr root_info[] = {
 	{ROOT_PG + 5, 0, "INCITS  T10 Root Policy/Security       "}
 };
 
-static struct init_attr partition_info[] = {
+static const struct init_attr partition_info[] = {
 	{PARTITION_PG + 0, 0, "INCITS  T10 Partition Directory"},
 	{PARTITION_PG + 0, PARTITION_PG + 1,
 	       "INCITS  T10 Partition Information"},

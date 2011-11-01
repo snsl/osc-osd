@@ -36,7 +36,7 @@ old-tars
 patches
 
 #
-# programs & Tests
+# programs, Tests & logs
 #
 osd-initiator/tests/alignment
 osd-initiator/tests/atomic
@@ -62,6 +62,7 @@ osd-target/tests/list
 osd-target/tests/query
 osd-target/tests/set_member_attributes
 osd-target/tests/setattr
+otgtd.log
 
 # files made by make
 osd-target/osd-schema.c

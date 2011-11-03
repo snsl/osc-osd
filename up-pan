@@ -1,11 +1,12 @@
-#!/bin/csh -x
+#!/bin/csh
 
 # On Pan-OSD there is only one target
 set BACKSTORE0=/root/pandata/
 # Path to pan_tgtd executables, assuming p4 integration
-dir="/pan/bin"
+set dir=/pan/bin
 set TGTADM=$dir/tgtadm
-set OTGTD=$dir/pan_tgtd
+set OTGTD_NAME=pan_tgtd
+set OTGTD=$dir/$OTGTD_NAME
 
 # Get the osd device id
 set TARGETNAME=`/pan/bin/getdevinfo -q datasn`
@@ -14,7 +15,7 @@ set LOG="/var/log/otgtd.log"
 
 switch($1)
 case "down":
-	killall $OTGTD
+	killall $OTGTD_NAME
 	exit
 	breaksw
 
@@ -22,8 +23,19 @@ case "log":
 	less +F $LOG
 	exit
 	breaksw
+
 case "log-reset":
 	echo > $LOG
+	exit
+	breaksw
+
+case "stat":
+	set stat=`ps ax | grep pan_tgtd`
+        if ( "x${stat}" == "x" ) then
+                echo "DOWN"
+        else
+                echo "UP"
+        endif
 	exit
 	breaksw
 

@@ -49,7 +49,7 @@ endsw
 
 # On Panasas-osd we must make sure that:
 mkdir -p $BACKSTORE0/
-ln -sf /pandata  $BACKSTORE0/dfiles 
+ln -shf /pandata  $BACKSTORE0/dfiles 
 
 echo "================ `date` =========================" >> $LOG
 

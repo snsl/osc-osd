@@ -32,9 +32,6 @@ TGTADM=./tgt/usr/tgtadm
 otgtd_name=otgtd
 OTGTD=./tgt/usr/$otgtd_name
 
-# Make target name the hostname
-TARGETNAME="${1//\//\.}$(hostname)"
-
 case $1 in
 down)
 	killall -s SIGINT $otgtd_name
@@ -78,7 +75,10 @@ load_target()
 {
 mkdir -p $1/
 
-$TGTADM --lld iscsi --mode target --op new --tid $2 --targetname="$TARGETNAME"-"$1"
+# Make target name the hostname
+TARGETNAME="$(hostname)""${1//\//.}"
+
+$TGTADM --lld iscsi --mode target --op new --tid $2 --targetname="$TARGETNAME"
 $TGTADM --lld iscsi --mode target \
 	--op bind --tid $2 --initiator-address ALL
 

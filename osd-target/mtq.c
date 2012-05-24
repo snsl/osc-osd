@@ -94,7 +94,7 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 		" WHERE coll.pid = coll.pid AND coll.oid = attr.oid AND "
 		" coll.pid = %llu AND coll.cid = %llu ", coll, attr,
 		llu(pid), llu(cid));
-	sprintf(cp, select_stmt);
+	strncpy(cp, select_stmt, MAXSQLEN*factor);
 	sqlen += strlen(cp);
 	cp += sqlen;
 	for (i = 0; i < qc->qc_cnt; i++) {

@@ -59,7 +59,7 @@ static int sense_info_build(uint8_t *data, int len, uint32_t not_init_funcs,
 	set_htonl(&data[12], completed_funcs);
 	set_htonll(&data[16], pid);
 	set_htonll(&data[24], oid);
-	osd_warning("  identification pid=%lx oid=%lx",pid, oid);
+	osd_warning("  identification pid=%llx oid=%llx",pid, oid);
 	return 32;
 }
 
@@ -73,7 +73,7 @@ static int sense_csi_build(uint8_t *data, int len, uint64_t csi)
 	data[0] = 0x1;
 	data[1] = 0xa;
 	set_htonll(&data[4], csi);
-	osd_warning("  command-specific information=%lx",csi);
+	osd_warning("  command-specific information=%llx",csi);
 	return 12;
 }
 

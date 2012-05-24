@@ -693,7 +693,7 @@ no_cpufrequency:
 	fclose(fp); 
 #endif /*  else defined(__FreeBSD__) || defined(__APPLE__) */
 
-	return mhz != 0 ?: cpufrequency_not_found ;
+	return mhz != 0 ? mhz : cpufrequency_not_found ;
 }
 
 /*

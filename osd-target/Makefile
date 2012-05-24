@@ -45,7 +45,7 @@ COPTS := $(OPT)
 COPTS += -fPIC -foptimize-sibling-calls -D_GNU_SOURCE
 CWARN := -Wall -W -Wpointer-arith -Wwrite-strings -Wcast-align -Wcast-qual \
 	-Wbad-function-cast -Wundef -Wmissing-prototypes \
-	-Wmissing-declarations -Wnested-externs
+	-Wmissing-declarations -Wnested-externs -Werror
 CFLAGS += $(COPTS) $(CWARN) -I.. -Wno-unused -I../osd-util
 
 ifeq ($(PVFS_OSD_INTEGRATED),1)

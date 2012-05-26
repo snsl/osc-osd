@@ -36,11 +36,11 @@ static void query_speed(struct osd_device *osd, int numiter, int numobj,
 	double *v;
 	uint64_t pid = PARTITION_PID_LB;
 	uint64_t cid = COLLECTION_OID_LB;
-	uint8_t *results, *query;
+	uint8_t *results, *query, *cont;
 	double mu, sd;
 	struct attribute_list *attr;
 	uint8_t *attr_val_lo, *attr_val_match, *attr_val_nomatch, *attr_val_hi;
-	uint64_t alloc_len, query_len, criterion_len;
+	uint64_t alloc_len, query_len, criterion_len, cont_len;
 	uint8_t cidn[8], *cp;
 
 	if (numobj_in_coll > numobj)
@@ -111,17 +111,28 @@ static void query_speed(struct osd_device *osd, int numiter, int numobj,
 		osd_command_attr_free(&c);
 	}
 
+	/* build up continuation */
 	criterion_len = 12 + 2 + ATTR_LEN + 2 + ATTR_LEN;
-	if (numcriteria == 0)
-		query_len = 8;  /* special case, just one empty criterion */
-	else
-		query_len = 4 + numcriteria * criterion_len;
-	query = Malloc(query_len);
-	if (!query)
+	/* add 8 for continuation descriptor header, 4 for query header, and
+	   4 for padding */
+	query_len = 8 + 4 + numcriteria * criterion_len + 4;
+
+	cont_len = query_len + 40; /* continuation header is 40 bytes */
+	cont = Malloc(cont_len);
+	if (!cont)
 		return;
-	memset(query, 0, query_len);
-	query[0] = 1;  /* intersection */
-	cp = query + 4;
+	memset(cont, 0, cont_len);
+	cont[0] = 1; /* CDB continuation format */
+	set_htons(&cont[2], OSD_QUERY);
+	/* need to set continuation integrity check value */
+
+	query = cont + 40;
+	set_htons(query, QUERY_LIST);
+	query[3] = 4; /* pad length */
+	set_htonl(query+4, query_len-8);
+	query[8] = 1;  /* intersection */
+
+	cp = query + 12;
 	for (i=0; i<numcriteria; i++) {
 		set_htons(cp + 2, criterion_len);
 		set_htonl(cp + 4, LUN_PG_LB);
@@ -133,9 +144,9 @@ static void query_speed(struct osd_device *osd, int numiter, int numobj,
 		cp += criterion_len;
 	}
 
-	osd_command_set_query(&c, pid, cid, query_len, alloc_len);
-	c.outdata = query;
-	c.outlen = query_len;
+	osd_command_set_query(&c, pid, cid, cont_len, alloc_len, 0);
+	c.outdata = cont;
+	c.outlen = cont_len;
 
 	for (i=0; i<5; i++)
 		run(osd, &c);
@@ -153,7 +164,7 @@ static void query_speed(struct osd_device *osd, int numiter, int numobj,
 	       " numattr %d numcriteria %d avg %lf +/- %lf us\n",
 	       numiter, numobj, numobj_in_coll, nummatch, numattr,
 	       numcriteria, mu, sd);
-	free(query);
+	free(cont);
 	free(attr_val_lo);
 	free(attr);
 	free(results);

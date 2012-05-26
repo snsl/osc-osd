@@ -188,6 +188,12 @@ static void test_osd_clear(struct osd_device *osd)
 	ret=stat(path, &sb);
 	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+6);
 
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, cdb_cont_len, sense);
+	assert(ret == 0);
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, cdb_cont_len, sense);
+	assert(ret == 0);
+
 	free(sense);
 	free(wrbuf);
    	
@@ -273,6 +279,12 @@ static void test_osd_punch(struct osd_device *osd)
 	ret = stat(path, &sb);
 	assert(ret == 0 && sb.st_size == (long)strlen(wrbuf)+1-8);
 
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, cdb_cont_len, sense);
+	assert(ret == 0);
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, cdb_cont_len, sense);
+	assert(ret == 0);
+
 	free(sense);
 	free(wrbuf);
 }
@@ -313,6 +325,12 @@ static void test_osd_flush(struct osd_device *osd)
 
 	/* flush scope = 2, special case data flush */
 	ret = osd_flush(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, 20, 10, 2, cdb_cont_len, sense);
+	assert(ret == 0);
+
+	ret = osd_remove(osd, USEROBJECT_PID_LB, USEROBJECT_OID_LB, cdb_cont_len, sense);
+	assert(ret == 0);
+
+	ret = osd_remove_partition(osd, PARTITION_PID_LB, cdb_cont_len, sense);
 	assert(ret == 0);
 
 	free(sense);
@@ -660,7 +678,7 @@ static void test_osd_get_attributes(struct osd_device *osd)
 	assert(get_ntohl(&le->page) == USER_INFO_PG);
 	assert(get_ntohl(&le->number) == UIAP_LOGICAL_LEN);
 	assert(get_ntohs(&le->len) == UIAP_LOGICAL_LEN_LEN);
-	assert(get_ntohll(le + LE_VAL_OFF) == strlen(val)+1);
+	assert(get_ntohll(&le->val) == strlen(val)+1);
 	len = LE_VAL_OFF + UIAP_LOGICAL_LEN_LEN;
 	len += (0x8 - (len & 0x7)) & 0x7;
 	assert(used_len == len);
@@ -1060,8 +1078,8 @@ static void check_results(void *ml, uint64_t *idlist, uint64_t sz,
 {
 	uint8_t *cp = ml;
 	uint32_t add_len = get_ntohll(&cp[0]);
-	assert(add_len == (5+8*sz));
-	assert(cp[12] == (0x21 << 2));
+	assert(add_len == (5+sz*sizeof(uint64_t)));
+	assert((cp[12]&0xfc) == (0x21 << 2));
 	assert(usedlen == add_len+8);
 	add_len -= 5;
 	cp += MIN_ML_LEN;
@@ -1428,14 +1446,14 @@ int main()
 	ret = osd_open(root, &osd);
 	assert(ret == 0);
 	
+	test_osd_format(&osd);
+	test_osd_create_partition(&osd);
+	test_osd_create(&osd);
+	test_osd_io(&osd);
 	test_osd_clear(&osd);
 	test_osd_punch(&osd);
 	test_osd_flush(&osd);
-	test_osd_format(&osd);
-	test_osd_create(&osd);
 	test_osd_set_attributes(&osd);
-	test_osd_io(&osd);
-	test_osd_create_partition(&osd);
 	test_osd_get_attributes(&osd);
 	test_osd_get_ccap(&osd);
 	test_osd_get_utsap(&osd);

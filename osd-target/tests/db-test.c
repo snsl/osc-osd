@@ -254,7 +254,7 @@ static void test_dir_page(struct osd_device *osd)
 		assert(j == (uint32_t)i);
 		len = get_ntohs(&cp[LE_LEN_OFF]);
 		assert(len == 40);
-		cp += 10;
+		cp += 16;
 		if (i == 1 || i == 2)
 			assert(strcmp((char *)cp, uid) == 0);
 		else if (i == 3)
@@ -262,7 +262,7 @@ static void test_dir_page(struct osd_device *osd)
 		else if (i == 4)
 			assert(strcmp((char *)cp, pg4) == 0);
 		cp += len;
-		pad = (0x8 - ((10+len) & 0x7)) & 0x7;
+		pad = (0x8 - ((16+len) & 0x7)) & 0x7;
 		while (pad--)
 			assert(*cp == 0), cp++;
 	}

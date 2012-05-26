@@ -277,13 +277,15 @@ int osd_command_set_punch(struct osd_command *command, uint64_t pid,
 }
 
 int osd_command_set_query(struct osd_command *command, uint64_t pid,
-			  uint64_t cid, uint32_t query_len, uint64_t alloc_len)
+			  uint64_t cid, uint32_t cont_len, uint64_t alloc_len,
+			  uint64_t matches_cid)
 {
         varlen_cdb_init(command, OSD_QUERY);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
-        set_htonl(&command->cdb[48], query_len);
         set_htonll(&command->cdb[32], alloc_len);
+        set_htonll(&command->cdb[40], matches_cid);
+        set_htonl(&command->cdb[48], cont_len);
         return 0;
 }
 
@@ -552,7 +554,7 @@ int osd_command_attr_build(struct osd_command *command,
 	for (i=0; i<numattr; i++) {
 		if (attr[i].type == ATTR_GET) {
 			++numget;
-			getsize += roundup8(10 + attr[i].len);
+			getsize += roundup8(16 + attr[i].len);
 		} else if (attr[i].type == ATTR_GET_PAGE) {
 			++numgetpage;
 			getpagesize += attr[i].len;  /* no round */
@@ -562,10 +564,10 @@ int osd_command_attr_build(struct osd_command *command,
 		} else if (attr[i].type == ATTR_SET) {
 			++numset;
 			setattr_index = i;
-			setsize += roundup8(10 + attr[i].len);
+			setsize += roundup8(16 + attr[i].len);
 		} else if (attr[i].type == ATTR_RESULT) {
 			++numresult;
-			resultsize += roundup8(10 + attr[i].len);
+			resultsize += roundup8(16 + attr[i].len);
 		} else {
 			osd_error("%s: invalid attribute type %d", __func__,
 			          attr[i].type);
@@ -838,9 +840,9 @@ int osd_command_attr_build(struct osd_command *command,
 					continue;
 				set_htonl(&q[0], attr[i].page);
 				set_htonl(&q[4], attr[i].number);
-				set_htons(&q[8], attr[i].len);
-				memcpy(&q[10], attr[i].val, attr[i].len);
-				len = 10 + attr[i].len;
+				set_htons(&q[14], attr[i].len);
+				memcpy(&q[16], attr[i].val, attr[i].len);
+				len = 16 + attr[i].len;
 				q += len;
 				while (len & 7) {
 					*q++ = 0;
@@ -1085,7 +1087,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 		uint16_t item_len, pad;
 		uint16_t avail_len;
 
-		if (len < 10u + 8 * !!numgetmulti)
+		if (len < 16u + 8 * !!numgetmulti)
 			break;
 		if (numgetmulti) {
 			oid = get_ntohll(&p[0]);
@@ -1093,9 +1095,9 @@ int osd_command_attr_resolve(struct osd_command *command)
 		}
 		page = get_ntohl(&p[0]);
 		number = get_ntohl(&p[4]);
-		item_len = get_ntohs(&p[8]);
-		p += 10;
-		len -= 10;
+		item_len = get_ntohs(&p[14]);
+		p += 16;
+		len -= 16;
 
 		for (i=0; i<numattr; i++) {
 			if (!(attr[i].type == ATTR_GET
@@ -1146,7 +1148,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 		if (item_len == 0xffff)
 			item_len = 0;
 
-		pad = roundup8(10 + item_len) - (10 + item_len);
+		pad = roundup8(16 + item_len) - (16 + item_len);
 		if (item_len + pad >= len)
 			break;
 

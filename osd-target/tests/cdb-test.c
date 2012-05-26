@@ -601,7 +601,7 @@ void test_query(struct osd_device *osd)
 
 	qll = MINQLISTLEN;
 	memset(buf, 0, 1024);
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -628,7 +628,7 @@ void test_query(struct osd_device *osd)
 	set_qce(&cp[4], page, 2, 0, NULL, 0, NULL);
 	qll += 4 + (4+4+4+2+2);
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -655,7 +655,7 @@ void test_query(struct osd_device *osd)
 	set_qce(&cp[4], page, 1, sizeof(min), &min, sizeof(max), &max);
 	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -693,7 +693,7 @@ void test_query(struct osd_device *osd)
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -729,7 +729,7 @@ void test_query(struct osd_device *osd)
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -771,7 +771,7 @@ void test_query(struct osd_device *osd)
 	qll += (4+4+4+2+0+2+sizeof(max));
 	cp += (4+4+4+2+0+2+sizeof(max));
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -822,7 +822,7 @@ void test_query(struct osd_device *osd)
 	qll += (4+4+4+2+2+2+5);
 	cp += (4+4+4+2+2+2+5);
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -862,7 +862,7 @@ void test_query(struct osd_device *osd)
 	qll += (4+4+4+2+0+2+6);
 	cp += (4+4+4+2+0+2+6);
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);
@@ -894,7 +894,7 @@ void test_query(struct osd_device *osd)
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096);
+	ret = osd_command_set_query(&cmd, pid, cid, qll, 4096, 0);
 	assert(ret == 0);
 	ret = osdemu_cmd_submit(osd, cmd.cdb, buf, qll, &matches,
 				&matchlen, sense_out, &senselen_out);

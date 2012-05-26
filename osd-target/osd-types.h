@@ -72,11 +72,12 @@ enum {
 	MLE_MIN_ITEM_LEN = (LE_VAL_OFF + 0x7) & ~0x7
 };
 
-/* osd2r00 Section 7.1.3.1 tab 127 */
+/* osd2r02 Section 7.1.3.1 tab 153 */
 enum {
 	RTRV_ATTR_LIST = 0x01,
 	RTRVD_SET_ATTR_LIST = 0x09,
-	RTRVD_CREATE_MULTIOBJ_LIST = 0x0F
+	RTRVD_MULTIOBJ_LIST = 0x0E, /* added in osd2r02 */
+	RTRVD_CREATE_MULTIOBJ_LIST = 0x0F /* made obsolete in osd2r02 */
 };
 
 /*
@@ -245,7 +246,8 @@ struct copy_user_object_source {
 struct cdb_continuation_descriptor_header {
 	uint16_t	type;
 	uint8_t		reserved;
-	uint8_t		pad_length;
+	uint8_t		reserved2:5;
+	uint8_t		pad_length:3;
 	uint32_t	length;
 };
 

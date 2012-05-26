@@ -128,7 +128,8 @@ int osd_command_set_perform_task_mgmt_func(struct osd_command *command);
 int osd_command_set_punch(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
 int osd_command_set_query(struct osd_command *command, uint64_t pid,
-			  uint64_t cid, uint32_t query_len, uint64_t alloc_len);
+			  uint64_t cid, uint32_t cont_len, uint64_t alloc_len,
+			  uint64_t matches_cid);
 int osd_command_set_read(struct osd_command *command, uint64_t pid,
 			 uint64_t oid, uint64_t len, uint64_t offset);
 int osd_command_set_read_map(struct osd_command*command, uint64_t pid, uint64_t oid,

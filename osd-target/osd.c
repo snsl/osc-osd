@@ -243,8 +243,8 @@ static int empty_dir(const char *dirname)
 	return 0;
 }
 
-static inline void get_dfile_name(char *path, const char *root,
-				  uint64_t pid, uint64_t oid)
+inline void get_dfile_name(char *path, const char *root,
+			   uint64_t pid, uint64_t oid)
 {
 #ifdef PVFS_OSD_INTEGRATED
 	/* go look in PVFS bstreams for file data (eventually) */
@@ -2532,7 +2532,7 @@ int osd_list(struct osd_device *osd, uint8_t list_attr, uint64_t pid,
 			add_len = (uint64_t) -1;
 		set_htonll(outdata, add_len);
 		set_htonll(&outdata[8], cont_id);
-osd_error("%s: add_len=%llu cont_id=0x%llx", __func__, add_len, cont_id);
+osd_info("%s: add_len=%llu cont_id=0x%llx", __func__, add_len, cont_id);
 	} else if (list_attr == 1 && get_attr->sz != 0 && pid != 0) {
 		if (list_id)
 			initial_oid = cont_id;
@@ -2956,7 +2956,7 @@ static int contig_read(struct osd_device *osd, uint64_t pid, uint64_t oid,
 				      pid, oid, readlen);
 	}
 
-	*used_outlen = len;
+	*used_outlen = readlen;
 
 	fill_ccap(&osd->ccap, NULL, USEROBJECT, pid, oid, 0);
 	return ret;

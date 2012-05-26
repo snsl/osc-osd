@@ -146,4 +146,7 @@ static inline uint64_t osd_get_created_oid(struct osd_device *osd,
 	return oid;
 }
 
+inline void get_dfile_name(char *path, const char *root,
+			   uint64_t pid, uint64_t oid);
+
 #endif /* __OSD_H */

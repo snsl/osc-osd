@@ -37,6 +37,8 @@
 
 struct cdb_continuation_descriptor {
 	uint16_t type;
+	uint8_t reserved;
+	uint8_t pad_length;
 	uint32_t length;
 	union {
 		struct sg_list	sglist;

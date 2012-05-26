@@ -729,10 +729,10 @@ static void test_le(uint32_t page, uint32_t num, uint16_t len,
 	uint8_t pad = 0;
 
 	assert(get_ntohl(cp) == page), cp += 4;
-	assert(get_ntohl(cp) == num), cp += 4;
+	assert(get_ntohl(cp) == num), cp += 10;
 	assert(get_ntohs(cp) == len), cp += 2;
 	assert(memcmp(cp, val, len) == 0), cp += len;
-	pad = roundup8(10+len) - (10+len);
+	pad = roundup8(16+len) - (16+len);
 	while (pad--)
 		assert(*cp == 0), cp++;
 }
@@ -1112,8 +1112,8 @@ static void usage(void)
 {
 	fprintf(stderr, "\nUsage: ./%s [-o <numobj>] [-p <numpg>]"
 		" [-a numattr] [-i <numiter>]"
-		" \n\t\t [-t <timing-test>]\n\n", osd_get_progname());
-	fprintf(stderr, "Option -t takes following values:\n");
+		" \n\t\t-t <timing-test>\n\n", osd_get_progname());
+	fprintf(stderr, "timing-test takes following values:\n");
 	fprintf(stderr, "%16s: cumulative time for numobj insert in coll\n", 
 		"collinsert");
 	fprintf(stderr, "%16s: cumulative time for numobj delete in coll\n", 

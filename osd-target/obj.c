@@ -86,7 +86,7 @@ int obj_initialize(struct db_context *dbc)
 		goto out;
 	}
 
-	sprintf(SQL, "INSERT INTO %s VALUES (?, ?, ?);", dbc->obj->name);
+	sprintf(SQL, "INSERT INTO %s VALUES (?, ?, ?, ?);", dbc->obj->name);
 	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->obj->insert, NULL);
 	if (ret != SQLITE_OK)
 		goto out_finalize_insert;
@@ -131,7 +131,7 @@ int obj_initialize(struct db_context *dbc)
 	if (ret != SQLITE_OK)
 		goto out_finalize_pcount;
 
-	sprintf(SQL, "SELECT type FROM %s WHERE pid = ? AND oid = ?;",
+	sprintf(SQL, "SELECT type, coll_type FROM %s WHERE pid = ? AND oid = ?;",
 		dbc->obj->name);
 	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->obj->gettype, NULL);
 	if (ret != SQLITE_OK)
@@ -240,7 +240,7 @@ const char *obj_getname(struct db_context *dbc)
  * OSD_OK: success
  */
 int obj_insert(struct db_context *dbc, uint64_t pid, uint64_t oid, 
-	       uint32_t type)
+	       uint8_t type, uint8_t coll_type)
 {
 	int ret = 0;
 
@@ -252,6 +252,7 @@ repeat:
 	ret |= sqlite3_bind_int64(dbc->obj->insert, 1, pid);
 	ret |= sqlite3_bind_int64(dbc->obj->insert, 2, oid);
 	ret |= sqlite3_bind_int(dbc->obj->insert, 3, type);
+	ret |= sqlite3_bind_int(dbc->obj->insert, 4, coll_type);
 	ret = db_exec_dms(dbc, dbc->obj->insert, ret, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
@@ -493,7 +494,7 @@ out:
  * 	obj_types set to the determined type.
  */
 int obj_get_type(struct db_context *dbc, uint64_t pid, uint64_t oid, 
-		 uint8_t *obj_type)
+		 uint8_t *obj_type, uint8_t *coll_type)
 {
 	int ret = 0;
 	int bound = 0;
@@ -514,6 +515,8 @@ repeat:
 	while ((ret = sqlite3_step(dbc->obj->gettype)) == SQLITE_BUSY);
 	if (ret == SQLITE_ROW) {
 		*obj_type = sqlite3_column_int(dbc->obj->gettype, 0);
+		if (coll_type)
+			*coll_type = sqlite3_column_int(dbc->obj->gettype, 1);
 	} else if (ret == SQLITE_DONE) {
 		osd_debug("%s: object (%llu %llu) doesn't exist", __func__, 
 			  llu(pid), llu(oid));

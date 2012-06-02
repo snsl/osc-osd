@@ -28,7 +28,7 @@ int obj_finalize(struct db_context *dbc);
 const char *obj_getname(struct db_context *dbc);
 
 int obj_insert(struct db_context *dbc, uint64_t pid, uint64_t oid, 
-	       uint32_t type);
+	       uint8_t type, uint8_t coll_type);
 
 int obj_delete(struct db_context *dbc, uint64_t pid, uint64_t oid);
 
@@ -46,7 +46,7 @@ int obj_isempty_pid(struct db_context *dbc, uint64_t pid, int *isempty);
 int obj_pcount(struct db_context *dbc, uint64_t *pcount);
 
 int obj_get_type(struct db_context *dbc, uint64_t pid, uint64_t oid, 
-		 uint8_t *obj_type);
+		 uint8_t *obj_type, uint8_t *coll_type);
 
 int obj_get_oids_in_pid(struct db_context *dbc, uint64_t pid, 
 			uint64_t initial_oid, uint64_t alloc_len, 

@@ -32,7 +32,7 @@ static void test_obj(struct osd_device *osd)
 {
 	int ret = 0;
 
-	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT, -1);
 	assert(ret == 0);
 
 	ret = obj_delete(osd->dbc, 1, 2);
@@ -43,11 +43,11 @@ static void test_dup_obj(struct osd_device *osd)
 {
 	int ret = 0;
 
-	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT, -1);
 	assert(ret == 0);
 
 	/* duplicate insert must fail */
-	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 2, USEROBJECT, -1);
 	assert(ret != 0);
 
 	ret = obj_delete(osd->dbc, 1, 2);
@@ -98,7 +98,7 @@ static void test_obj_manip(struct osd_device *osd)
 	int present = 0;
 
 	for (i =0; i < 4; i++) {
-		ret = obj_insert(osd->dbc, 1, 1<<i, USEROBJECT);
+		ret = obj_insert(osd->dbc, 1, 1<<i, USEROBJECT, -1);
 		assert(ret == 0);
 	}
 
@@ -118,7 +118,7 @@ static void test_obj_manip(struct osd_device *osd)
 		assert(ret == 0);
 	}
 
-	ret = obj_insert(osd->dbc, 1, 235, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 235, USEROBJECT, -1);
 	assert(ret == 0);
 
 	/* existing object, ret == 1 */
@@ -138,7 +138,7 @@ static void test_pid_isempty(struct osd_device *osd)
 	int ret = 0;
 	int isempty = 0;
 
-	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT, -1);
 	assert(ret == 0);
 
 	/* pid is not empty, ret should be 0 */
@@ -157,26 +157,29 @@ static void test_get_obj_type(struct osd_device *osd)
 {
 	int ret = 0;
 	uint8_t obj_type = ILLEGAL_OBJ;
+	uint8_t coll_type = -1;
 
-	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT, -1);
 	assert(ret == 0);
 
-	ret = obj_insert(osd->dbc, 2, 2, COLLECTION);
+	ret = obj_insert(osd->dbc, 2, 2, COLLECTION,
+			 CIAP_LINKED_COLLECTION_TYPE);
 	assert(ret == 0);
 
-	ret = obj_insert(osd->dbc, 3, 0, PARTITION);
+	ret = obj_insert(osd->dbc, 3, 0, PARTITION, -1);
 	assert(ret == 0);
 
-	ret = obj_get_type(osd->dbc, 0, 0, &obj_type);
+	ret = obj_get_type(osd->dbc, 0, 0, &obj_type, NULL);
 	assert(ret == 0 && obj_type == ROOT);
 
-	ret = obj_get_type(osd->dbc, 1, 1, &obj_type);
+	ret = obj_get_type(osd->dbc, 1, 1, &obj_type, NULL);
 	assert(ret == 0 && obj_type == USEROBJECT);
 
-	ret = obj_get_type(osd->dbc, 2, 2, &obj_type);
-	assert(ret == 0 && obj_type == COLLECTION);
+	ret = obj_get_type(osd->dbc, 2, 2, &obj_type, &coll_type);
+	assert(ret == 0 && obj_type == COLLECTION &&
+	       coll_type == CIAP_LINKED_COLLECTION_TYPE);
 
-	ret = obj_get_type(osd->dbc, 3, 0, &obj_type);
+	ret = obj_get_type(osd->dbc, 3, 0, &obj_type, NULL);
 	assert(ret == 0 && obj_type == PARTITION);
 
 	ret = obj_delete(osd->dbc, 3, 0);
@@ -189,7 +192,7 @@ static void test_get_obj_type(struct osd_device *osd)
 	assert(ret == 0);
 
 	/* non-existing object's type must be ILLEGAL_OBJ */
-	ret = obj_get_type(osd->dbc, 1, 1, &obj_type);
+	ret = obj_get_type(osd->dbc, 1, 1, &obj_type, NULL);
 	assert(ret == 0 && obj_type == ILLEGAL_OBJ);
 }
 
@@ -217,7 +220,7 @@ static void test_dir_page(struct osd_device *osd)
 
 	delete_obj(osd, 1, 1);
 
-	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT);
+	ret = obj_insert(osd->dbc, 1, 1, USEROBJECT, -1);
 	assert(ret == 0);
 
 	val = 44;

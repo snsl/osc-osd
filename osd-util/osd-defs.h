@@ -186,16 +186,28 @@ enum {
 	ROOT_DIR_PG = (ROOT_PG + 0x0)
 };
 
+/* attribute page offsets defined by osd spec, osd2r03 sec 7.1.2.1 */
+enum {
+	DIR_OFFSET = 0x0,
+	INFO_OFFSET = 0x1,
+	QUOTA_OFFSET = 0x2,
+	TMSTMP_OFFSET = 0x3,
+	POLICY_OFFSET = 0x5,
+	RECOVERY_OFFSET = 0x6,
+};
+
 /* (selected) attribute pages defined by osd spec, osd2r01 sec 7.1.2.1 */
 enum {
-	USER_DIR_PG = 0x0,
-	USER_INFO_PG = 0x1,
-	ROOT_INFO_PG = (ROOT_PG + 0x1),
-	USER_QUOTA_PG = 0x2,
-	USER_TMSTMP_PG = 0x3,
-	USER_COLL_PG = 0x4,
-	USER_POLICY_PG = 0x5,
-	USER_ATOMICS_PG = 0x6,
+	USER_DIR_PG = (USEROBJECT_PG + DIR_OFFSET),
+	USER_INFO_PG = (USEROBJECT_PG + INFO_OFFSET),
+	USER_QUOTA_PG = (USEROBJECT_PG + QUOTA_OFFSET),
+	USER_TMSTMP_PG = (USEROBJECT_PG + TMSTMP_OFFSET),
+	USER_COLL_PG = (USEROBJECT_PG + 0x4),
+	USER_POLICY_PG = (USEROBJECT_PG + POLICY_OFFSET),
+	USER_ATOMICS_PG = (USEROBJECT_PG + 0x7), /* non-standard */
+	ROOT_INFO_PG = (ROOT_PG + INFO_OFFSET),
+	COLL_INFO_PG = (COLLECTION_PG + INFO_OFFSET),
+	COLL_TRACKING_PG = (COLLECTION_PG + 0x4), /* osd2r04 7.1.3.1 */
 };
 
 /* in all attribute pages, attribute number 0 is a 40-byte identification */
@@ -298,6 +310,30 @@ enum {
 	RIAP_CLOCK_LEN                    = 6,
 };
 
+/* Collection information attribute page osd2r05 sec 7.1.3.10 */
+enum {
+	/* attributes */
+	CIAP_PARTITION_ID		= 0x1,	/* 8        */
+	CIAP_COLLECTION_OBJECT_ID	= 0x2,	/* 8        */
+	CIAP_COLLECTION_NAME		= 0x9,	/* variable */
+	CIAP_COLLECTION_TYPE		= 0xA,	/* 1        */
+	CIAP_USED_CAPACITY		= 0x81,	/* 8        */
+
+	/* lengths */
+	CIAP_PARTITION_ID_LEN		= 8,
+	CIAP_COLLECTION_OBJECT_ID_LEN	= 8,
+	CIAP_COLLECTION_NAME_LEN	= 0, //variable
+	CIAP_COLLECTION_TYPE_LEN	= 1,
+	CIAP_USED_CAPACITY_LEN		= 8,
+};
+
+/* CIAP collection type osd2r05 sec 7.1.3.10 table 169 */
+enum {
+	CIAP_LINKED_COLLECTION_TYPE	 = 0x00,
+	CIAP_TRACKING_COLLECTION_TYPE	 = 0x01,
+	CIAP_SPONTANEOUS_COLLECTION_TYPE = 0xEF,
+};
+
 /* userobject collections attribute page osd2r01 Sec 7.1.2.19 */
 enum {
 	UCAP_COLL_PTR_LB = 0x1,
@@ -308,6 +344,18 @@ enum {
 enum {
 	UAP_CAS = 0x1,
 	UAP_FA = 0x2,
+};
+
+/* command tracking page osd2r04 Sec 7.1.3.20 */
+enum {
+	CTP_PERCENT_COMPLETE		= 0x1,   /* 1      */
+	CTP_ACTIVE_COMMAND_STATUS	= 0x2,   /* 2      */
+	CTP_ENDED_COMMAND_STATUS	= 0x3,   /* 2      */
+	CTP_SENSE_DATA			= 0x4,   /* 0 or n */
+	CTP_NUMBER_OF_MEMBERS		= 0x10,   /* 8	   */
+	CTP_OBJECTS_PROCESSED		= 0x11,  /* 0 or 8 */
+	CTP_NEWER_OBJECTS_SKIPPED	= 0x12,  /* 0 or 8 */
+	CTP_MISSING_OBJECTS_SKIPPED	= 0x13,  /* 0 or 8 */
 };
 
 enum {

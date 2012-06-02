@@ -93,7 +93,8 @@ int osd_punch(struct osd_device *osd, uint64_t pid, uint64_t oid, uint64_t len,
 	      uint64_t offset, uint32_t cdb_cont_len, uint8_t *sense);
 int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      uint32_t query_list_len, uint64_t alloc_len, const void *indata,
-	      void *outdata, uint64_t *used_outlen, uint32_t cdb_cont_len, uint8_t *sense);
+	      void *outdata, uint64_t *used_outlen, uint32_t cdb_cont_len,
+	      uint8_t immed_tr, uint64_t matches_cid, uint8_t *sense);
 int osd_read(struct osd_device *osd, uint64_t pid, uint64_t uid, uint64_t len,
 	     uint64_t offset, const uint8_t *indata, uint8_t *outdata, uint64_t *outlen,
 	     const struct sg_list *sglist, uint8_t *sense, uint8_t ddt);

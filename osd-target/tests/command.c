@@ -149,6 +149,19 @@ int osd_command_set_create_partition(struct osd_command *command,
 }
 
 
+int osd_command_set_create_user_tracking_collection(struct osd_command *command,
+						    uint64_t pid,
+						    uint64_t requested_cid,
+						    uint64_t source_cid)
+{
+        varlen_cdb_init(command, OSD_CREATE_USER_TRACKING_COLLECTION);
+        set_htonll(&command->cdb[16], pid);
+        set_htonll(&command->cdb[24], requested_cid);
+        set_htonll(&command->cdb[40], source_cid);
+        return 0;
+}
+
+
 int osd_command_set_flush(struct osd_command *command, uint64_t pid, uint64_t len,
 			  uint64_t offset, uint64_t oid, int flush_scope)
 {
@@ -1413,7 +1426,7 @@ int osd_command_list_resolve(struct osd_command *command)
 	int i, listoid, list_attr;
 
 	listoid = (p[23] & 0x40);
-	char title[3];
+	char title[4];
 	(listoid ? strcpy(title, "OID") : strcpy(title, "PID"));
 
 	if (p[23] & 0x08)
@@ -1463,7 +1476,7 @@ int osd_command_list_collection_resolve(struct osd_command *command)
 	int i, listoid, list_attr;
 
 	listoid = (p[23] & 0x80);
-	char title[3];
+	char title[4];
 	(listoid ? strcpy(title, "OID") : strcpy(title, "CID"));
 
 	if (p[23] & 0x08)

@@ -1091,18 +1091,55 @@ static void check_results(void *ml, uint64_t *idlist, uint64_t sz,
 	memset(idlist, 0, sz*sizeof(*idlist));
 }
 
+static void osd_query_wrapper(struct osd_device *osd, uint64_t pid, uint64_t cid,
+			      uint32_t query_list_len, const void *indata,
+			      void *matcheslist, uint64_t matches_cid,
+			      uint8_t *sense, uint64_t *idlist, uint64_t idsz)
+{
+	uint32_t cdb_cont_len = 0;
+	uint64_t usedlen = 0;
+	uint64_t add_len;
+	int ret = 0;
+
+	if (matches_cid) {
+		uint8_t *cp = matcheslist;
+		ret = osd_query(osd, pid, cid, query_list_len, 0, indata,
+				matcheslist, &usedlen, cdb_cont_len, 0,
+				matches_cid, sense);
+		ret = osd_list_collection(osd, 0, pid, matches_cid, 4096,
+					  0, NULL, 0, matcheslist,
+					  &usedlen, sense);
+		/* get rid of LIST header and replace with QUERY header */
+		usedlen -= 24;
+		usedlen += 13;
+		add_len = get_ntohll(&cp[0]);
+		matcheslist = cp = cp+24-13;
+		set_htonll(&cp[0], add_len-24+13);
+		cp[12] = 0x21 << 2;
+	} else {
+		ret = osd_query(osd, pid, cid, query_list_len, 4096, indata,
+				matcheslist, &usedlen, cdb_cont_len, 0,
+				matches_cid, sense);
+	}
+	
+	assert(ret == 0);
+
+	check_results(matcheslist, idlist, idsz, usedlen);
+}
+
 static void test_osd_query(struct osd_device *osd)
 {
 	int ret = 0;
+	uint32_t cdb_cont_len = 0;
 	uint64_t cid = 0;
+	uint64_t orig_cid = 0;
+	uint64_t matches_cid = 0;
 	uint64_t oid = 0;
 	uint64_t pid = 0;
 	uint8_t *cp = NULL;
 	uint64_t min = 0, max = 0;
-	uint64_t usedlen = 0;
 	uint32_t page = USER_COLL_PG;
 	uint32_t qll = 0;
-	uint32_t cdb_cont_len = 0;
 	void *buf = Calloc(1, 1024);
 	void *sense = Calloc(1, 1024);
 	void *matcheslist = Calloc(1, 4096);
@@ -1121,11 +1158,34 @@ static void test_osd_query(struct osd_device *osd)
 
 	ret = osd_create_collection(osd, pid, 0, cdb_cont_len, sense);
 	assert(ret == 0);
-	cid = COLLECTION_OID_LB + 10;
-	assert(osd->ccap.oid == cid);
+	cid = osd->ccap.oid;
 
-	/* set attributes */
 	oid = USEROBJECT_OID_LB;
+
+	/* include some objects in the collection */
+	page = USER_COLL_PG;
+	set_attr_int(osd, oid,   page, 1, cid, sense);
+	set_attr_int(osd, oid+1, page, 1, cid, sense);
+	set_attr_int(osd, oid+3, page, 1, cid, sense);
+	set_attr_int(osd, oid+4, page, 1, cid, sense);
+	set_attr_int(osd, oid+5, page, 1, cid, sense);
+	set_attr_int(osd, oid+6, page, 1, cid, sense);
+	set_attr_int(osd, oid+7, page, 1, cid, sense);
+	set_attr_int(osd, oid+9, page, 1, cid, sense);
+
+	/* as of osd2r04, queries must be done on user tracking collections */
+	osd_create_user_tracking_collection(osd, pid, 0, cid, 1, sense);
+	orig_cid = cid;
+	cid = osd->ccap.oid;
+	matches_cid = 0;
+
+	/* remove linked collection */
+	ret = osd_remove_collection(osd, pid, orig_cid, 1, cdb_cont_len, sense);
+	assert(ret == 0);
+
+	
+ do_again:
+	/* set attributes */
 	page = USEROBJECT_PG + LUN_PG_LB;
 	set_attr_int(osd, oid,   page, 1, 4, sense);
 	set_attr_int(osd, oid+1, page, 1, 49, sense);
@@ -1142,24 +1202,9 @@ static void test_osd_query(struct osd_device *osd)
 	set_attr_int(osd, oid+9, page, 1, 1, sense);
 	set_attr_int(osd, oid+9, page, 2, 19, sense);
 
-	/* include some objects in the collection */
-	page = USER_COLL_PG;
-	set_attr_int(osd, oid,   page, 1, cid, sense);
-	set_attr_int(osd, oid+1, page, 1, cid, sense);
-	set_attr_int(osd, oid+3, page, 1, cid, sense);
-	set_attr_int(osd, oid+4, page, 1, cid, sense);
-	set_attr_int(osd, oid+5, page, 1, cid, sense);
-	set_attr_int(osd, oid+6, page, 1, cid, sense);
-	set_attr_int(osd, oid+7, page, 1, cid, sense);
-	set_attr_int(osd, oid+9, page, 1, cid, sense);
-
 	/* 1: run without query criteria */
 	qll = MINQLISTLEN;
 	memset(buf, 0, 1024);
-
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
 
 	idlist[0] = oid;
 	idlist[1] = oid+1;
@@ -1169,7 +1214,9 @@ static void test_osd_query(struct osd_device *osd)
 	idlist[5] = oid+6;
 	idlist[6] = oid+7;
 	idlist[7] = oid+9;
-	check_results(matcheslist, idlist, 8, usedlen);
+
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 8);
 
 	/* 2: run one query without min/max constraints */
 	qll = 0;
@@ -1180,14 +1227,11 @@ static void test_osd_query(struct osd_device *osd)
 	set_qce(&cp[4], page, 2, 0, NULL, 0, NULL);
 	qll += 4 + (4+4+4+2+2);
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
-
 	idlist[0] = oid+1;
 	idlist[1] = oid+4;
 	idlist[2] = oid+9;
-	check_results(matcheslist, idlist, 3, usedlen);
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 3);
 
 	/* 3: run one query with criteria */
 	qll = 0;
@@ -1201,15 +1245,13 @@ static void test_osd_query(struct osd_device *osd)
 	set_qce(&cp[4], page, 1, sizeof(min), &min, sizeof(max), &max);
 	qll += 4 + (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
-
 	idlist[0] = oid+1;
 	idlist[1] = oid+4;
 	idlist[2] = oid+5;
 	idlist[3] = oid+7;
-	check_results(matcheslist, idlist, 4, usedlen);
+
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 4);
 
 	/* 4: run union of two query criteria */
 	qll = 0;
@@ -1234,12 +1276,10 @@ static void test_osd_query(struct osd_device *osd)
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
 	idlist[0] = oid+3;
 	idlist[1] = oid+6;
-	check_results(matcheslist, idlist, 2, usedlen);
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 2);
 
 	/* 5: run intersection of 2 query criteria */
 	qll = 0;
@@ -1264,13 +1304,10 @@ static void test_osd_query(struct osd_device *osd)
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
-
 	idlist[0] = oid+1;
 	idlist[1] = oid+4;
-	check_results(matcheslist, idlist, 2, usedlen);
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 2);
 
 	/* 6: run union of 3 query criteria, with missing min/max */
 	qll = 0;
@@ -1301,14 +1338,12 @@ static void test_osd_query(struct osd_device *osd)
 	qll += (4+4+4+2+0+2+sizeof(max));
 	cp += (4+4+4+2+0+2+sizeof(max));
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
 	idlist[3] = oid;
 	idlist[4] = oid+1;
 	idlist[5] = oid+6;
 	idlist[2] = oid+9;
-	check_results(matcheslist, idlist, 4, usedlen);
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 4);
 
 	/* set some attributes with text values */
 	oid = USEROBJECT_OID_LB;
@@ -1348,16 +1383,14 @@ static void test_osd_query(struct osd_device *osd)
 	qll += (4+4+4+2+2+2+5);
 	cp += (4+4+4+2+2+2+5);
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
 	idlist[3] = oid;
 	idlist[4] = oid+1;
 	idlist[0] = oid+4;
 	idlist[1] = oid+5;
 	idlist[5] = oid+6;
 	idlist[2] = oid+7;
-	check_results(matcheslist, idlist, 6, usedlen);
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 6);
 
 	/* 8: run intersection of 3 query criteria, with missing min/max */
 	qll = 0;
@@ -1383,11 +1416,9 @@ static void test_osd_query(struct osd_device *osd)
 	qll += (4+4+4+2+0+2+6);
 	cp += (4+4+4+2+0+2+6);
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
 	idlist[0] = oid+1;
-	check_results(matcheslist, idlist, 1, usedlen);
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 1);
 
 	/* 9: run intersection of 2 query criteria with empty result */
 	qll = 0;
@@ -1410,15 +1441,25 @@ static void test_osd_query(struct osd_device *osd)
 	qll += (4+4+4+2+sizeof(min)+2+sizeof(max));
 	cp += (4+4+4+2+sizeof(min)+2+sizeof(max));
 
-	ret = osd_query(osd, pid, cid, qll, 4096, buf, matcheslist, &usedlen,
-			cdb_cont_len, sense);
-	assert(ret == 0);
-	check_results(matcheslist, idlist, 0, usedlen);
+	osd_query_wrapper(osd, pid, cid, qll, buf, matcheslist,
+			  matches_cid, sense, idlist, 0);
+
+	if (matches_cid == 0) {
+		osd_create_user_tracking_collection(osd, pid, 0, 0, 0, sense);
+		matches_cid = osd->ccap.oid;
+		goto do_again;
+	}
 
 	/* remove collection */
 	ret = osd_remove_collection(osd, pid, cid, 1, cdb_cont_len, sense);
 	assert(ret == 0);
 
+	if (matches_cid != 0) {
+		ret = osd_remove_collection(osd, pid, matches_cid,
+					    1, cdb_cont_len, sense);
+		assert(ret == 0);
+	}
+	
 	/* remove objects */
 	for (oid = USEROBJECT_OID_LB; oid < (USEROBJECT_OID_LB+10); oid++) {
 	        ret = osd_remove(osd, USEROBJECT_PID_LB, oid, cdb_cont_len, sense);

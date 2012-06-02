@@ -5,7 +5,7 @@
 -include ../Makedefs
 
 SRC := attr.c db.c obj.c osd-schema.c osd.c cdb.c osd-sense.c list-entry.c
-SRC += osd-schema.c coll.c mtq.c
+SRC += osd-schema.c coll.c mtq.c tracking.c
 INC := attr.h db.h obj.h osd-types.h osd.h cdb.h list-entry.h target-sense.h
 INC += coll.h mtq.c
 DEP := .depend

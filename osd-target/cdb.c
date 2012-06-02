@@ -70,6 +70,7 @@ struct command {
 	int senselen;
 };
 
+/* get attribute by page has been made obsolete as of OSD3R02 */
 static int get_attr_page(struct command *cmd, uint64_t pid, uint64_t oid,
 			 uint8_t isembedded, uint16_t numoid, uint32_t cdb_cont_len)
 {
@@ -799,6 +800,16 @@ static int cdb_query(struct command *cmd, uint64_t pid, uint64_t cid,
 	uint64_t alloc_len = get_ntohll(&cdb[32]);
 
 	uint64_t matches_cid = get_ntohll(&cdb[40]);
+	uint8_t immed_tr = cdb[11] >> 7;
+
+	/* osd2r04 6.26.1 - if immed_tr is one, then alloc_len should
+	   be zero and matches_cid should be nonzero */
+	if (immed_tr && (alloc_len != 0 || matches_cid == 0))
+		goto out_query_cdb_err;
+
+	if (alloc_len != 0 && matches_cid != 0)
+		goto out_query_cdb_err;
+
 	struct cdb_continuation_descriptor *query_desc;
 	struct cdb_continuation_descriptor *descriptors = cmd->cont.descriptors;
 
@@ -830,7 +841,8 @@ static int cdb_query(struct command *cmd, uint64_t pid, uint64_t cid,
 
 	return osd_query(cmd->osd, pid, cid, query_desc->length, alloc_len,
 			 query_desc->desc_specific_hdr, cmd->outdata,
-			 &cmd->used_outlen, cdb_cont_len, cmd->sense);
+			 &cmd->used_outlen, cdb_cont_len, immed_tr,
+			 matches_cid, cmd->sense);
 out_query_cdb_err:
 	return sense_basic_build(cmd->sense, OSD_SSK_ILLEGAL_REQUEST,
 				 OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
@@ -1391,7 +1403,7 @@ osd_warning("%s:%d:", __FILE__, __LINE__);
 			(typeof(desc_hdr))cdb_cont;
 		uint16_t type = get_ntohs(&desc_hdr->type);
 		uint32_t length = get_ntohl(&desc_hdr->length);
-		uint8_t pad_length = desc_hdr->pad_length & 0x7;
+		uint8_t pad_length = desc_hdr->pad_length;
 
 		uint32_t desc_len = length + pad_length;
 
@@ -1674,8 +1686,9 @@ static void exec_service_action(struct command *cmd)
 		uint64_t requested_cid = get_ntohll(&cdb[24]);
 		uint64_t source_cid = get_ntohll(&cdb[40]);
 		
-		ret = osd_create_user_tracking_collection(osd, pid, requested_cid, 
-							  cdb_cont_len, source_cid, sense);
+		ret = osd_create_user_tracking_collection(osd, pid,requested_cid,
+							  source_cid,
+							  cdb_cont_len, sense);
 		break;
 	}
 	case OSD_DETACH_CLONE: {

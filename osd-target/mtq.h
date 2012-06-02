@@ -23,7 +23,8 @@
 
 int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid, 
 		  struct query_criteria *qc, void *outdata, 
-		  uint32_t alloc_len, uint64_t *used_outlen);
+		  uint32_t alloc_len, uint64_t *used_outlen,
+		  uint64_t matches_cid);
 
 int mtq_list_oids_attr(struct db_context *dbc, uint64_t pid,
 		       uint64_t initial_oid, struct getattr_list *get_attr,

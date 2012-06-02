@@ -40,6 +40,7 @@
 #include "mtq.h"
 #include "osd-util/osd-sense.h"
 #include "list-entry.h"
+#include "tracking.h"
 
 #define min(x,y) ({ \
 	typeof(x) _x = (x);	\
@@ -103,7 +104,7 @@ static inline uint8_t get_obj_type(struct osd_device *osd,
 	} else if (pid >= PARTITION_PID_LB && oid == PARTITION_OID) {
 		return PARTITION;
 	} else if (pid >= OBJECT_PID_LB && oid >= OBJECT_OID_LB) {
-		ret = obj_get_type(osd->dbc, pid, oid, &obj_type);
+		ret = obj_get_type(osd->dbc, pid, oid, &obj_type, NULL);
 		if (ret == OSD_OK)
 			return obj_type;
 	}
@@ -880,6 +881,97 @@ static int set_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	}
 }
 
+static int get_ciap(struct osd_device *osd, uint64_t pid, uint64_t cid,
+		    uint32_t number, void *outbuf,
+		    uint64_t outlen, uint8_t listfmt, uint32_t *used_outlen)
+{
+	int ret = 0;
+	const void *val = NULL;
+	uint16_t len = 0;
+	char name[ATTR_PAGE_ID_LEN];
+	uint8_t ll[8];
+	uint64_t pcount;
+	uint8_t obj_type = ILLEGAL_OBJ;
+	uint8_t coll_type = -1;
+
+	switch (number) {
+	case 0:
+		/*{COLL_PG + 1, 0, "INCITS  T10 Collection Information"},*/
+		len = ATTR_PAGE_ID_LEN;
+		sprintf(name, "INCITS  T10 Collection Information");
+		val = name;
+		break;
+	case CIAP_PARTITION_ID:
+		ret = obj_get_type(osd->dbc, pid, cid, &obj_type, NULL);
+		if (ret == OSD_OK)
+			return obj_type;
+		if (obj_type == COLLECTION) {
+			len = CIAP_PARTITION_ID_LEN;
+			set_htonll(ll, pid);
+		} else {
+			/* the object is not a collection, so the CIAP
+			   attribute page is not valid */
+			len = 0;
+			set_htonll(ll, -1);
+		}
+		val = ll;
+		break;
+	case CIAP_COLLECTION_OBJECT_ID:
+		ret = obj_get_type(osd->dbc, pid, cid, &obj_type, NULL);
+		if (ret == OSD_OK)
+			return obj_type;
+		if (obj_type == COLLECTION) {
+			len = CIAP_COLLECTION_OBJECT_ID_LEN;
+			set_htonll(ll, cid);
+		} else {
+			/* the object is not a collection, so the CIAP
+			   attribute page is not valid */
+			len = 0;
+			set_htonll(ll, -1);
+		}
+		val = ll;
+		break;
+	case CIAP_COLLECTION_NAME:
+		return attr_get_attr(osd->dbc, pid, cid, COLL_INFO_PG,
+				     CIAP_COLLECTION_NAME, outlen, outbuf,
+				     listfmt, used_outlen);
+	case CIAP_COLLECTION_TYPE:
+		ret = obj_get_type(osd->dbc, pid, cid, &obj_type, &coll_type);
+		if (ret == OSD_OK)
+			return obj_type;
+		len = CIAP_COLLECTION_TYPE_LEN;
+		ll[0] = coll_type;
+		val = ll;
+		break;
+	case CIAP_USED_CAPACITY:
+		/*FIXME: return used capacity of collection*/
+		len = CIAP_USED_CAPACITY_LEN;
+		set_htonll(ll, -1);
+		val = ll;
+		break;
+	default:
+		return OSD_ERROR;
+	}
+
+	if (listfmt == RTRVD_SET_ATTR_LIST)
+		ret = le_pack_attr(outbuf, outlen, COLL_INFO_PG, number, len, val);
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		ret = le_multiobj_pack_attr(outbuf, outlen, cid, COLL_INFO_PG,
+					    number, len, val);
+	else
+		return OSD_ERROR;
+
+	assert(ret == -EINVAL || ret == -EOVERFLOW || ret > 0);
+	if (ret == -EOVERFLOW)
+		*used_outlen = 0;
+	else if (ret > 0)
+		*used_outlen = ret;
+	else
+		return ret;
+
+	return OSD_OK;
+}
+
 /*
  * returns:
  * OSD_ERROR: for error
@@ -950,7 +1042,7 @@ static int osd_initialize_db(struct osd_device *osd)
 	memset(&osd->idl, 0, sizeof(osd->idl));
 
 	/* tables already created by osd_db_open, so insertions can be done */
-	ret = obj_insert(osd->dbc, ROOT_PID, ROOT_OID, ROOT);
+	ret = obj_insert(osd->dbc, ROOT_PID, ROOT_OID, ROOT, -1);
 	if (ret != SQLITE_OK)
 		goto out;
 
@@ -1666,7 +1758,7 @@ int osd_create(struct osd_device *osd, uint64_t pid, uint64_t requested_oid,
 		numoid = 1; /* create atleast one object */
 
 	for (i = oid; i < (oid + numoid); i++) {
-		ret = obj_insert(osd->dbc, pid, i, USEROBJECT);
+		ret = obj_insert(osd->dbc, pid, i, USEROBJECT, -1);
 		if (ret != 0) {
 		        osd_remove_tmp_objects(osd, pid, oid, i, sense, cdb_cont_len);
 			goto out_hw_err;
@@ -1797,7 +1889,8 @@ int osd_create_collection(struct osd_device *osd, uint64_t pid,
 	}
 
 	/* if cid already exists, obj_insert will fail */
-	ret = obj_insert(osd->dbc, pid, cid, COLLECTION);
+	ret = obj_insert(osd->dbc, pid, cid, COLLECTION,
+			 CIAP_LINKED_COLLECTION_TYPE);
 	if (ret)
 		goto out_cdb_err;
 
@@ -1847,7 +1940,7 @@ int osd_create_partition(struct osd_device *osd, uint64_t requested_pid,
 	osd_error("%s: panasas create %s directory %m", __func__,path);
 #endif
 	/* if pid already exists, obj_insert will fail */
-	ret = obj_insert(osd->dbc, pid, PARTITION_OID, PARTITION);
+	ret = obj_insert(osd->dbc, pid, PARTITION_OID, PARTITION, -1);
 	if (ret)
 		goto out_cdb_err;
 
@@ -1887,7 +1980,7 @@ int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid,
 	int ret = 0;
 	uint64_t cid = 0;
 	int present = 0;
-	int to_do_1=0, to_do_2=0, to_do_3=0;
+	int to_do_1=0, to_do_2=0;
 
 	osd_debug("%s: pid %llu requested_cid %llu source_cid %llu cdb_cont_len %u",
 		  __func__, llu(pid), llu(requested_cid), llu(source_cid), cdb_cont_len);
@@ -1905,15 +1998,11 @@ int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid,
 	if (ret != OSD_OK || !present)
 		goto out_cdb_err;
 
-	/* Make sure source collection is present */
-	ret = obj_ispresent(osd->dbc, pid, source_cid, &present);
-	if (ret != OSD_OK || !present)
-		goto out_cdb_err;
-
-	/* Checks on cdb_cont_len */
+	/* Checks on cdb_cont_len -
+	   disable check until descriptor processing is implemented
 	if (((source_cid != 0) && (cdb_cont_len == 0)) || ((source_cid == 0) && (cdb_cont_len != 0)))
 	        goto out_cdb_err;
-		
+	*/
 	/* to_do_1 = CDB continuation segment does not contain one extension capabilities CDB continuation descriptor(5.4.6)
 	   to_do_2 = CDB continuation segment contains any cdb continuation descriptor other than the extension capabilities CDB 
 	   continuation descriptor */
@@ -1922,13 +2011,20 @@ int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid,
 
 	/* Checking validity of the source collection */
 	if (source_cid != 0) {
+		uint8_t obj_type, coll_type;
+		struct ctp* ctp;
 
-	        if ((! is_linked_coll(source_cid)) && (! is_tracking_coll(source_cid)) && (! is_spontaneous_coll(source_cid)))
-		        goto out_cdb_err;
-	
-		/* to_do_3 = the active command status attribute in the Command Tracking attribute page(7.1.3.20) is not set to zero*/
-		else if (is_tracking_coll(source_cid) && to_do_3)
-		        goto out_cdb_err;  
+		ret = obj_get_type(osd->dbc, pid, source_cid,
+				   &obj_type, &coll_type);
+		if (ret != OSD_OK || obj_type != COLLECTION ||
+		    (coll_type != CIAP_LINKED_COLLECTION_TYPE &&
+		     coll_type != CIAP_TRACKING_COLLECTION_TYPE &&
+		     coll_type != CIAP_SPONTANEOUS_COLLECTION_TYPE))
+			goto out_cdb_err;
+
+		ctp = find_ctp(pid, cid);
+		if (ctp && ctp->status != 0x0000)
+			goto out_cdb_err;
 	}
 
 	if (requested_cid == 0) {
@@ -1968,7 +2064,8 @@ int osd_create_user_tracking_collection(struct osd_device *osd, uint64_t pid,
 	}
 
 	/* if cid already exists, obj_insert will fail */
-	ret = obj_insert(osd->dbc, pid, cid, COLLECTION);
+	ret = obj_insert(osd->dbc, pid, cid, COLLECTION,
+			 CIAP_TRACKING_COLLECTION_TYPE);
 	if (ret)
 		goto out_cdb_err;
 
@@ -2326,6 +2423,14 @@ int osd_getattr_list(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		ret = get_riap(osd, pid, oid, page, number, outbuf,
 			       outlen, listfmt, used_outlen);
 		break;
+	case COLL_INFO_PG:
+		ret = get_ciap(osd, pid, oid, number, outbuf,
+			       outlen, listfmt, used_outlen);
+		break;
+	case COLL_TRACKING_PG:
+		ret = get_ctp(osd, pid, oid, number, outbuf,
+			      outlen, listfmt, used_outlen);
+		break;
 	default:
 		ret = mutiplex_getattr_list(osd, pid, oid, page,
 					    number, outbuf, outlen,
@@ -2587,8 +2692,7 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 	uint64_t add_len = 0;
 	uint64_t cont_id = 0;
 
-	assert(osd && osd->root && osd->dbc && get_attr && outdata 
-	       && used_outlen && sense);
+	assert(osd && osd->root && osd->dbc && outdata && used_outlen && sense);
 
 	if (alloc_len == 0)
 		return 0;
@@ -2598,12 +2702,10 @@ int osd_list_collection(struct osd_device *osd, uint8_t list_attr,
 
 	memset(outdata, 0, 24);
 
-	if (list_attr == 0 && get_attr->sz != 0)
-		goto out_cdb_err; /* XXX: unimplemented */
-	if (list_attr == 1 && get_attr->sz == 0)
+	if (list_attr == 1 && get_attr && get_attr->sz == 0)
 		goto out_cdb_err; /* XXX: this seems like error? */
 
-	if (list_attr == 0 && get_attr->sz == 0)  {
+	if (list_attr == 0)  {
 		/*
 		 * If list_id is not 0, we are continuing
 		 * an old list, starting from cont_id
@@ -2841,7 +2943,8 @@ static int parse_query_criteria(const uint8_t *cp, uint32_t qll,
 
 int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	      uint32_t query_list_len, uint64_t alloc_len, const void *indata,
-	      void *outdata, uint64_t *used_outlen, uint32_t cdb_cont_len, uint8_t *sense)
+	      void *outdata, uint64_t *used_outlen, uint32_t cdb_cont_len,
+	      uint8_t immed_tr, uint64_t matches_cid, uint8_t *sense)
 {
 	int ret = 0;
 	int present = 0;
@@ -2858,9 +2961,11 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 		.max_len = NULL,
 		.max_val = NULL,
 	};
+	uint8_t obj_type, coll_type;
+	struct ctp* ctp;
 
-	osd_debug("%s pid %llu cid %llu query_list_len %u alloc_len %llu",
-		  __func__, llu(pid), llu(cid), query_list_len,
+	osd_debug("%s pid %llu cid %llu matches_cid %llu query_list_len %u alloc_len %llu",
+		  __func__, llu(pid), llu(cid), llu(matches_cid), query_list_len,
 		  llu(alloc_len));
 
 	assert(osd && osd->root && osd->dbc && indata && sense);
@@ -2868,16 +2973,56 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	if (pid < USEROBJECT_PID_LB)
 		goto out_cdb_err;
 
+	if (cid == matches_cid)
+		goto out_cdb_err;
+
 	ret = obj_ispresent(osd->dbc, pid, cid, &present);
 	if (ret != OSD_OK || !present)
+		goto out_cdb_err;
+
+	/* As of osd2r04, the collection must be a tracking collection */
+	ret = obj_get_type(osd->dbc, pid, cid, &obj_type, &coll_type);
+	if (ret != OSD_OK || obj_type != COLLECTION ||
+	    coll_type != CIAP_TRACKING_COLLECTION_TYPE)
+		goto out_cdb_err;
+
+	ctp = find_ctp(pid, cid);
+	if (ctp && ctp->status != 0x0000)
+		goto out_cdb_err;
+
+	ret = obj_ispresent(osd->dbc, pid, matches_cid, &present);
+	if (ret != OSD_OK || !present)
+		goto out_cdb_err;
+
+	if (matches_cid) {
+		ret = obj_get_type(osd->dbc, pid, matches_cid,
+				   &obj_type, &coll_type);
+		if (ret != OSD_OK || obj_type != COLLECTION ||
+		    coll_type != CIAP_TRACKING_COLLECTION_TYPE)
+			goto out_cdb_err;
+
+		ctp = find_ctp(pid, matches_cid);
+		if (ctp && ctp->status != 0x0000)
+			goto out_cdb_err;
+		if (!ctp)
+			ctp = init_ctp(pid, matches_cid, OSD_QUERY);
+		if (!ctp)
+			goto out_cdb_err;
+
+		/* remove members from matches collection */
+		ret = coll_delete_cid(osd->dbc, pid, matches_cid);
+		if (ret != 0)
+			goto out_cdb_err;
+	}
+	if (immed_tr && !matches_cid)
 		goto out_cdb_err;
 
 	if (query_list_len < MINQLISTLEN)
 		goto out_cdb_err;
 
-	if (alloc_len == 0)
-		return OSD_OK;
-	if (alloc_len < MIN_ML_LEN)
+	if (alloc_len < MIN_ML_LEN && matches_cid == 0)
+		goto out_cdb_err;
+	if (alloc_len != 0 && matches_cid != 0)
 		goto out_cdb_err;
 
 	ret = alloc_qc(&qc);
@@ -2888,10 +3033,27 @@ int osd_query(struct osd_device *osd, uint64_t pid, uint64_t cid,
 	if (ret != OSD_OK)
 		goto out_cdb_err;
 
-	memset(cp+8, 0, 4);  /* reserved area */
-	cp[12] = (0x21 << 2);
+	if (alloc_len) {
+		memset(cp+8, 0, 4);  /* reserved area */
+		cp[12] = (0x21 << 2);
+	}
+
+	if (immed_tr) {
+		/* TODO - when immed_tr is set, we should start the
+		   query in the background and return right away.  We
+		   need multithreading support to make this work, so
+		   we'll just wait for the query to finish. */
+	}
+	
 	ret = mtq_run_query(osd->dbc, pid, cid, &qc, outdata, alloc_len,
-			    used_outlen);
+			    used_outlen, matches_cid);
+	if (matches_cid != 0) {
+		ctp->status = ret;
+		if (ret)
+			sense_build_sdd(ctp->sense, OSD_SSK_HARDWARE_ERROR,
+					OSD_ASC_INVALID_FIELD_IN_CDB, pid, cid);
+	}
+		
 	free_qc(&qc);
 	if (ret != OSD_OK)
 		goto out_hw_err;
@@ -3378,7 +3540,7 @@ int osd_remove_collection(struct osd_device *osd, uint64_t pid, uint64_t cid,
 
 		ret = coll_delete_cid(osd->dbc, pid, cid);
 		if (ret != 0)
-			goto out_hw_err;
+			goto out_hw_err;			
 	}
 
 	ret = attr_delete_all(osd->dbc, pid, cid);

@@ -46,7 +46,8 @@
  */
 int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid, 
 		  struct query_criteria *qc, void *outdata, 
-		  uint32_t alloc_len, uint64_t *used_outlen)
+		  uint32_t alloc_len, uint64_t *used_outlen,
+		  uint64_t matches_cid)
 {
 	int ret = 0;
 	int pos = 0;
@@ -55,6 +56,7 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	uint8_t *p = NULL;
 	uint32_t i = 0;
 	uint32_t sqlen = 0;
+	uint32_t number;
 	uint32_t factor = 2; /* this query fills space quickly */
 	uint64_t len = 0;
 	const char *op = NULL;
@@ -90,10 +92,24 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	 */
 
 	/* build the SQL statment */
-	sprintf(select_stmt, "SELECT attr.oid FROM %s as coll, %s as attr "
-		" WHERE coll.pid = coll.pid AND coll.oid = attr.oid AND "
-		" coll.pid = %llu AND coll.cid = %llu ", coll, attr,
-		llu(pid), llu(cid));
+	if (matches_cid != 0) {
+		ret = coll_max_pointer(dbc, pid, cid, &number);
+		if (ret != SQLITE_OK) {
+			goto out;
+		}
+		sprintf(select_stmt, "SELECT coll.pid, %llu, attr.oid, %d "
+				     "FROM %s AS coll, %s AS attr WHERE "
+				     "coll.pid=coll.pid AND coll.oid=attr.oid "
+				     "AND coll.pid = %llu AND coll.cid = %llu ",
+			llu(matches_cid), number, coll, attr, llu(pid),
+			llu(cid));
+	} else {
+		sprintf(select_stmt, "SELECT attr.oid FROM %s AS coll, "
+				     "%s AS attr WHERE coll.pid = coll.pid AND "
+				     "coll.oid = attr.oid AND coll.pid = %llu "
+				     "AND coll.cid = %llu ",
+			coll, attr, llu(pid), llu(cid));
+	}
 	strncpy(cp, select_stmt, MAXSQLEN*factor);
 	sqlen += strlen(cp);
 	cp += sqlen;
@@ -123,6 +139,17 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	}
 	cp = strcat(cp, " GROUP BY attr.oid ORDER BY 1;");
 
+	if (matches_cid != 0) {
+		char *SQL2 = Malloc(strlen(SQL) + 100);
+		if (SQL2 == NULL) {
+			ret = -ENOMEM;
+			goto out;
+		}
+		sprintf(SQL2, "INSERT INTO %s %s", coll, SQL);
+		free(SQL);
+		SQL = SQL2;
+	}
+
 	ret = sqlite3_prepare(dbc->db, SQL, strlen(SQL)+1, &stmt, NULL);
 	if (ret != SQLITE_OK) {
 		error_sql(dbc->db, "%s: sqlite3_prepare", __func__);
@@ -130,6 +157,7 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 		goto out;
 	}
 
+ repeat:
 	/* bind the values */
 	pos = 1;
 	for (i = 0; i < qc->qc_cnt; i++) {
@@ -157,6 +185,13 @@ int mtq_run_query(struct db_context *dbc, uint64_t pid, uint64_t cid,
 			}
 			pos++;
 		}
+	}
+
+	if (matches_cid != 0) {
+		ret = db_exec_dms(dbc, stmt, ret, __func__);
+		if (ret == OSD_REPEAT)
+			goto repeat;
+		goto out_finalize;
 	}
 
 	/* execute the query */
@@ -442,10 +477,9 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 	char *SQL = NULL;
 	size_t sqlen = 0;
 	sqlite3_stmt *stmt = NULL;
-	const char *coll = coll_getname(dbc);
 	const char *attr = attr_getname(dbc);
 
-	assert(dbc && dbc->db && set_attr && coll && attr);
+	assert(dbc && dbc->db && set_attr && attr);
 
 	if (set_attr->sz == 0) {
 		ret = 0;
@@ -466,8 +500,9 @@ int mtq_set_member_attrs(struct db_context *dbc, uint64_t pid, uint64_t cid,
 
 	for (i = 0; i < set_attr->sz; i++) {
 		sprintf(cp, " SELECT %llu, oid, %u, %u, ? FROM %s "
-			" WHERE cid = %llu ", llu(pid), set_attr->le[i].page,
-			set_attr->le[i].number, coll, llu(cid));
+			" WHERE pid = %llu AND page = %u AND value = %llu",
+			llu(pid), set_attr->le[i].page, set_attr->le[i].number,
+			attr, llu(pid), USER_COLL_PG, llu(cid));
 		if (i < (set_attr->sz - 1))
 			cp = strcat(cp, " UNION ALL ");
 		sqlen += strlen(cp);

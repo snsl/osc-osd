@@ -170,7 +170,7 @@ static void time_obj_insert(struct osd_device *osd, int numobj, int numiter,
 	if (!t)
 		return;
 
-	ret = obj_insert(osd->dbc, 1, 2, 128);
+	ret = obj_insert(osd->dbc, 1, 2, 128, -1);
 	assert(ret == 0);
 	ret = obj_delete(osd->dbc, 1, 2);
 	assert(ret == 0);
@@ -180,7 +180,7 @@ static void time_obj_insert(struct osd_device *osd, int numobj, int numiter,
 			t[i] = 0.0;
 			for (j = 0; j < numobj; j++) {
 				rdtsc(start);
-				ret = obj_insert(osd->dbc, 1, j, 128);
+				ret = obj_insert(osd->dbc, 1, j, 128, -1);
 				rdtsc(end);
 				assert(ret == 0);
 
@@ -192,13 +192,13 @@ static void time_obj_insert(struct osd_device *osd, int numobj, int numiter,
 		}
 	} else if (testone == 1) {
 		for (i = 0; i < numobj; i++) {
-			ret = obj_insert(osd->dbc, 1, i, 1);
+			ret = obj_insert(osd->dbc, 1, i, 1, -1);
 			assert(ret == 0);
 		}
 		
 		for (i = 0; i < numiter; i++) {
 			rdtsc(start);
-			ret = obj_insert(osd->dbc, 1, numobj, 128);
+			ret = obj_insert(osd->dbc, 1, numobj, 128, -1);
 			rdtsc(end);
 			assert(ret == 0);
 
@@ -233,7 +233,7 @@ static void time_obj_delete(struct osd_device *osd, int numobj, int numiter,
 	if (!t)
 		return;
 
-	ret = obj_insert(osd->dbc, 1, 2, 128);
+	ret = obj_insert(osd->dbc, 1, 2, 128, -1);
 	assert(ret == 0);
 	ret = obj_delete(osd->dbc, 1, 2);
 	assert(ret == 0);
@@ -241,7 +241,7 @@ static void time_obj_delete(struct osd_device *osd, int numobj, int numiter,
 	if (testone == 0) {
 		for (i = 0; i < numiter; i++) {
 			for (j = 0; j < numobj; j++) {
-				ret = obj_insert(osd->dbc, 1, j, 128);
+				ret = obj_insert(osd->dbc, 1, j, 128, -1);
 				assert(ret == 0);
 			}
 
@@ -258,12 +258,12 @@ static void time_obj_delete(struct osd_device *osd, int numobj, int numiter,
 		}
 	} else if (testone == 1) {
 		for (i = 0; i < numobj; i++) {
-			ret = obj_insert(osd->dbc, 1, i, 128);
+			ret = obj_insert(osd->dbc, 1, i, 128, -1);
 			assert (ret == 0);
 		}
 		
 		for (i = 0; i < numiter; i++) {
-			ret = obj_insert(osd->dbc, 1, numobj, 128);
+			ret = obj_insert(osd->dbc, 1, numobj, 128, -1);
 			assert(ret == 0);
 
 			rdtsc(start);
@@ -298,14 +298,14 @@ static void time_obj_delpid(struct osd_device *osd, int numobj, int numiter)
 	if (!t)
 		return;
 
-	ret = obj_insert(osd->dbc, 1, 2, 128);
+	ret = obj_insert(osd->dbc, 1, 2, 128, -1);
 	assert(ret == 0);
 	ret = obj_delete_pid(osd->dbc, 1);
 	assert(ret == 0);
 
 	for (i = 0; i < numiter; i++) {
 		for (j = 0; j < numobj; j++) {
-			ret = obj_insert(osd->dbc, 1, j, 128);
+			ret = obj_insert(osd->dbc, 1, j, 128, -1);
 			assert(ret == 0);
 		}
 
@@ -357,7 +357,7 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 	/* run a pilot */
 	switch (test) {
 	case 1: {
-		ret = obj_insert(osd->dbc, 20, 0, 2);
+		ret = obj_insert(osd->dbc, 20, 0, 2, -1);
 		assert(ret == 0);
 		pid = 0;
 		ret = obj_get_nextpid(osd->dbc, &pid);
@@ -369,7 +369,7 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 		break;
 	}
 	case 2: {
-		ret = obj_insert(osd->dbc, 1, 2, 128);
+		ret = obj_insert(osd->dbc, 1, 2, 128, -1);
 		assert(ret == 0);
 		oid = 0;
 		ret = obj_get_nextoid(osd->dbc, 1, &oid);
@@ -382,7 +382,7 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 	}
 	case 3: 
 	case 4: {
-		ret = obj_insert(osd->dbc, 1, 2, 128);
+		ret = obj_insert(osd->dbc, 1, 2, 128, -1);
 		assert(ret == 0);
 		ret = obj_ispresent(osd->dbc, 1, 2, &present);
 		assert(ret == 0 && present == 1);
@@ -397,7 +397,7 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 		break;
 	}
 	case 5: {
-		ret = obj_insert(osd->dbc, 1, 2, 128);
+		ret = obj_insert(osd->dbc, 1, 2, 128, -1);
 		assert(ret == 0);
 		ret = obj_isempty_pid(osd->dbc, 1, &isempty);
 		assert(ret == 0 && isempty == 0);
@@ -409,9 +409,9 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 		break;
 	}
 	case 6: {
-		ret = obj_insert(osd->dbc, 1, 2, USEROBJECT);
+		ret = obj_insert(osd->dbc, 1, 2, USEROBJECT, -1);
 		assert(ret == 0);
-		ret = obj_get_type(osd->dbc, 1, 2, &obj_type);
+		ret = obj_get_type(osd->dbc, 1, 2, &obj_type, NULL);
 		assert(ret == 0 && obj_type == USEROBJECT);
 		ret = obj_delete(osd->dbc, 1, 2);
 		assert(ret == 0);
@@ -426,9 +426,9 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 	for (i = 0; i < numiter; i++) {
 		for (j = 1; j < numobj+1; j++) {
 			if (test == 1) {
-				ret = obj_insert(osd->dbc, j, 0, PARTITION);
+				ret = obj_insert(osd->dbc, j, 0, PARTITION, -1);
 			} else {
-				ret = obj_insert(osd->dbc, 1, j, USEROBJECT);
+				ret = obj_insert(osd->dbc, 1, j, USEROBJECT, -1);
 			}
 			assert(ret == 0);
 		}
@@ -478,7 +478,7 @@ static void time_obj_generic(struct osd_device *osd, int numobj, int numiter,
 		case 6: {
 			oid = numobj;
 			rdtsc(start);
-			ret = obj_get_type(osd->dbc, 1, oid, &obj_type);
+			ret = obj_get_type(osd->dbc, 1, oid, &obj_type, NULL);
 			rdtsc(end);
 			assert(ret == 0 && obj_type == USEROBJECT);
 			break;
@@ -553,7 +553,7 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 	/* run pilot tests */
 	switch (test) {
 	case 1: {
-		ret = obj_insert(osd->dbc, 20, 11, 128);
+		ret = obj_insert(osd->dbc, 20, 11, 128, -1);
 		assert(ret == 0);
 		ret = obj_get_oids_in_pid(osd->dbc, 20, 0, sizeof(*ids)*1,
 					  cp, &usedlen, &addlen, &contid);
@@ -569,7 +569,7 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 		break;
 	}
 	case 2: {
-		ret = obj_insert(osd->dbc, 20, 11, 64);
+		ret = obj_insert(osd->dbc, 20, 11, 64, -1);
 		assert(ret == 0);
 		ret = obj_get_cids_in_pid(osd->dbc, 20, 0, sizeof(*ids)*1,
 					  cp, &usedlen, &addlen, &contid);
@@ -586,9 +586,9 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 	}
 	case 3: 
 	case 4: {
-		ret = obj_insert(osd->dbc, 20, 0, 2);
+		ret = obj_insert(osd->dbc, 20, 0, 2, -1);
 		assert(ret == 0);
-		ret = obj_insert(osd->dbc, 10, 0, 2);
+		ret = obj_insert(osd->dbc, 10, 0, 2, -1);
 		assert(ret == 0);
 		ret = obj_get_all_pids(osd->dbc, 0, sizeof(*ids)*2, cp,
 				       &usedlen, &addlen, &contid);
@@ -622,10 +622,11 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 			for (j = 0; j < numobj; j++) {
 				if (test == 1) {
 					ret = obj_insert(osd->dbc, 1, j, 
-							 USEROBJECT);
+							 USEROBJECT, -1);
 				} else {
 					ret = obj_insert(osd->dbc, 1, j, 
-							 COLLECTION);
+							 COLLECTION,
+							 CIAP_LINKED_COLLECTION_TYPE);
 				}
 				assert(ret == 0);
 			}
@@ -656,7 +657,7 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 		case 3: 
 			for (j = 0; j < numobj; j++) {
 				ret = obj_insert(osd->dbc, j+1, 0, 
-						 PARTITION);
+						 PARTITION, -1);
 				assert(ret == 0);
 			}
 			cp = (uint8_t *)ids;
@@ -679,11 +680,11 @@ static void time_obj_fetch(struct osd_device *osd, int numobj, int numiter,
 			if (numobj % 32 != 0)
 				numpid++;
 			for (j = 0; j < numpid; j++) {
-				ret = obj_insert(osd->dbc, j+1, 0, PARTITION);
+				ret = obj_insert(osd->dbc, j+1, 0, PARTITION, -1);
 				assert(ret == 0);
 				for (k = 1; k < 32+1; k++) {
 					ret = obj_insert(osd->dbc, j+1, k, 
-							 USEROBJECT);
+							 USEROBJECT, -1);
 					assert(ret == 0);
 				}
 			}

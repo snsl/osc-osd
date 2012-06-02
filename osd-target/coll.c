@@ -43,6 +43,7 @@ struct coll_tab {
 	sqlite3_stmt *delcid;   /* delete collection cid */
 	sqlite3_stmt *deloid;   /* delete oid from all collections */
 	sqlite3_stmt *emptycid; /* is collection empty? */
+	sqlite3_stmt *max;	/* max object collection pointer value */
 	sqlite3_stmt *getcid;   /* get collection */
 	sqlite3_stmt *getoids;  /* get objects in a collection */
 	sqlite3_stmt *copyoids; /* copy oids from one collection to another */
@@ -117,6 +118,12 @@ int coll_initialize(struct db_context *dbc)
 	if (ret != SQLITE_OK)
 		goto out_finalize_emptycid;
 
+	sprintf(SQL, "SELECT MAX (number) FROM %s WHERE pid = ? AND cid = ?;",
+		dbc->coll->name);
+	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->coll->max, NULL);
+	if (ret != SQLITE_OK)
+		goto out_finalize_max;
+
 	sprintf(SQL, "SELECT cid FROM %s WHERE pid = ? AND oid = ? AND "
 		" number = ?;", dbc->coll->name);
 	ret = sqlite3_prepare(dbc->db, SQL, -1, &dbc->coll->getcid, NULL);
@@ -146,6 +153,9 @@ out_finalize_getoids:
 	SQL[0] = '\0';
 out_finalize_getcid:
 	db_sqfinalize(dbc->db, dbc->coll->getcid, SQL);
+	SQL[0] = '\0';
+out_finalize_max:
+	db_sqfinalize(dbc->db, dbc->coll->max, SQL);
 	SQL[0] = '\0';
 out_finalize_emptycid:
 	db_sqfinalize(dbc->db, dbc->coll->emptycid, SQL);
@@ -178,6 +188,7 @@ int coll_finalize(struct db_context *dbc)
 	sqlite3_finalize(dbc->coll->delcid);
 	sqlite3_finalize(dbc->coll->deloid);
 	sqlite3_finalize(dbc->coll->emptycid);
+	sqlite3_finalize(dbc->coll->max);
 	sqlite3_finalize(dbc->coll->getcid);
 	sqlite3_finalize(dbc->coll->getoids);
 	sqlite3_finalize(dbc->coll->copyoids);
@@ -368,6 +379,48 @@ repeat:
 
 out_reset:
 	ret = db_reset_stmt(dbc, dbc->coll->emptycid, bound, __func__);
+	if (ret == OSD_REPEAT)
+		goto repeat;
+out:
+	return ret;
+}
+
+
+/*
+ * return the max object pointer for a particular pid,cid
+ *
+ * returns:
+ * -EINVAL: invalid arg, ignore value of isempty
+ * OSD_ERROR: in case of other errors, ignore value of isempty
+ * OSD_OK: success, isempty is set to:
+ * 	==1: if collection is empty or absent 
+ * 	==0: if not empty
+ */
+int coll_max_pointer(struct db_context *dbc, uint64_t pid, uint64_t cid,
+		     uint32_t *number)
+{
+	int ret = 0;
+	int bound = 0;
+	*number = 0;
+
+	assert(dbc && dbc->db && dbc->coll && dbc->coll->max);
+
+repeat:
+	ret = 0;
+	ret |= sqlite3_bind_int64(dbc->coll->max, 1, pid);
+	ret |= sqlite3_bind_int64(dbc->coll->max, 2, cid);
+	bound = (ret == SQLITE_OK);
+	if (!bound) {
+		error_sql(dbc->db, "%s: bind failed", __func__);
+		goto out_reset;
+	}
+
+	while ((ret = sqlite3_step(dbc->coll->max)) == SQLITE_BUSY);
+	if (ret == SQLITE_ROW)
+		*number = (0 == sqlite3_column_int(dbc->coll->max, 0));
+
+out_reset:
+	ret = db_reset_stmt(dbc, dbc->coll->max, bound, __func__);
 	if (ret == OSD_REPEAT)
 		goto repeat;
 out:

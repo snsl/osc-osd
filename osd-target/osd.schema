@@ -23,6 +23,7 @@ CREATE TABLE obj (
 	pid INTEGER NOT NULL,
 	oid INTEGER NOT NULL,
 	type INTEGER NOT NULL,
+	coll_type INTEGER NOT NULL,
 	PRIMARY KEY (pid, oid)
 );
 

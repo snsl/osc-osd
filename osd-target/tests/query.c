@@ -76,7 +76,10 @@ static void query_speed(struct osd_device *osd, int numiter, int numobj,
 	osd_command_set_create_partition(&c, pid);
 	run(osd, &c);
 
-	osd_command_set_create_collection(&c, pid, cid);
+	osd_command_set_create_collection(&c, pid, cid+1);
+	run(osd, &c);
+
+	osd_command_set_create_user_tracking_collection(&c, pid, cid, cid+1);
 	run(osd, &c);
 
 	for (i=0; i<numattr; i++) {

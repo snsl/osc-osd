@@ -1,0 +1,300 @@
+Documentation for OSC OSD Initiator library.
+
+Copyright (C) 2007 Dennis Dalessandro (dennis@osc.edu)
+Copyright (C) 2007 Ananth Devulapalli (ananth@osc.edu)
+Copyright (C) 2007 Pete Wyckoff (pw@osc.edu)
+
+Using
+-----
+This code relies on the kernel to ship the SCSI commands to an OSD.  It
+formmats CDBs then submits them to the BSG kernel interface.  As such,
+there are some number of kernel patches necessary to make this work,
+because current v2.6.24-rc6 does not quite yet support bidirectional
+SCSI transfers or variable length SCSI commands.  See the linux-scsi
+mailing list for progress on this.
+
+There are a few other missing features in current kernels.  You can
+grab the branch "osd" from
+
+    git://git.osc.edu/linux.git
+
+or browse at
+
+    http://git.osc.edu/?p=linux.git;a=summary
+
+to see these four patches:
+
+bsg-iovec-u64
+
+    The big one is the need for iovec support in bsg.  Attribute lists
+    are much easier to manage if it is possible to submit a list of
+    address,length pairs to BSG to use as SCSI data buffers.  Otherwise
+    it is necessary to do lots of memory copying to generate contiguous
+    buffers.
+
+bsg-accept-varlen-commands
+
+    Allow non-root to submit OSD commands to devices through BSG.
+    Access to a bsg interface is still governed through file system
+    permissions on the character device.
+
+bsg-return-sam-device-status-code
+
+    The return status code from bsg is half of what it should be.  I.e.
+    instead of returning 2 for SAM_STAT_CHECK_CONDITION, it returns 1.
+    This fixes that.
+
+block-allow-no-queue-dma-alignment
+
+    Even though iscsi TCP advertises itself as not needing queue
+    alignment, the current block interface rounds this zero up to
+    512.  That forces bounce buffers for any userspace tranfers
+    that are not aligned to 512 on both ends.
+
+
+Build a kernel with these patches, type "make" to build the initiator
+code (which relies on osd-util).  Go into tests/ or python/ and type
+make to build test codes, in C and Python respectively.  Use iscsiadm to
+attach an OSD device.  Most of the codes will operate on the first
+device of TYPE_OSD that they find.  You'll have to read through them
+all to see what they do.
+
+Udev
+----
+User processes that wish to write BSG must use /dev/bsg/<file>.  It is
+convenient not to have to do all this as root.  On fedora-ish systems,
+you can add a udev rule to set the perms on BSG character devices
+automatically.  Add a file /etc/udev/rules.d/20-bsg.rules (or some
+other number, as long as it is in front of the default bsg rule in
+50-udev-default.rules), with a single line:
+
+    SUBSYSTEM="bsg",  NAME="bsg/%k", MODE="0666"
+
+Contents
+--------
+There are five major files here, each of which has a separate header
+file that can be included from user programs:
+
+	- drivelist
+	- device
+	- command
+	- sense
+	- sync
+
+
+Drivelist
+---------
+These two functions are used to get and free a list of available OSD
+drives:
+
+int osd_get_drive_list(struct osd_drive_description **drives, int *num_drives);
+void osd_free_drive_list(struct osd_drive_description *drives, int num_drives);
+
+It works by querying the SCSI interface.  Data is allocated and returned
+into the given pointer, so another call is used to free the data when
+done with it.  In the struct that is returned are two fields:
+targetname, and chardev.  Pass the chardev to open() to open a device.
+
+
+Device
+------
+Given an fd to an open device, this set of routines is used to submit
+commands and wait for responses.
+
+
+Command
+-------
+This is the element that encapsulates all information about an OSD
+command, including attributes, in- and out-data, and sense results.
+The various calls can build a command, which can then be given to one
+of the device functions to submit.  After completion, output fields
+in the command structure can be inspected.
+
+To start, the user allocates a struct osd_command, perhaps on the
+stack, and passes a pointer to it to one of the 29 osd_command_set_*
+calls.  These each clear the command and set up fields appropriately
+for the SCSI command.
+
+Next, if the command requires data, like a write, set this in the
+command.  For a single buffer,
+
+	command->outdata = buf;
+	command->outlen = len;
+
+Make sure to keep the buffer around until the command completes, i.e.
+the data is not copied.  For a vector of data, you must build an iovec
+and assign that to outdata.
+
+	struct bsg_iovec vec[2] = {
+		{ .iov_base = (uintptr_t) buf1, .iov_len = len1 },
+		{ .iov_base = (uintptr_t) buf2, .iov_len = len2 },
+	};
+	command->outdata = vec;
+	command->outlen = len1 + len2;
+	command->iov_outlen = 2;
+
+If the command is expected to return data, you must set up a buffer
+for the maximum size response.  For a single buffer,
+
+	command->indata = buf;
+	command->inlen_alloc = len;
+
+(Apply optional command attributes as described below.)
+
+Now, run the command using the device interface:
+
+	osd_submit_command(fd, command);
+
+And wait for it to complete
+
+	osd_wait_this_response(fd, command);
+
+After the command completes, check command->status to make sure it
+executed properly.  Also look at command->inlen to see the actual
+size of data returned.  For example, reading an object will only return
+the number of bytes in the object regardless of how much you ask for.
+
+
+Command attributes
+------------------
+These are optional, and can be added to any command.  There are four
+different types of attributes that instruct the target to do something
+along with the command:
+
+    ATTR_GET - return a particular attribute
+    ATTR_SET - set a particular attribute to a given value
+    ATTR_GET_PAGE - return a pre-defined page structure
+    ATTR_GET_MULTI - only for multi-object CREATE command, does a
+    	ATTR_GET for each of the newly created objects, essentially
+
+Subject to various constraints, a mixture of GET and SET attributes
+can be added on the same command.
+
+After initializing a command and setting up the output and input data
+pointers, it is possible to build a list of attributes.  This must
+be done after the data pointers as those will be modified.  Only one
+call to build attributes can be done per command.  For example,
+
+	const char data[] = "Some data.";
+	struct attribute_list attr_proto[] = {
+		{ .type = ATTR_GET, .page = 0x82, .number = 1, .len = 8 },
+		{ .type = ATTR_GET, .page = 0x10993, .number = 12, .len = 20 },
+		{ .type = ATTR_SET, .page = 0x10076, .number = 1,
+		  .val = data, .len = sizeof(data) },
+	};
+	osd_command_attr_build(command, attr_proto, 3);
+
+For PUT attributes (only), provide the input data.  The attribute structure
+and the output data contents are copied as part of the build command, so
+they can be placed on the stack and forgotten immediately after the
+command.  Internally a single allocation holds the various structures
+required by the OSD and must be freed by a call to osd_command_attr_free.
+
+Now submit the command to the device and wait for it to finish as above.
+
+Before the data or the GET attributes can be accessed, a call to
+resolve the attributes must be made to locate the output values.  This
+is only required if there are any ATTR_GET* attributes to process:
+
+	osd_command_attr_resolve(command);
+
+Now to look at a particular value, you can use the pointers that
+were placed into the attribute structure.  Do not expect to use the
+original attribute_list you passed in to build, but look at the one
+that was created for you in command->attr:
+
+	uint64_t logical_len = ntohl(command->attr[0].val);
+	int str_len = command->attr[1].outlen;
+	char *s = Malloc(str_len + 1);
+	memcpy(s, command->attr[1].val);
+	s[str_len] = '\0';
+
+Don't forget to do ntohll() on things that look like integers.  You can
+also check attr[1].outlen to see if the actual returned length is
+what was expected.
+
+Now is also now safe to look at the data in command->indata.  (If you
+only had ATTR_SET, command->indata is valid without calling attr_resolve.)
+
+Finally, it is necessary to free the internal command state for
+attributes:
+
+	osd_command_attr_free(command);
+
+One twist to the attribute story.  If you do an OSD CREATE command
+and ask for more than one object, you must use ATTR_GET_MULTI to
+request returned attributes.  The attr->val you get back, then, is not
+just a single value, but a pointer to a struct attribute_get_multi_results
+that contains lists of val, outlen, and the owning oid.  That is, there
+is one returned value for each new object created.
+
+
+Command attributes, get all
+---------------------------
+Specifying a number of 0xffffffff in a attribute request tells the
+device to return all user-defined attributes in the specified page.
+If the page is also 0xffffffff, return all user-defined attributes in
+all pages.
+
+This is messy, because we may not know how many attributes there are
+in advance, hence the normal attribute code described above will not
+work cleanly.  While it is possible to mix non-all and all attribute
+get requests, this interface does not allow that, hoping that it is
+not a common thing to do.  The tradeoff is avoiding much complexity
+in the normal attribute code.
+
+This new interface, just to get all attributes of a specified page,
+looks like:
+
+	osd_command_attr_all_build(command, page);
+
+It can be applied to any command, and builds a request for the largest
+possible attribute return size (64 kB), with number 0xffffffff.  Note
+that the user does not pass in an attribute structure.
+
+Resolving the results after the command finishes happens similarly with:
+
+	osd_command_attr_all_resolve(command);
+
+Then you can see how many actually were returned by looking at
+command->numattr, and loop through the attrs as follows:
+
+	for (j=0; j<command->numattrs; j++) {
+		printf("attr %d page %lx number %lx len %x\n", j,
+		       command->attr[j].page, command->attr[j].number,
+		       command->attr[j].outlen);
+		/* look at val in command->attr[j].val */
+	}
+
+And to clean up, a special call must be used:
+
+	osd_command_attr_all_free(command);
+
+but be sure to complete accessing all the returned attribute values
+first, because they will disappear at free time.
+
+
+Sense
+-----
+One single call returns a descriptive string for an error.  If, after
+executing a command, the command->status field is 2 (CHECK_CONDITION),
+call:
+
+	s = osd_show_sense(command->sense, command->sense_len);
+
+then print s as an error, and free it when done.
+
+
+Sync
+----
+This collection of synchronous routines is very handy for testing and
+for most programs.  These functions are mostly analogous to the ones
+in command.h, but they setup a command, run it, check the results, and
+return data all in one step.  For example
+
+	create_partition(fd, 0);
+
+creates a new partitition.  Internally it makes three calls to command.h
+with lots of error checking.
+
+# vim: set tw=72 :

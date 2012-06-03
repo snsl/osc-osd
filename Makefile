@@ -6,6 +6,7 @@ MK_PATH ?= $(PWD)
 util := $(MK_PATH)/osd-util
 tgt := $(MK_PATH)/tgt
 target := $(MK_PATH)/osd-target
+initiator := $(MK_PATH)/osd-initiator
 CHECKPATCH ?= ~/dev/git/pub/scsi-misc/scripts/checkpatch.pl
 checkpatch_2_kdev = checkpatch-2-kdev
 
@@ -13,8 +14,15 @@ checkpatch_2_kdev = checkpatch-2-kdev
 # comment out any below to remove from compelation
 all: target
 all: stgt
+all: target_test
+# FreeBSD does not build initiator yet
+ifneq ($(FreeBSD_Make),1)
+all: initiator
+all: initiator_tests
+all: initiator_python
+endif
 
-clean: stgt_clean target_clean util_clean
+clean: stgt_clean initiator_clean target_clean util_clean
 
 .PHONY: util util_clean
 util:
@@ -27,8 +35,27 @@ util_clean:
 target: util
 	$(MAKE) -C $(target)
 
+target_test: target
+	$(MAKE) -C $(target)/tests
+
 target_clean:
 	$(MAKE) -C $(target) clean
+	$(MAKE) -C $(target)/tests clean
+
+.PHONY: initiator initiator_tests initiator_python initiator_clean
+initiator: util
+	$(MAKE) -C $(initiator)
+
+initiator_tests: initiator
+	$(MAKE) -C $(initiator)/tests
+
+initiator_python: initiator
+	$(MAKE) -C $(initiator)/python
+
+initiator_clean:
+	$(MAKE) -C $(initiator)/python clean
+	$(MAKE) -C $(initiator)/tests clean
+	$(MAKE) -C $(initiator) clean
 
 OTGTD = otgtd
 ifeq ($(PANASAS_OSD),1)
@@ -59,7 +86,7 @@ dist:
 
 # ctags generation for all projects
 ctags:
-	ctags -R $(util) $(target) $(tgt) /usr/include
+	ctags -R $(util) $(target) $(initiator) $(tgt) /usr/include
 
 osd_checkpatch:
 	git show | $(CHECKPATCH) - | $(checkpatch_2_kdev) $(PWD)

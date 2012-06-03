@@ -15,6 +15,7 @@
 commit_txt=`pwd`/commit.txt
 start_rev=695
 util_first=2918
+initiator_first=2162
 
 log2revlist()
 {
@@ -49,6 +50,7 @@ get_all_revs()
 {
 get_rev_list_folder osd-target
 get_rev_list_folder osd-util
+get_rev_list_folder osd-initiator
 }
 
 echo "$0 getting list of revisions to update"
@@ -181,6 +183,11 @@ for i in $list; do
 	if [ $(( $i >= $util_first )) != 0 ]; then
 		svn_update_folder osd-util $i;
 		git_add_files osd-util
+	fi
+
+	if [ $(( $i >= $initiator_first )) != 0 ]; then
+		svn_update_folder osd-initiator $i
+		git_add_files osd-initiator
 	fi
 
 echo "DEBUG ["

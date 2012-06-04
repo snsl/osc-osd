@@ -40,9 +40,9 @@ def ccap_verify(ccap, len, pid, oid):
 	assert len == CCAP_TOTAL_LEN
 	assert ntohl(ccap[0:4]) == CUR_CMD_ATTR_PG
 	assert ntohl(ccap[4:8]) == len - 8
-	assert ntohll(ccap[32:40]) == pid
-	assert ntohll(ccap[40:48]) == oid + 5 - 1
-	assert ntohll(ccap[48:56]) == 0
+	assert ntohll(ccap[44:52]) == pid
+	assert ntohll(ccap[52:60]) == oid + 5 - 1
+	assert ntohll(ccap[60:68]) == 0
 
 def test_partition():
 	# create partition + empty getpage_setlist

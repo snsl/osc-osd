@@ -155,9 +155,9 @@ def test_osd_get_ccap(pid, oid):
 	assert attr.outlen == CCAP_TOTAL_LEN
 	assert ntohl(attr.val[0:4]) == CUR_CMD_ATTR_PG
 	assert ntohl(attr.val[4:8]) == CCAP_TOTAL_LEN - 8
-	assert ntohll(attr.val[32:40]) == pid
-	assert ntohll(attr.val[40:48]) == oid
-	assert ntohll(attr.val[48:56]) == 0
+	assert ntohll(attr.val[44:52]) == pid
+	assert ntohll(attr.val[52:60]) == oid
+	assert ntohll(attr.val[60:68]) == 0
 
 def ntoh_time(buf):
 	return (ntohs(buf[0:2]) << 32) | ntohl(buf[2:6])

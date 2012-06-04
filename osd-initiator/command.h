@@ -53,6 +53,13 @@ struct attribute_get_multi_results {
 	uint16_t *outlen;
 };
 
+/* The Linux kernel does not currently support BSG iovecs.  The
+   bsg_iovec struct below assumes a kernel patch that has not been
+   incorporated into the kernel.  Therefore, it is removed for now,
+   and just set to point to the scsi/sg.h sg_iovec (which is ignored
+   in the kernel
+*/
+#ifdef __APPLE__
 /*
  * This is copied from a kernel header to avoid including it.
  */
@@ -61,6 +68,10 @@ struct bsg_iovec {
 	uint32_t iov_len;
 	uint32_t __pad1;
 };
+#else
+#include <scsi/sg.h>
+#define bsg_iovec sg_iovec
+#endif
 
 /*
  * All information needed to submit a command to the kernel module.
@@ -103,6 +114,10 @@ int osd_command_set_create_collection(struct osd_command *command,
 				      uint64_t pid, uint64_t requested_cid);
 int osd_command_set_create_partition(struct osd_command *command,
 				     uint64_t requested_pid);
+int osd_command_set_create_user_tracking_collection(struct osd_command *command,
+						    uint64_t pid,
+						    uint64_t requested_cid,
+						    uint64_t source_cid);
 int osd_command_set_flush(struct osd_command *command, uint64_t pid, uint64_t len,
 			  uint64_t offset, uint64_t oid, int flush_scope);
 int osd_command_set_flush_collection(struct osd_command *command, uint64_t pid,
@@ -128,7 +143,8 @@ int osd_command_set_perform_task_mgmt_func(struct osd_command *command);
 int osd_command_set_punch(struct osd_command *command, uint64_t pid,
 			  uint64_t oid, uint64_t len, uint64_t offset);
 int osd_command_set_query(struct osd_command *command, uint64_t pid,
-			  uint64_t cid, uint32_t query_len, uint64_t alloc_len);
+			  uint64_t cid, uint32_t cont_len, uint64_t alloc_len,
+			  uint64_t matches_cid);
 int osd_command_set_read(struct osd_command *command, uint64_t pid,
 			 uint64_t oid, uint64_t len, uint64_t offset);
 int osd_command_set_read_map(struct osd_command*command, uint64_t pid, uint64_t oid,

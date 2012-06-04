@@ -40,7 +40,7 @@
 #include <sys/ioctl.h>
 
 #include "osd-util/osd-util.h"
-#include "osd-util/bsg.h"
+#include <linux/bsg.h>
 
 /*
  * Be sure to pick the disk correctly.  Write test will destroy it.

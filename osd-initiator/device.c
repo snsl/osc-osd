@@ -22,7 +22,8 @@
 #include <errno.h>
 
 #include "osd-util/osd-util.h"
-#include "osd-util/bsg.h"
+#include <linux/bsg.h>
+#include <scsi/sg.h>
 #include "command.h"
 #include "device.h"
 
@@ -39,14 +40,54 @@ int osd_submit_command(int fd, struct osd_command *command)
 	sg.response = (uint64_t) (uintptr_t) command->sense;
 
 	if (command->outlen) {
+#ifdef KERNEL_SUPPORTS_BSG_IOVEC
 		sg.dout_xfer_len = command->outlen;
 		sg.dout_xferp = (uint64_t) (uintptr_t) command->outdata;
 		sg.dout_iovec_count = command->iov_outlen;
+#else
+		// The kernel doesn't support BSG iovecs mainly because
+		// of a problem going from 32-bit user iovecs to a 64-bit kernel
+		// So, just copy the iovecs into a new buffer and use that
+		sg_iovec_t *iov = (sg_iovec_t *)(uintptr_t)command->outdata;
+		if (command->iov_outlen == 0) {
+			sg.dout_xfer_len = command->outlen;
+			sg.dout_xferp = (uint64_t) (uintptr_t) command->outdata;
+		} else if (command->iov_outlen == 1) {
+			sg.dout_xfer_len = iov->iov_len;
+			sg.dout_xferp = (uint64_t) (uintptr_t) iov->iov_base;
+		} else {
+			int i;
+			uint8_t *buff = Malloc(command->outlen);
+			sg.dout_xferp = (uint64_t) (uintptr_t) buff;
+			for (i=0; i<command->iov_outlen; i++) {
+				memcpy(buff, iov[i].iov_base, iov[i].iov_len);
+				buff += iov[i].iov_len;
+			}
+			sg.dout_xfer_len = command->outlen;
+		}
+		sg.dout_iovec_count = 0;
+#endif
 	}
 	if (command->inlen_alloc) {
+#ifdef KERNEL_SUPPORTS_BSG_IOVEC
 		sg.din_xfer_len = command->inlen_alloc;
 		sg.din_xferp = (uint64_t) (uintptr_t) command->indata;
 		sg.din_iovec_count = command->iov_inlen;
+#else
+		if (command->iov_inlen == 0) {
+			sg.din_xfer_len = command->inlen_alloc;
+			sg.din_xferp = (uint64_t) (uintptr_t) command->indata;
+			sg.din_iovec_count = command->iov_inlen;
+		} else if (command->iov_inlen == 1) {
+			sg_iovec_t *iov = (sg_iovec_t *)command->indata;
+			sg.din_xfer_len = iov->iov_len;
+			sg.din_xferp = (uint64_t) (uintptr_t) iov->iov_base;
+		} else {
+			sg.din_xfer_len = command->inlen_alloc;
+			sg.din_xferp = (uint64_t) (uintptr_t) (uint8_t*) Malloc(command->inlen_alloc);
+		}
+		sg.din_iovec_count = 0;
+#endif
 	}
 
 	/*
@@ -56,6 +97,11 @@ int osd_submit_command(int fd, struct osd_command *command)
 	sg.timeout = 30000;
 	sg.usr_ptr = (uint64_t) (uintptr_t) command;
 	ret = write(fd, &sg, sizeof(sg));
+#ifndef KERNEL_SUPPORTS_BSG_IOVEC
+	if (command->outlen && command->iov_outlen > 1) {
+		free((void *) (uintptr_t) sg.dout_xferp);
+	}
+#endif
 	if (ret < 0) {
 		osd_error_errno("%s: write", __func__);
 		return -errno;
@@ -90,6 +136,20 @@ int osd_wait_response(int fd, struct osd_command **out_command)
 		command->inlen = command->inlen_alloc - sg.din_resid;
 	command->status = sg.device_status;
 	command->sense_len = sg.response_len;
+
+#ifndef KERNEL_SUPPORTS_BSG_IOVEC
+	// copy from buffer to iovecs
+	if (command->inlen_alloc && command->iov_inlen > 1) {
+		sg_iovec_t *iov = (sg_iovec_t *) command->indata;
+		uint8_t *buff = (uint8_t *) (uintptr_t) sg.din_xferp;
+		int i;
+		for (i=0; i<command->iov_inlen; i++) {
+			memcpy(iov[i].iov_base, buff, iov[i].iov_len);
+			buff += iov[i].iov_len;
+		}
+		free((void *) (uintptr_t) sg.din_xferp);
+	}
+#endif
 
 	*out_command = command;
 

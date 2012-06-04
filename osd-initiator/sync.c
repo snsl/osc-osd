@@ -104,7 +104,7 @@ int query(int fd, uint64_t pid, uint64_t cid, const uint8_t *query)
 
 	osd_debug("....creating command");
 	osd_command_set_query(&command, pid, cid,
-			      strlen((const char *)query), sizeof(buf));
+			      strlen((const char *)query), sizeof(buf), 0);
 
 	osd_debug("....building command");
 	command.outdata = query;

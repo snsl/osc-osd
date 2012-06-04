@@ -672,7 +672,7 @@ static PyObject *pyosd_command_set_query(PyObject *self, PyObject *args)
 	}
 
 	py_command->set = 1;
-	osd_command_set_query(command, pid, cid, query_len, alloc_len);
+	osd_command_set_query(command, pid, cid, query_len, alloc_len, 0);
 	Py_IncRef(self);
 	return self;
 }

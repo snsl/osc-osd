@@ -18,19 +18,20 @@
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
+#ifndef __APPLE__
 #include <scsi/scsi.h>
+#include <scsi/sg.h>  /* sg_iovec */
+#define bsg_iovec sg_iovec
+typedef void* iov_base_t;
+#else
+typedef uint64_t iov_base_t;
+#endif
 
 /* turn this on automatically with configure some day */
 #if 0
 #include <valgrind/memcheck.h>
 #else
 #define VALGRIND_MAKE_MEM_DEFINED(p, len)
-#endif
-
-/* #define BSG_BACK_TO_SG_IOVEC */
-
-#ifdef BSG_BACK_TO_SG_IOVEC
-#include <scsi/sg.h>  /* sg_iovec */
 #endif
 
 #include "osd-util/osd-util.h"
@@ -63,6 +64,7 @@ int osd_command_set_test_unit_ready(struct osd_command *command)
 	return 0;
 }
 
+#ifndef __APPLE__
 int osd_command_set_inquiry(struct osd_command *command, uint8_t page_code,
 			    uint8_t outlen)
 {
@@ -76,6 +78,7 @@ int osd_command_set_inquiry(struct osd_command *command, uint8_t page_code,
 	}
 	return 0;
 }
+#endif
 
 /*
  * These functions take a cdb of the appropriate size (200 bytes),
@@ -141,6 +144,19 @@ int osd_command_set_create_partition(struct osd_command *command,
 {
         varlen_cdb_init(command, OSD_CREATE_PARTITION);
         set_htonll(&command->cdb[16], requested_pid);
+        return 0;
+}
+
+
+int osd_command_set_create_user_tracking_collection(struct osd_command *command,
+						    uint64_t pid,
+						    uint64_t requested_cid,
+						    uint64_t source_cid)
+{
+        varlen_cdb_init(command, OSD_CREATE_USER_TRACKING_COLLECTION);
+        set_htonll(&command->cdb[16], pid);
+        set_htonll(&command->cdb[24], requested_cid);
+        set_htonll(&command->cdb[40], source_cid);
         return 0;
 }
 
@@ -273,13 +289,15 @@ int osd_command_set_punch(struct osd_command *command, uint64_t pid,
 }
 
 int osd_command_set_query(struct osd_command *command, uint64_t pid,
-			  uint64_t cid, uint32_t query_len, uint64_t alloc_len)
+			  uint64_t cid, uint32_t cont_len, uint64_t alloc_len,
+			  uint64_t matches_cid)
 {
         varlen_cdb_init(command, OSD_QUERY);
         set_htonll(&command->cdb[16], pid);
         set_htonll(&command->cdb[24], cid);
-        set_htonl(&command->cdb[48], query_len);
         set_htonll(&command->cdb[32], alloc_len);
+        set_htonll(&command->cdb[40], matches_cid);
+        set_htonl(&command->cdb[48], cont_len);
         return 0;
 }
 
@@ -488,17 +506,14 @@ struct attr_malloc_header {
 int osd_command_attr_build(struct osd_command *command,
                            const struct attribute_list *attr, int numattr)
 {
-        int use_getpage, use_set_one_attr;
+        int use_getpage, use_set_one_attr = 0;
 	int numget, numgetpage, numgetmulti, numset, numresult;
 	uint32_t getsize, getpagesize, getmultisize, setsize, resultsize;
 	uint32_t getmulti_num_objects = 0;
 	struct attr_malloc_header *header;
 	uint8_t *p, *extra_out_buf, *extra_in_buf;
-#ifdef BSG_BACK_TO_SG_IOVEC
-	struct sg_iovec *iov;
-#else
 	struct bsg_iovec *iov;
-#endif
+
 	int i;
 	int neediov;
 	int setattr_index;
@@ -548,7 +563,7 @@ int osd_command_attr_build(struct osd_command *command,
 	for (i=0; i<numattr; i++) {
 		if (attr[i].type == ATTR_GET) {
 			++numget;
-			getsize += roundup8(10 + attr[i].len);
+			getsize += roundup8(16 + attr[i].len);
 		} else if (attr[i].type == ATTR_GET_PAGE) {
 			++numgetpage;
 			getpagesize += attr[i].len;  /* no round */
@@ -558,10 +573,10 @@ int osd_command_attr_build(struct osd_command *command,
 		} else if (attr[i].type == ATTR_SET) {
 			++numset;
 			setattr_index = i;
-			setsize += roundup8(10 + attr[i].len);
+			setsize += roundup8(16 + attr[i].len);
 		} else if (attr[i].type == ATTR_RESULT) {
 			++numresult;
-			resultsize += roundup8(10 + attr[i].len);
+			resultsize += roundup8(16 + attr[i].len);
 		} else {
 			osd_error("%s: invalid attribute type %d", __func__,
 			          attr[i].type);
@@ -834,9 +849,9 @@ int osd_command_attr_build(struct osd_command *command,
 					continue;
 				set_htonl(&q[0], attr[i].page);
 				set_htonl(&q[4], attr[i].number);
-				set_htons(&q[8], attr[i].len);
-				memcpy(&q[10], attr[i].val, attr[i].len);
-				len = 10 + attr[i].len;
+				set_htons(&q[14], attr[i].len);
+				memcpy(&q[16], attr[i].val, attr[i].len);
+				len = 16 + attr[i].len;
 				q += len;
 				while (len & 7) {
 					*q++ = 0;
@@ -932,7 +947,7 @@ int osd_command_attr_build(struct osd_command *command,
 			command->outdata = iov;
 			if (command->iov_outlen == 0) {
 				iov->iov_base =
-					(uintptr_t) header->orig_outdata;
+				  (iov_base_t)(uintptr_t) header->orig_outdata;
 				iov->iov_len = command->outlen;
 				++iov;
 				command->iov_outlen = 2;
@@ -942,7 +957,7 @@ int osd_command_attr_build(struct osd_command *command,
 				iov += command->iov_outlen;
 				++command->iov_outlen;
 			}
-			iov->iov_base = (uintptr_t) p;
+			iov->iov_base = (iov_base_t) p;
 			iov->iov_len = extra_out;
 			++iov;
 		} else {
@@ -959,7 +974,7 @@ int osd_command_attr_build(struct osd_command *command,
 		if (command->indata) {
 			command->indata = iov;
 			if (command->iov_inlen == 0) {
-				iov->iov_base = (uintptr_t) header->orig_indata;
+				iov->iov_base = (iov_base_t) header->orig_indata;
 				iov->iov_len = command->inlen_alloc;
 				++iov;
 				command->iov_inlen = 2;
@@ -969,7 +984,7 @@ int osd_command_attr_build(struct osd_command *command,
 				iov += command->iov_inlen;
 				++command->iov_inlen;
 			}
-			iov->iov_base = (uintptr_t) p;
+			iov->iov_base = (iov_base_t) p;
 			iov->iov_len = extra_in;
 			++iov;
 		} else {
@@ -1081,7 +1096,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 		uint16_t item_len, pad;
 		uint16_t avail_len;
 
-		if (len < 10u + 8 * !!numgetmulti)
+		if (len < 16u + 8 * !!numgetmulti)
 			break;
 		if (numgetmulti) {
 			oid = get_ntohll(&p[0]);
@@ -1089,9 +1104,9 @@ int osd_command_attr_resolve(struct osd_command *command)
 		}
 		page = get_ntohl(&p[0]);
 		number = get_ntohl(&p[4]);
-		item_len = get_ntohs(&p[8]);
-		p += 10;
-		len -= 10;
+		item_len = get_ntohs(&p[14]);
+		p += 16;
+		len -= 16;
 
 		for (i=0; i<numattr; i++) {
 			if (!(attr[i].type == ATTR_GET
@@ -1142,7 +1157,7 @@ int osd_command_attr_resolve(struct osd_command *command)
 		if (item_len == 0xffff)
 			item_len = 0;
 
-		pad = roundup8(10 + item_len) - (10 + item_len);
+		pad = roundup8(16 + item_len) - (16 + item_len);
 		if (item_len + pad >= len)
 			break;
 
@@ -1301,11 +1316,11 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 	for (;;) {
 		uint16_t item_len, pad;
 
-		if (len < 16u)  /* 10 header plus val plus roundup */
+		if (len < 16u)  /* 16 header plus val plus roundup */
 			break;
-		item_len = get_ntohs(&p[8]);
-		p += 10;
-		len -= 10;
+		item_len = get_ntohs(&p[14]);
+		p += 16;
+		len -= 16;
 
 		if (item_len == 0xffff) {
 			osd_error("%s: target returned item_len -1", __func__);
@@ -1314,7 +1329,7 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 
 		++command->numattr;
 
-		pad = roundup8(10 + item_len) - (10 + item_len);
+		pad = roundup8(16 + item_len) - (16 + item_len);
 		if (item_len + pad >= len)
 			break;
 
@@ -1346,9 +1361,9 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 			break;
 		page = get_ntohl(&p[0]);
 		number = get_ntohl(&p[4]);
-		item_len = get_ntohs(&p[8]);
-		p += 10;
-		len -= 10;
+		item_len = get_ntohs(&p[14]);
+		p += 16;
+		len -= 16;
 		avail_len = item_len;
 
 		/*
@@ -1367,7 +1382,7 @@ int osd_command_attr_all_resolve(struct osd_command *command)
 		command->attr[command->numattr].outlen = avail_len;
 		++command->numattr;
 
-		pad = roundup8(10 + item_len) - (10 + item_len);
+		pad = roundup8(16 + item_len) - (16 + item_len);
 		if (item_len + pad >= len)
 			break;
 
@@ -1407,7 +1422,7 @@ int osd_command_list_resolve(struct osd_command *command)
 	int i, listoid, list_attr;
 
 	listoid = (p[23] & 0x40);
-	char title[3];
+	char title[4];
 	(listoid ? strcpy(title, "OID") : strcpy(title, "PID"));
 
 	if (p[23] & 0x08)
@@ -1457,7 +1472,7 @@ int osd_command_list_collection_resolve(struct osd_command *command)
 	int i, listoid, list_attr;
 
 	listoid = (p[23] & 0x80);
-	char title[3];
+	char title[4];
 	(listoid ? strcpy(title, "OID") : strcpy(title, "CID"));
 
 	if (p[23] & 0x08)

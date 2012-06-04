@@ -28,6 +28,10 @@
 #include "drivelist.h"
 #include "sync.h"
 
+#include <scsi/sg.h>  /* sg_iovec */
+typedef void* iov_base_t;
+#define bsg_iovec sg_iovec
+
 static const uint64_t PID = 0x10000LLU;
 static const uint64_t OID = 0x10000LLU;
 static const uint64_t PAGE = 0; 
@@ -106,9 +110,9 @@ static void iovec_write_test(int fd, uint64_t pid, uint64_t oid)
 	int ret;
 
 	osd_info(__func__);
-	vec[0].iov_base = (uint64_t)(uintptr_t) buf1;
+	vec[0].iov_base = (iov_base_t)(uintptr_t) buf1;
 	vec[0].iov_len = sizeof(buf1)-1;
-	vec[1].iov_base = (uint64_t)(uintptr_t) buf2;
+	vec[1].iov_base = (iov_base_t)(uintptr_t) buf2;
 	vec[1].iov_len = sizeof(buf2);
 	tot_len = sizeof(buf1)-1 + sizeof(buf2);
 	memset(&command, 0, sizeof(command));
@@ -165,9 +169,9 @@ static void iovec_read_test(int fd, uint64_t pid, uint64_t oid)
 
 	memset(buf1, 0, sizeof(buf1));
 	memset(buf2, 0, sizeof(buf2));
-	vec[0].iov_base = (uint64_t)(uintptr_t) buf1;
+	vec[0].iov_base = (iov_base_t)(uintptr_t) buf1;
 	vec[0].iov_len = sizeof(buf1)-1;
-	vec[1].iov_base = (uint64_t)(uintptr_t) buf2;
+	vec[1].iov_base = (iov_base_t)(uintptr_t) buf2;
 	vec[1].iov_len = sizeof(buf2);
 	tot_len = sizeof(buf1)-1 + sizeof(buf2);
 	memset(&command, 0, sizeof(command));
@@ -343,7 +347,7 @@ static void all_attr_test(int fd, uint64_t pid, uint64_t oid)
 	assert(ret == 0);
 	ret = osd_submit_and_wait(fd, &command);
 	assert(ret == 0);
-	assert(command.inlen == 8 + 2 * roundup8(10 + sizeof(attr_data)));
+	assert(command.inlen == 8 + 2 * roundup8(16 + sizeof(attr_data)));
 	ret = osd_command_attr_all_resolve(&command);
 	assert(ret == 0);
 	assert(command.numattr == 2);
@@ -354,7 +358,7 @@ int main(int argc, char *argv[])
 {
 	int fd, ret, num_drives, i;
 	struct osd_drive_description *drives;
-	uint8_t outbuf[100];
+	uint8_t outbuf[sizeof(WRITEDATA)+sizeof(WRITEDATA2)];
 
 	osd_set_progname(argc, argv); 
 
@@ -402,13 +406,15 @@ int main(int argc, char *argv[])
 		remove_osd(fd, PID, OID+1);
 
 		write_osd(fd, PID, OID, WRITEDATA, sizeof(WRITEDATA), OFFSET);
-		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
+		read_osd(fd, PID, OID, outbuf,sizeof(WRITEDATA), OFFSET);
 		append_osd(fd, PID, OID, WRITEDATA2, sizeof(WRITEDATA2));
-		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
+		read_osd(fd, PID, OID, outbuf,
+			 sizeof(WRITEDATA)+sizeof(WRITEDATA2), OFFSET);
 		write_osd(fd, PID, OID+2, WRITEDATA2, sizeof(WRITEDATA2), OFFSET);
-		read_osd(fd, PID, OID+2, outbuf, sizeof(outbuf), OFFSET);
-	
-		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
+		read_osd(fd, PID, OID+2, outbuf, sizeof(WRITEDATA2), OFFSET);
+
+		read_osd(fd, PID, OID, outbuf,
+			 sizeof(WRITEDATA)+sizeof(WRITEDATA2), OFFSET);
 
 #endif
 
@@ -447,7 +453,7 @@ int main(int argc, char *argv[])
 		create_osd(fd, PID, OID+10, NUM_USER_OBJ);
 		create_osd(fd, PID, OID+11, NUM_USER_OBJ);
 		write_osd(fd, PID, OID, WRITEDATA, sizeof(WRITEDATA), OFFSET);
-		read_osd(fd, PID, OID, outbuf, sizeof(outbuf), OFFSET);
+		read_osd(fd, PID, OID, outbuf, sizeof(WRITEDATA), OFFSET);
 #endif
 
 		close(fd);

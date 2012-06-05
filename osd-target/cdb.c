@@ -145,9 +145,10 @@ static int set_one_attr_value(struct command *cmd, uint64_t pid, uint64_t oid,
 	uint16_t len = get_ntohs(&cdb[60]); 
 	void *value = &cmd->cdb[62];
 
-	/* nothing to set. osd2r03 Sec 5.2.4.2 */
+	/* conflict in standard. osd2r03 Sec 5.2.4.2 says do nothing */
+	/* osd2r03 Sec 7.1.2.7 says return error */
 	if (page == 0)
-	        return 0; 
+	        goto out_invalid_param;
 
 	/* terminate command with check command status, set sense to illegal
 	   reguest osd2r03 Sec 5.2.4.2 */
@@ -230,7 +231,7 @@ static int get_attr_list(struct command *cmd, uint64_t pid, uint64_t oid,
 		goto out_param_list_err;
 
 	if (numoid > 1)
-		listfmt = RTRVD_CREATE_MULTIOBJ_LIST;
+		listfmt = RTRVD_MULTIOBJ_LIST;
 	outbuf[0] = listfmt; /* fill list header */
 	outbuf[1] = outbuf[2] = outbuf[3] = 0;
 

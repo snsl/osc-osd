@@ -335,7 +335,7 @@ out:
 /*
  * Get current command attributes page (osd2r00 Sec 7.1.2.24) attributes.
  *
- * NOTE: since RTRVD_CREATE_MULTIOBJ_LIST listfmt is set only when multiple
+ * NOTE: since RTRVD_MULTIOBJ_LIST listfmt is set only when multiple
  * objects are created, and CCAP has room for only one (pid, oid), the
  * retrieved attributes are always in RTRVD_SET_ATTR_LIST format described in
  * osd2r00 Sec 7.1.3.3
@@ -549,9 +549,13 @@ static int get_utsap_aslist(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		return OSD_ERROR;
 	}
 
-	if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+	if (listfmt == RTRVD_MULTIOBJ_LIST)
 		ret = le_multiobj_pack_attr(outbuf, outlen, oid,
 					    USER_TMSTMP_PG, number, len, val);
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		ret = le_create_multiobj_pack_attr(outbuf, outlen, oid,
+						   USER_TMSTMP_PG, number, len,
+						   val);
 	else
 		ret = le_pack_attr(outbuf, outlen, USER_TMSTMP_PG, number,
 				   len, val);
@@ -657,9 +661,12 @@ static int get_uiap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 		set_htonll(ll, value);
 	if (listfmt == RTRVD_SET_ATTR_LIST)
 		ret = le_pack_attr(outbuf, outlen, page, number, len, val);
-	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+	else if (listfmt == RTRVD_MULTIOBJ_LIST)
 		ret = le_multiobj_pack_attr(outbuf, outlen, oid, page, number,
 					    len, val);
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		ret = le_create_multiobj_pack_attr(outbuf, outlen, oid, page,
+						   number, len, val);
 	else
 		return OSD_ERROR;
 
@@ -809,9 +816,12 @@ static int get_riap(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	if (listfmt == RTRVD_SET_ATTR_LIST)
 		ret = le_pack_attr(outbuf, outlen, page, number, len, val);
-	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+	else if (listfmt == RTRVD_MULTIOBJ_LIST)
 		ret = le_multiobj_pack_attr(outbuf, outlen, oid, page, number,
 					    len, val);
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		ret = le_create_multiobj_pack_attr(outbuf, outlen, oid, page,
+						   number, len, val);
 	else
 		return OSD_ERROR;
 
@@ -955,9 +965,13 @@ static int get_ciap(struct osd_device *osd, uint64_t pid, uint64_t cid,
 
 	if (listfmt == RTRVD_SET_ATTR_LIST)
 		ret = le_pack_attr(outbuf, outlen, COLL_INFO_PG, number, len, val);
-	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+	else if (listfmt == RTRVD_MULTIOBJ_LIST)
 		ret = le_multiobj_pack_attr(outbuf, outlen, cid, COLL_INFO_PG,
 					    number, len, val);
+	else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		ret = le_create_multiobj_pack_attr(outbuf, outlen, cid,
+						   COLL_INFO_PG, number, len,
+						   val);
 	else
 		return OSD_ERROR;
 
@@ -2317,9 +2331,12 @@ static int fill_null_attr(struct osd_device *osd, uint64_t pid, uint64_t oid,
 	int ret;
 
 	if (page != GETALLATTR_PG && number != ATTRNUM_GETALL) {
-		if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+		if (listfmt == RTRVD_MULTIOBJ_LIST)
 			ret = le_multiobj_pack_attr(outbuf, outlen, oid,
 						    page, number, 0, NULL);
+		else if (listfmt == RTRVD_CREATE_MULTIOBJ_LIST)
+			ret = le_create_multiobj_pack_attr(outbuf, outlen, oid,
+							   page, number, 0,NULL);
 		else
 			ret = le_pack_attr(outbuf, outlen, page, number, 0,
 					   NULL);
@@ -2489,7 +2506,7 @@ out_hw_err:
  *    current command
  *    null
  *
- * NOTE: since RTRVD_CREATE_MULTIOBJ_LIST listfmt can only be used when
+ * NOTE: since RTRVD_MULTIOBJ_LIST listfmt can only be used when
  * cdbfmt == GETLIST_SETLIST, osd_getattr_page always generates list in
  * RTRVD_SET_ATTR_LIST. hence there is no listfmt arg.
  *
@@ -3684,12 +3701,6 @@ int osd_set_attributes(struct osd_device *osd, uint64_t pid, uint64_t oid,
 
 	if (number == ATTRNUM_UNMODIFIABLE)
 		goto out_param_list;
-
-	if ((val == NULL && len != 0) || (val != NULL && len == 0)) {
-		osd_warning("%s: NULLs %llu oid %llu", __func__,
-			  llu(pid), llu(oid));
-		goto out_cdb_err;
-	}
 
 	/* information page, make sure null terminated. osd2r00 7.1.2.2 */
 	if (number == ATTRNUM_INFO) {

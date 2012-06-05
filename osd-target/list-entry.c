@@ -78,7 +78,7 @@ int le_pack_attr(void *buf, uint32_t buflen, uint32_t page, uint32_t number,
 }
 
 /*
- * retrieve attr in list entry format; tab 130 Sec 7.1.3.4
+ * retrieve attr in list entry format; osd2r02 tab 156 Sec 7.1.3.4
  *
  * returns:
  * -EINVAL: error, alignment error
@@ -108,5 +108,38 @@ int le_multiobj_pack_attr(void *buf, uint32_t buflen, uint64_t oid,
 	if (ret > 0)
 		ret = MLE_PAGE_OFF + ret; /* add sizeof(oid) to length */
 	return ret;
+}
+
+/*
+ * retrieve attr in list entry format; osdr200 tab 130 Sec 7.1.3.4
+ *
+ * returns:
+ * -EINVAL: error, alignment error
+ * -EOVERFLOW: error, if not enough room to even start the entry
+ * >0: success. returns number of bytes copied into buf.
+ */
+int le_create_multiobj_pack_attr(void *buf, uint32_t buflen, uint64_t oid, 
+                                uint32_t page, uint32_t number, uint16_t valen,
+                                const void *val)
+{
+       int ret = 0;
+       uint8_t *cp = buf;
+
+       if (buflen < MLE_MIN_ITEM_LEN)
+               return -EOVERFLOW;
+
+       set_htonll(cp, oid);
+
+       /* 
+        * test if layout of struct multiobj_list_entry is similar to 
+        * struct list_entry prefixed with oid.
+        */
+       assert(MLE_VAL_OFF == (LE_VAL_OFF+sizeof(oid)));
+
+       ret = le_pack_attr(cp+sizeof(oid), buflen-sizeof(oid), page, number,
+                          valen, val);
+       if (ret > 0)
+               ret = MLE_PAGE_OFF + ret; /* add sizeof(oid) to length */
+       return ret;
 }
 

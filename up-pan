@@ -12,6 +12,7 @@ set OTGTD=$dir/$OTGTD_NAME
 set TARGETNAME=`/pan/bin/getdevinfo -q datasn`
 # logfile name
 set LOG="/var/log/otgtd.log"
+set STAY=""
 
 switch($1)
 case "down":
@@ -40,7 +41,9 @@ case "stat":
 	breaksw
 
 default:
-	if ("$1" != "") then 
+	if ("$1" == "--stay") then 
+		set STAY="yes"
+        elseif ("$1" != "") then 
 		echo "what is $0 $1?!?"
 		exit
         endif
@@ -76,3 +79,7 @@ $TGTADM --lld iscsi --mode logicalunit \
 $TGTADM --lld iscsi --mode target --op show
 
 echo "otgtd started, run up down to stop"
+
+if ("$STAY"="yes") then 
+	wait
+endif
